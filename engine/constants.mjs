@@ -124,6 +124,10 @@ export const STARTING_FUNDS_TIER5 = 1000;
 export const FUNDS_MULTIPLIER_PER_LEAGUE_TIER = 1.5;
 export const CARRYOVER_CAP_RATIO = 0.3; // 이월 자금 상한 = 다음 시즌 시작 자금의 30%
 
+// 스펙 7절 "드래프트(상점형)" — 슬라이스는 수석 스카우터 미구현이라 고정값
+export const SHOP_OFFER_SIZE = 3;
+export const SHOP_REROLL_COST = 50;
+
 // 스펙 3절/8절 "이벤트" — 슬라이스 범위: 일반 위기 2 + 일반 기회 3 + 승격 전용 위기 2
 export const PROMOTION_TRANSFER_DEMAND_OVR_PENALTY = 5; // 거부 시 그 시즌 OVR 하락(출발값, 튜닝 대상)
 export const PROMOTION_RENEWAL_HIKE_RATIO = 0.3; // 승격 전용: 재계약 비용 +30%

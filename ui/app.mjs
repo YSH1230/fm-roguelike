@@ -2,10 +2,17 @@ import { CLUBS } from '../data/clubs.mjs';
 import { generateSquadPool, TIER5_SQUAD_WEIGHTS } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
 import { rollPreseasonEvent } from '../data/run-preseason-event.mjs';
+import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier } from '../engine/league.mjs';
 import { runFullSeason } from '../engine/season.mjs';
 import { calculateStartingFunds, applyCarryoverCap } from '../engine/economy.mjs';
-import { CHEMISTRY_START } from '../engine/constants.mjs';
+import { applyTransactionDecay } from '../engine/chemistry.mjs';
+import {
+  CHEMISTRY_START,
+  CHEMISTRY_DECAY_PER_TRANSACTION,
+  SHOP_OFFER_SIZE,
+  SHOP_REROLL_COST,
+} from '../engine/constants.mjs';
 
 const FORMATION_SLOTS = ['GK', 'CB', 'CB', 'WB', 'WB', 'CMF', 'CMF', 'AMF', 'W', 'W', 'ST'];
 
@@ -64,9 +71,65 @@ function startRun(club) {
   const { funds, squad, message: eventMessage } = rollPreseasonEvent(rawSquad, baseFunds);
 
   const manager = generateProceduralManager('tactician');
-  const { lineup, bench } = pickBestXI(squad);
 
-  currentState = { club, squad, manager, lineup, bench, chemistry: CHEMISTRY_START, funds, eventMessage };
+  currentState = {
+    club,
+    squad,
+    manager,
+    chemistry: CHEMISTRY_START,
+    funds,
+    eventMessage,
+    shopOffer: generateShopOffer(SHOP_OFFER_SIZE),
+  };
+  renderShop();
+}
+
+function buyCard(card) {
+  if (currentState.funds < card.price) return;
+  currentState.funds -= card.price;
+  currentState.squad = [...currentState.squad, toSquadPlayer(card)];
+  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, CHEMISTRY_DECAY_PER_TRANSACTION);
+  currentState.shopOffer = currentState.shopOffer.filter((c) => c.id !== card.id);
+  renderShop();
+}
+
+function rerollShop() {
+  if (currentState.funds < SHOP_REROLL_COST) return;
+  currentState.funds -= SHOP_REROLL_COST;
+  currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
+  renderShop();
+}
+
+function renderShop() {
+  const { club, funds, eventMessage, shopOffer } = currentState;
+  const offerHtml = shopOffer
+    .map((c) => {
+      const affordable = funds >= c.price;
+      return `<li>${c.name} · ${c.position} · OVR ${c.baseOVR} · ${c.price}G
+        <button data-buy="${c.id}" ${affordable ? '' : 'disabled'}>구매</button></li>`;
+    })
+    .join('');
+
+  document.getElementById('run-info').innerHTML = `
+    <h2>${club.name} — 이적시장</h2>
+    <p>${eventMessage}</p>
+    <p>보유 자금: ${funds}G</p>
+    <h3>이번 주 드래프트</h3>
+    <ul>${offerHtml || '<li>매물 없음</li>'}</ul>
+    <button id="reroll-btn" ${funds >= SHOP_REROLL_COST ? '' : 'disabled'}>리롤 (${SHOP_REROLL_COST}G)</button>
+    <button id="confirm-shop-btn">스쿼드 확정하고 다음으로</button>
+  `;
+  for (const card of shopOffer) {
+    document.querySelector(`[data-buy="${card.id}"]`).onclick = () => buyCard(card);
+  }
+  document.getElementById('reroll-btn').onclick = rerollShop;
+  document.getElementById('confirm-shop-btn').onclick = finalizeSquad;
+}
+
+function finalizeSquad() {
+  const { lineup, bench } = pickBestXI(currentState.squad);
+  currentState.lineup = lineup;
+  currentState.bench = bench;
   renderSquad();
 }
 
