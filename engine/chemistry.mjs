@@ -1,4 +1,4 @@
-import { CHEMISTRY_BANDS } from './constants.mjs';
+import { CHEMISTRY_BANDS, CHEMISTRY_DECAY_PER_TRANSACTION } from './constants.mjs';
 
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -14,7 +14,7 @@ export function chemistryMultiplier(chemistry) {
   return mid.multiplierLow + progress * (mid.multiplierHigh - mid.multiplierLow);
 }
 
-export function applyTransactionDecay(chemistry, transactionCount, decayPerTransaction) {
+export function applyTransactionDecay(chemistry, transactionCount, decayPerTransaction = CHEMISTRY_DECAY_PER_TRANSACTION) {
   return clamp(chemistry - transactionCount * decayPerTransaction, 0, 100);
 }
 
