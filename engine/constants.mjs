@@ -1,0 +1,46 @@
+// 스펙 5.1절 "플레이스타일 태그 8종" 표
+export const PLAYSTYLE_TAGS = {
+  gegenpressing: { positions: ['ST', 'CMF'], tier3: 4, tier5: 7 },
+  falseNine: { positions: ['W', 'AMF'], tier3: 4, tier5: 7 },
+  longBallKickAndRush: { positions: ['ST', 'AMF'], tier3: 4, tier5: 7 },
+  tikiTaka: { positions: ['CMF', 'AMF'], tier3: 3, tier5: 5 },
+  totalFootball: { positions: ['WB', 'CMF'], tier3: 3, tier5: 6 },
+  falseFullBack: { positions: ['WB', 'CB'], tier3: 3, tier5: 5 }, // 변형 3백
+  buildUpFromBack: { positions: ['CB', 'GK'], tier3: 2, tier5: 4 }, // 후방 빌드업
+  counterAttack: { positions: ['W', 'ST'], tier3: 2, tier5: 4 }, // 선수비 후역습
+};
+
+// 스펙 5.1절 "대륙 태그 5종" 표 — 포지션 무관, 5개 권역 동일 수치
+export const CONTINENT_TAGS = {
+  europe: { tier3: 3, tier5: 5 },
+  southAmerica: { tier3: 3, tier5: 5 },
+  africa: { tier3: 3, tier5: 5 },
+  asiaOceania: { tier3: 3, tier5: 5 },
+  northCentralAmerica: { tier3: 3, tier5: 5 },
+};
+
+// 스펙 5.2절 "배율" — 루키/택티션/레전더리/GOD
+export const MANAGER_TIER_MULTIPLIER = {
+  rookie: 1.00,
+  tactician: 1.05,
+  legendary: 1.12,
+  god: 1.20,
+};
+
+// 스펙 6절 "적응도(팀 조직력)"
+export const CHEMISTRY_START = 60;
+export const CHEMISTRY_DECAY_PER_TRANSACTION = 2;
+export const CHEMISTRY_RECOVERY_PER_STABLE_WEEK = 1;
+
+// 40 미만 ×0.95, 40~95 ×1.00~×1.04 선형, 96 이상 ×1.12
+export const CHEMISTRY_BANDS = [
+  { max: 40, multiplier: 0.95 },
+  { max: 95, multiplierLow: 1.00, multiplierHigh: 1.04 },
+  { max: Infinity, multiplier: 1.12 },
+];
+
+// 스펙 12절 "미확정 사항" — 시뮬레이터로 조정할 튜닝 상수.
+// 여기서는 브레인스토밍에서 제시된 출발값을 그대로 코드 상수로 둔다.
+export const TEAM_MULTIPLIER_CAP = 1.30;
+export const LEAGUE_POINTS_COEFFICIENT = 2.5;
+export const BASE_POINTS_AT_LEAGUE_AVERAGE = 42;
