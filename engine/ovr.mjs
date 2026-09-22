@@ -46,6 +46,8 @@ function tieredValue(count, tier3, tier5) {
   return 0;
 }
 
+// 시너지 발동 인원수는 포지션과 무관하게 라인업(베스트11) 전체의 태그 보유자 수로 센다.
+// 버프 지급은 그중 대상 포지션에 있는 보유자에게만 한다 (스펙 5.1 "베스트11 배치자만 카운트").
 export function computePlaystyleSynergyBonus(lineup) {
   const bonuses = new Map();
   for (const [tagId, tagDef] of Object.entries(PLAYSTYLE_TAGS)) {

@@ -6,6 +6,7 @@ import {
   computeTeamPower,
   applyVariance,
 } from '../engine/team-power.mjs';
+import { chemistryMultiplier } from '../engine/chemistry.mjs';
 
 function makePlayer(overrides = {}) {
   return {
@@ -47,6 +48,24 @@ test('computeTeamPower는 평균 OVR × 팀 배율이다', () => {
   );
   const power = computeTeamPower(lineup, [], 'rookie', 40);
   assert.equal(power, 70 * 1.00);
+});
+
+test('computeTeamPower correctly multiplies non-uniform average OVR by a non-identity team multiplier', () => {
+  // 5 players at OVR 65, 6 players at OVR 75 → average = (5*65 + 6*75) / 11 = (325 + 450) / 11 = 775/11 = 70.4545...
+  const lineup = [
+    ...Array.from({ length: 5 }, (_, i) => makePlayer({ id: `low${i}`, baseOVR: 65 })),
+    ...Array.from({ length: 6 }, (_, i) => makePlayer({ id: `high${i}`, baseOVR: 75 })),
+  ];
+  const averageOVR = computeAverageOVR(lineup, []);
+  assert.ok(Math.abs(averageOVR - 775 / 11) < 0.001);
+
+  // tactician (1.05) × chemistry 95 (interpolated, not identity)
+  const multiplier = computeTeamMultiplier('tactician', 95);
+  assert.ok(multiplier > 1.05 && multiplier < 1.30); // must reflect BOTH factors, not just one
+
+  const power = computeTeamPower(lineup, [], 'tactician', 95);
+  const expectedPower = averageOVR * multiplier;
+  assert.ok(Math.abs(power - expectedPower) < 0.001);
 });
 
 test('applyVariance는 randomFn 결과에 따라 ±ratio 범위로 조정한다', () => {

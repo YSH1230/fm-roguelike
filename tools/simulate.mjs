@@ -32,7 +32,7 @@ function runSimulation(tierId, managerTier, chemistry, runs = 100) {
   for (let i = 0; i < runs; i++) {
     const lineup = makeRandomLineup(tier.averageOVR);
     const basePower = computeTeamPower(lineup, [], managerTier, chemistry);
-    const finalPower = applyVariance(basePower, 0.05);
+    const finalPower = applyVariance(basePower);
     pointsResults.push(convertPowerToPoints(finalPower, leagueAverageOVR));
   }
 

@@ -33,14 +33,16 @@ export const CHEMISTRY_DECAY_PER_TRANSACTION = 2;
 export const CHEMISTRY_RECOVERY_PER_STABLE_WEEK = 1;
 
 // 40 미만 ×0.95, 40~95 ×1.00~×1.04 선형, 96 이상 ×1.12
-export const CHEMISTRY_BANDS = [
-  { max: 40, multiplier: 0.95 },
-  { max: 95, multiplierLow: 1.00, multiplierHigh: 1.04 },
-  { max: Infinity, multiplier: 1.12 },
-];
+export const CHEMISTRY_LOW_THRESHOLD = 40;
+export const CHEMISTRY_HIGH_THRESHOLD = 96;
+export const CHEMISTRY_LOW_MULTIPLIER = 0.95;
+export const CHEMISTRY_MID_MULTIPLIER_AT_LOW = 1.00;
+export const CHEMISTRY_MID_MULTIPLIER_AT_HIGH = 1.04;
+export const CHEMISTRY_HIGH_MULTIPLIER = 1.12;
 
 // 스펙 12절 "미확정 사항" — 시뮬레이터로 조정할 튜닝 상수.
 // 여기서는 브레인스토밍에서 제시된 출발값을 그대로 코드 상수로 둔다.
 export const TEAM_MULTIPLIER_CAP = 1.30;
 export const LEAGUE_POINTS_COEFFICIENT = 2.5;
 export const BASE_POINTS_AT_LEAGUE_AVERAGE = 42;
+export const POWER_VARIANCE_RATIO = 0.05;

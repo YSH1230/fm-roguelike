@@ -1,6 +1,6 @@
 import { computePlayerFinalOVR } from './ovr.mjs';
 import { chemistryMultiplier, clamp } from './chemistry.mjs';
-import { MANAGER_TIER_MULTIPLIER, TEAM_MULTIPLIER_CAP } from './constants.mjs';
+import { MANAGER_TIER_MULTIPLIER, TEAM_MULTIPLIER_CAP, POWER_VARIANCE_RATIO } from './constants.mjs';
 
 export function computeAverageOVR(lineup, bench) {
   const total = lineup.reduce(
@@ -19,7 +19,7 @@ export function computeTeamPower(lineup, bench, managerTier, chemistry) {
   return computeAverageOVR(lineup, bench) * computeTeamMultiplier(managerTier, chemistry);
 }
 
-export function applyVariance(power, varianceRatio, randomFn = Math.random) {
+export function applyVariance(power, varianceRatio = POWER_VARIANCE_RATIO, randomFn = Math.random) {
   const swing = (randomFn() * 2 - 1) * varianceRatio; // -ratio ~ +ratio
   return power * (1 + swing);
 }
