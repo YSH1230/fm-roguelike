@@ -1,4 +1,5 @@
 import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, SPECIAL_TRAITS } from '../engine/constants.mjs';
+import { calculatePlayerPrice } from '../engine/economy.mjs';
 import { NAME_POOLS } from './name-pools.mjs';
 
 function pick(array, rng) {
@@ -32,11 +33,13 @@ export function generateProceduralPlayer(tierId, rng = Math.random) {
 
   // 30% 확률로 특수 성향 하나 부여 (스펙: 등급 무관 0~1개)
   const specialTrait = rng() < 0.3 ? pick(SPECIAL_TRAITS, rng) : null;
+  const baseOVR = randomInt(tier.minOVR, tier.maxOVR, rng);
 
   return {
     id: `p${String(nextId++).padStart(4, '0')}`,
     name,
-    baseOVR: randomInt(tier.minOVR, tier.maxOVR, rng),
+    baseOVR,
+    price: calculatePlayerPrice(tierId, baseOVR),
     age: randomInt(18, 35, rng),
     position: pick(POSITIONS, rng),
     playstyleTags: pickN(Object.keys(PLAYSTYLE_TAGS), tier.playstyleTagCount, rng),

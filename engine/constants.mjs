@@ -87,3 +87,39 @@ export const HIGH_TIER_RESTRICTED_TRAITS = ['hairdryer'];
 
 // 스펙 5.3절 "스태프" — 4단계 등급, 선수/감독보다 약함
 export const STAFF_LEVELS = ['academy', 'proLicense', 'veteran', 'master'];
+
+// 스펙 7절 "경제" — 5부 기준 등급별 가격 범위(G). GOD은 개별 고정가(data/god-*.mjs)
+export const PLAYER_PRICE_TABLE = {
+  local: [10, 40],
+  bigLeaguer: [40, 120],
+  topClass: [120, 300],
+  worldClass: [300, 700],
+  legendary: [700, 1600],
+};
+export const MANAGER_PRICE_TABLE = {
+  rookie: [50, 150],
+  tactician: [200, 500],
+  legendary: [800, 1500],
+};
+export const STAFF_PRICE_TABLE = {
+  academy: [20, 50],
+  proLicense: [60, 150],
+  veteran: [200, 400],
+  master: [500, 800],
+};
+
+export const COST_MODIFIER_CLAMP_MIN = -0.6; // 할인/할증 가산 합계 하한
+export const COST_MODIFIER_CLAMP_MAX = 0.8; // 할인/할증 가산 합계 상한
+export const WINTER_TAX_RATIO = 0.2; // 겨울 시장 영입비 +20%
+
+export const CONTRACT_RENEWAL_RATIO = { 1: 0.3, 2: 0.6 }; // 재계약 연장 연수 → 원가 비율
+
+// 방출 회수율: 즉시 0%, 이적명단(여름/겨울 범위), Week12 데드라인 40%
+export const RELEASE_RECOVERY_IMMEDIATE = 0;
+export const RELEASE_RECOVERY_LISTED_SUMMER = [0.5, 1.0];
+export const RELEASE_RECOVERY_LISTED_WINTER = [0.7, 1.1];
+export const RELEASE_RECOVERY_DEADLINE = 0.4;
+
+export const STARTING_FUNDS_TIER5 = 1000;
+export const FUNDS_MULTIPLIER_PER_LEAGUE_TIER = 1.5;
+export const CARRYOVER_CAP_RATIO = 0.3; // 이월 자금 상한 = 다음 시즌 시작 자금의 30%

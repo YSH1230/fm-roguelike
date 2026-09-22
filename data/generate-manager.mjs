@@ -2,9 +2,11 @@ import {
   MANAGER_TIER_MULTIPLIER,
   MANAGER_TRAITS,
   HIGH_TIER_RESTRICTED_TRAITS,
+  MANAGER_PRICE_TABLE,
   PLAYSTYLE_TAGS,
   CONTINENT_TAGS,
 } from '../engine/constants.mjs';
+import { randomInRange } from '../engine/economy.mjs';
 import { NAME_POOLS } from './name-pools.mjs';
 
 function pick(array, rng) {
@@ -31,11 +33,14 @@ export function generateProceduralManager(tierId, rng = Math.random) {
   const noTraitChance = tierId === 'legendary' ? 0.5 : 0;
   const trait = rng() < noTraitChance ? null : pick(eligibleTraits, rng);
 
+  const [minPrice, maxPrice] = MANAGER_PRICE_TABLE[tierId];
+
   return {
     id: `mgr${String(nextId++).padStart(3, '0')}`,
     name,
     tier: tierId,
     multiplier: MANAGER_TIER_MULTIPLIER[tierId],
+    price: Math.round(randomInRange(minPrice, maxPrice, rng)),
     tacticalTag: pick(Object.keys(PLAYSTYLE_TAGS), rng),
     continentTag,
     trait,
