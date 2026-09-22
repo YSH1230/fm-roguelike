@@ -1,4 +1,5 @@
 import { CLUBS } from '../data/clubs.mjs';
+import { saveRun, loadRun, clearRun } from '../data/local-save.mjs';
 import { generateSquadPool, TIER5_SQUAD_WEIGHTS } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
 import { rollPreseasonEvent } from '../data/run-preseason-event.mjs';
@@ -61,6 +62,18 @@ function pickBestXI(squad) {
 function renderClubButtons() {
   const container = document.getElementById('club-select');
   container.innerHTML = '';
+
+  const saved = loadRun(localStorage);
+  if (saved) {
+    const resumeBtn = document.createElement('button');
+    resumeBtn.textContent = `이어하기 — ${saved.club.name} (${saved.phase === 'summer' ? '여름' : '겨울'} Week ${saved.week})`;
+    resumeBtn.onclick = () => {
+      currentState = saved;
+      renderMarket();
+    };
+    container.appendChild(resumeBtn);
+  }
+
   for (const club of CLUBS) {
     const btn = document.createElement('button');
     btn.textContent = `${club.name} (강점: ${club.strength} / 약점: ${club.weakness})`;
@@ -265,6 +278,7 @@ function runSecondHalfAndFinish() {
   document.getElementById('continue-btn')?.addEventListener('click', startNewSeason);
   document.getElementById('new-run-btn')?.addEventListener('click', () => {
     currentState = null;
+    clearRun(localStorage);
     document.getElementById('run-info').innerHTML = '';
     renderClubButtons();
   });
@@ -323,6 +337,8 @@ function renderMarket(banner = '') {
   }
   document.getElementById('reroll-btn').onclick = rerollShop;
   document.getElementById('next-week-btn').onclick = nextWeek;
+
+  saveRun(currentState, localStorage);
 }
 
 renderClubButtons();
