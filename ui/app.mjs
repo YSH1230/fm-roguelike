@@ -1,13 +1,11 @@
 import { CLUBS } from '../data/clubs.mjs';
-import { generateSquadPool } from '../data/generate-player.mjs';
+import { generateSquadPool, TIER5_SQUAD_WEIGHTS } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
 import { getLeagueTier } from '../engine/league.mjs';
 import { runFullSeason } from '../engine/season.mjs';
 import { calculateStartingFunds, applyCarryoverCap } from '../engine/economy.mjs';
 import { CHEMISTRY_START, STARTING_FUNDS_TIER5 } from '../engine/constants.mjs';
 
-// 5부 슬라이스용 등급 분포 (tools/generate-players.mjs와 동일한 출발값)
-const TIER_WEIGHTS = { local: 30, bigLeaguer: 25, topClass: 12, worldClass: 6, legendary: 2 };
 const FORMATION_SLOTS = ['GK', 'CB', 'CB', 'WB', 'WB', 'CMF', 'CMF', 'AMF', 'W', 'W', 'ST'];
 
 // 카드 데이터(정적)를 스쿼드 상태(동적 필드 포함)로 만든다. 새 스쿼드이므로
@@ -58,7 +56,7 @@ function renderCard(p) {
 let currentState = null;
 
 function startRun(club) {
-  const squad = generateSquadPool(TIER_WEIGHTS).map(toSquadPlayer);
+  const squad = generateSquadPool(TIER5_SQUAD_WEIGHTS).map(toSquadPlayer);
   const manager = generateProceduralManager('tactician');
   const { lineup, bench } = pickBestXI(squad);
 

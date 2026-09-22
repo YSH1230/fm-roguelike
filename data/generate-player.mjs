@@ -1,10 +1,9 @@
 import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, SPECIAL_TRAITS } from '../engine/constants.mjs';
 import { calculatePlayerPrice } from '../engine/economy.mjs';
-import { NAME_POOLS } from './name-pools.mjs';
+import { pick, randomName } from './name-pools.mjs';
 
-function pick(array, rng) {
-  return array[Math.floor(rng() * array.length)];
-}
+// 5부 슬라이스용 등급 분포 (스펙 11절: 60~80장). generate-players.mjs와 ui/app.mjs가 공유.
+export const TIER5_SQUAD_WEIGHTS = { local: 30, bigLeaguer: 25, topClass: 12, worldClass: 6, legendary: 2 };
 
 function pickN(array, n, rng) {
   const pool = [...array];
@@ -28,8 +27,7 @@ export function generateProceduralPlayer(tierId, rng = Math.random) {
   if (!tier) throw new Error(`Unknown player tier: ${tierId}`);
 
   const continentTag = pick(Object.keys(CONTINENT_TAGS), rng);
-  const pool = NAME_POOLS[continentTag];
-  const name = `${pick(pool.first, rng)} ${pick(pool.last, rng)}`;
+  const name = randomName(continentTag, rng);
 
   // 30% 확률로 특수 성향 하나 부여 (스펙: 등급 무관 0~1개)
   const specialTrait = rng() < 0.3 ? pick(SPECIAL_TRAITS, rng) : null;

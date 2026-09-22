@@ -7,11 +7,7 @@ import {
   CONTINENT_TAGS,
 } from '../engine/constants.mjs';
 import { randomInRange } from '../engine/economy.mjs';
-import { NAME_POOLS } from './name-pools.mjs';
-
-function pick(array, rng) {
-  return array[Math.floor(rng() * array.length)];
-}
+import { pick, randomName } from './name-pools.mjs';
 
 let nextId = 1;
 
@@ -22,8 +18,7 @@ export function generateProceduralManager(tierId, rng = Math.random) {
   }
 
   const continentTag = pick(Object.keys(CONTINENT_TAGS), rng);
-  const pool = NAME_POOLS[continentTag];
-  const name = `${pick(pool.first, rng)} ${pick(pool.last, rng)}`;
+  const name = randomName(continentTag, rng);
 
   // 스펙 5.2절: 등급이 낮을수록 강한 세부 성향(헤어드라이어 등)을 가짐 — 반비례 밸런스
   const eligibleTraits =

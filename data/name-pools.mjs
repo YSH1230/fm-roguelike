@@ -21,3 +21,12 @@ export const NAME_POOLS = {
     last: ['Hernandez', 'Johnson', 'Ramirez', 'Smith', 'Gomez', 'Brown', 'Flores', 'Davis'],
   },
 };
+
+export function pick(array, rng) {
+  return array[Math.floor(rng() * array.length)];
+}
+
+export function randomName(continentTag, rng) {
+  const pool = NAME_POOLS[continentTag];
+  return `${pick(pool.first, rng)} ${pick(pool.last, rng)}`;
+}
