@@ -2,10 +2,13 @@ import { CLUBS } from '../data/clubs.mjs';
 import { saveRun, loadRun, clearRun } from '../data/local-save.mjs';
 import { generateSquadPool, TIER5_SQUAD_WEIGHTS } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
+import { assignRandomStaff } from '../data/staff.mjs';
+import { GOD_PLAYERS } from '../data/god-players.mjs';
 import { rollPreseasonEvent } from '../data/run-preseason-event.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier } from '../engine/league.mjs';
 import { runHalfSeason, judgeSeasonResult, advanceWeek } from '../engine/season.mjs';
+import { resolvePromotionTransferDemand } from '../engine/events.mjs';
 import {
   calculateStartingFunds,
   applyCarryoverCap,
@@ -23,6 +26,10 @@ import {
   WINTER_TAX_RATIO,
   PROMOTION_CHEMISTRY_BONUS,
   PROMOTION_FUNDS_BONUS_RATIO,
+  COACH_CHEMISTRY_DECAY_BY_LEVEL,
+  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL,
+  SCOUT_MASTER_REROLL_DISCOUNT,
+  PROMOTION_TRANSFER_DEMAND_CHANCE,
 } from '../engine/constants.mjs';
 
 // 슬라이스는 5부/4부만 구현 (스펙 11절) — 승격 시 다음 단계로, 3부 이상은 여기서 멈춘다
@@ -93,6 +100,7 @@ function startRun(club) {
   const baseFunds = Math.round(calculateStartingFunds(0) * club.startingFundsMultiplier);
   const rawSquad = generateSquadPool(TIER5_SQUAD_WEIGHTS).map(toSquadPlayer);
   const manager = generateProceduralManager('tactician');
+  const staff = assignRandomStaff();
 
   // 초기 정비기(Week 1~3) 이벤트: 자금·스쿼드가 바뀔 수 있다.
   // 위기 관리형 감독은 위기 이벤트(FFP 긴급 감사)를 무효화한다.
@@ -110,6 +118,8 @@ function startRun(club) {
     club,
     squad,
     manager,
+    staff,
+    availableGodPlayers: [...GOD_PLAYERS], // 이번 런에서 아직 영입 안 한 GOD 카드
     chemistry,
     funds,
     eventMessage,
@@ -117,12 +127,25 @@ function startRun(club) {
     week: SUMMER_MARKET_WEEKS[0],
     phase: 'summer',
     transactedThisWeek: false,
-    shopOffer: generateShopOffer(SHOP_OFFER_SIZE),
+    shopOffer: [],
     firstHalfPoints: null,
     listedForSale: [], // { card, method, resolveWeek }
     boardTrustUsed: false,
   };
+  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
   renderMarket();
+}
+
+// 수석 스카우터 등급에 따른 매주 매물 수 (스펙 5.3절: 3→4→4→5)
+function scoutOfferSize() {
+  return SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[currentState.staff.headScout.level] ?? SHOP_OFFER_SIZE;
+}
+
+// 마스터 스카우터는 리롤 비용 절반
+function rerollCost() {
+  return currentState.staff.headScout.level === 'master'
+    ? Math.round(SHOP_REROLL_COST * (1 - SCOUT_MASTER_REROLL_DISCOUNT))
+    : SHOP_REROLL_COST;
 }
 
 // 승격/잔류 후 같은 구단으로 새 시즌 시작 — 스펙 4절: 선수단 유지, 시장 상태만 초기화
@@ -138,7 +161,7 @@ function startNewSeason() {
     acquiredThisSeason: false,
     seasonsAtClub: (p.seasonsAtClub ?? 0) + 1,
   }));
-  currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
+  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
 
   let banner = `${currentState.club.name}, ${currentState.leagueTierId === 'tier4' ? '4부' : '5부'} 새 시즌 시작`;
   // 장기 집권형: 같은 구단 잔류 시즌마다 적응도 시작값 +3
@@ -163,11 +186,16 @@ function cardPrice(card) {
   return applyCostModifiers(card.price, modifiers);
 }
 
-// 리빌딩 장인: 거래 1건당 적응도 하락을 -2 → -1로 완화
+// 리빌딩 장인(감독)과 수석 코치(스태프) 둘 다 거래 1건당 적응도 하락을 완화한다.
+// 스펙 5.3절: 중복 적용하지 않고 더 강한 쪽(하락폭이 작은 쪽)만 쓴다.
 function transactionDecayAmount() {
-  return currentState.manager.trait === 'reboundArchitect'
-    ? CHEMISTRY_DECAY_PER_TRANSACTION / 2
-    : CHEMISTRY_DECAY_PER_TRANSACTION;
+  const managerReduced =
+    currentState.manager.trait === 'reboundArchitect'
+      ? CHEMISTRY_DECAY_PER_TRANSACTION / 2
+      : CHEMISTRY_DECAY_PER_TRANSACTION;
+  const coachLevel = currentState.staff.headCoach.level;
+  const coachReduced = COACH_CHEMISTRY_DECAY_BY_LEVEL[coachLevel] ?? CHEMISTRY_DECAY_PER_TRANSACTION;
+  return Math.min(managerReduced, coachReduced);
 }
 
 function buyCard(card) {
@@ -178,13 +206,18 @@ function buyCard(card) {
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
   currentState.transactedThisWeek = true;
   currentState.shopOffer = currentState.shopOffer.filter((c) => c.id !== card.id);
+  // GOD 카드는 전 세계 2명뿐 — 영입하면 이번 런에서 다시 등장하지 않게 뺀다
+  if (card.id.startsWith('god-')) {
+    currentState.availableGodPlayers = currentState.availableGodPlayers.filter((g) => g.id !== card.id);
+  }
   renderMarket();
 }
 
 function rerollShop() {
-  if (currentState.funds < SHOP_REROLL_COST) return;
-  currentState.funds -= SHOP_REROLL_COST;
-  currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
+  const cost = rerollCost();
+  if (currentState.funds < cost) return;
+  currentState.funds -= cost;
+  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
   renderMarket();
 }
 
@@ -238,7 +271,7 @@ function nextWeek() {
     runSecondHalfAndFinish(saleMessage);
     return;
   }
-  currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
+  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
   renderMarket(saleMessage);
 }
 
@@ -260,7 +293,7 @@ function runFirstHalf(saleMessage = '') {
   );
   currentState.phase = 'winter';
   currentState.week = WINTER_MARKET_WEEKS[0];
-  currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
+  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
 
   let banner = saleMessage ? `${saleMessage} ` : '';
   banner += `전반기 결산: ${currentState.firstHalfPoints.toFixed(1)}점. 겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%).`;
@@ -343,7 +376,15 @@ function runSecondHalfAndFinish(saleMessage = '') {
     currentState.leagueTierId = LEAGUE_LADDER[currentTierIndex + 1];
     currentState.chemistry = Math.min(100, currentState.chemistry + PROMOTION_CHEMISTRY_BONUS);
     currentState.funds = Math.round(currentState.funds * (1 + PROMOTION_FUNDS_BONUS_RATIO));
-    startNewSeason();
+
+    // 승격 전용 위기: 핵심 선수 이적 요구 (스펙 8절). 위기 관리형 감독의 무효화는
+    // 이미 시즌 시작 이벤트(FFP 긴급 감사)에 한 번 썼으므로 여기서는 다시 쓰지 않는다.
+    const keyPlayer = [...currentState.squad].sort((a, b) => b.baseOVR - a.baseOVR)[0];
+    if (keyPlayer && Math.random() < PROMOTION_TRANSFER_DEMAND_CHANCE) {
+      renderPromotionTransferDemand(keyPlayer);
+    } else {
+      startNewSeason();
+    }
   });
   document.getElementById('continue-btn')?.addEventListener('click', startNewSeason);
   document.getElementById('new-run-btn')?.addEventListener('click', () => {
@@ -354,8 +395,29 @@ function runSecondHalfAndFinish(saleMessage = '') {
   });
 }
 
+function renderPromotionTransferDemand(keyPlayer) {
+  const { acceptProceeds, rejectOvrPenalty } = resolvePromotionTransferDemand(keyPlayer.price);
+  document.getElementById('run-info').innerHTML = `
+    <h2>승격 전용 위기: 핵심 선수 이적 요구</h2>
+    <p>빅클럽이 ${keyPlayer.name}(OVR ${keyPlayer.baseOVR})을 원합니다.</p>
+    <button id="accept-transfer-btn">수락 — ${acceptProceeds}G에 방출</button>
+    <button id="reject-transfer-btn">거부 — 이번 시즌 OVR -${rejectOvrPenalty}</button>
+  `;
+  document.getElementById('accept-transfer-btn').onclick = () => {
+    currentState.squad = currentState.squad.filter((p) => p.id !== keyPlayer.id);
+    currentState.funds += acceptProceeds;
+    startNewSeason();
+  };
+  document.getElementById('reject-transfer-btn').onclick = () => {
+    currentState.squad = currentState.squad.map((p) =>
+      p.id === keyPlayer.id ? { ...p, baseOVR: p.baseOVR - rejectOvrPenalty } : p
+    );
+    startNewSeason();
+  };
+}
+
 function renderMarket(banner = '') {
-  const { club, manager, squad, funds, chemistry, eventMessage, shopOffer, phase, week, listedForSale } = currentState;
+  const { club, manager, staff, squad, funds, chemistry, eventMessage, shopOffer, phase, week, listedForSale } = currentState;
   const maxWeek = phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];
   const phaseLabel = phase === 'summer' ? '여름 이적시장' : '겨울 이적시장';
   const isDeadlineWeek = phase === 'winter' && week === WINTER_MARKET_WEEKS[1];
@@ -385,12 +447,13 @@ function renderMarket(banner = '') {
   document.getElementById('run-info').innerHTML = `
     <h2>${club.name} — ${phaseLabel} (Week ${week}/${maxWeek})</h2>
     <p>감독: ${manager.name} (${manager.tier}, ×${manager.multiplier}${manager.trait ? `, [${manager.trait}]` : ''})</p>
+    <p>스태프: 수석 코치(${staff.headCoach.level}) · 수석 스카우터(${staff.headScout.level})</p>
     ${banner ? `<p><strong>${banner}</strong></p>` : ''}
     ${phase === 'summer' && week === SUMMER_MARKET_WEEKS[0] && eventMessage ? `<p>${eventMessage}</p>` : ''}
     <p>보유 자금: ${funds}G · 적응도: ${chemistry.toFixed(1)}</p>
     <h3>이번 주 드래프트</h3>
     <ul>${offerHtml || '<li>매물 없음</li>'}</ul>
-    <button id="reroll-btn" ${funds >= SHOP_REROLL_COST ? '' : 'disabled'}>리롤 (${SHOP_REROLL_COST}G)</button>
+    <button id="reroll-btn" ${funds >= rerollCost() ? '' : 'disabled'}>리롤 (${rerollCost()}G)</button>
     <button id="next-week-btn">다음 주로</button>
     <h3>보유 선수단 (${squad.length}명)</h3>
     <ul>${squadHtml}</ul>

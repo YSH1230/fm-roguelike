@@ -126,9 +126,20 @@ export const STARTING_FUNDS_TIER5 = 1000;
 export const FUNDS_MULTIPLIER_PER_LEAGUE_TIER = 1.5;
 export const CARRYOVER_CAP_RATIO = 0.3; // 이월 자금 상한 = 다음 시즌 시작 자금의 30%
 
-// 스펙 7절 "드래프트(상점형)" — 슬라이스는 수석 스카우터 미구현이라 고정값
-export const SHOP_OFFER_SIZE = 3;
+// 스펙 7절 "드래프트(상점형)"
+export const SHOP_OFFER_SIZE = 3; // 스카우터 없을 때 기본값
 export const SHOP_REROLL_COST = 50;
+
+// 스펙 5.3절 "스태프" 효과표
+export const COACH_CHEMISTRY_DECAY_BY_LEVEL = { academy: 1.5, proLicense: 1, veteran: 0.5, master: 0 };
+export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 4, veteran: 4, master: 5 };
+export const SCOUT_MASTER_REROLL_DISCOUNT = 0.5;
+
+// GOD 카드(선수)가 상점에 뜰 확률 — 전 세계 2명뿐이라 극희귀
+export const GOD_PLAYER_SHOP_CHANCE = 0.02;
+
+// 승격 전용 위기: 이적 요구가 발동할 확률 (스펙 8절, 승격 직후 시즌에만)
+export const PROMOTION_TRANSFER_DEMAND_CHANCE = 0.5;
 
 // 스펙 2절 "시즌 분할 체계" — 여름 시장(1~8주) → 전반기 → 겨울 시장(9~12주) → 후반기
 export const SUMMER_MARKET_WEEKS = [1, 8];
