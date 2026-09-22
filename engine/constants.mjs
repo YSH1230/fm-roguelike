@@ -46,3 +46,25 @@ export const TEAM_MULTIPLIER_CAP = 1.30;
 export const LEAGUE_POINTS_COEFFICIENT = 2.5;
 export const BASE_POINTS_AT_LEAGUE_AVERAGE = 42;
 export const POWER_VARIANCE_RATIO = 0.05;
+
+// 스펙 5.1절 "6등급" — OVR 범위와 등급별 플레이스타일 태그 개수
+export const PLAYER_TIERS = {
+  local: { minOVR: 50, maxOVR: 62, playstyleTagCount: 1 },
+  bigLeaguer: { minOVR: 63, maxOVR: 72, playstyleTagCount: 1 },
+  topClass: { minOVR: 73, maxOVR: 80, playstyleTagCount: 2 },
+  worldClass: { minOVR: 81, maxOVR: 87, playstyleTagCount: 2 },
+  legendary: { minOVR: 88, maxOVR: 94, playstyleTagCount: 3 },
+  // god는 전 세계 2명, 개별 수작업 카드 — data/god-players.mjs 참고, 여기서 생성 안 함
+};
+
+export const POSITIONS = ['GK', 'CB', 'WB', 'CMF', 'AMF', 'W', 'ST'];
+
+// 스펙 5.1절 "선수 특수 성향 6종" — id만. 효과는 engine/ovr.mjs가 specialTrait로 참조.
+export const SPECIAL_TRAITS = [
+  'seongGolYouth',
+  'veteranLeader',
+  'superSub',
+  'hometownHero',
+  'polyglot',
+  'journeyman',
+];
