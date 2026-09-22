@@ -43,7 +43,9 @@ export const CHEMISTRY_HIGH_MULTIPLIER = 1.12;
 // 스펙 12절 "미확정 사항" — 시뮬레이터로 조정할 튜닝 상수.
 // 여기서는 브레인스토밍에서 제시된 출발값을 그대로 코드 상수로 둔다.
 export const TEAM_MULTIPLIER_CAP = 1.30;
-export const LEAGUE_POINTS_COEFFICIENT = 2.5;
+// node tune-check(실측)로 확인: 2.5는 OVR 우위를 승점으로 너무 크게 증폭시켜
+// 5부에서 거의 항상 만점(114점) 우승이 나옴 — 2.0으로 완화.
+export const LEAGUE_POINTS_COEFFICIENT = 2.0;
 export const BASE_POINTS_AT_LEAGUE_AVERAGE = 42;
 export const POWER_VARIANCE_RATIO = 0.05;
 

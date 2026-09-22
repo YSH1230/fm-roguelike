@@ -7,12 +7,12 @@ test('팀 전력이 리그 평균과 같으면 기준 승점을 받는다', () =
 });
 
 test('팀 전력이 리그 평균보다 높으면 승점이 계수만큼 오른다', () => {
-  // 평균보다 +4 높음, 계수 2.5 → 42 + 4*2.5 = 52
-  assert.equal(convertPowerToPoints(64, 60), 52);
+  // 평균보다 +4 높음, 계수 2.0 → 42 + 4*2.0 = 50
+  assert.equal(convertPowerToPoints(64, 60), 50);
 });
 
 test('팀 전력이 리그 평균보다 낮으면 승점이 계수만큼 내려간다', () => {
-  assert.equal(convertPowerToPoints(56, 60), 32);
+  assert.equal(convertPowerToPoints(56, 60), 34);
 });
 
 test('승점은 0~114(38경기 만점) 범위를 벗어나지 않는다', () => {

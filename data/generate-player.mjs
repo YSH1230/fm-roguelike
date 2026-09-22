@@ -2,8 +2,11 @@ import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, SPECIAL_TRAITS
 import { calculatePlayerPrice } from '../engine/economy.mjs';
 import { pick, randomName } from './name-pools.mjs';
 
-// 5부 슬라이스용 등급 분포 (스펙 11절: 60~80장). generate-players.mjs와 ui/app.mjs가 공유.
-export const TIER5_SQUAD_WEIGHTS = { local: 30, bigLeaguer: 25, topClass: 12, worldClass: 6, legendary: 2 };
+// 5부 시작 스쿼드 등급 분포 (스펙 11절: 60~80장, 스펙 2절 "5부=로컬 급"에 맞춤).
+// 상위 등급을 섞으면 베스트11이 리그 평균(50~58)을 훨씬 웃돌아 매 시즌 만점
+// 우승이 나옴 — 실측(node tune-check)으로 확인 후 로컬 위주로 조정.
+// 상점 매물(더 좋은 카드를 뽑을 기회)은 별도 SHOP_TIER_WEIGHTS(draft-shop.mjs)를 쓴다.
+export const TIER5_SQUAD_WEIGHTS = { local: 70, bigLeaguer: 5, topClass: 0, worldClass: 0, legendary: 0 };
 
 function pickN(array, n, rng) {
   const pool = [...array];
