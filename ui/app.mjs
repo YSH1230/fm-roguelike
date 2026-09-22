@@ -92,16 +92,25 @@ let currentState = null;
 function startRun(club) {
   const baseFunds = Math.round(calculateStartingFunds(0) * club.startingFundsMultiplier);
   const rawSquad = generateSquadPool(TIER5_SQUAD_WEIGHTS).map(toSquadPlayer);
-
-  // 초기 정비기(Week 1~3) 이벤트: 자금·스쿼드가 바뀔 수 있다
-  const { funds, squad, message: eventMessage } = rollPreseasonEvent(rawSquad, baseFunds);
   const manager = generateProceduralManager('tactician');
+
+  // 초기 정비기(Week 1~3) 이벤트: 자금·스쿼드가 바뀔 수 있다.
+  // 위기 관리형 감독은 위기 이벤트(FFP 긴급 감사)를 무효화한다.
+  const rolled = rollPreseasonEvent(rawSquad, baseFunds);
+  const eventIsCrisis = rolled.id === 'ffpAudit';
+  const crisisBlocked = manager.trait === 'crisisManager' && eventIsCrisis;
+  const funds = crisisBlocked ? baseFunds : rolled.funds;
+  const squad = crisisBlocked ? rawSquad : rolled.squad;
+  const eventMessage = crisisBlocked ? '위기 관리형: FFP 긴급 감사를 무효화했습니다' : rolled.message;
+
+  // 헤어드라이어: 영입 즉시 적응도 +20
+  const chemistry = manager.trait === 'hairdryer' ? Math.min(100, CHEMISTRY_START + 20) : CHEMISTRY_START;
 
   currentState = {
     club,
     squad,
     manager,
-    chemistry: CHEMISTRY_START,
+    chemistry,
     funds,
     eventMessage,
     leagueTierId: 'tier5',
@@ -111,6 +120,7 @@ function startRun(club) {
     shopOffer: generateShopOffer(SHOP_OFFER_SIZE),
     firstHalfPoints: null,
     listedForSale: [], // { card, method, resolveWeek }
+    boardTrustUsed: false,
   };
   renderMarket();
 }
@@ -129,12 +139,35 @@ function startNewSeason() {
     seasonsAtClub: (p.seasonsAtClub ?? 0) + 1,
   }));
   currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
-  renderMarket(`${currentState.club.name}, ${currentState.leagueTierId === 'tier4' ? '4부' : '5부'} 새 시즌 시작`);
+
+  let banner = `${currentState.club.name}, ${currentState.leagueTierId === 'tier4' ? '4부' : '5부'} 새 시즌 시작`;
+  // 장기 집권형: 같은 구단 잔류 시즌마다 적응도 시작값 +3
+  if (currentState.manager.trait === 'longTermReign') {
+    currentState.chemistry = Math.min(100, currentState.chemistry + 3);
+    banner += ' (장기 집권형: 적응도 +3)';
+  }
+  renderMarket(banner);
 }
 
 function cardPrice(card) {
-  const winterModifier = currentState.phase === 'winter' ? [WINTER_TAX_RATIO] : [];
-  return applyCostModifiers(card.price, winterModifier);
+  const modifiers = [];
+  if (currentState.phase === 'winter') modifiers.push(WINTER_TAX_RATIO);
+  // 화술의 달인: 감독과 같은 대륙/전술 태그의 카드는 영입비 -30%
+  const { manager } = currentState;
+  if (
+    manager.trait === 'silverTongue' &&
+    (card.continentTag === manager.continentTag || card.playstyleTags.includes(manager.tacticalTag))
+  ) {
+    modifiers.push(-0.3);
+  }
+  return applyCostModifiers(card.price, modifiers);
+}
+
+// 리빌딩 장인: 거래 1건당 적응도 하락을 -2 → -1로 완화
+function transactionDecayAmount() {
+  return currentState.manager.trait === 'reboundArchitect'
+    ? CHEMISTRY_DECAY_PER_TRANSACTION / 2
+    : CHEMISTRY_DECAY_PER_TRANSACTION;
 }
 
 function buyCard(card) {
@@ -142,7 +175,7 @@ function buyCard(card) {
   if (currentState.funds < price) return;
   currentState.funds -= price;
   currentState.squad = [...currentState.squad, toSquadPlayer(card)];
-  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, CHEMISTRY_DECAY_PER_TRANSACTION);
+  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
   currentState.transactedThisWeek = true;
   currentState.shopOffer = currentState.shopOffer.filter((c) => c.id !== card.id);
   renderMarket();
@@ -158,7 +191,7 @@ function rerollShop() {
 // 방출 3단계 (스펙 7절): 즉시(0%) / 이적 명단(1주 소모, 여름·겨울 범위 회수율) / Week12 데드라인(40%, 소모 없음)
 function releaseImmediate(card) {
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
-  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, CHEMISTRY_DECAY_PER_TRANSACTION);
+  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
   currentState.transactedThisWeek = true;
   renderMarket();
 }
@@ -169,7 +202,7 @@ function listForSale(card) {
   if (method === 'listedWinter' && card.acquiredThisSeason) return;
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
   currentState.listedForSale.push({ card, method, resolveWeek: currentState.week + 1 });
-  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, CHEMISTRY_DECAY_PER_TRANSACTION);
+  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
   currentState.transactedThisWeek = true;
   renderMarket();
 }
@@ -209,37 +242,71 @@ function nextWeek() {
   renderMarket(saleMessage);
 }
 
+function boostedTagIdFor(manager) {
+  return manager.trait === 'tacticalPurist' ? manager.tacticalTag : null;
+}
+
 function runFirstHalf() {
+  const { manager } = currentState;
   const { lineup, bench } = pickBestXI(currentState.squad);
   currentState.firstHalfPoints = runHalfSeason(
     lineup,
     bench,
-    currentState.manager.tier,
+    manager.tier,
     currentState.chemistry,
-    currentState.leagueTierId
+    currentState.leagueTierId,
+    Math.random,
+    boostedTagIdFor(manager)
   );
   currentState.phase = 'winter';
   currentState.week = WINTER_MARKET_WEEKS[0];
   currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
-  renderMarket(`전반기 결산: ${currentState.firstHalfPoints.toFixed(1)}점. 겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%).`);
+
+  let banner = `전반기 결산: ${currentState.firstHalfPoints.toFixed(1)}점. 겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%).`;
+
+  // 소방수: 안전선은 넘었지만 목표선(승격)에는 못 미치는 페이스면 겨울 진입 시 적응도 +30
+  const tier = getLeagueTier(currentState.leagueTierId);
+  const halfSafe = tier.safePoints / 2;
+  const halfTarget = tier.targetPoints / 2;
+  if (
+    manager.trait === 'firefighter' &&
+    currentState.firstHalfPoints >= halfSafe &&
+    currentState.firstHalfPoints < halfTarget
+  ) {
+    currentState.chemistry = Math.min(100, currentState.chemistry + 30);
+    banner += ' 소방수 발동: 적응도 +30.';
+  }
+
+  renderMarket(banner);
 }
 
 const RESULT_LABELS = { champion: '우승권!', promotion: '승격권', safe: '안전 잔류', relegation: '강등 위기' };
 
 function runSecondHalfAndFinish() {
+  const { manager } = currentState;
   const { lineup, bench } = pickBestXI(currentState.squad);
   const secondHalf = runHalfSeason(
     lineup,
     bench,
-    currentState.manager.tier,
+    manager.tier,
     currentState.chemistry,
-    currentState.leagueTierId
+    currentState.leagueTierId,
+    Math.random,
+    boostedTagIdFor(manager)
   );
   const totalPoints = currentState.firstHalfPoints + secondHalf;
-  const result = judgeSeasonResult(totalPoints, currentState.leagueTierId);
+  let result = judgeSeasonResult(totalPoints, currentState.leagueTierId);
   const tier = getLeagueTier(currentState.leagueTierId);
   const nextSeasonFunds = calculateStartingFunds(LEAGUE_LADDER.indexOf(currentState.leagueTierId));
   currentState.funds = applyCarryoverCap(currentState.funds, nextSeasonFunds);
+
+  // 보드진의 신임: 해임 조건 1회 면제(사용 후 소멸)
+  let boardTrustMessage = '';
+  if (result === 'relegation' && manager.trait === 'boardTrust' && !currentState.boardTrustUsed) {
+    currentState.boardTrustUsed = true;
+    result = 'safe';
+    boardTrustMessage = '<p><strong>보드진의 신임 발동: 해임을 면했습니다(1회 소멸).</strong></p>';
+  }
 
   const currentTierIndex = LEAGUE_LADDER.indexOf(currentState.leagueTierId);
   const canPromote = (result === 'promotion' || result === 'champion') && currentTierIndex < LEAGUE_LADDER.length - 1;
@@ -260,6 +327,7 @@ function runSecondHalfAndFinish() {
 
   document.getElementById('run-info').innerHTML = `
     <h2>${currentState.club.name} — 시즌 최종 결산</h2>
+    ${boardTrustMessage}
     <p>전반기 ${currentState.firstHalfPoints.toFixed(1)}점 · 후반기 ${secondHalf.toFixed(1)}점</p>
     <p>시즌 최종 승점: <strong>${totalPoints.toFixed(1)}</strong> / ${tier.championPoints}(우승)</p>
     <p>${RESULT_LABELS[result]} — 안전 ${tier.safePoints} · 승격 ${tier.targetPoints} · 우승 ${tier.championPoints}</p>
@@ -285,7 +353,7 @@ function runSecondHalfAndFinish() {
 }
 
 function renderMarket(banner = '') {
-  const { club, squad, funds, chemistry, eventMessage, shopOffer, phase, week, listedForSale } = currentState;
+  const { club, manager, squad, funds, chemistry, eventMessage, shopOffer, phase, week, listedForSale } = currentState;
   const maxWeek = phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];
   const phaseLabel = phase === 'summer' ? '여름 이적시장' : '겨울 이적시장';
   const isDeadlineWeek = phase === 'winter' && week === WINTER_MARKET_WEEKS[1];
@@ -314,6 +382,7 @@ function renderMarket(banner = '') {
 
   document.getElementById('run-info').innerHTML = `
     <h2>${club.name} — ${phaseLabel} (Week ${week}/${maxWeek})</h2>
+    <p>감독: ${manager.name} (${manager.tier}, ×${manager.multiplier}${manager.trait ? `, [${manager.trait}]` : ''})</p>
     ${banner ? `<p><strong>${banner}</strong></p>` : ''}
     ${phase === 'summer' && week === SUMMER_MARKET_WEEKS[0] && eventMessage ? `<p>${eventMessage}</p>` : ''}
     <p>보유 자금: ${funds}G · 적응도: ${chemistry.toFixed(1)}</p>
