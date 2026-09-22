@@ -47,7 +47,10 @@ export const TEAM_MULTIPLIER_CAP = 1.30;
 // 5부에서 거의 항상 만점(114점) 우승이 나옴 — 2.0으로 완화.
 export const LEAGUE_POINTS_COEFFICIENT = 2.0;
 export const BASE_POINTS_AT_LEAGUE_AVERAGE = 42;
-export const POWER_VARIANCE_RATIO = 0.05;
+// 원래 스펙 출발값은 ±5%였는데, 실측(node tune-check)해보니 베스트11만 골라
+// 쓰는 구조상 팀 전력이 리그 평균보다 항상 확실히 높게 나와서 ±5%~20%로는
+// 강등이 거의 안 나옴(500판 중 0~4%). 실제 플레이에서 가끔이라도 보이도록 ±25%로 조정.
+export const POWER_VARIANCE_RATIO = 0.25;
 
 // 스펙 5.1절 "6등급" — OVR 범위와 등급별 플레이스타일 태그 개수
 export const PLAYER_TIERS = {

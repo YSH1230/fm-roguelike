@@ -1,27 +1,27 @@
 [
   {
     "id": "p0001",
-    "name": "Chidi Mwangi",
-    "baseOVR": 52,
-    "price": 15,
+    "name": "Sipho Diallo",
+    "baseOVR": 61,
+    "price": 38,
     "age": 25,
-    "position": "W",
+    "position": "WB",
     "playstyleTags": [
-      "tikiTaka"
+      "falseNine"
     ],
     "continentTag": "africa",
-    "specialTrait": "seongGolYouth",
-    "isDraftedYouth": true
+    "specialTrait": "superSub",
+    "isDraftedYouth": false
   },
   {
     "id": "p0002",
-    "name": "Wei Zhang",
+    "name": "Haruto Sharma",
     "baseOVR": 57,
     "price": 28,
-    "age": 27,
-    "position": "CMF",
+    "age": 30,
+    "position": "AMF",
     "playstyleTags": [
-      "gegenpressing"
+      "counterAttack"
     ],
     "continentTag": "asiaOceania",
     "specialTrait": null,
@@ -29,95 +29,263 @@
   },
   {
     "id": "p0003",
-    "name": "Kwame Camara",
-    "baseOVR": 62,
-    "price": 40,
-    "age": 22,
-    "position": "GK",
+    "name": "Sipho Okafor",
+    "baseOVR": 56,
+    "price": 25,
+    "age": 23,
+    "position": "CB",
     "playstyleTags": [
-      "buildUpFromBack"
+      "falseNine"
     ],
     "continentTag": "africa",
-    "specialTrait": "polyglot",
+    "specialTrait": null,
     "isDraftedYouth": false
   },
   {
     "id": "p0004",
-    "name": "Antoine Dubois",
-    "baseOVR": 58,
-    "price": 30,
-    "age": 31,
-    "position": "W",
+    "name": "Taehyun Tanaka",
+    "baseOVR": 51,
+    "price": 13,
+    "age": 23,
+    "position": "GK",
     "playstyleTags": [
-      "longBallKickAndRush"
+      "buildUpFromBack"
+    ],
+    "continentTag": "asiaOceania",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0005",
+    "name": "Santiago Fernandez",
+    "baseOVR": 61,
+    "price": 38,
+    "age": 28,
+    "position": "WB",
+    "playstyleTags": [
+      "tikiTaka"
+    ],
+    "continentTag": "southAmerica",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0006",
+    "name": "Gustavo Vidal",
+    "baseOVR": 62,
+    "price": 40,
+    "age": 26,
+    "position": "GK",
+    "playstyleTags": [
+      "tikiTaka"
+    ],
+    "continentTag": "southAmerica",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0007",
+    "name": "Antoine Nagy",
+    "baseOVR": 60,
+    "price": 35,
+    "age": 33,
+    "position": "CB",
+    "playstyleTags": [
+      "totalFootball"
     ],
     "continentTag": "europe",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
-    "id": "p0005",
-    "name": "Santiago Vidal",
-    "baseOVR": 53,
-    "price": 18,
-    "age": 34,
-    "position": "AMF",
+    "id": "p0008",
+    "name": "Tunde Okafor",
+    "baseOVR": 51,
+    "price": 13,
+    "age": 23,
+    "position": "W",
     "playstyleTags": [
-      "longBallKickAndRush"
-    ],
-    "continentTag": "southAmerica",
-    "specialTrait": "journeyman",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0006",
-    "name": "Kwame Traore",
-    "baseOVR": 61,
-    "price": 38,
-    "age": 20,
-    "position": "GK",
-    "playstyleTags": [
-      "buildUpFromBack"
+      "counterAttack"
     ],
     "continentTag": "africa",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
-    "id": "p0007",
-    "name": "Baraka Adeyemi",
-    "baseOVR": 61,
-    "price": 38,
-    "age": 32,
-    "position": "W",
+    "id": "p0009",
+    "name": "Kofi Keita",
+    "baseOVR": 59,
+    "price": 33,
+    "age": 19,
+    "position": "ST",
     "playstyleTags": [
       "tikiTaka"
     ],
     "continentTag": "africa",
-    "specialTrait": "superSub",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0008",
-    "name": "Mateus Souza",
-    "baseOVR": 58,
-    "price": 30,
-    "age": 35,
-    "position": "WB",
-    "playstyleTags": [
-      "totalFootball"
-    ],
-    "continentTag": "southAmerica",
     "specialTrait": "journeyman",
     "isDraftedYouth": false
   },
   {
-    "id": "p0009",
-    "name": "Milan Keller",
-    "baseOVR": 54,
-    "price": 20,
-    "age": 27,
+    "id": "p0010",
+    "name": "Erik Keller",
+    "baseOVR": 50,
+    "price": 10,
+    "age": 18,
+    "position": "ST",
+    "playstyleTags": [
+      "tikiTaka"
+    ],
+    "continentTag": "europe",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0011",
+    "name": "Liam Kim",
+    "baseOVR": 60,
+    "price": 35,
+    "age": 26,
+    "position": "WB",
+    "playstyleTags": [
+      "falseFullBack"
+    ],
+    "continentTag": "asiaOceania",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0012",
+    "name": "Erik Nagy",
+    "baseOVR": 61,
+    "price": 38,
+    "age": 23,
+    "position": "ST",
+    "playstyleTags": [
+      "totalFootball"
+    ],
+    "continentTag": "europe",
+    "specialTrait": "polyglot",
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0013",
+    "name": "Kwame Diallo",
+    "baseOVR": 55,
+    "price": 23,
+    "age": 34,
+    "position": "ST",
+    "playstyleTags": [
+      "longBallKickAndRush"
+    ],
+    "continentTag": "africa",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0014",
+    "name": "Liam Park",
+    "baseOVR": 57,
+    "price": 28,
+    "age": 35,
     "position": "GK",
+    "playstyleTags": [
+      "tikiTaka"
+    ],
+    "continentTag": "asiaOceania",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0015",
+    "name": "Ivan Berg",
+    "baseOVR": 61,
+    "price": 38,
+    "age": 33,
+    "position": "AMF",
+    "playstyleTags": [
+      "gegenpressing"
+    ],
+    "continentTag": "europe",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0016",
+    "name": "Kofi Osei",
+    "baseOVR": 51,
+    "price": 13,
+    "age": 19,
+    "position": "CMF",
+    "playstyleTags": [
+      "counterAttack"
+    ],
+    "continentTag": "africa",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0017",
+    "name": "Taehyun Nakamura",
+    "baseOVR": 59,
+    "price": 33,
+    "age": 34,
+    "position": "CB",
+    "playstyleTags": [
+      "falseNine"
+    ],
+    "continentTag": "asiaOceania",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0018",
+    "name": "Diego Rojas",
+    "baseOVR": 60,
+    "price": 35,
+    "age": 19,
+    "position": "CB",
+    "playstyleTags": [
+      "totalFootball"
+    ],
+    "continentTag": "southAmerica",
+    "specialTrait": "polyglot",
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0019",
+    "name": "Liam Park",
+    "baseOVR": 62,
+    "price": 40,
+    "age": 22,
+    "position": "W",
+    "playstyleTags": [
+      "buildUpFromBack"
+    ],
+    "continentTag": "asiaOceania",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0020",
+    "name": "Hugo Keller",
+    "baseOVR": 59,
+    "price": 33,
+    "age": 19,
+    "position": "GK",
+    "playstyleTags": [
+      "falseNine"
+    ],
+    "continentTag": "europe",
+    "specialTrait": "seongGolYouth",
+    "isDraftedYouth": true
+  },
+  {
+    "id": "p0021",
+    "name": "Erik Nagy",
+    "baseOVR": 58,
+    "price": 30,
+    "age": 25,
+    "position": "AMF",
     "playstyleTags": [
       "falseFullBack"
     ],
@@ -126,152 +294,208 @@
     "isDraftedYouth": false
   },
   {
-    "id": "p0010",
-    "name": "Kwame Mwangi",
+    "id": "p0022",
+    "name": "Kenji Sharma",
     "baseOVR": 51,
     "price": 13,
-    "age": 21,
-    "position": "CMF",
+    "age": 18,
+    "position": "CB",
     "playstyleTags": [
-      "counterAttack"
+      "falseNine"
     ],
-    "continentTag": "africa",
+    "continentTag": "asiaOceania",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
-    "id": "p0011",
-    "name": "Sipho Diallo",
-    "baseOVR": 62,
-    "price": 40,
-    "age": 20,
-    "position": "GK",
-    "playstyleTags": [
-      "counterAttack"
-    ],
-    "continentTag": "africa",
-    "specialTrait": "seongGolYouth",
-    "isDraftedYouth": true
-  },
-  {
-    "id": "p0012",
-    "name": "Ethan Smith",
+    "id": "p0023",
+    "name": "Marcus Brown",
     "baseOVR": 57,
     "price": 28,
-    "age": 18,
-    "position": "GK",
+    "age": 21,
+    "position": "AMF",
     "playstyleTags": [
-      "totalFootball"
+      "tikiTaka"
     ],
     "continentTag": "northCentralAmerica",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
-    "id": "p0013",
-    "name": "Sipho Mwangi",
-    "baseOVR": 52,
-    "price": 15,
-    "age": 32,
-    "position": "GK",
-    "playstyleTags": [
-      "counterAttack"
-    ],
-    "continentTag": "africa",
-    "specialTrait": "hometownHero",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0014",
-    "name": "Andres Ramirez",
-    "baseOVR": 50,
-    "price": 10,
-    "age": 21,
+    "id": "p0024",
+    "name": "Mateus Fernandez",
+    "baseOVR": 62,
+    "price": 40,
+    "age": 25,
     "position": "AMF",
     "playstyleTags": [
       "totalFootball"
     ],
+    "continentTag": "southAmerica",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0025",
+    "name": "Mateus Rojas",
+    "baseOVR": 61,
+    "price": 38,
+    "age": 28,
+    "position": "WB",
+    "playstyleTags": [
+      "falseFullBack"
+    ],
+    "continentTag": "southAmerica",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0026",
+    "name": "Ethan Hernandez",
+    "baseOVR": 53,
+    "price": 18,
+    "age": 33,
+    "position": "CMF",
+    "playstyleTags": [
+      "buildUpFromBack"
+    ],
+    "continentTag": "northCentralAmerica",
+    "specialTrait": "journeyman",
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0027",
+    "name": "Miguel Flores",
+    "baseOVR": 52,
+    "price": 15,
+    "age": 18,
+    "position": "ST",
+    "playstyleTags": [
+      "tikiTaka"
+    ],
     "continentTag": "northCentralAmerica",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
-    "id": "p0015",
-    "name": "Bruno Correa",
-    "baseOVR": 60,
-    "price": 35,
-    "age": 35,
+    "id": "p0028",
+    "name": "Taehyun Wong",
+    "baseOVR": 52,
+    "price": 15,
+    "age": 27,
+    "position": "AMF",
+    "playstyleTags": [
+      "longBallKickAndRush"
+    ],
+    "continentTag": "asiaOceania",
+    "specialTrait": "journeyman",
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0029",
+    "name": "Chidi Mwangi",
+    "baseOVR": 59,
+    "price": 33,
+    "age": 27,
     "position": "W",
     "playstyleTags": [
       "tikiTaka"
     ],
-    "continentTag": "southAmerica",
-    "specialTrait": "superSub",
+    "continentTag": "africa",
+    "specialTrait": null,
     "isDraftedYouth": false
   },
   {
-    "id": "p0016",
-    "name": "Sipho Osei",
-    "baseOVR": 53,
-    "price": 18,
+    "id": "p0030",
+    "name": "Milan Keller",
+    "baseOVR": 60,
+    "price": 35,
     "age": 30,
-    "position": "AMF",
+    "position": "CMF",
     "playstyleTags": [
-      "buildUpFromBack"
+      "counterAttack"
     ],
-    "continentTag": "africa",
-    "specialTrait": "seongGolYouth",
-    "isDraftedYouth": true
+    "continentTag": "europe",
+    "specialTrait": null,
+    "isDraftedYouth": false
   },
   {
-    "id": "p0017",
-    "name": "Diego Almeida",
-    "baseOVR": 59,
-    "price": 33,
-    "age": 33,
-    "position": "AMF",
+    "id": "p0031",
+    "name": "Ravi Park",
+    "baseOVR": 52,
+    "price": 15,
+    "age": 30,
+    "position": "CB",
     "playstyleTags": [
-      "totalFootball"
+      "counterAttack"
+    ],
+    "continentTag": "asiaOceania",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0032",
+    "name": "Mateus Souza",
+    "baseOVR": 58,
+    "price": 30,
+    "age": 26,
+    "position": "GK",
+    "playstyleTags": [
+      "gegenpressing"
     ],
     "continentTag": "southAmerica",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
-    "id": "p0018",
-    "name": "Tunde Keita",
-    "baseOVR": 53,
-    "price": 18,
-    "age": 22,
+    "id": "p0033",
+    "name": "Haruto Tanaka",
+    "baseOVR": 59,
+    "price": 33,
+    "age": 24,
+    "position": "WB",
+    "playstyleTags": [
+      "tikiTaka"
+    ],
+    "continentTag": "asiaOceania",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0034",
+    "name": "Kofi Camara",
+    "baseOVR": 62,
+    "price": 40,
+    "age": 35,
     "position": "CB",
     "playstyleTags": [
-      "totalFootball"
+      "tikiTaka"
     ],
     "continentTag": "africa",
     "specialTrait": "polyglot",
     "isDraftedYouth": false
   },
   {
-    "id": "p0019",
-    "name": "Miguel Smith",
-    "baseOVR": 61,
-    "price": 38,
-    "age": 26,
+    "id": "p0035",
+    "name": "Milan Rossi",
+    "baseOVR": 58,
+    "price": 30,
+    "age": 28,
     "position": "CB",
     "playstyleTags": [
-      "gegenpressing"
+      "falseFullBack"
     ],
-    "continentTag": "northCentralAmerica",
-    "specialTrait": "seongGolYouth",
-    "isDraftedYouth": true
+    "continentTag": "europe",
+    "specialTrait": null,
+    "isDraftedYouth": false
   },
   {
-    "id": "p0020",
-    "name": "Andres Ramirez",
-    "baseOVR": 56,
-    "price": 25,
-    "age": 18,
-    "position": "AMF",
+    "id": "p0036",
+    "name": "Jordan Johnson",
+    "baseOVR": 55,
+    "price": 23,
+    "age": 19,
+    "position": "W",
     "playstyleTags": [
       "falseNine"
     ],
@@ -280,266 +504,42 @@
     "isDraftedYouth": false
   },
   {
-    "id": "p0021",
-    "name": "Kwame Diallo",
-    "baseOVR": 60,
-    "price": 35,
-    "age": 29,
-    "position": "WB",
-    "playstyleTags": [
-      "tikiTaka"
-    ],
-    "continentTag": "africa",
-    "specialTrait": "polyglot",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0022",
-    "name": "Femi Keita",
-    "baseOVR": 51,
-    "price": 13,
-    "age": 21,
-    "position": "ST",
-    "playstyleTags": [
-      "counterAttack"
-    ],
-    "continentTag": "africa",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0023",
-    "name": "Erik Laurent",
-    "baseOVR": 62,
-    "price": 40,
-    "age": 21,
-    "position": "ST",
-    "playstyleTags": [
-      "falseFullBack"
-    ],
-    "continentTag": "europe",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0024",
-    "name": "Thiago Correa",
-    "baseOVR": 60,
-    "price": 35,
-    "age": 18,
-    "position": "W",
-    "playstyleTags": [
-      "falseFullBack"
-    ],
-    "continentTag": "southAmerica",
-    "specialTrait": "journeyman",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0025",
-    "name": "Rafael Silva",
-    "baseOVR": 52,
-    "price": 15,
-    "age": 28,
-    "position": "CB",
-    "playstyleTags": [
-      "gegenpressing"
-    ],
-    "continentTag": "southAmerica",
-    "specialTrait": "polyglot",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0026",
-    "name": "Ravi Sharma",
-    "baseOVR": 59,
-    "price": 33,
-    "age": 22,
-    "position": "ST",
-    "playstyleTags": [
-      "falseFullBack"
-    ],
-    "continentTag": "asiaOceania",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0027",
-    "name": "Antoine Petrov",
-    "baseOVR": 62,
-    "price": 40,
-    "age": 30,
-    "position": "ST",
-    "playstyleTags": [
-      "gegenpressing"
-    ],
-    "continentTag": "europe",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0028",
-    "name": "Carlos Ramirez",
-    "baseOVR": 60,
-    "price": 35,
-    "age": 24,
-    "position": "AMF",
-    "playstyleTags": [
-      "totalFootball"
-    ],
-    "continentTag": "northCentralAmerica",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0029",
-    "name": "Femi Okafor",
-    "baseOVR": 60,
-    "price": 35,
-    "age": 35,
-    "position": "CB",
-    "playstyleTags": [
-      "tikiTaka"
-    ],
-    "continentTag": "africa",
-    "specialTrait": "journeyman",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0030",
-    "name": "Tunde Camara",
-    "baseOVR": 58,
-    "price": 30,
-    "age": 28,
-    "position": "ST",
-    "playstyleTags": [
-      "longBallKickAndRush"
-    ],
-    "continentTag": "africa",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0031",
-    "name": "Milan Nagy",
-    "baseOVR": 56,
-    "price": 25,
-    "age": 31,
-    "position": "W",
-    "playstyleTags": [
-      "counterAttack"
-    ],
-    "continentTag": "europe",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0032",
-    "name": "Marcus Johnson",
-    "baseOVR": 62,
-    "price": 40,
-    "age": 30,
-    "position": "GK",
-    "playstyleTags": [
-      "longBallKickAndRush"
-    ],
-    "continentTag": "northCentralAmerica",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0033",
-    "name": "Bruno Fernandez",
-    "baseOVR": 52,
-    "price": 15,
-    "age": 31,
-    "position": "ST",
-    "playstyleTags": [
-      "gegenpressing"
-    ],
-    "continentTag": "southAmerica",
-    "specialTrait": "hometownHero",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0034",
-    "name": "Haruto Park",
-    "baseOVR": 54,
-    "price": 20,
-    "age": 19,
-    "position": "WB",
-    "playstyleTags": [
-      "longBallKickAndRush"
-    ],
-    "continentTag": "asiaOceania",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0035",
-    "name": "Haruto Nakamura",
-    "baseOVR": 59,
-    "price": 33,
-    "age": 30,
-    "position": "GK",
-    "playstyleTags": [
-      "gegenpressing"
-    ],
-    "continentTag": "asiaOceania",
-    "specialTrait": "journeyman",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0036",
-    "name": "Amara Okafor",
-    "baseOVR": 56,
-    "price": 25,
-    "age": 25,
-    "position": "WB",
-    "playstyleTags": [
-      "gegenpressing"
-    ],
-    "continentTag": "africa",
-    "specialTrait": "polyglot",
-    "isDraftedYouth": false
-  },
-  {
     "id": "p0037",
-    "name": "Ivan Keller",
-    "baseOVR": 62,
-    "price": 40,
-    "age": 26,
-    "position": "CMF",
+    "name": "Arjun Park",
+    "baseOVR": 55,
+    "price": 23,
+    "age": 25,
+    "position": "CB",
     "playstyleTags": [
-      "tikiTaka"
+      "falseNine"
     ],
-    "continentTag": "europe",
+    "continentTag": "asiaOceania",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
     "id": "p0038",
-    "name": "Carlos Johnson",
-    "baseOVR": 62,
-    "price": 40,
-    "age": 34,
-    "position": "CMF",
+    "name": "Ivan Novak",
+    "baseOVR": 59,
+    "price": 33,
+    "age": 23,
+    "position": "ST",
     "playstyleTags": [
-      "counterAttack"
+      "longBallKickAndRush"
     ],
-    "continentTag": "northCentralAmerica",
+    "continentTag": "europe",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
     "id": "p0039",
-    "name": "Andres Smith",
+    "name": "Ethan Davis",
     "baseOVR": 59,
     "price": 33,
-    "age": 23,
-    "position": "WB",
+    "age": 35,
+    "position": "GK",
     "playstyleTags": [
-      "gegenpressing"
+      "falseFullBack"
     ],
     "continentTag": "northCentralAmerica",
     "specialTrait": null,
@@ -547,25 +547,109 @@
   },
   {
     "id": "p0040",
-    "name": "Bruno Vidal",
-    "baseOVR": 57,
-    "price": 28,
-    "age": 22,
-    "position": "GK",
+    "name": "Erik Nagy",
+    "baseOVR": 56,
+    "price": 25,
+    "age": 32,
+    "position": "CB",
     "playstyleTags": [
-      "counterAttack"
+      "gegenpressing"
+    ],
+    "continentTag": "europe",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0041",
+    "name": "Chidi Okafor",
+    "baseOVR": 55,
+    "price": 23,
+    "age": 19,
+    "position": "AMF",
+    "playstyleTags": [
+      "falseNine"
+    ],
+    "continentTag": "africa",
+    "specialTrait": "polyglot",
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0042",
+    "name": "Kevin Hernandez",
+    "baseOVR": 52,
+    "price": 15,
+    "age": 24,
+    "position": "CMF",
+    "playstyleTags": [
+      "totalFootball"
+    ],
+    "continentTag": "northCentralAmerica",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0043",
+    "name": "Kofi Adeyemi",
+    "baseOVR": 53,
+    "price": 18,
+    "age": 31,
+    "position": "CMF",
+    "playstyleTags": [
+      "buildUpFromBack"
+    ],
+    "continentTag": "africa",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0044",
+    "name": "Antoine Keller",
+    "baseOVR": 61,
+    "price": 38,
+    "age": 27,
+    "position": "CMF",
+    "playstyleTags": [
+      "gegenpressing"
+    ],
+    "continentTag": "europe",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0045",
+    "name": "Emiliano Diaz",
+    "baseOVR": 56,
+    "price": 25,
+    "age": 27,
+    "position": "AMF",
+    "playstyleTags": [
+      "totalFootball"
     ],
     "continentTag": "southAmerica",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
-    "id": "p0041",
-    "name": "Femi Mwangi",
-    "baseOVR": 57,
-    "price": 28,
-    "age": 19,
-    "position": "ST",
+    "id": "p0046",
+    "name": "Thiago Correa",
+    "baseOVR": 56,
+    "price": 25,
+    "age": 18,
+    "position": "AMF",
+    "playstyleTags": [
+      "falseNine"
+    ],
+    "continentTag": "southAmerica",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0047",
+    "name": "Baraka Osei",
+    "baseOVR": 62,
+    "price": 40,
+    "age": 30,
+    "position": "CB",
     "playstyleTags": [
       "falseFullBack"
     ],
@@ -574,112 +658,28 @@
     "isDraftedYouth": false
   },
   {
-    "id": "p0042",
-    "name": "Gustavo Souza",
-    "baseOVR": 51,
-    "price": 13,
-    "age": 24,
-    "position": "CB",
-    "playstyleTags": [
-      "counterAttack"
-    ],
-    "continentTag": "southAmerica",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0043",
-    "name": "Mateus Souza",
-    "baseOVR": 51,
-    "price": 13,
-    "age": 26,
-    "position": "W",
+    "id": "p0048",
+    "name": "Wei Zhang",
+    "baseOVR": 50,
+    "price": 10,
+    "age": 32,
+    "position": "WB",
     "playstyleTags": [
       "tikiTaka"
-    ],
-    "continentTag": "southAmerica",
-    "specialTrait": "seongGolYouth",
-    "isDraftedYouth": true
-  },
-  {
-    "id": "p0044",
-    "name": "Haruto Park",
-    "baseOVR": 52,
-    "price": 15,
-    "age": 26,
-    "position": "W",
-    "playstyleTags": [
-      "gegenpressing"
     ],
     "continentTag": "asiaOceania",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
-    "id": "p0045",
-    "name": "Tunde Diallo",
-    "baseOVR": 50,
-    "price": 10,
-    "age": 27,
-    "position": "W",
-    "playstyleTags": [
-      "falseFullBack"
-    ],
-    "continentTag": "africa",
-    "specialTrait": "hometownHero",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0046",
-    "name": "Ethan Flores",
+    "id": "p0049",
+    "name": "Minjun Nakamura",
     "baseOVR": 61,
     "price": 38,
     "age": 28,
-    "position": "W",
+    "position": "ST",
     "playstyleTags": [
-      "totalFootball"
-    ],
-    "continentTag": "northCentralAmerica",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0047",
-    "name": "Chidi Traore",
-    "baseOVR": 56,
-    "price": 25,
-    "age": 28,
-    "position": "CMF",
-    "playstyleTags": [
-      "tikiTaka"
-    ],
-    "continentTag": "africa",
-    "specialTrait": "hometownHero",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0048",
-    "name": "Tyler Smith",
-    "baseOVR": 51,
-    "price": 13,
-    "age": 35,
-    "position": "W",
-    "playstyleTags": [
-      "totalFootball"
-    ],
-    "continentTag": "northCentralAmerica",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0049",
-    "name": "Ravi Kim",
-    "baseOVR": 56,
-    "price": 25,
-    "age": 23,
-    "position": "GK",
-    "playstyleTags": [
-      "tikiTaka"
+      "gegenpressing"
     ],
     "continentTag": "asiaOceania",
     "specialTrait": null,
@@ -687,39 +687,67 @@
   },
   {
     "id": "p0050",
-    "name": "Luca Nagy",
-    "baseOVR": 57,
-    "price": 28,
-    "age": 34,
-    "position": "CB",
+    "name": "Wei Sharma",
+    "baseOVR": 54,
+    "price": 20,
+    "age": 20,
+    "position": "CMF",
     "playstyleTags": [
-      "gegenpressing"
+      "counterAttack"
     ],
-    "continentTag": "europe",
-    "specialTrait": null,
-    "isDraftedYouth": false
+    "continentTag": "asiaOceania",
+    "specialTrait": "seongGolYouth",
+    "isDraftedYouth": true
   },
   {
     "id": "p0051",
-    "name": "Antoine Dubois",
-    "baseOVR": 55,
-    "price": 23,
-    "age": 26,
-    "position": "ST",
+    "name": "Luca Laurent",
+    "baseOVR": 62,
+    "price": 40,
+    "age": 21,
+    "position": "GK",
     "playstyleTags": [
-      "falseFullBack"
+      "buildUpFromBack"
     ],
     "continentTag": "europe",
-    "specialTrait": null,
+    "specialTrait": "polyglot",
     "isDraftedYouth": false
   },
   {
     "id": "p0052",
-    "name": "Bruno Correa",
-    "baseOVR": 54,
-    "price": 20,
-    "age": 32,
-    "position": "GK",
+    "name": "Milan Dubois",
+    "baseOVR": 61,
+    "price": 38,
+    "age": 25,
+    "position": "AMF",
+    "playstyleTags": [
+      "totalFootball"
+    ],
+    "continentTag": "europe",
+    "specialTrait": null,
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0053",
+    "name": "Carlos Hernandez",
+    "baseOVR": 61,
+    "price": 38,
+    "age": 20,
+    "position": "ST",
+    "playstyleTags": [
+      "tikiTaka"
+    ],
+    "continentTag": "northCentralAmerica",
+    "specialTrait": "superSub",
+    "isDraftedYouth": false
+  },
+  {
+    "id": "p0054",
+    "name": "Diego Correa",
+    "baseOVR": 51,
+    "price": 13,
+    "age": 35,
+    "position": "CMF",
     "playstyleTags": [
       "buildUpFromBack"
     ],
@@ -728,54 +756,26 @@
     "isDraftedYouth": false
   },
   {
-    "id": "p0053",
-    "name": "Kevin Johnson",
-    "baseOVR": 54,
-    "price": 20,
-    "age": 33,
-    "position": "WB",
-    "playstyleTags": [
-      "longBallKickAndRush"
-    ],
-    "continentTag": "northCentralAmerica",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0054",
-    "name": "Wei Sharma",
-    "baseOVR": 62,
-    "price": 40,
-    "age": 34,
-    "position": "WB",
-    "playstyleTags": [
-      "gegenpressing"
-    ],
-    "continentTag": "asiaOceania",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
     "id": "p0055",
-    "name": "Haruto Sharma",
-    "baseOVR": 54,
-    "price": 20,
-    "age": 32,
+    "name": "Bruno Almeida",
+    "baseOVR": 58,
+    "price": 30,
+    "age": 31,
     "position": "AMF",
     "playstyleTags": [
-      "gegenpressing"
+      "counterAttack"
     ],
-    "continentTag": "asiaOceania",
+    "continentTag": "southAmerica",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
     "id": "p0056",
-    "name": "Minjun Sharma",
-    "baseOVR": 51,
-    "price": 13,
-    "age": 24,
-    "position": "CMF",
+    "name": "Ravi Wong",
+    "baseOVR": 60,
+    "price": 35,
+    "age": 26,
+    "position": "ST",
     "playstyleTags": [
       "tikiTaka"
     ],
@@ -785,268 +785,58 @@
   },
   {
     "id": "p0057",
-    "name": "Kenji Kim",
-    "baseOVR": 50,
-    "price": 10,
-    "age": 35,
-    "position": "AMF",
+    "name": "Tyler Hernandez",
+    "baseOVR": 60,
+    "price": 35,
+    "age": 21,
+    "position": "WB",
     "playstyleTags": [
-      "falseFullBack"
+      "falseNine"
     ],
-    "continentTag": "asiaOceania",
-    "specialTrait": "seongGolYouth",
-    "isDraftedYouth": true
+    "continentTag": "northCentralAmerica",
+    "specialTrait": null,
+    "isDraftedYouth": false
   },
   {
     "id": "p0058",
-    "name": "Kwame Diallo",
-    "baseOVR": 57,
-    "price": 28,
-    "age": 25,
-    "position": "GK",
+    "name": "Gustavo Silva",
+    "baseOVR": 54,
+    "price": 20,
+    "age": 19,
+    "position": "CB",
     "playstyleTags": [
-      "longBallKickAndRush"
+      "totalFootball"
     ],
-    "continentTag": "africa",
+    "continentTag": "southAmerica",
     "specialTrait": null,
     "isDraftedYouth": false
   },
   {
     "id": "p0059",
-    "name": "Rafael Vidal",
+    "name": "Ethan Ramirez",
     "baseOVR": 52,
     "price": 15,
-    "age": 18,
-    "position": "ST",
+    "age": 31,
+    "position": "CMF",
     "playstyleTags": [
-      "falseNine"
+      "counterAttack"
     ],
-    "continentTag": "southAmerica",
-    "specialTrait": null,
+    "continentTag": "northCentralAmerica",
+    "specialTrait": "hometownHero",
     "isDraftedYouth": false
   },
   {
     "id": "p0060",
-    "name": "Hugo Keller",
-    "baseOVR": 57,
-    "price": 28,
-    "age": 23,
-    "position": "W",
-    "playstyleTags": [
-      "falseFullBack"
-    ],
-    "continentTag": "europe",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0061",
-    "name": "Erik Laurent",
-    "baseOVR": 50,
-    "price": 10,
-    "age": 24,
-    "position": "W",
-    "playstyleTags": [
-      "longBallKickAndRush"
-    ],
-    "continentTag": "europe",
-    "specialTrait": "polyglot",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0062",
-    "name": "Santiago Souza",
+    "name": "Santiago Almeida",
     "baseOVR": 54,
     "price": 20,
-    "age": 19,
-    "position": "GK",
-    "playstyleTags": [
-      "gegenpressing"
-    ],
-    "continentTag": "southAmerica",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0063",
-    "name": "Arjun Patel",
-    "baseOVR": 51,
-    "price": 13,
-    "age": 24,
-    "position": "ST",
-    "playstyleTags": [
-      "counterAttack"
-    ],
-    "continentTag": "asiaOceania",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0064",
-    "name": "Kofi Keita",
-    "baseOVR": 54,
-    "price": 20,
-    "age": 21,
-    "position": "CMF",
-    "playstyleTags": [
-      "tikiTaka"
-    ],
-    "continentTag": "africa",
-    "specialTrait": "journeyman",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0065",
-    "name": "Felix Berg",
-    "baseOVR": 59,
-    "price": 33,
-    "age": 18,
-    "position": "W",
-    "playstyleTags": [
-      "longBallKickAndRush"
-    ],
-    "continentTag": "europe",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0066",
-    "name": "Thiago Vidal",
-    "baseOVR": 54,
-    "price": 20,
-    "age": 32,
-    "position": "WB",
-    "playstyleTags": [
-      "gegenpressing"
-    ],
-    "continentTag": "southAmerica",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0067",
-    "name": "Thiago Fernandez",
-    "baseOVR": 54,
-    "price": 20,
-    "age": 24,
-    "position": "AMF",
-    "playstyleTags": [
-      "falseFullBack"
-    ],
-    "continentTag": "southAmerica",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0068",
-    "name": "Femi Mwangi",
-    "baseOVR": 53,
-    "price": 18,
-    "age": 18,
-    "position": "GK",
-    "playstyleTags": [
-      "tikiTaka"
-    ],
-    "continentTag": "africa",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0069",
-    "name": "Rafael Fernandez",
-    "baseOVR": 61,
-    "price": 38,
-    "age": 34,
-    "position": "W",
-    "playstyleTags": [
-      "falseFullBack"
-    ],
-    "continentTag": "southAmerica",
-    "specialTrait": "seongGolYouth",
-    "isDraftedYouth": true
-  },
-  {
-    "id": "p0070",
-    "name": "Sipho Osei",
-    "baseOVR": 55,
-    "price": 23,
-    "age": 27,
-    "position": "WB",
-    "playstyleTags": [
-      "falseNine"
-    ],
-    "continentTag": "africa",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0071",
-    "name": "Hugo Novak",
-    "baseOVR": 69,
-    "price": 93,
-    "age": 21,
-    "position": "CB",
-    "playstyleTags": [
-      "longBallKickAndRush"
-    ],
-    "continentTag": "europe",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0072",
-    "name": "Tunde Camara",
-    "baseOVR": 69,
-    "price": 93,
-    "age": 21,
-    "position": "CB",
-    "playstyleTags": [
-      "longBallKickAndRush"
-    ],
-    "continentTag": "africa",
-    "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0073",
-    "name": "Diego Almeida",
-    "baseOVR": 66,
-    "price": 67,
-    "age": 23,
+    "age": 30,
     "position": "W",
     "playstyleTags": [
       "buildUpFromBack"
     ],
     "continentTag": "southAmerica",
-    "specialTrait": "hometownHero",
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0074",
-    "name": "Baraka Keita",
-    "baseOVR": 70,
-    "price": 102,
-    "age": 19,
-    "position": "AMF",
-    "playstyleTags": [
-      "gegenpressing"
-    ],
-    "continentTag": "africa",
     "specialTrait": null,
-    "isDraftedYouth": false
-  },
-  {
-    "id": "p0075",
-    "name": "Bruno Correa",
-    "baseOVR": 68,
-    "price": 84,
-    "age": 21,
-    "position": "W",
-    "playstyleTags": [
-      "tikiTaka"
-    ],
-    "continentTag": "southAmerica",
-    "specialTrait": "hometownHero",
     "isDraftedYouth": false
   },
   {
