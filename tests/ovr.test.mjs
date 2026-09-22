@@ -142,3 +142,24 @@ test('computePlayerFinalOVR은 baseOVR에 모든 가산을 합산한다', () => 
   // 70 (base) + 4 (저니맨) + 4 (게겐프레싱 3명 시너지) = 78
   assert.equal(computePlayerFinalOVR(player, lineup, []), 78);
 });
+
+test('전술 원리주의자(boostedTagId)는 해당 태그의 요구 인원을 1명 감면한다', () => {
+  const lineup = [
+    makePlayer({ id: 'a', position: 'ST', playstyleTags: ['gegenpressing'] }),
+    makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] }),
+  ]; // 게겐프레싱 2명뿐 — 원래는 3명 미만이라 발동 안 함
+  assert.equal(computePlaystyleSynergyBonus(lineup).get('a') ?? 0, 0);
+
+  const boosted = computePlaystyleSynergyBonus(lineup, 'gegenpressing');
+  assert.equal(boosted.get('a'), 4); // 감면으로 tier3 발동
+  assert.equal(boosted.get('b'), 4);
+});
+
+test('boostedTagId는 지정한 태그에만 적용되고 다른 태그는 그대로다', () => {
+  const lineup = [
+    makePlayer({ id: 'a', position: 'CMF', playstyleTags: ['tikiTaka'] }),
+    makePlayer({ id: 'b', position: 'AMF', playstyleTags: ['tikiTaka'] }),
+  ]; // 티키타카 2명, gegenpressing으로 감면을 걸어도 무관해야 함
+  const boosted = computePlaystyleSynergyBonus(lineup, 'gegenpressing');
+  assert.equal(boosted.get('a') ?? 0, 0);
+});

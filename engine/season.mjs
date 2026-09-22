@@ -10,10 +10,10 @@ export function advanceWeek(chemistry, hadTransactionThisWeek) {
 // convertPowerToPoints는 38경기(풀시즌) 스케일로 캘리브레이션되어 있으므로,
 // 전/후반기(19경기씩) 각각에 쓸 때는 결과를 절반으로 나눠 스케일을 맞춘다.
 // ponytail: 근사치. 전/후반기 별도 계수가 필요해지면 그때 분리한다.
-export function runHalfSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng = Math.random) {
+export function runHalfSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng = Math.random, boostedTagId = null) {
   const tier = getLeagueTier(leagueTierId);
   const leagueAverageOVR = (tier.averageOVR[0] + tier.averageOVR[1]) / 2;
-  const basePower = computeTeamPower(lineup, bench, managerTier, chemistry);
+  const basePower = computeTeamPower(lineup, bench, managerTier, chemistry, boostedTagId);
   const finalPower = applyVariance(basePower, undefined, rng);
   return convertPowerToPoints(finalPower, leagueAverageOVR) / 2;
 }

@@ -48,13 +48,15 @@ function tieredValue(count, tier3, tier5) {
 
 // 시너지 발동 인원수는 포지션과 무관하게 라인업(베스트11) 전체의 태그 보유자 수로 센다.
 // 버프 지급은 그중 대상 포지션에 있는 보유자에게만 한다 (스펙 5.1 "베스트11 배치자만 카운트").
-export function computePlaystyleSynergyBonus(lineup) {
+// boostedTagId: 감독의 전술 원리주의자 성향이 지정한 태그의 요구 인원을 1명 감면(스펙 5.2절).
+export function computePlaystyleSynergyBonus(lineup, boostedTagId = null) {
   const bonuses = new Map();
   for (const [tagId, tagDef] of Object.entries(PLAYSTYLE_TAGS)) {
     const holders = lineup.filter((p) => p.playstyleTags.includes(tagId));
-    if (holders.length < 3) continue;
+    const effectiveCount = tagId === boostedTagId ? holders.length + 1 : holders.length;
+    if (effectiveCount < 3) continue;
     const holdersInPosition = holders.filter((p) => tagDef.positions.includes(p.position));
-    const value = tieredValue(holders.length, tagDef.tier3, tagDef.tier5);
+    const value = tieredValue(effectiveCount, tagDef.tier3, tagDef.tier5);
     for (const p of holdersInPosition) {
       bonuses.set(p.id, (bonuses.get(p.id) ?? 0) + value);
     }
@@ -92,10 +94,10 @@ export function computeContinentSynergyBonus(lineup) {
   return bonuses;
 }
 
-export function computePlayerFinalOVR(player, lineup, bench) {
+export function computePlayerFinalOVR(player, lineup, bench, boostedTagId = null) {
   const selfBonus = computeSelfTraitBonus(player);
   const teamBonuses = computeTeamTraitBonuses(lineup, bench);
-  const playstyleBonuses = computePlaystyleSynergyBonus(lineup);
+  const playstyleBonuses = computePlaystyleSynergyBonus(lineup, boostedTagId);
   const continentBonuses = computeContinentSynergyBonus(lineup);
 
   return (
