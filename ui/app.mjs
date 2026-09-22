@@ -1,9 +1,10 @@
 import { CLUBS } from '../data/clubs.mjs';
 import { generateSquadPool } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
-import { computeTeamPower, applyVariance } from '../engine/team-power.mjs';
-import { convertPowerToPoints, getLeagueTier } from '../engine/league.mjs';
-import { CHEMISTRY_START } from '../engine/constants.mjs';
+import { getLeagueTier } from '../engine/league.mjs';
+import { runFullSeason } from '../engine/season.mjs';
+import { calculateStartingFunds, applyCarryoverCap } from '../engine/economy.mjs';
+import { CHEMISTRY_START, STARTING_FUNDS_TIER5 } from '../engine/constants.mjs';
 
 // 5부 슬라이스용 등급 분포 (tools/generate-players.mjs와 동일한 출발값)
 const TIER_WEIGHTS = { local: 30, bigLeaguer: 25, topClass: 12, worldClass: 6, legendary: 2 };
@@ -79,28 +80,34 @@ function renderSquad() {
   document.getElementById('simulate-btn').onclick = runSeason;
 }
 
+const RESULT_LABELS = {
+  champion: '우승권!',
+  promotion: '승격권',
+  safe: '안전 잔류',
+  relegation: '강등 위기',
+};
+
 function runSeason() {
   const { manager, lineup, bench, chemistry } = currentState;
   const tier = getLeagueTier('tier5');
-  const leagueAverageOVR = (tier.averageOVR[0] + tier.averageOVR[1]) / 2;
 
-  const basePower = computeTeamPower(lineup, bench, manager.tier, chemistry);
-  const finalPower = applyVariance(basePower);
-  const points = convertPowerToPoints(finalPower, leagueAverageOVR);
+  // 스펙 2절: 여름 시장(스쿼드 확정, 이미 완료) → 전반기 결산 → 겨울 시장 → 후반기 결산
+  const { firstHalf, secondHalf, totalPoints, result } = runFullSeason(
+    lineup,
+    bench,
+    manager.tier,
+    chemistry,
+    'tier5'
+  );
 
-  const verdict =
-    points >= tier.championPoints
-      ? '우승권!'
-      : points >= tier.targetPoints
-        ? '승격권'
-        : points >= tier.safePoints
-          ? '안전 잔류'
-          : '강등 위기';
+  const nextSeasonFunds = calculateStartingFunds(0); // 잔류 시 다음 시즌도 5부
+  const carryover = applyCarryoverCap(STARTING_FUNDS_TIER5, nextSeasonFunds);
 
   document.getElementById('result').innerHTML = `
-    <p>팀 전력: ${finalPower.toFixed(1)} (리그 평균 ${leagueAverageOVR})</p>
-    <p>예상 시즌 승점: <strong>${points.toFixed(1)}</strong> / ${tier.championPoints}(우승)</p>
-    <p>${verdict} — 안전 ${tier.safePoints} · 승격 ${tier.targetPoints} · 우승 ${tier.championPoints}</p>
+    <p>전반기 결산: ${firstHalf.toFixed(1)}점 · 후반기 결산: ${secondHalf.toFixed(1)}점</p>
+    <p>시즌 최종 승점: <strong>${totalPoints.toFixed(1)}</strong> / ${tier.championPoints}(우승)</p>
+    <p>${RESULT_LABELS[result]} — 안전 ${tier.safePoints} · 승격 ${tier.targetPoints} · 우승 ${tier.championPoints}</p>
+    <p>다음 시즌 이월 가능 자금(최대): ${carryover.toFixed(0)}G</p>
   `;
 }
 
