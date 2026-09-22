@@ -26,9 +26,10 @@ export function judgeSeasonResult(totalPoints, leagueTierId) {
   return 'relegation';
 }
 
-// 스펙 2절 시즌 루프: 여름 시장(스쿼드 확정) → 전반기 결산 → 겨울 시장 →
-// 후반기 결산 → 거취 판정. 이적시장 중 실제 매매는 아직 없어(경제 시스템은
-// 계산 함수만 존재), 같은 스쿼드로 전/후반기를 각각 결산한다.
+// 스펙 2절 시즌 루프을 한 번에 계산하는 간단 버전 (매주 이적시장을 진행하지
+// 않고 같은 스쿼드로 전/후반기만 계산). 실제 게임(ui/app.mjs)은 12주
+// 이적시장을 진행하면서 runHalfSeason을 두 번 직접 호출하므로 이 함수를
+// 쓰지 않는다 — 밸런스 시뮬레이터 등 "매매 없이 빠르게 결과만" 볼 때를 위해 남겨둔다.
 export function runFullSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng = Math.random) {
   const firstHalf = runHalfSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng);
   const secondHalf = runHalfSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng);

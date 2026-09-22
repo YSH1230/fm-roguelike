@@ -40,3 +40,13 @@ test('generateSquadPool은 등급별 가중치대로 인원수를 만든다', ()
   assert.equal(pool.length, 5);
   assert.equal(pool.every((p) => p.id), true); // 모든 카드에 고유 id
 });
+
+test('33세 미만 선수는 베테랑 리더 성향을 가질 수 없다(효과가 33세 이상에서만 발동하므로)', () => {
+  const rng = seededRng(7);
+  for (let i = 0; i < 200; i++) {
+    const p = generateProceduralPlayer('local', rng);
+    if (p.specialTrait === 'veteranLeader') {
+      assert.ok(p.age >= 33, `veteranLeader 카드가 ${p.age}세로 생성됨`);
+    }
+  }
+});

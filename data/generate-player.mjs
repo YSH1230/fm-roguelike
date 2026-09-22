@@ -28,17 +28,21 @@ export function generateProceduralPlayer(tierId, rng = Math.random) {
 
   const continentTag = pick(Object.keys(CONTINENT_TAGS), rng);
   const name = randomName(continentTag, rng);
-
-  // 30% 확률로 특수 성향 하나 부여 (스펙: 등급 무관 0~1개)
-  const specialTrait = rng() < 0.3 ? pick(SPECIAL_TRAITS, rng) : null;
   const baseOVR = randomInt(tier.minOVR, tier.maxOVR, rng);
+  const age = randomInt(18, 35, rng);
+
+  // 30% 확률로 특수 성향 하나 부여 (스펙: 등급 무관 0~1개).
+  // 베테랑 리더는 33세 이상에서만 발동하므로(engine/ovr.mjs), 어린 선수에게는
+  // 뽑히지 않게 후보에서 뺀다 — 안 그러면 평생 효과 없는 카드가 생긴다.
+  const eligibleTraits = age >= 33 ? SPECIAL_TRAITS : SPECIAL_TRAITS.filter((t) => t !== 'veteranLeader');
+  const specialTrait = rng() < 0.3 ? pick(eligibleTraits, rng) : null;
 
   return {
     id: `p${String(nextId++).padStart(4, '0')}`,
     name,
     baseOVR,
     price: calculatePlayerPrice(tierId, baseOVR),
-    age: randomInt(18, 35, rng),
+    age,
     position: pick(POSITIONS, rng),
     playstyleTags: pickN(Object.keys(PLAYSTYLE_TAGS), tier.playstyleTagCount, rng),
     continentTag,

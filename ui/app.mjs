@@ -231,11 +231,11 @@ function nextWeek() {
   const saleMessage = resolveListedSales();
 
   if (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1]) {
-    runFirstHalf();
+    runFirstHalf(saleMessage);
     return;
   }
   if (currentState.phase === 'winter' && currentState.week > WINTER_MARKET_WEEKS[1]) {
-    runSecondHalfAndFinish();
+    runSecondHalfAndFinish(saleMessage);
     return;
   }
   currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
@@ -246,7 +246,7 @@ function boostedTagIdFor(manager) {
   return manager.trait === 'tacticalPurist' ? manager.tacticalTag : null;
 }
 
-function runFirstHalf() {
+function runFirstHalf(saleMessage = '') {
   const { manager } = currentState;
   const { lineup, bench } = pickBestXI(currentState.squad);
   currentState.firstHalfPoints = runHalfSeason(
@@ -262,7 +262,8 @@ function runFirstHalf() {
   currentState.week = WINTER_MARKET_WEEKS[0];
   currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
 
-  let banner = `전반기 결산: ${currentState.firstHalfPoints.toFixed(1)}점. 겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%).`;
+  let banner = saleMessage ? `${saleMessage} ` : '';
+  banner += `전반기 결산: ${currentState.firstHalfPoints.toFixed(1)}점. 겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%).`;
 
   // 소방수: 안전선은 넘었지만 목표선(승격)에는 못 미치는 페이스면 겨울 진입 시 적응도 +30
   const tier = getLeagueTier(currentState.leagueTierId);
@@ -282,7 +283,7 @@ function runFirstHalf() {
 
 const RESULT_LABELS = { champion: '우승권!', promotion: '승격권', safe: '안전 잔류', relegation: '강등 위기' };
 
-function runSecondHalfAndFinish() {
+function runSecondHalfAndFinish(saleMessage = '') {
   const { manager } = currentState;
   const { lineup, bench } = pickBestXI(currentState.squad);
   const secondHalf = runHalfSeason(
@@ -328,6 +329,7 @@ function runSecondHalfAndFinish() {
   document.getElementById('run-info').innerHTML = `
     <h2>${currentState.club.name} — 시즌 최종 결산</h2>
     ${boardTrustMessage}
+    ${saleMessage ? `<p>${saleMessage}</p>` : ''}
     <p>전반기 ${currentState.firstHalfPoints.toFixed(1)}점 · 후반기 ${secondHalf.toFixed(1)}점</p>
     <p>시즌 최종 승점: <strong>${totalPoints.toFixed(1)}</strong> / ${tier.championPoints}(우승)</p>
     <p>${RESULT_LABELS[result]} — 안전 ${tier.safePoints} · 승격 ${tier.targetPoints} · 우승 ${tier.championPoints}</p>
