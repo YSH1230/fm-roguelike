@@ -1,5 +1,11 @@
 import { computeTeamPower, applyVariance } from './team-power.mjs';
 import { convertPowerToPoints, getLeagueTier } from './league.mjs';
+import { applyStableWeekRecovery } from './chemistry.mjs';
+
+// 이적시장 한 주가 지나갈 때: 거래가 있었으면 그대로, 없었으면 적응도 +1 (스펙 6절)
+export function advanceWeek(chemistry, hadTransactionThisWeek) {
+  return hadTransactionThisWeek ? chemistry : applyStableWeekRecovery(chemistry);
+}
 
 // convertPowerToPoints는 38경기(풀시즌) 스케일로 캘리브레이션되어 있으므로,
 // 전/후반기(19경기씩) 각각에 쓸 때는 결과를 절반으로 나눠 스케일을 맞춘다.

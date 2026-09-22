@@ -4,14 +4,17 @@ import { generateProceduralManager } from '../data/generate-manager.mjs';
 import { rollPreseasonEvent } from '../data/run-preseason-event.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier } from '../engine/league.mjs';
-import { runFullSeason } from '../engine/season.mjs';
-import { calculateStartingFunds, applyCarryoverCap } from '../engine/economy.mjs';
+import { runHalfSeason, judgeSeasonResult, advanceWeek } from '../engine/season.mjs';
+import { calculateStartingFunds, applyCarryoverCap, applyCostModifiers } from '../engine/economy.mjs';
 import { applyTransactionDecay } from '../engine/chemistry.mjs';
 import {
   CHEMISTRY_START,
   CHEMISTRY_DECAY_PER_TRANSACTION,
   SHOP_OFFER_SIZE,
   SHOP_REROLL_COST,
+  SUMMER_MARKET_WEEKS,
+  WINTER_MARKET_WEEKS,
+  WINTER_TAX_RATIO,
 } from '../engine/constants.mjs';
 
 const FORMATION_SLOTS = ['GK', 'CB', 'CB', 'WB', 'WB', 'CMF', 'CMF', 'AMF', 'W', 'W', 'ST'];
@@ -69,7 +72,6 @@ function startRun(club) {
 
   // 초기 정비기(Week 1~3) 이벤트: 자금·스쿼드가 바뀔 수 있다
   const { funds, squad, message: eventMessage } = rollPreseasonEvent(rawSquad, baseFunds);
-
   const manager = generateProceduralManager('tactician');
 
   currentState = {
@@ -79,104 +81,115 @@ function startRun(club) {
     chemistry: CHEMISTRY_START,
     funds,
     eventMessage,
+    week: SUMMER_MARKET_WEEKS[0],
+    phase: 'summer',
+    transactedThisWeek: false,
     shopOffer: generateShopOffer(SHOP_OFFER_SIZE),
+    firstHalfPoints: null,
   };
-  renderShop();
+  renderMarket();
+}
+
+function cardPrice(card) {
+  const winterModifier = currentState.phase === 'winter' ? [WINTER_TAX_RATIO] : [];
+  return applyCostModifiers(card.price, winterModifier);
 }
 
 function buyCard(card) {
-  if (currentState.funds < card.price) return;
-  currentState.funds -= card.price;
+  const price = cardPrice(card);
+  if (currentState.funds < price) return;
+  currentState.funds -= price;
   currentState.squad = [...currentState.squad, toSquadPlayer(card)];
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, CHEMISTRY_DECAY_PER_TRANSACTION);
+  currentState.transactedThisWeek = true;
   currentState.shopOffer = currentState.shopOffer.filter((c) => c.id !== card.id);
-  renderShop();
+  renderMarket();
 }
 
 function rerollShop() {
   if (currentState.funds < SHOP_REROLL_COST) return;
   currentState.funds -= SHOP_REROLL_COST;
   currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
-  renderShop();
+  renderMarket();
 }
 
-function renderShop() {
-  const { club, funds, eventMessage, shopOffer } = currentState;
+function nextWeek() {
+  currentState.chemistry = advanceWeek(currentState.chemistry, currentState.transactedThisWeek);
+  currentState.transactedThisWeek = false;
+  currentState.week += 1;
+
+  if (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1]) {
+    runFirstHalf();
+    return;
+  }
+  if (currentState.phase === 'winter' && currentState.week > WINTER_MARKET_WEEKS[1]) {
+    runSecondHalfAndFinish();
+    return;
+  }
+  currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
+  renderMarket();
+}
+
+function runFirstHalf() {
+  const { lineup, bench } = pickBestXI(currentState.squad);
+  currentState.firstHalfPoints = runHalfSeason(lineup, bench, currentState.manager.tier, currentState.chemistry, 'tier5');
+  currentState.phase = 'winter';
+  currentState.week = WINTER_MARKET_WEEKS[0];
+  currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
+  renderMarket(`전반기 결산: ${currentState.firstHalfPoints.toFixed(1)}점. 겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%).`);
+}
+
+const RESULT_LABELS = { champion: '우승권!', promotion: '승격권', safe: '안전 잔류', relegation: '강등 위기' };
+
+function runSecondHalfAndFinish() {
+  const { lineup, bench } = pickBestXI(currentState.squad);
+  const secondHalf = runHalfSeason(lineup, bench, currentState.manager.tier, currentState.chemistry, 'tier5');
+  const totalPoints = currentState.firstHalfPoints + secondHalf;
+  const result = judgeSeasonResult(totalPoints, 'tier5');
+  const tier = getLeagueTier('tier5');
+  const nextSeasonFunds = calculateStartingFunds(0);
+  const carryover = applyCarryoverCap(currentState.funds, nextSeasonFunds);
+
+  document.getElementById('run-info').innerHTML = `
+    <h2>${currentState.club.name} — 시즌 최종 결산</h2>
+    <p>전반기 ${currentState.firstHalfPoints.toFixed(1)}점 · 후반기 ${secondHalf.toFixed(1)}점</p>
+    <p>시즌 최종 승점: <strong>${totalPoints.toFixed(1)}</strong> / ${tier.championPoints}(우승)</p>
+    <p>${RESULT_LABELS[result]} — 안전 ${tier.safePoints} · 승격 ${tier.targetPoints} · 우승 ${tier.championPoints}</p>
+    <p>다음 시즌 이월 가능 자금(최대): ${carryover.toFixed(0)}G</p>
+    <h3>최종 라인업</h3>
+    <ul>${lineup.map(renderCard).join('')}</ul>
+  `;
+}
+
+function renderMarket(banner = '') {
+  const { club, funds, chemistry, eventMessage, shopOffer, phase, week } = currentState;
+  const maxWeek = phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];
+  const phaseLabel = phase === 'summer' ? '여름 이적시장' : '겨울 이적시장';
+
   const offerHtml = shopOffer
     .map((c) => {
-      const affordable = funds >= c.price;
-      return `<li>${c.name} · ${c.position} · OVR ${c.baseOVR} · ${c.price}G
+      const price = cardPrice(c);
+      const affordable = funds >= price;
+      return `<li>${c.name} · ${c.position} · OVR ${c.baseOVR} · ${price}G
         <button data-buy="${c.id}" ${affordable ? '' : 'disabled'}>구매</button></li>`;
     })
     .join('');
 
   document.getElementById('run-info').innerHTML = `
-    <h2>${club.name} — 이적시장</h2>
-    <p>${eventMessage}</p>
-    <p>보유 자금: ${funds}G</p>
+    <h2>${club.name} — ${phaseLabel} (Week ${week}/${maxWeek})</h2>
+    ${banner ? `<p><strong>${banner}</strong></p>` : ''}
+    ${phase === 'summer' && week === SUMMER_MARKET_WEEKS[0] ? `<p>${eventMessage}</p>` : ''}
+    <p>보유 자금: ${funds}G · 적응도: ${chemistry.toFixed(1)}</p>
     <h3>이번 주 드래프트</h3>
     <ul>${offerHtml || '<li>매물 없음</li>'}</ul>
     <button id="reroll-btn" ${funds >= SHOP_REROLL_COST ? '' : 'disabled'}>리롤 (${SHOP_REROLL_COST}G)</button>
-    <button id="confirm-shop-btn">스쿼드 확정하고 다음으로</button>
+    <button id="next-week-btn">다음 주로</button>
   `;
   for (const card of shopOffer) {
     document.querySelector(`[data-buy="${card.id}"]`).onclick = () => buyCard(card);
   }
   document.getElementById('reroll-btn').onclick = rerollShop;
-  document.getElementById('confirm-shop-btn').onclick = finalizeSquad;
-}
-
-function finalizeSquad() {
-  const { lineup, bench } = pickBestXI(currentState.squad);
-  currentState.lineup = lineup;
-  currentState.bench = bench;
-  renderSquad();
-}
-
-function renderSquad() {
-  const { club, manager, lineup, bench, funds, eventMessage } = currentState;
-  document.getElementById('run-info').innerHTML = `
-    <h2>${club.name} — 감독 ${manager.name} (${manager.tier}, ×${manager.multiplier})</h2>
-    <p>시작 자금: ${funds}G · ${eventMessage}</p>
-    <h3>선발 라인업</h3>
-    <ul>${lineup.map(renderCard).join('')}</ul>
-    <h3>벤치</h3>
-    <ul>${bench.map(renderCard).join('')}</ul>
-    <button id="simulate-btn">시즌 결산 실행</button>
-    <div id="result"></div>
-  `;
-  document.getElementById('simulate-btn').onclick = runSeason;
-}
-
-const RESULT_LABELS = {
-  champion: '우승권!',
-  promotion: '승격권',
-  safe: '안전 잔류',
-  relegation: '강등 위기',
-};
-
-function runSeason() {
-  const { manager, lineup, bench, chemistry, funds } = currentState;
-  const tier = getLeagueTier('tier5');
-
-  // 스펙 2절: 여름 시장(스쿼드 확정, 이미 완료) → 전반기 결산 → 겨울 시장 → 후반기 결산
-  const { firstHalf, secondHalf, totalPoints, result } = runFullSeason(
-    lineup,
-    bench,
-    manager.tier,
-    chemistry,
-    'tier5'
-  );
-
-  const nextSeasonFunds = calculateStartingFunds(0); // 잔류 시 다음 시즌도 5부
-  const carryover = applyCarryoverCap(funds, nextSeasonFunds);
-
-  document.getElementById('result').innerHTML = `
-    <p>전반기 결산: ${firstHalf.toFixed(1)}점 · 후반기 결산: ${secondHalf.toFixed(1)}점</p>
-    <p>시즌 최종 승점: <strong>${totalPoints.toFixed(1)}</strong> / ${tier.championPoints}(우승)</p>
-    <p>${RESULT_LABELS[result]} — 안전 ${tier.safePoints} · 승격 ${tier.targetPoints} · 우승 ${tier.championPoints}</p>
-    <p>다음 시즌 이월 가능 자금(최대): ${carryover.toFixed(0)}G</p>
-  `;
+  document.getElementById('next-week-btn').onclick = nextWeek;
 }
 
 renderClubButtons();
