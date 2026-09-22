@@ -1,10 +1,11 @@
 import { CLUBS } from '../data/clubs.mjs';
 import { generateSquadPool, TIER5_SQUAD_WEIGHTS } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
+import { rollPreseasonEvent } from '../data/run-preseason-event.mjs';
 import { getLeagueTier } from '../engine/league.mjs';
 import { runFullSeason } from '../engine/season.mjs';
 import { calculateStartingFunds, applyCarryoverCap } from '../engine/economy.mjs';
-import { CHEMISTRY_START, STARTING_FUNDS_TIER5 } from '../engine/constants.mjs';
+import { CHEMISTRY_START } from '../engine/constants.mjs';
 
 const FORMATION_SLOTS = ['GK', 'CB', 'CB', 'WB', 'WB', 'CMF', 'CMF', 'AMF', 'W', 'W', 'ST'];
 
@@ -56,18 +57,24 @@ function renderCard(p) {
 let currentState = null;
 
 function startRun(club) {
-  const squad = generateSquadPool(TIER5_SQUAD_WEIGHTS).map(toSquadPlayer);
+  const baseFunds = Math.round(calculateStartingFunds(0) * club.startingFundsMultiplier);
+  const rawSquad = generateSquadPool(TIER5_SQUAD_WEIGHTS).map(toSquadPlayer);
+
+  // 초기 정비기(Week 1~3) 이벤트: 자금·스쿼드가 바뀔 수 있다
+  const { funds, squad, message: eventMessage } = rollPreseasonEvent(rawSquad, baseFunds);
+
   const manager = generateProceduralManager('tactician');
   const { lineup, bench } = pickBestXI(squad);
 
-  currentState = { club, squad, manager, lineup, bench, chemistry: CHEMISTRY_START };
+  currentState = { club, squad, manager, lineup, bench, chemistry: CHEMISTRY_START, funds, eventMessage };
   renderSquad();
 }
 
 function renderSquad() {
-  const { club, manager, lineup, bench } = currentState;
+  const { club, manager, lineup, bench, funds, eventMessage } = currentState;
   document.getElementById('run-info').innerHTML = `
     <h2>${club.name} — 감독 ${manager.name} (${manager.tier}, ×${manager.multiplier})</h2>
+    <p>시작 자금: ${funds}G · ${eventMessage}</p>
     <h3>선발 라인업</h3>
     <ul>${lineup.map(renderCard).join('')}</ul>
     <h3>벤치</h3>
@@ -86,7 +93,7 @@ const RESULT_LABELS = {
 };
 
 function runSeason() {
-  const { manager, lineup, bench, chemistry } = currentState;
+  const { manager, lineup, bench, chemistry, funds } = currentState;
   const tier = getLeagueTier('tier5');
 
   // 스펙 2절: 여름 시장(스쿼드 확정, 이미 완료) → 전반기 결산 → 겨울 시장 → 후반기 결산
@@ -99,7 +106,7 @@ function runSeason() {
   );
 
   const nextSeasonFunds = calculateStartingFunds(0); // 잔류 시 다음 시즌도 5부
-  const carryover = applyCarryoverCap(STARTING_FUNDS_TIER5, nextSeasonFunds);
+  const carryover = applyCarryoverCap(funds, nextSeasonFunds);
 
   document.getElementById('result').innerHTML = `
     <p>전반기 결산: ${firstHalf.toFixed(1)}점 · 후반기 결산: ${secondHalf.toFixed(1)}점</p>
