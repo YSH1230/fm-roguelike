@@ -5,7 +5,12 @@ import { rollPreseasonEvent } from '../data/run-preseason-event.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier } from '../engine/league.mjs';
 import { runHalfSeason, judgeSeasonResult, advanceWeek } from '../engine/season.mjs';
-import { calculateStartingFunds, applyCarryoverCap, applyCostModifiers } from '../engine/economy.mjs';
+import {
+  calculateStartingFunds,
+  applyCarryoverCap,
+  applyCostModifiers,
+  computeReleaseProceeds,
+} from '../engine/economy.mjs';
 import { applyTransactionDecay } from '../engine/chemistry.mjs';
 import {
   CHEMISTRY_START,
@@ -86,6 +91,7 @@ function startRun(club) {
     transactedThisWeek: false,
     shopOffer: generateShopOffer(SHOP_OFFER_SIZE),
     firstHalfPoints: null,
+    listedForSale: [], // { card, method, resolveWeek }
   };
   renderMarket();
 }
@@ -113,10 +119,47 @@ function rerollShop() {
   renderMarket();
 }
 
+// 방출 3단계 (스펙 7절): 즉시(0%) / 이적 명단(1주 소모, 여름·겨울 범위 회수율) / Week12 데드라인(40%, 소모 없음)
+function releaseImmediate(card) {
+  currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
+  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, CHEMISTRY_DECAY_PER_TRANSACTION);
+  currentState.transactedThisWeek = true;
+  renderMarket();
+}
+
+function listForSale(card) {
+  const method = currentState.phase === 'summer' ? 'listedSummer' : 'listedWinter';
+  // 겨울 이적명단은 당해 영입 선수를 받지 않는다 (스펙 7절)
+  if (method === 'listedWinter' && card.acquiredThisSeason) return;
+  currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
+  currentState.listedForSale.push({ card, method, resolveWeek: currentState.week + 1 });
+  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, CHEMISTRY_DECAY_PER_TRANSACTION);
+  currentState.transactedThisWeek = true;
+  renderMarket();
+}
+
+function releaseDeadline(card) {
+  currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
+  currentState.funds += computeReleaseProceeds(card.price, 'deadline');
+  renderMarket();
+}
+
+function resolveListedSales() {
+  const due = currentState.listedForSale.filter((l) => l.resolveWeek === currentState.week);
+  currentState.listedForSale = currentState.listedForSale.filter((l) => l.resolveWeek !== currentState.week);
+  const messages = due.map((l) => {
+    const proceeds = computeReleaseProceeds(l.card.price, l.method);
+    currentState.funds += proceeds;
+    return `${l.card.name} 방출 완료: ${proceeds}G 회수`;
+  });
+  return messages.join(' / ');
+}
+
 function nextWeek() {
   currentState.chemistry = advanceWeek(currentState.chemistry, currentState.transactedThisWeek);
   currentState.transactedThisWeek = false;
   currentState.week += 1;
+  const saleMessage = resolveListedSales();
 
   if (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1]) {
     runFirstHalf();
@@ -127,7 +170,7 @@ function nextWeek() {
     return;
   }
   currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
-  renderMarket();
+  renderMarket(saleMessage);
 }
 
 function runFirstHalf() {
@@ -162,9 +205,10 @@ function runSecondHalfAndFinish() {
 }
 
 function renderMarket(banner = '') {
-  const { club, funds, chemistry, eventMessage, shopOffer, phase, week } = currentState;
+  const { club, squad, funds, chemistry, eventMessage, shopOffer, phase, week, listedForSale } = currentState;
   const maxWeek = phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];
   const phaseLabel = phase === 'summer' ? '여름 이적시장' : '겨울 이적시장';
+  const isDeadlineWeek = phase === 'winter' && week === WINTER_MARKET_WEEKS[1];
 
   const offerHtml = shopOffer
     .map((c) => {
@@ -175,6 +219,19 @@ function renderMarket(banner = '') {
     })
     .join('');
 
+  const squadHtml = [...squad]
+    .sort((a, b) => b.baseOVR - a.baseOVR)
+    .map((p) => {
+      const winterBlocked = phase === 'winter' && p.acquiredThisSeason;
+      return `<li>${p.name} · ${p.position} · OVR ${p.baseOVR} · ${p.price}G
+        <button data-release-immediate="${p.id}">즉시 방출(0%)</button>
+        <button data-release-listed="${p.id}" ${winterBlocked ? 'disabled title="당해 영입 선수는 겨울 이적명단 등재 불가"' : ''}>이적 명단 등재(1주 소모)</button>
+        ${isDeadlineWeek ? `<button data-release-deadline="${p.id}">데드라인 매각(40%)</button>` : ''}
+      </li>`;
+    })
+    .join('');
+  const listedHtml = listedForSale.map((l) => `<li>${l.card.name} (${l.resolveWeek}주차에 회수 예정)</li>`).join('');
+
   document.getElementById('run-info').innerHTML = `
     <h2>${club.name} — ${phaseLabel} (Week ${week}/${maxWeek})</h2>
     ${banner ? `<p><strong>${banner}</strong></p>` : ''}
@@ -184,9 +241,19 @@ function renderMarket(banner = '') {
     <ul>${offerHtml || '<li>매물 없음</li>'}</ul>
     <button id="reroll-btn" ${funds >= SHOP_REROLL_COST ? '' : 'disabled'}>리롤 (${SHOP_REROLL_COST}G)</button>
     <button id="next-week-btn">다음 주로</button>
+    <h3>보유 선수단 (${squad.length}명)</h3>
+    <ul>${squadHtml}</ul>
+    ${listedHtml ? `<h3>이적 명단 대기 중</h3><ul>${listedHtml}</ul>` : ''}
   `;
   for (const card of shopOffer) {
     document.querySelector(`[data-buy="${card.id}"]`).onclick = () => buyCard(card);
+  }
+  for (const p of squad) {
+    document.querySelector(`[data-release-immediate="${p.id}"]`).onclick = () => releaseImmediate(p);
+    document.querySelector(`[data-release-listed="${p.id}"]`).onclick = () => listForSale(p);
+    if (isDeadlineWeek) {
+      document.querySelector(`[data-release-deadline="${p.id}"]`).onclick = () => releaseDeadline(p);
+    }
   }
   document.getElementById('reroll-btn').onclick = rerollShop;
   document.getElementById('next-week-btn').onclick = nextWeek;
