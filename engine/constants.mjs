@@ -132,6 +132,10 @@ export const SHOP_REROLL_COST = 50;
 export const SUMMER_MARKET_WEEKS = [1, 8];
 export const WINTER_MARKET_WEEKS = [9, 12];
 
+// 스펙 8절 "승격 보상" — 적응도 상승 속도 2배는 슬라이스에서 생략(별도 시즌 플래그 필요), 나머지 둘만 적용
+export const PROMOTION_CHEMISTRY_BONUS = 5;
+export const PROMOTION_FUNDS_BONUS_RATIO = 0.1;
+
 // 스펙 3절/8절 "이벤트" — 슬라이스 범위: 일반 위기 2 + 일반 기회 3 + 승격 전용 위기 2
 export const PROMOTION_TRANSFER_DEMAND_OVR_PENALTY = 5; // 거부 시 그 시즌 OVR 하락(출발값, 튜닝 대상)
 export const PROMOTION_RENEWAL_HIKE_RATIO = 0.3; // 승격 전용: 재계약 비용 +30%

@@ -20,7 +20,12 @@ import {
   SUMMER_MARKET_WEEKS,
   WINTER_MARKET_WEEKS,
   WINTER_TAX_RATIO,
+  PROMOTION_CHEMISTRY_BONUS,
+  PROMOTION_FUNDS_BONUS_RATIO,
 } from '../engine/constants.mjs';
+
+// 슬라이스는 5부/4부만 구현 (스펙 11절) — 승격 시 다음 단계로, 3부 이상은 여기서 멈춘다
+const LEAGUE_LADDER = ['tier5', 'tier4'];
 
 const FORMATION_SLOTS = ['GK', 'CB', 'CB', 'WB', 'WB', 'CMF', 'CMF', 'AMF', 'W', 'W', 'ST'];
 
@@ -86,6 +91,7 @@ function startRun(club) {
     chemistry: CHEMISTRY_START,
     funds,
     eventMessage,
+    leagueTierId: 'tier5',
     week: SUMMER_MARKET_WEEKS[0],
     phase: 'summer',
     transactedThisWeek: false,
@@ -94,6 +100,23 @@ function startRun(club) {
     listedForSale: [], // { card, method, resolveWeek }
   };
   renderMarket();
+}
+
+// 승격/잔류 후 같은 구단으로 새 시즌 시작 — 스펙 4절: 선수단 유지, 시장 상태만 초기화
+function startNewSeason() {
+  currentState.week = SUMMER_MARKET_WEEKS[0];
+  currentState.phase = 'summer';
+  currentState.transactedThisWeek = false;
+  currentState.firstHalfPoints = null;
+  currentState.listedForSale = [];
+  currentState.eventMessage = ''; // 지난 시즌 이벤트 문구가 다시 뜨지 않도록 비움
+  currentState.squad = currentState.squad.map((p) => ({
+    ...p,
+    acquiredThisSeason: false,
+    seasonsAtClub: (p.seasonsAtClub ?? 0) + 1,
+  }));
+  currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
+  renderMarket(`${currentState.club.name}, ${currentState.leagueTierId === 'tier4' ? '4부' : '5부'} 새 시즌 시작`);
 }
 
 function cardPrice(card) {
@@ -175,7 +198,13 @@ function nextWeek() {
 
 function runFirstHalf() {
   const { lineup, bench } = pickBestXI(currentState.squad);
-  currentState.firstHalfPoints = runHalfSeason(lineup, bench, currentState.manager.tier, currentState.chemistry, 'tier5');
+  currentState.firstHalfPoints = runHalfSeason(
+    lineup,
+    bench,
+    currentState.manager.tier,
+    currentState.chemistry,
+    currentState.leagueTierId
+  );
   currentState.phase = 'winter';
   currentState.week = WINTER_MARKET_WEEKS[0];
   currentState.shopOffer = generateShopOffer(SHOP_OFFER_SIZE);
@@ -186,22 +215,59 @@ const RESULT_LABELS = { champion: '우승권!', promotion: '승격권', safe: '�
 
 function runSecondHalfAndFinish() {
   const { lineup, bench } = pickBestXI(currentState.squad);
-  const secondHalf = runHalfSeason(lineup, bench, currentState.manager.tier, currentState.chemistry, 'tier5');
+  const secondHalf = runHalfSeason(
+    lineup,
+    bench,
+    currentState.manager.tier,
+    currentState.chemistry,
+    currentState.leagueTierId
+  );
   const totalPoints = currentState.firstHalfPoints + secondHalf;
-  const result = judgeSeasonResult(totalPoints, 'tier5');
-  const tier = getLeagueTier('tier5');
-  const nextSeasonFunds = calculateStartingFunds(0);
-  const carryover = applyCarryoverCap(currentState.funds, nextSeasonFunds);
+  const result = judgeSeasonResult(totalPoints, currentState.leagueTierId);
+  const tier = getLeagueTier(currentState.leagueTierId);
+  const nextSeasonFunds = calculateStartingFunds(LEAGUE_LADDER.indexOf(currentState.leagueTierId));
+  currentState.funds = applyCarryoverCap(currentState.funds, nextSeasonFunds);
+
+  const currentTierIndex = LEAGUE_LADDER.indexOf(currentState.leagueTierId);
+  const canPromote = (result === 'promotion' || result === 'champion') && currentTierIndex < LEAGUE_LADDER.length - 1;
+
+  let nextStepHtml;
+  if (result === 'relegation') {
+    nextStepHtml = `<p><strong>해임 — Run 종료.</strong> 안전 승점(${tier.safePoints})을 넘지 못했습니다.</p>
+      <button id="new-run-btn">새 런 시작</button>`;
+  } else if (canPromote) {
+    nextStepHtml = `<p>승격 보상: 적응도 +${PROMOTION_CHEMISTRY_BONUS}, 자금 +${PROMOTION_FUNDS_BONUS_RATIO * 100}%</p>
+      <button id="promote-btn">${LEAGUE_LADDER[currentTierIndex + 1] === 'tier4' ? '4부로' : '다음 리그로'} 승격하고 계속</button>`;
+  } else if (result === 'promotion' || result === 'champion') {
+    nextStepHtml = `<p>이 슬라이스는 5부·4부까지만 구현되어 있습니다. 3부 이상은 다음 마일스톤에서 이어집니다.</p>
+      <button id="new-run-btn">새 런 시작</button>`;
+  } else {
+    nextStepHtml = `<button id="continue-btn">같은 리그에서 새 시즌 시작</button>`;
+  }
 
   document.getElementById('run-info').innerHTML = `
     <h2>${currentState.club.name} — 시즌 최종 결산</h2>
     <p>전반기 ${currentState.firstHalfPoints.toFixed(1)}점 · 후반기 ${secondHalf.toFixed(1)}점</p>
     <p>시즌 최종 승점: <strong>${totalPoints.toFixed(1)}</strong> / ${tier.championPoints}(우승)</p>
     <p>${RESULT_LABELS[result]} — 안전 ${tier.safePoints} · 승격 ${tier.targetPoints} · 우승 ${tier.championPoints}</p>
-    <p>다음 시즌 이월 가능 자금(최대): ${carryover.toFixed(0)}G</p>
+    <p>다음 시즌 이월 가능 자금(최대): ${currentState.funds.toFixed(0)}G</p>
     <h3>최종 라인업</h3>
     <ul>${lineup.map(renderCard).join('')}</ul>
+    ${nextStepHtml}
   `;
+
+  document.getElementById('promote-btn')?.addEventListener('click', () => {
+    currentState.leagueTierId = LEAGUE_LADDER[currentTierIndex + 1];
+    currentState.chemistry = Math.min(100, currentState.chemistry + PROMOTION_CHEMISTRY_BONUS);
+    currentState.funds = Math.round(currentState.funds * (1 + PROMOTION_FUNDS_BONUS_RATIO));
+    startNewSeason();
+  });
+  document.getElementById('continue-btn')?.addEventListener('click', startNewSeason);
+  document.getElementById('new-run-btn')?.addEventListener('click', () => {
+    currentState = null;
+    document.getElementById('run-info').innerHTML = '';
+    renderClubButtons();
+  });
 }
 
 function renderMarket(banner = '') {
@@ -235,7 +301,7 @@ function renderMarket(banner = '') {
   document.getElementById('run-info').innerHTML = `
     <h2>${club.name} — ${phaseLabel} (Week ${week}/${maxWeek})</h2>
     ${banner ? `<p><strong>${banner}</strong></p>` : ''}
-    ${phase === 'summer' && week === SUMMER_MARKET_WEEKS[0] ? `<p>${eventMessage}</p>` : ''}
+    ${phase === 'summer' && week === SUMMER_MARKET_WEEKS[0] && eventMessage ? `<p>${eventMessage}</p>` : ''}
     <p>보유 자금: ${funds}G · 적응도: ${chemistry.toFixed(1)}</p>
     <h3>이번 주 드래프트</h3>
     <ul>${offerHtml || '<li>매물 없음</li>'}</ul>
