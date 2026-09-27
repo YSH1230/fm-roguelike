@@ -202,6 +202,7 @@ function startRun(club) {
     firstHalfPoints: null,
     listedForSale: [], // { card, method, resolveWeek }
     boardTrustUsed: false,
+    promotionFundsBonusPending: false,
   };
   currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
   renderMarket();
@@ -219,8 +220,24 @@ function rerollCost() {
     : SHOP_REROLL_COST;
 }
 
+// 스펙 2절: 시즌마다 자금을 지급하고, 남은 돈은 그 위에 이월한다(상한 30%).
+// 지급 시점을 여기로 모은 이유: 다음 시즌 리그와 구단은 거취 선택이 끝나야
+// 확정되고, 잔류/이적/승격 위기 세 경로가 전부 startNewSeason으로 합류한다.
+// 예전에는 후반기 결산에서 현재 리그 기준으로 이월 상한만 걸었다 - 지급이
+// 아예 없어서 2시즌부터 무일푼이었고, 승격 시 상한이 한 단계 낮게 잡혔다.
+function grantSeasonFunds() {
+  const base = calculateStartingFunds(getLadderIndex(currentState.leagueTierId))
+    * currentState.club.startingFundsMultiplier;
+  const grant = Math.round(currentState.promotionFundsBonusPending
+    ? base * (1 + PROMOTION_FUNDS_BONUS_RATIO)
+    : base);
+  currentState.promotionFundsBonusPending = false;
+  currentState.funds = grant + Math.round(applyCarryoverCap(currentState.funds, grant));
+}
+
 // 승격/잔류 후 같은 구단으로 새 시즌 시작 — 스펙 4절: 선수단 유지, 시장 상태만 초기화
 function startNewSeason() {
+  grantSeasonFunds();
   currentState.seasonNumber += 1;
   currentState.week = SUMMER_MARKET_WEEKS[0];
   currentState.phase = 'summer';
@@ -410,8 +427,6 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const totalPoints = currentState.firstHalfPoints + secondHalf;
   let result = judgeSeasonResult(totalPoints, currentState.leagueTierId);
   const tier = getLeagueTier(currentState.leagueTierId);
-  const nextSeasonFunds = calculateStartingFunds(getLadderIndex(currentState.leagueTierId));
-  currentState.funds = applyCarryoverCap(currentState.funds, nextSeasonFunds);
 
   // 보드진의 신임: 해임 조건 1회 면제(사용 후 소멸)
   let boardTrustMessage = '';
@@ -481,7 +496,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
       <ul class="summary">
         <li><span>최종 팀 전력</span><b>${computeTeamPower(lineup, bench, manager.tier, currentState.chemistry).toFixed(1)}</b></li>
         <li><span>최종 적응도</span><b>${currentState.chemistry.toFixed(1)}</b></li>
-        <li><span>다음 시즌 이월 자금</span><b>${currentState.funds.toFixed(0)}G</b></li>
+        <li><span>남은 자금 (다음 시즌에 상한 30%까지 이월)</span><b>${currentState.funds.toFixed(0)}G</b></li>
       </ul>
       ${closingHtml}
     </div>
@@ -494,7 +509,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   document.getElementById('promote-btn')?.addEventListener('click', () => {
     const nextTier = getNextTier(currentState.leagueTierId);
     currentState.chemistry = Math.min(100, currentState.chemistry + PROMOTION_CHEMISTRY_BONUS);
-    currentState.funds = Math.round(currentState.funds * (1 + PROMOTION_FUNDS_BONUS_RATIO));
+    currentState.promotionFundsBonusPending = true; // 지급 시점(startNewSeason)에 반영
 
     // 승격 전용 위기(FFP 긴급 감사 무효화와는 별개)는 거취를 정한 뒤에 띄운다(잔류를 골랐을 때만 의미가 있다).
     renderDestinationChoice(result, nextTier);
@@ -565,10 +580,7 @@ function renderDestinationChoice(seasonResult, nextTierId) {
       // 선수단 초기화. 적응도도 새 팀이므로 기본값으로 돌린다.
       currentState.squad = generateSquadPool(TIER5_SQUAD_WEIGHTS).map(toSquadPlayer);
       currentState.chemistry = CHEMISTRY_START;
-      currentState.funds = Math.round(
-        calculateStartingFunds(getLadderIndex(nextTierId)) * c.startingFundsMultiplier
-      );
-      startNewSeason();
+      startNewSeason(); // 자금은 새 구단 배율로 여기서 한 번만 지급된다
     };
   }
 }
