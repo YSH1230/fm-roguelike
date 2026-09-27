@@ -203,6 +203,8 @@ function startRun(club) {
     listedForSale: [], // { card, method, resolveWeek }
     boardTrustUsed: false,
     promotionFundsBonusPending: false,
+    freshBudget: false,
+    pendingTransferProceeds: 0,
   };
   currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
   renderMarket();
@@ -232,7 +234,16 @@ function grantSeasonFunds() {
     ? base * (1 + PROMOTION_FUNDS_BONUS_RATIO)
     : base);
   currentState.promotionFundsBonusPending = false;
-  currentState.funds = grant + Math.round(applyCarryoverCap(currentState.funds, grant));
+  // 이월은 스펙 2절대로 "구단 잔류 시"만. 구단을 옮기면 남은 돈은 따라오지 않는다.
+  const carryover = currentState.freshBudget
+    ? 0
+    : Math.round(applyCarryoverCap(currentState.funds, grant));
+  currentState.freshBudget = false;
+  // 순서 주의: 이적료는 이월이 아니라 지급 뒤에 더한다. 지급 전에 더하면
+  // 이월 상한(지급액의 30%)에 걸려 버튼에 적힌 금액보다 적게 들어온다.
+  const proceeds = currentState.pendingTransferProceeds ?? 0;
+  currentState.pendingTransferProceeds = 0;
+  currentState.funds = grant + carryover + proceeds;
 }
 
 // 승격/잔류 후 같은 구단으로 새 시즌 시작 — 스펙 4절: 선수단 유지, 시장 상태만 초기화
@@ -593,6 +604,7 @@ function renderDestinationChoice(seasonResult, nextTierId) {
         (g) => !currentState.squad.some((p) => p.id === g.id)
       );
       currentState.chemistry = CHEMISTRY_START;
+      currentState.freshBudget = true; // 새 구단은 이월 없이 시작 자금만(스펙 2절)
       startNewSeason(); // 자금은 새 구단 배율로 여기서 한 번만 지급된다
     };
   }
@@ -677,7 +689,8 @@ function renderPromotionTransferDemand(keyPlayer) {
   `);
   document.getElementById('accept-transfer-btn').onclick = () => {
     currentState.squad = currentState.squad.filter((p) => p.id !== keyPlayer.id);
-    currentState.funds += acceptProceeds;
+    // 지급 후에 더해야 이월 상한에 깎이지 않는다(grantSeasonFunds 주석 참고).
+    currentState.pendingTransferProceeds = acceptProceeds;
     startNewSeason();
   };
   document.getElementById('reject-transfer-btn').onclick = () => {
