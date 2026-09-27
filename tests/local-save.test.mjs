@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { saveRun, loadRun, clearRun } from '../data/local-save.mjs';
+import { saveRun, loadRun, clearRun, withRunDefaults } from '../data/local-save.mjs';
 
 function makeFakeStorage() {
   const map = new Map();
@@ -39,4 +39,15 @@ test('storage 접근이 예외를 던져도 조용히 무시한다', () => {
   assert.doesNotThrow(() => saveRun({ week: 1 }, throwingStorage));
   assert.equal(loadRun(throwingStorage), null);
   assert.doesNotThrow(() => clearRun(throwingStorage));
+});
+
+test('구버전 세이브를 이어하면 이 브랜치가 추가한 필드에 기본값이 채워진다', () => {
+  const storage = makeFakeStorage();
+  saveRun({ week: 5, funds: 1000, leagueTierId: 'tier3', squad: [] }, storage);
+  const state = withRunDefaults(loadRun(storage), '4-3-3');
+  assert.equal(state.formation, '4-3-3');
+  assert.equal(state.highestTierId, 'tier3');
+  assert.equal(state.titles, 0);
+  assert.equal(state.missedTargetCount, 0);
+  assert.equal(state.seasonNumber, 1);
 });

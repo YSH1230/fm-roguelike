@@ -1,5 +1,5 @@
 import { CLUBS } from '../data/clubs.mjs';
-import { saveRun, loadRun, clearRun } from '../data/local-save.mjs';
+import { saveRun, loadRun, clearRun, withRunDefaults } from '../data/local-save.mjs';
 import { generateSquadPool, TIER5_SQUAD_WEIGHTS } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
 import { assignRandomStaff } from '../data/staff.mjs';
@@ -151,8 +151,7 @@ function renderClubButtons() {
   `);
 
   document.getElementById('resume-btn')?.addEventListener('click', () => {
-    currentState = saved;
-    currentState.formation ??= DEFAULT_FORMATION; // 포메이션 도입 전 세이브 호환
+    currentState = withRunDefaults(saved, DEFAULT_FORMATION); // 구버전 세이브 호환
     renderMarket();
   });
   for (const club of CLUBS) {
