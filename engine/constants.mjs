@@ -43,14 +43,20 @@ export const CHEMISTRY_HIGH_MULTIPLIER = 1.12;
 // 스펙 12절 "미확정 사항" — 시뮬레이터로 조정할 튜닝 상수.
 // 여기서는 브레인스토밍에서 제시된 출발값을 그대로 코드 상수로 둔다.
 export const TEAM_MULTIPLIER_CAP = 1.30;
-// node tune-check(실측)로 확인: 2.5는 OVR 우위를 승점으로 너무 크게 증폭시켜
-// 5부에서 거의 항상 만점(114점) 우승이 나옴 — 2.0으로 완화.
-export const LEAGUE_POINTS_COEFFICIENT = 2.0;
-export const BASE_POINTS_AT_LEAGUE_AVERAGE = 42;
-// 원래 스펙 출발값은 ±5%였는데, 실측(node tune-check)해보니 베스트11만 골라
-// 쓰는 구조상 팀 전력이 리그 평균보다 항상 확실히 높게 나와서 ±5%~20%로는
-// 강등이 거의 안 나옴(500판 중 0~4%). 실제 플레이에서 가끔이라도 보이도록 ±25%로 조정.
-export const POWER_VARIANCE_RATIO = 0.25;
+// 이 공식은 teamPower(감독·적응도 배율이 곱해진 수치)를 리그 평균 "생 OVR"과
+// 바로 뺀다 — 구조상 모든 팀이 리그 평균보다 10점 이상 높게 나온다. 그래서
+// basePoints 42는 무조건 상향 보정이 됐고, 12주 이적시장에서 자금을 전부 쓰는
+// 플레이어는 우승 확률 58%가 나왔다(sim 실측).
+// basePoints를 "시작 스쿼드(무매매) 팀파워 = 간신히 잔류" 지점으로 다시 잡았다.
+// 3000판 실측(base 18 / coef 2.5 / var 0.20):
+//   적극 플레이  우승 27% / 승격 28% / 안전 43% / 강등  1%
+//   시장 미사용  우승  4% / 승격 13% / 안전 69% / 강등 15%
+export const LEAGUE_POINTS_COEFFICIENT = 2.5;
+export const BASE_POINTS_AT_LEAGUE_AVERAGE = 18;
+// 스펙 출발값 ±5%는 강등이 사실상 0%여서 한때 ±25%까지 키웠는데, 그건
+// basePoints 오캘리브레이션을 운으로 덮는 상황이었다. 기준점을 고친 뒤로는
+// ±20%로도 강등이 충분히 나온다(시장 미사용 15%) — 운의 비중을 다시 낮췄다.
+export const POWER_VARIANCE_RATIO = 0.20;
 
 // 스펙 5.1절 "6등급" — OVR 범위와 등급별 플레이스타일 태그 개수
 export const PLAYER_TIERS = {
