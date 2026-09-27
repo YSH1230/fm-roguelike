@@ -19,6 +19,7 @@ import { applyTransactionDecay } from '../engine/chemistry.mjs';
 import { computePlayerFinalOVR } from '../engine/ovr.mjs';
 import { computeTeamPower } from '../engine/team-power.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
+import { renderPortrait } from './portrait.mjs';
 import {
   CHEMISTRY_START,
   CHEMISTRY_DECAY_PER_TRANSACTION,
@@ -116,10 +117,12 @@ function setScreen(html, dock = '') {
 function renderClubButtons() {
   const saved = loadRun(localStorage);
   const resume = saved
-    ? `<button class="club club--resume" id="resume-btn">
-         <div class="club__name">이어하기</div>
-         <div class="club__line"><span class="club__tag">구단</span><span>${esc(saved.club.name)}</span></div>
-         <div class="club__line"><span class="club__tag">진행</span><span>${saved.phase === 'summer' ? '여름' : '겨울'} ${saved.week}주차</span></div>
+    ? `<button class="club club--resume" id="resume-btn" style="--kit:${saved.club.kit ?? '#dda63a'}">
+         <div class="club__body">
+           <div class="club__name">이어하기</div>
+           <div class="club__line"><span class="club__tag">구단</span><span>${esc(saved.club.name)}</span></div>
+           <div class="club__line"><span class="club__tag">진행</span><span>${saved.phase === 'summer' ? '여름' : '겨울'} ${saved.week}주차</span></div>
+         </div>
        </button>`
     : '';
 
@@ -130,10 +133,12 @@ function renderClubButtons() {
       <div class="clubs">
         ${resume}
         ${CLUBS.map((club) => `
-          <button class="club" data-club="${club.id}">
-            <div class="club__name">${esc(club.name)}</div>
-            <div class="club__line"><span class="club__tag club__tag--up">강점</span><span>${esc(club.strength)}</span></div>
-            <div class="club__line"><span class="club__tag club__tag--down">약점</span><span>${esc(club.weakness)}</span></div>
+          <button class="club" data-club="${club.id}" style="--kit:${club.kit}">
+            <div class="club__body">
+              <div class="club__name">${esc(club.name)}</div>
+              <div class="club__line"><span class="club__tag club__tag--up">강점</span><span>${esc(club.strength)}</span></div>
+              <div class="club__line"><span class="club__tag club__tag--down">약점</span><span>${esc(club.weakness)}</span></div>
+            </div>
           </button>`).join('')}
       </div>
     </div>
@@ -180,6 +185,7 @@ function startRun(club) {
     eventMessage,
     leagueTierId: 'tier5',
     formation: DEFAULT_FORMATION,
+    tab: 'draft',
     week: SUMMER_MARKET_WEEKS[0],
     phase: 'summer',
     transactedThisWeek: false,
@@ -254,9 +260,16 @@ function transactionDecayAmount() {
   return Math.min(managerReduced, coachReduced);
 }
 
-function buyCard(card) {
+function buyCard(card, rowEl = null) {
   const price = cardPrice(card);
   if (currentState.funds < price) return;
+  // 카드가 상점에서 빠져나가는 걸 보여준 뒤 다시 그린다.
+  if (rowEl && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    rowEl.classList.add('is-leaving');
+    setTimeout(() => buyCard(card), 160);
+    rowEl.style.pointerEvents = 'none';
+    return;
+  }
   currentState.funds -= price;
   currentState.squad = [...currentState.squad, toSquadPlayer(card)];
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
@@ -395,7 +408,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   if (result === 'relegation' && manager.trait === 'boardTrust' && !currentState.boardTrustUsed) {
     currentState.boardTrustUsed = true;
     result = 'safe';
-    boardTrustMessage = '<div class="banner banner--alert">보드진의 신임 발동 — 해임을 면했습니다. 이 효과는 소멸합니다.</div>';
+    boardTrustMessage = '<div class="banner banner--alert">보드진의 신임 발동. 해임을 면했습니다. 이 효과는 소멸합니다.</div>';
   }
 
   const currentTierIndex = LEAGUE_LADDER.indexOf(currentState.leagueTierId);
@@ -404,13 +417,13 @@ function runSecondHalfAndFinish(saleMessage = '') {
   let dockHtml;
   let closingHtml = '';
   if (result === 'relegation') {
-    closingHtml = `<p class="pitch-note">안전 승점 ${tier.safePoints}을 넘지 못해 해임됐습니다. 이 런은 여기서 끝입니다.</p>`;
+    closingHtml = `<p class="note">안전 승점 ${tier.safePoints}을 넘지 못해 해임됐습니다. 이 런은 여기서 끝입니다.</p>`;
     dockHtml = '<button class="cta cta--danger" id="new-run-btn">새 런 시작</button>';
   } else if (canPromote) {
-    closingHtml = `<p class="pitch-note">승격 보상 — 적응도 +${PROMOTION_CHEMISTRY_BONUS}, 자금 +${PROMOTION_FUNDS_BONUS_RATIO * 100}%</p>`;
+    closingHtml = `<p class="note">승격 보상: 적응도 +${PROMOTION_CHEMISTRY_BONUS}, 자금 +${PROMOTION_FUNDS_BONUS_RATIO * 100}%</p>`;
     dockHtml = `<button class="cta" id="promote-btn">${LEAGUE_LADDER[currentTierIndex + 1] === 'tier4' ? '4부로 승격' : '다음 리그로 승격'}</button>`;
   } else if (result === 'promotion' || result === 'champion') {
-    closingHtml = '<p class="pitch-note">이 슬라이스는 4부까지만 구현돼 있습니다. 3부 이상은 다음 마일스톤에서 이어집니다.</p>';
+    closingHtml = '<p class="note">이 슬라이스는 4부까지만 구현돼 있습니다. 3부 이상은 다음 마일스톤에서 이어집니다.</p>';
     dockHtml = '<button class="cta cta--ghost" id="new-run-btn">새 런 시작</button>';
   } else {
     dockHtml = '<button class="cta" id="continue-btn">같은 리그에서 새 시즌</button>';
@@ -453,7 +466,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
     </div>
     <div class="panel">
       <div class="panel__head"><h2>최종 라인업</h2><span class="panel__count">${currentFormation()}</span></div>
-      ${renderPitch(slotted, currentFormation())}
+      ${renderPitch(slotted, currentFormation(), currentState.club.kit)}
     </div>
   `, dockHtml);
 
@@ -485,10 +498,14 @@ function renderPromotionTransferDemand(keyPlayer) {
     <div class="choice">
       <div class="choice__kicker">승격 직후 위기</div>
       <h1 class="choice__title">빅클럽이 핵심 선수를<br>데려가려 합니다</h1>
-      <p class="choice__body">
-        <b>${esc(keyPlayer.name)}</b> (${keyPlayer.position} · OVR ${keyPlayer.baseOVR})에게 이적 요구가 들어왔습니다.
-        보내면 자금이 생기고, 붙잡으면 선수가 이번 시즌 내내 흔들립니다.
-      </p>
+      <div class="choice__card" style="--tier:var(--t-${tierOf(keyPlayer.baseOVR)})">
+        ${renderPortrait(keyPlayer, { size: 52, kit: currentState.club.kit })}
+        <div>
+          <div class="offer__name">${esc(keyPlayer.name)}</div>
+          <div class="player__meta">${keyPlayer.position} · ${keyPlayer.age}세 · OVR <b>${keyPlayer.baseOVR}</b></div>
+        </div>
+      </div>
+      <p class="choice__body">보내면 자금이 생기고, 붙잡으면 이 선수가 시즌 내내 흔들립니다.</p>
       <div class="options">
         <button class="option option--accept" id="accept-transfer-btn">
           <div class="option__name">보낸다</div>
@@ -496,7 +513,7 @@ function renderPromotionTransferDemand(keyPlayer) {
         </button>
         <button class="option option--reject" id="reject-transfer-btn">
           <div class="option__name">붙잡는다</div>
-          <div class="option__effect">선수단은 유지, ${esc(keyPlayer.name)}의 OVR <b>-${rejectOvrPenalty}</b></div>
+          <div class="option__effect">선수단 유지, ${esc(keyPlayer.name)}의 OVR <b>-${rejectOvrPenalty}</b></div>
         </button>
       </div>
     </div>
@@ -515,7 +532,7 @@ function renderPromotionTransferDemand(keyPlayer) {
 }
 
 // 피치 위 11칸. slotted는 pickBestXI가 준 슬롯 순서 배열(빈 슬롯은 null).
-function renderPitch(slotted, formationId) {
+function renderPitch(slotted, formationId, kit) {
   const { slots, coords } = FORMATIONS[formationId];
   const chips = slots.map((pos, i) => {
     const p = slotted[i];
@@ -523,24 +540,33 @@ function renderPitch(slotted, formationId) {
     const style = `left:${x}%;top:${y}%`;
     if (!p) {
       return `<div class="slot slot--empty" style="${style}">
-        <div class="slot__card"><span class="slot__pos">${pos}</span><b class="slot__ovr">–</b></div>
+        <div class="slot__card"><span class="slot__ovr n">--</span><span class="slot__pos">${pos}</span></div>
       </div>`;
     }
-    return `<div class="slot${p.offPosition ? ' slot--offpos' : ''}" style="${style};--tier:var(--t-${tierOf(p.baseOVR)})">
+    // 이름은 싣지 않는다. 48px 칸에서 5글자로 잘려 읽히지도 않았고, 칸 밖으로
+    // 흘러나온 이름표가 옆 칸과 겹쳤다. 누가 어디 있는지는 선수단 탭이 답한다.
+    return `<div class="slot${p.offPosition ? ' slot--offpos' : ''}" style="${style};--tier:var(--t-${tierOf(p.baseOVR)})"
+      title="${esc(p.name)} · ${p.position} · OVR ${p.baseOVR}">
       <div class="slot__card">
+        <span class="slot__ovr n">${p.baseOVR}</span>
+        ${renderPortrait(p, { size: 34, kit })}
         <span class="slot__pos">${pos}</span>
-        <b class="slot__ovr">${p.baseOVR}</b>
       </div>
-      <span class="slot__name">${esc(p.name)}</span>
     </div>`;
   }).join('');
 
-  const offCount = slotted.filter((p) => p && p.offPosition).length;
-  const note = offCount
-    ? `<p class="pitch-note"><b>●</b> 표시 ${offCount}명은 주 포지션이 아닌 자리에 섰습니다.</p>`
+  const off = slotted.filter((p) => p && p.offPosition).length;
+  const note = off
+    ? `<p class="note"><b>금색 점선</b> ${off}명은 주 포지션이 아닌 자리에 섰습니다.</p>`
     : '';
   return `<div class="pitch">${chips}</div>${note}`;
 }
+
+const TABS = [
+  { id: 'draft', label: '영입' },
+  { id: 'tactics', label: '전술' },
+  { id: 'squad', label: '선수단' },
+];
 
 function renderMarket(banner = '') {
   const { club, manager, staff, squad, funds, chemistry, eventMessage, shopOffer, phase, week, listedForSale } = currentState;
@@ -548,10 +574,11 @@ function renderMarket(banner = '') {
   const phaseLabel = phase === 'summer' ? '여름 이적시장' : '겨울 이적시장';
   const isDeadlineWeek = phase === 'winter' && week === WINTER_MARKET_WEEKS[1];
   const formationId = currentFormation();
+  const tab = TABS.some((t) => t.id === currentState.tab) ? currentState.tab : 'draft';
   const { lineup, slotted, bench } = pickBestXI(squad, formationId);
   const inXI = new Set(lineup.map((p) => p.id));
 
-  // 스트립은 시너지가 반영된 최종 OVR로 계산한다 — 포메이션을 바꿨을 때
+  // 스트립은 시너지가 반영된 최종 OVR로 계산한다. 포메이션을 바꿨을 때
   // 숫자가 왜 움직이는지(태그 발동/해제) 읽히게 하려면 baseOVR로는 안 된다.
   const finalOVR = new Map(lineup.map((p) => [p.id, computePlayerFinalOVR(p, lineup, bench)]));
   const groupAvg = (positions) => {
@@ -563,43 +590,45 @@ function renderMarket(banner = '') {
   const baseAvg = lineup.reduce((t, p) => t + p.baseOVR, 0) / lineup.length;
 
   const weekStart = phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0];
-  const weekSpan = maxWeek - weekStart + 1;
-  const dots = Array.from({ length: weekSpan }, (_, i) => {
+  const dots = Array.from({ length: maxWeek - weekStart + 1 }, (_, i) => {
     const w = weekStart + i;
-    const state = w < week ? 'is-done' : w === week ? 'is-now' : '';
-    return `<i class="${state} ${phase === 'winter' ? 'is-winter' : ''}"></i>`;
+    return `<i class="${w < week ? 'is-done' : w === week ? 'is-now' : ''} ${phase === 'winter' ? 'is-winter' : ''}"></i>`;
   }).join('');
 
   const decay = transactionDecayAmount();
   const decayLabel = decay > 0 ? `적응도 -${decay}` : '적응도 유지';
+
   const offerHtml = shopOffer.map((c) => {
     const price = cardPrice(c);
     const affordable = funds >= price;
     const tier = tierOf(c.baseOVR);
-    // 이 카드를 사면 베스트11 평균이 얼마나 오르는지 — 살지 말지의 실제 근거
+    // 이 카드를 사면 베스트11 평균이 얼마나 오르는지. 살지 말지의 실제 근거
     const after = pickBestXI([...squad, toSquadPlayer(c)], formationId);
     const gain = after.lineup.reduce((t, p) => t + p.baseOVR, 0) / after.lineup.length - baseAvg;
     const tags = [
       ...c.playstyleTags.map((t) => `<span class="tag">${TAG_LABELS[t] ?? t}</span>`),
       c.specialTrait ? `<span class="tag tag--trait">${TRAIT_LABELS[c.specialTrait] ?? c.specialTrait}</span>` : '',
     ].join('');
-    return `<li class="offer" style="--tier:var(--t-${tier})">
-      <div class="offer__id">
-        <b class="offer__name">${esc(c.name)}</b>
-        <span class="offer__tier">${TIER_LABELS[tier]}</span>
-        <span class="offer__price${affordable ? '' : ' is-over'}">${price}<i>G</i></span>
+    return `<li class="offer" data-row="${c.id}" style="--tier:var(--t-${tier})">
+      <div class="offer__aside">
+        ${renderPortrait(c, { size: 48 })}
       </div>
-      <div class="offer__body">
-        <div class="offer__stats">
+      <div class="offer__main">
+        <div class="offer__top">
+          <span class="offer__name">${esc(c.name)}</span>
           <span class="offer__pos">${c.position}</span>
-          <b class="offer__ovr">${c.baseOVR}</b>
-          <span class="offer__delta ${gain >= 0.05 ? 'is-up' : 'is-flat'}">${gain >= 0.05 ? `팀 +${gain.toFixed(1)}` : '전력 변화 없음'}</span>
+          <span class="offer__tier">${TIER_LABELS[tier]}</span>
           <span class="offer__age">${c.age}세</span>
+        </div>
+        <div class="offer__figures">
+          <span class="offer__ovr n">${c.baseOVR}</span>
+          <span class="offer__delta ${gain >= 0.05 ? 'is-up' : 'is-flat'}">${gain >= 0.05 ? `팀 +${gain.toFixed(1)}` : '전력 변화 없음'}</span>
+          <span class="offer__price n${affordable ? '' : ' is-over'}">${price}<i>G</i></span>
         </div>
         <div class="tags">${tags}</div>
         <button class="buy" data-buy="${c.id}" ${affordable ? '' : 'disabled'}>
           <span>${affordable ? '영입' : '자금 부족'}</span>
-          <span class="buy__cost">-${price}G · ${decayLabel}</span>
+          <span class="buy__cost">${price}G · ${decayLabel}</span>
         </button>
       </div>
     </li>`;
@@ -610,7 +639,8 @@ function renderMarket(banner = '') {
     .map((p) => {
       const winterBlocked = phase === 'winter' && p.acquiredThisSeason;
       return `<li class="player${inXI.has(p.id) ? ' is-xi' : ''}" style="--tier:var(--t-${tierOf(p.baseOVR)})">
-        <b class="player__ovr">${p.baseOVR}</b>
+        ${renderPortrait(p, { size: 36, kit: club.kit })}
+        <b class="player__ovr n">${p.baseOVR}</b>
         <div>
           <div class="player__name">${esc(p.name)}</div>
           <div class="player__meta">${p.position} · ${p.age}세 · <b>${p.price}G</b>${inXI.has(p.id) ? ' · 주전' : ''}</div>
@@ -628,7 +658,40 @@ function renderMarket(banner = '') {
     .map((l) => `<li><span>${esc(l.card.name)}</span><span><b>${l.resolveWeek}</b>주차 정산</span></li>`)
     .join('');
 
-  const startWeekEvent = phase === 'summer' && week === SUMMER_MARKET_WEEKS[0] && eventMessage;
+  const bodies = {
+    draft: `
+      <section class="panel tabpanel">
+        <div class="panel__head">
+          <h2>이번 주 매물</h2>
+          <button class="reroll" id="reroll-btn" ${funds >= rerollCost() ? '' : 'disabled'}>다시 뽑기 <b>${rerollCost()}G</b></button>
+        </div>
+        <ul class="offers">${offerHtml || '<li class="empty">이번 주는 매물이 없습니다. 다시 뽑거나 다음 주로 넘어가세요.</li>'}</ul>
+      </section>`,
+    tactics: `
+      <section class="panel tabpanel">
+        <div class="panel__head">
+          <h2>포메이션</h2>
+          <div class="formations">
+            ${Object.keys(FORMATIONS).map((id) => `<button data-formation="${id}" aria-pressed="${id === formationId}">${id}</button>`).join('')}
+          </div>
+        </div>
+        ${renderPitch(slotted, formationId, club.kit)}
+        <p class="note">포메이션을 바꾸면 슬롯 구성이 바뀌어 플레이스타일 시너지 발동 조건이 달라집니다.</p>
+      </section>`,
+    squad: `
+      <section class="panel tabpanel">
+        ${listedHtml ? `<div class="panel__head"><h2>이적 명단</h2></div><ul class="listed">${listedHtml}</ul><div style="height:var(--s4)"></div>` : ''}
+        <div class="panel__head"><h2>보유 선수</h2></div>
+        <ul class="squad">${squadHtml}</ul>
+        <p class="staffline">
+          <span>감독 <b>${esc(manager.name)}</b> ${manager.tier}${manager.trait ? ` / ${manager.trait}` : ''}</span>
+          <span>수석 코치 <b>${staff.headCoach.level}</b></span>
+          <span>스카우터 <b>${staff.headScout.level}</b></span>
+        </p>
+      </section>`,
+  };
+
+  const showEvent = phase === 'summer' && week === SUMMER_MARKET_WEEKS[0] && eventMessage;
 
   setScreen(`
     <header class="topbar">
@@ -641,11 +704,11 @@ function renderMarket(banner = '') {
       <div class="res">
         <div class="res__item">
           <span class="res__label">자금</span>
-          <span class="res__val">${funds.toLocaleString('ko-KR')}<i>G</i></span>
+          <span class="res__val n">${funds.toLocaleString('ko-KR')}<i>G</i></span>
         </div>
         <div class="res__item">
           <span class="res__label">적응도</span>
-          <span class="res__val">${chemistry.toFixed(1)}</span>
+          <span class="res__val n">${chemistry.toFixed(1)}</span>
           <div class="chembar${chemistry < 40 ? ' is-low' : ''}"><i style="width:${Math.min(100, chemistry)}%"></i></div>
         </div>
       </div>
@@ -654,70 +717,50 @@ function renderMarket(banner = '') {
     <div class="powerstrip">
       ${POSITION_GROUPS.map((g) => {
         const avg = groupAvg(g.positions);
-        return `<div class="pw">
-          <span class="pw__label">${g.label}</span>
-          <span class="pw__val">${avg === null ? '–' : avg.toFixed(0)}</span>
-        </div>`;
+        return `<div class="pw"><span class="pw__label">${g.label}</span><span class="pw__val n">${avg === null ? '--' : avg.toFixed(0)}</span></div>`;
       }).join('')}
-      <div class="pw pw--total">
-        <span class="pw__label">팀 전력</span>
-        <span class="pw__val">${teamPower.toFixed(0)}</span>
-      </div>
+      <div class="pw pw--total"><span class="pw__label">팀 전력</span><span class="pw__val n">${teamPower.toFixed(0)}</span></div>
     </div>
 
     ${banner ? `<div class="banner">${esc(banner)}</div>` : ''}
-    ${startWeekEvent ? `<div class="banner banner--alert">${esc(eventMessage)}</div>` : ''}
+    ${showEvent ? `<div class="banner banner--alert">${esc(eventMessage)}</div>` : ''}
 
-    <section class="panel">
-      <div class="panel__head">
-        <h2>전술</h2>
-        <div class="formations">
-          ${Object.keys(FORMATIONS).map((id) => `<button data-formation="${id}" aria-pressed="${id === formationId}">${id}</button>`).join('')}
-        </div>
-      </div>
-      ${renderPitch(slotted, formationId)}
-    </section>
-
-    <section class="panel">
-      <div class="panel__head">
-        <h2>이번 주 드래프트</h2>
-        <button class="reroll" id="reroll-btn" ${funds >= rerollCost() ? '' : 'disabled'}>리롤 <b>${rerollCost()}G</b></button>
-      </div>
-      <ul class="offers">${offerHtml || '<li class="empty">이번 주 매물이 없습니다.</li>'}</ul>
-    </section>
-
-    ${listedHtml ? `<section class="panel">
-      <div class="panel__head"><h2>이적 명단</h2></div>
-      <ul class="listed">${listedHtml}</ul>
-    </section>` : ''}
-
-    <section class="panel">
-      <div class="panel__head">
-        <h2>선수단</h2>
-        <span class="panel__count">${squad.length}명</span>
-      </div>
-      <div class="squad-scroll"><ul class="squad">${squadHtml}</ul></div>
-      <p class="pitch-note">감독 ${esc(manager.name)} (${manager.tier})${manager.trait ? ` · ${manager.trait}` : ''} · 코치 ${staff.headCoach.level} · 스카우터 ${staff.headScout.level}</p>
-    </section>
+    <div class="tabs" role="tablist">
+      ${TABS.map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${t.label}${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>` : ''}${t.id === 'squad' ? `<span class="tab__count">${squad.length}</span>` : ''}</button>`).join('')}
+    </div>
+    ${bodies[tab]}
   `, `<button class="cta" id="next-week-btn">${week === maxWeek ? (phase === 'summer' ? '전반기 시작' : '후반기 시작') : '다음 주로'}</button>`);
 
-  for (const card of shopOffer) {
-    document.querySelector(`[data-buy="${card.id}"]`).onclick = () => buyCard(card);
-  }
-  for (const p of squad) {
-    document.querySelector(`[data-release-immediate="${p.id}"]`).onclick = () => releaseImmediate(p);
-    document.querySelector(`[data-release-listed="${p.id}"]`).onclick = () => listForSale(p);
-    if (isDeadlineWeek) {
-      document.querySelector(`[data-release-deadline="${p.id}"]`).onclick = () => releaseDeadline(p);
-    }
-  }
-  for (const id of Object.keys(FORMATIONS)) {
-    document.querySelector(`[data-formation="${id}"]`).onclick = () => {
-      currentState.formation = id;
+  for (const t of TABS) {
+    document.querySelector(`[data-tab="${t.id}"]`).onclick = () => {
+      currentState.tab = t.id;
       renderMarket(banner);
     };
   }
-  document.getElementById('reroll-btn').onclick = rerollShop;
+  if (tab === 'draft') {
+    for (const card of shopOffer) {
+      const btn = document.querySelector(`[data-buy="${card.id}"]`);
+      btn.onclick = () => buyCard(card, document.querySelector(`[data-row="${card.id}"]`));
+    }
+    document.getElementById('reroll-btn').onclick = rerollShop;
+  }
+  if (tab === 'tactics') {
+    for (const id of Object.keys(FORMATIONS)) {
+      document.querySelector(`[data-formation="${id}"]`).onclick = () => {
+        currentState.formation = id;
+        renderMarket(banner);
+      };
+    }
+  }
+  if (tab === 'squad') {
+    for (const p of squad) {
+      document.querySelector(`[data-release-immediate="${p.id}"]`).onclick = () => releaseImmediate(p);
+      document.querySelector(`[data-release-listed="${p.id}"]`).onclick = () => listForSale(p);
+      if (isDeadlineWeek) {
+        document.querySelector(`[data-release-deadline="${p.id}"]`).onclick = () => releaseDeadline(p);
+      }
+    }
+  }
   document.getElementById('next-week-btn').onclick = nextWeek;
 
   saveRun(currentState, localStorage);
