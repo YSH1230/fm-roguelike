@@ -6,7 +6,7 @@ import { assignRandomStaff } from '../data/staff.mjs';
 import { GOD_PLAYERS } from '../data/god-players.mjs';
 import { rollPreseasonEvent } from '../data/run-preseason-event.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
-import { getLeagueTier, LEAGUE_LADDER, getLadderIndex, getNextTier } from '../engine/league.mjs';
+import { getLeagueTier, getLadderIndex, getNextTier } from '../engine/league.mjs';
 import { judgeRunOutcome, nextMissedTargetCount, computeReputation } from '../engine/run.mjs';
 import { runHalfSeason, judgeSeasonResult, advanceWeek } from '../engine/season.mjs';
 import { resolvePromotionTransferDemand } from '../engine/events.mjs';
@@ -485,21 +485,85 @@ function runSecondHalfAndFinish(saleMessage = '') {
   `, dockHtml);
 
   document.getElementById('promote-btn')?.addEventListener('click', () => {
-    currentState.leagueTierId = getNextTier(currentState.leagueTierId);
-    currentState.highestTierId = currentState.leagueTierId;
+    const nextTier = getNextTier(currentState.leagueTierId);
     currentState.chemistry = Math.min(100, currentState.chemistry + PROMOTION_CHEMISTRY_BONUS);
     currentState.funds = Math.round(currentState.funds * (1 + PROMOTION_FUNDS_BONUS_RATIO));
 
-    // 승격 전용 위기: 핵심 선수 이적 요구 (스펙 8절). 위기 관리형 감독의 무효화는
-    // 이미 시즌 시작 이벤트(FFP 긴급 감사)에 한 번 썼으므로 여기서는 다시 쓰지 않는다.
+    // 승격 전용 위기(FFP 긴급 감사 무효화와는 별개)는 거취를 정한 뒤에 띄운다(잔류를 골랐을 때만 의미가 있다).
+    renderDestinationChoice(result, nextTier);
+  });
+  document.getElementById('continue-btn')?.addEventListener('click', startNewSeason);
+}
+
+// 스펙 2절 거취 선택. 우승이면 오퍼 3개, 목표 달성이면 2개.
+// 현재 구단은 후보에서 뺀다(이적인데 같은 곳이면 의미가 없다).
+function buildClubOffers(seasonResult) {
+  const count = seasonResult === 'champion' ? 3 : 2;
+  const pool = CLUBS.filter((c) => c.id !== currentState.club.id);
+  const picked = [];
+  while (picked.length < count && picked.length < pool.length) {
+    const c = pool[Math.floor(Math.random() * pool.length)];
+    if (!picked.includes(c)) picked.push(c);
+  }
+  return picked;
+}
+
+function renderDestinationChoice(seasonResult, nextTierId) {
+  const offers = buildClubOffers(seasonResult);
+  const stayLabel = nextTierId === currentState.leagueTierId
+    ? '같은 리그에 남는다'
+    : `${getLeagueTier(nextTierId).label}로 승격한다`;
+
+  setScreen(`
+    <div class="choice">
+      <div class="choice__kicker">시즌 종료 거취</div>
+      <h1 class="choice__title">어디서 다음 시즌을<br>시작할까요</h1>
+      <p class="choice__body">
+        지금 구단에 남으면 <b>선수단을 그대로</b> 들고 갑니다.
+        다른 구단으로 옮기면 <b>선수단이 전부 초기화</b>되지만 그 구단의 조건으로 새로 시작합니다.
+      </p>
+      <div class="options">
+        <button class="option option--accept" data-stay="1">
+          <div class="option__name">${esc(currentState.club.name)}에 남는다</div>
+          <div class="option__effect">${stayLabel}. 선수단 <b>유지</b></div>
+        </button>
+        ${offers.map((c) => `
+          <button class="option" data-move="${c.id}" style="--tier:${c.kit}">
+            <div class="option__name">${esc(c.name)}로 이적</div>
+            <div class="option__effect">${esc(c.strength)}. 선수단 <b>초기화</b>, 시작 자금 x${c.startingFundsMultiplier}</div>
+          </button>`).join('')}
+      </div>
+    </div>
+  `);
+
+  document.querySelector('[data-stay]').onclick = () => {
+    currentState.leagueTierId = nextTierId;
+    if (getLadderIndex(nextTierId) > getLadderIndex(currentState.highestTierId)) {
+      currentState.highestTierId = nextTierId;
+    }
     const keyPlayer = [...currentState.squad].sort((a, b) => b.baseOVR - a.baseOVR)[0];
     if (keyPlayer && Math.random() < PROMOTION_TRANSFER_DEMAND_CHANCE) {
       renderPromotionTransferDemand(keyPlayer);
     } else {
       startNewSeason();
     }
-  });
-  document.getElementById('continue-btn')?.addEventListener('click', startNewSeason);
+  };
+  for (const c of offers) {
+    document.querySelector(`[data-move="${c.id}"]`).onclick = () => {
+      currentState.club = c;
+      currentState.leagueTierId = nextTierId;
+      if (getLadderIndex(nextTierId) > getLadderIndex(currentState.highestTierId)) {
+        currentState.highestTierId = nextTierId;
+      }
+      // 선수단 초기화. 적응도도 새 팀이므로 기본값으로 돌린다.
+      currentState.squad = generateSquadPool(TIER5_SQUAD_WEIGHTS).map(toSquadPlayer);
+      currentState.chemistry = CHEMISTRY_START;
+      currentState.funds = Math.round(
+        calculateStartingFunds(getLadderIndex(nextTierId)) * c.startingFundsMultiplier
+      );
+      startNewSeason();
+    };
+  }
 }
 
 const RUN_END = {
