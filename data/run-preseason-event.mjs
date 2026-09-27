@@ -31,7 +31,7 @@ export function rollPreseasonEvent(squad, funds, rng = Math.random) {
       id,
       funds,
       squad: squadAfterRelease,
-      message: `FFP 긴급 감사: 자금 부족 — ${weakest.name} 무료 방출`,
+      message: `FFP 긴급 감사: 자금 부족. ${weakest.name} 무료 방출`,
     };
   }
 

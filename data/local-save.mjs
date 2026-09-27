@@ -26,3 +26,17 @@ export function clearRun(storage) {
     // no-op
   }
 }
+
+// 이 브랜치 이전 세이브에는 highestTierId/titles/missedTargetCount/seasonNumber가
+// 없다. 없는 채로 이어하면 computeReputation이 던지고(화면이 안 넘어가 런이 멎음)
+// nextMissedTargetCount가 NaN이 되어(해임 판정이 영구히 안 걸림) 런이 망가진다.
+// DOM 없이 테스트할 수 있게 순수 함수로 빼둔다.
+export function withRunDefaults(state, defaultFormation) {
+  if (!state) return state;
+  state.formation ??= defaultFormation;
+  state.highestTierId ??= state.leagueTierId;
+  state.titles ??= 0;
+  state.missedTargetCount ??= 0;
+  state.seasonNumber ??= 1;
+  return state;
+}

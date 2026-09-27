@@ -9,6 +9,23 @@ import { pick, randomName } from './name-pools.mjs';
 // 카드를 뽑을 기회)은 별도 SHOP_TIER_WEIGHTS(draft-shop.mjs)를 쓴다.
 export const TIER5_SQUAD_WEIGHTS = { local: 60, bigLeaguer: 0, topClass: 0, worldClass: 0, legendary: 0 };
 
+// 이적(거취 선택)으로 갈아끼우는 스쿼드의 등급 분포. 목적지 리그 체급에 맞춘다.
+// 전에는 어느 리그로 가도 TIER5_SQUAD_WEIGHTS를 썼다 - 3부 이상에서 강등률이
+// 57~95%였고, 강등은 즉시 해임이라 "이적"이 사실상 런 종료 버튼이었다.
+// 기준: 승격으로 올라온 플레이어의 베스트11 평균 전력(tools/tune-ladder.mjs
+// 실측 5부 69.8 / 4부 76.9 / 3부 83.9 / 2부 89.1 / 1부 92.3)보다 조금 낮게
+// 잡아, 이적이 손해가 아니라 도박이 되게 한다. 장수는 5부와 같은 60장.
+// 이적 직후 시즌 800판 실측 강등률: 5부 2.4% / 4부 14.1% / 3부 19.5% /
+// 2부 29.6% / 1부 37.3%. 같은 스쿼드를 물려받고 승격했을 때가 2.6 / 9.9 /
+// 19.3 / 28.8 / 33.6%이므로, 이적은 이제 조금 불리한 도박 수준이다.
+export const MOVE_SQUAD_WEIGHTS_BY_TIER = {
+  tier5: TIER5_SQUAD_WEIGHTS,
+  tier4: { local: 40, bigLeaguer: 20, topClass: 0, worldClass: 0, legendary: 0 },
+  tier3: { local: 20, bigLeaguer: 30, topClass: 10, worldClass: 0, legendary: 0 },
+  tier2: { local: 8, bigLeaguer: 24, topClass: 21, worldClass: 7, legendary: 0 },
+  tier1: { local: 4, bigLeaguer: 15, topClass: 26, worldClass: 13, legendary: 2 },
+};
+
 function pickN(array, n, rng) {
   const pool = [...array];
   const result = [];
@@ -58,9 +75,19 @@ export function generateProceduralPlayer(tierId, rng = Math.random) {
 // tierWeights: { local: 30, bigLeaguer: 25, ... } 처럼 등급별 인원수
 export function generateSquadPool(tierWeights, rng = Math.random) {
   const players = [];
+  const usedNames = new Set();
   for (const [tierId, count] of Object.entries(tierWeights)) {
     for (let i = 0; i < count; i++) {
-      players.push(generateProceduralPlayer(tierId, rng));
+      // 같은 스쿼드 안 동명이인은 플레이 중 누가 누군지 헷갈리게 만든다.
+      // 풀이 넓어도 생일 역설 때문에 60명이면 겹치므로 명시적으로 거른다.
+      let player;
+      let tries = 0;
+      do {
+        player = generateProceduralPlayer(tierId, rng);
+        tries += 1;
+      } while (usedNames.has(player.name) && tries < 50);
+      usedNames.add(player.name);
+      players.push(player);
     }
   }
   return players;
