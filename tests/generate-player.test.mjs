@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateProceduralPlayer, generateSquadPool } from '../data/generate-player.mjs';
+import { generateProceduralPlayer, generateSquadPool, TIER5_SQUAD_WEIGHTS } from '../data/generate-player.mjs';
 import { PLAYER_TIERS } from '../engine/constants.mjs';
 
 function seededRng(seed) {
@@ -48,5 +48,14 @@ test('33세 미만 선수는 베테랑 리더 성향을 가질 수 없다(효과
     if (p.specialTrait === 'veteranLeader') {
       assert.ok(p.age >= 33, `veteranLeader 카드가 ${p.age}세로 생성됨`);
     }
+  }
+});
+
+test('한 스쿼드 안에서 이름이 겹치지 않는다', () => {
+  // 60명 스쿼드를 20번 뽑아서 한 번이라도 동명이인이 나오면 실패.
+  // 이름 풀이 좁으면 생일 역설로 거의 매번 겹친다.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const names = generateSquadPool(TIER5_SQUAD_WEIGHTS).map((p) => p.name);
+    assert.equal(new Set(names).size, names.length, `${attempt}번째 스쿼드에 동명이인이 있다`);
   }
 });

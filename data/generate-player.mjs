@@ -58,9 +58,19 @@ export function generateProceduralPlayer(tierId, rng = Math.random) {
 // tierWeights: { local: 30, bigLeaguer: 25, ... } 처럼 등급별 인원수
 export function generateSquadPool(tierWeights, rng = Math.random) {
   const players = [];
+  const usedNames = new Set();
   for (const [tierId, count] of Object.entries(tierWeights)) {
     for (let i = 0; i < count; i++) {
-      players.push(generateProceduralPlayer(tierId, rng));
+      // 같은 스쿼드 안 동명이인은 플레이 중 누가 누군지 헷갈리게 만든다.
+      // 풀이 넓어도 생일 역설 때문에 60명이면 겹치므로 명시적으로 거른다.
+      let player;
+      let tries = 0;
+      do {
+        player = generateProceduralPlayer(tierId, rng);
+        tries += 1;
+      } while (usedNames.has(player.name) && tries < 50);
+      usedNames.add(player.name);
+      players.push(player);
     }
   }
   return players;
