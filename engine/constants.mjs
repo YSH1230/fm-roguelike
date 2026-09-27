@@ -164,3 +164,10 @@ export const PROMOTION_RENEWAL_HIKE_RATIO = 0.3; // 승격 전용: 재계약 비
 export const SPONSORSHIP_FUNDS_BONUS_RATIO = 0.2; // 메인 스폰서십 특수: 시작 자금 +20%
 export const FA_FIRE_SALE_DISCOUNT_RATIO = -0.5; // FA 급매물 등장: 50% 할인
 export const AGENT_BACKLASH_SURCHARGE_RATIO = 0.1; // 에이전트의 뒷공작: 영입비 +10%
+
+// 스펙 2절: 기대 목표(targetPoints) 미달이 이만큼 누적되면 해임된다.
+export const MISSED_TARGET_LIMIT = 3;
+
+// 스펙 10절 명성 점수 계산안. 도달 리그 단계 x 10 + 우승 횟수 x 50.
+export const REPUTATION_PER_TIER = 10;
+export const REPUTATION_PER_TITLE = 50;
