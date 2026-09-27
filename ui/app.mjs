@@ -1,6 +1,6 @@
 import { CLUBS } from '../data/clubs.mjs';
 import { saveRun, loadRun, clearRun, withRunDefaults } from '../data/local-save.mjs';
-import { generateSquadPool, TIER5_SQUAD_WEIGHTS } from '../data/generate-player.mjs';
+import { generateSquadPool, TIER5_SQUAD_WEIGHTS, MOVE_SQUAD_WEIGHTS_BY_TIER } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
 import { assignRandomStaff } from '../data/staff.mjs';
 import { GOD_PLAYERS } from '../data/god-players.mjs';
@@ -448,7 +448,9 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const canPromote = outcome.canPromote;
 
   if (outcome.ended) {
-    renderRunEnd(outcome.reason, totalPoints);
+    // 같은 클릭에서 보드진의 신임이 발동하고도 목표 미달로 경질될 수 있다.
+    // 그 경우에도 성향이 발동했다는 사실은 알려야 한다.
+    renderRunEnd(outcome.reason, totalPoints, boardTrustMessage);
     return;
   }
 
@@ -462,6 +464,11 @@ function runSecondHalfAndFinish(saleMessage = '') {
     closingHtml = left <= 2
       ? `<p class="note"><b>목표 미달 ${currentState.missedTargetCount}회.</b> ${left}회 더 미달하면 해임됩니다.</p>`
       : '';
+    // 1부는 더 올라갈 데가 없어서 목표를 달성해도 승격 버튼이 안 나온다.
+    // 아무 설명이 없으면 왜 제자리인지 알 수 없다.
+    if (getNextTier(currentState.leagueTierId) === null) {
+      closingHtml += '<p class="note">1부가 마지막 리그입니다. 우승해야 커리어가 완결되고, 목표 달성은 자리를 지켜줄 뿐입니다.</p>';
+    }
     dockHtml = '<button class="cta" id="continue-btn">같은 리그에서 새 시즌</button>';
   }
 
@@ -532,9 +539,8 @@ function buildClubOffers(seasonResult) {
 
 function renderDestinationChoice(seasonResult, nextTierId) {
   const offers = buildClubOffers(seasonResult);
-  const stayLabel = nextTierId === currentState.leagueTierId
-    ? '같은 리그에 남는다'
-    : `${getLeagueTier(nextTierId).label}로 승격한다`;
+  // 이 화면은 promote-btn에서 getNextTier로만 들어오므로 nextTierId는 항상 승격 리그다.
+  const stayLabel = `${getLeagueTier(nextTierId).label}로 승격한다`;
 
   setScreen(`
     <div class="choice">
@@ -542,7 +548,8 @@ function renderDestinationChoice(seasonResult, nextTierId) {
       <h1 class="choice__title">어디서 다음 시즌을<br>시작할까요</h1>
       <p class="choice__body">
         지금 구단에 남으면 <b>선수단을 그대로</b> 들고 갑니다.
-        다른 구단으로 옮기면 <b>선수단이 전부 초기화</b>되지만 그 구단의 조건으로 새로 시작합니다.
+        다른 구단으로 옮기면 <b>선수단이 전부 초기화</b>되고, 새 선수단은 그 리그 체급으로
+        다시 생성됩니다. 지금까지 키운 전력보다 약할 수 있습니다.
       </p>
       <div class="options">
         <button class="option option--accept" data-stay="1">
@@ -552,7 +559,7 @@ function renderDestinationChoice(seasonResult, nextTierId) {
         ${offers.map((c) => `
           <button class="option" data-move="${c.id}">
             <div class="option__name">${esc(c.name)}${ro(c.name)} 이적</div>
-            <div class="option__effect">${esc(c.strength)}. 선수단 <b>초기화</b>, 시작 자금 x${c.startingFundsMultiplier}</div>
+            <div class="option__effect">${esc(c.strength)}. 선수단 <b>초기화</b>(${getLeagueTier(nextTierId).label} 체급으로 재생성), 시작 자금 x${c.startingFundsMultiplier}</div>
           </button>`).join('')}
       </div>
     </div>
@@ -577,8 +584,14 @@ function renderDestinationChoice(seasonResult, nextTierId) {
       if (getLadderIndex(nextTierId) > getLadderIndex(currentState.highestTierId)) {
         currentState.highestTierId = nextTierId;
       }
-      // 선수단 초기화. 적응도도 새 팀이므로 기본값으로 돌린다.
-      currentState.squad = generateSquadPool(TIER5_SQUAD_WEIGHTS).map(toSquadPlayer);
+      // 선수단 초기화. 목적지 리그 체급으로 생성한다(5부 분포로 고정하면 3부
+      // 이상에서 강등이 거의 확정이었다). 적응도도 새 팀이므로 기본값으로 돌린다.
+      currentState.squad = generateSquadPool(MOVE_SQUAD_WEIGHTS_BY_TIER[nextTierId]).map(toSquadPlayer);
+      // 스쿼드에서 사라진 GOD 카드는 다시 상점에 나올 수 있게 되돌린다.
+      // 안 그러면 이미 영입한 GOD이 선수단에서도 사라지고 이번 런에서 영영 못 본다.
+      currentState.availableGodPlayers = GOD_PLAYERS.filter(
+        (g) => !currentState.squad.some((p) => p.id === g.id)
+      );
       currentState.chemistry = CHEMISTRY_START;
       startNewSeason(); // 자금은 새 구단 배율로 여기서 한 번만 지급된다
     };
@@ -603,7 +616,7 @@ const RUN_END = {
   },
 };
 
-function renderRunEnd(reason, finalPoints) {
+function renderRunEnd(reason, finalPoints, boardTrustMessage = '') {
   const copy = RUN_END[reason];
   const reputation = computeReputation({
     highestTierId: currentState.highestTierId,
@@ -617,6 +630,7 @@ function renderRunEnd(reason, finalPoints) {
       <div class="verdict__result">${copy.title}</div>
       <div class="scoreline"><b>${reputation}</b><span>명성</span></div>
     </div>
+    ${boardTrustMessage}
     <div class="panel">
       <p class="note">${copy.body}</p>
       <ul class="summary">
