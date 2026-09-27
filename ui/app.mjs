@@ -6,7 +6,8 @@ import { assignRandomStaff } from '../data/staff.mjs';
 import { GOD_PLAYERS } from '../data/god-players.mjs';
 import { rollPreseasonEvent } from '../data/run-preseason-event.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
-import { getLeagueTier } from '../engine/league.mjs';
+import { getLeagueTier, LEAGUE_LADDER, getLadderIndex, getNextTier } from '../engine/league.mjs';
+import { judgeRunOutcome, nextMissedTargetCount, computeReputation } from '../engine/run.mjs';
 import { runHalfSeason, judgeSeasonResult, advanceWeek } from '../engine/season.mjs';
 import { resolvePromotionTransferDemand } from '../engine/events.mjs';
 import {
@@ -35,11 +36,8 @@ import {
   SCOUT_MASTER_REROLL_DISCOUNT,
   PROMOTION_TRANSFER_DEMAND_CHANCE,
   PLAYER_TIERS,
+  MISSED_TARGET_LIMIT,
 } from '../engine/constants.mjs';
-
-// 슬라이스는 5부/4부만 구현 (스펙 11절) — 승격 시 다음 단계로, 3부 이상은 여기서 멈춘다
-const LEAGUE_LADDER = ['tier5', 'tier4'];
-
 
 
 // 카드 데이터(정적)를 스쿼드 상태(동적 필드 포함)로 만든다. 새 스쿼드이므로
@@ -184,6 +182,10 @@ function startRun(club) {
     funds,
     eventMessage,
     leagueTierId: 'tier5',
+    highestTierId: 'tier5', // 이번 런에서 도달한 최고 리그 (명성 점수용)
+    titles: 0, // 우승 횟수
+    missedTargetCount: 0, // 기대 목표 미달 누적 (스펙 2절: 3회면 해임)
+    seasonNumber: 1,
     formation: DEFAULT_FORMATION,
     tab: 'draft',
     week: SUMMER_MARKET_WEEKS[0],
@@ -212,6 +214,7 @@ function rerollCost() {
 
 // 승격/잔류 후 같은 구단으로 새 시즌 시작 — 스펙 4절: 선수단 유지, 시장 상태만 초기화
 function startNewSeason() {
+  currentState.seasonNumber += 1;
   currentState.week = SUMMER_MARKET_WEEKS[0];
   currentState.phase = 'summer';
   currentState.transactedThisWeek = false;
@@ -400,7 +403,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const totalPoints = currentState.firstHalfPoints + secondHalf;
   let result = judgeSeasonResult(totalPoints, currentState.leagueTierId);
   const tier = getLeagueTier(currentState.leagueTierId);
-  const nextSeasonFunds = calculateStartingFunds(LEAGUE_LADDER.indexOf(currentState.leagueTierId));
+  const nextSeasonFunds = calculateStartingFunds(getLadderIndex(currentState.leagueTierId));
   currentState.funds = applyCarryoverCap(currentState.funds, nextSeasonFunds);
 
   // 보드진의 신임: 해임 조건 1회 면제(사용 후 소멸)
@@ -411,21 +414,33 @@ function runSecondHalfAndFinish(saleMessage = '') {
     boardTrustMessage = '<div class="banner banner--alert">보드진의 신임 발동. 해임을 면했습니다. 이 효과는 소멸합니다.</div>';
   }
 
-  const currentTierIndex = LEAGUE_LADDER.indexOf(currentState.leagueTierId);
-  const canPromote = (result === 'promotion' || result === 'champion') && currentTierIndex < LEAGUE_LADDER.length - 1;
+  // 보드진의 신임이 result를 safe로 바꾼 뒤에 런 판정을 태워야 한다.
+  if (result === 'champion') currentState.titles += 1;
+  currentState.missedTargetCount = nextMissedTargetCount(result, currentState.missedTargetCount);
+
+  const outcome = judgeRunOutcome({
+    seasonResult: result,
+    leagueTierId: currentState.leagueTierId,
+    missedTargetCount: currentState.missedTargetCount,
+  });
+  const currentTierIndex = getLadderIndex(currentState.leagueTierId);
+  const canPromote = outcome.canPromote;
+
+  if (outcome.ended) {
+    renderRunEnd(outcome.reason, totalPoints);
+    return;
+  }
 
   let dockHtml;
   let closingHtml = '';
-  if (result === 'relegation') {
-    closingHtml = `<p class="note">안전 승점 ${tier.safePoints}을 넘지 못해 해임됐습니다. 이 런은 여기서 끝입니다.</p>`;
-    dockHtml = '<button class="cta cta--danger" id="new-run-btn">새 런 시작</button>';
-  } else if (canPromote) {
+  if (canPromote) {
     closingHtml = `<p class="note">승격 보상: 적응도 +${PROMOTION_CHEMISTRY_BONUS}, 자금 +${PROMOTION_FUNDS_BONUS_RATIO * 100}%</p>`;
-    dockHtml = `<button class="cta" id="promote-btn">${LEAGUE_LADDER[currentTierIndex + 1] === 'tier4' ? '4부로 승격' : '다음 리그로 승격'}</button>`;
-  } else if (result === 'promotion' || result === 'champion') {
-    closingHtml = '<p class="note">이 슬라이스는 4부까지만 구현돼 있습니다. 3부 이상은 다음 마일스톤에서 이어집니다.</p>';
-    dockHtml = '<button class="cta cta--ghost" id="new-run-btn">새 런 시작</button>';
+    dockHtml = `<button class="cta" id="promote-btn">${getLeagueTier(getNextTier(currentState.leagueTierId)).label}로 승격</button>`;
   } else {
+    const left = MISSED_TARGET_LIMIT - currentState.missedTargetCount;
+    closingHtml = left <= 2
+      ? `<p class="note"><b>목표 미달 ${currentState.missedTargetCount}회.</b> ${left}회 더 미달하면 해임됩니다.</p>`
+      : '';
     dockHtml = '<button class="cta" id="continue-btn">같은 리그에서 새 시즌</button>';
   }
 
@@ -471,7 +486,8 @@ function runSecondHalfAndFinish(saleMessage = '') {
   `, dockHtml);
 
   document.getElementById('promote-btn')?.addEventListener('click', () => {
-    currentState.leagueTierId = LEAGUE_LADDER[currentTierIndex + 1];
+    currentState.leagueTierId = getNextTier(currentState.leagueTierId);
+    currentState.highestTierId = currentState.leagueTierId;
     currentState.chemistry = Math.min(100, currentState.chemistry + PROMOTION_CHEMISTRY_BONUS);
     currentState.funds = Math.round(currentState.funds * (1 + PROMOTION_FUNDS_BONUS_RATIO));
 
@@ -485,11 +501,56 @@ function runSecondHalfAndFinish(saleMessage = '') {
     }
   });
   document.getElementById('continue-btn')?.addEventListener('click', startNewSeason);
-  document.getElementById('new-run-btn')?.addEventListener('click', () => {
-    currentState = null;
-    clearRun(localStorage);
-    renderClubButtons();
+}
+
+const RUN_END = {
+  victory: {
+    kicker: '커리어 종료',
+    title: '1부 우승',
+    body: '5부에서 시작해 1부 정상까지 올라갔습니다. 이 런은 여기서 완결됩니다.',
+  },
+  relegation: {
+    kicker: '커리어 종료',
+    title: '해임',
+    body: '안전 승점을 넘지 못했습니다. 보드진이 경질을 통보했습니다.',
+  },
+  missedTargets: {
+    kicker: '커리어 종료',
+    title: '경질',
+    body: `기대 목표를 ${MISSED_TARGET_LIMIT}시즌 연속으로 넘지 못했습니다. 잔류만으로는 자리를 지킬 수 없습니다.`,
+  },
+};
+
+function renderRunEnd(reason, finalPoints) {
+  const copy = RUN_END[reason];
+  const reputation = computeReputation({
+    highestTierId: currentState.highestTierId,
+    titles: currentState.titles,
   });
+  const highest = getLeagueTier(currentState.highestTierId);
+
+  setScreen(`
+    <div class="verdict verdict--${reason === 'victory' ? 'champion' : 'relegation'}">
+      <div class="verdict__label">${copy.kicker}</div>
+      <div class="verdict__result">${copy.title}</div>
+      <div class="scoreline"><b>${reputation}</b><span>명성</span></div>
+    </div>
+    <div class="panel">
+      <p class="note">${copy.body}</p>
+      <ul class="summary">
+        <li><span>버틴 시즌</span><b>${currentState.seasonNumber}</b></li>
+        <li><span>도달 리그</span><b>${highest.label}</b></li>
+        <li><span>우승</span><b>${currentState.titles}</b></li>
+        <li><span>마지막 시즌 승점</span><b>${finalPoints.toFixed(0)}</b></li>
+      </ul>
+    </div>
+  `, '<button class="cta" id="new-run-btn">새 런 시작</button>');
+
+  clearRun(localStorage); // 끝난 런은 이어하기 목록에서 지운다
+  document.getElementById('new-run-btn').onclick = () => {
+    currentState = null;
+    renderClubButtons();
+  };
 }
 
 function renderPromotionTransferDemand(keyPlayer) {
