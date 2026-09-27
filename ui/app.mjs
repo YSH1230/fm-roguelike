@@ -228,7 +228,7 @@ function startNewSeason() {
   }));
   currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
 
-  let banner = `${currentState.club.name}, ${currentState.leagueTierId === 'tier4' ? '4부' : '5부'} 새 시즌 시작`;
+  let banner = `${currentState.club.name}, ${getLeagueTier(currentState.leagueTierId).label} 새 시즌 시작`;
   // 장기 집권형: 같은 구단 잔류 시즌마다 적응도 시작값 +3
   if (currentState.manager.trait === 'longTermReign') {
     currentState.chemistry = Math.min(100, currentState.chemistry + 3);
@@ -423,7 +423,6 @@ function runSecondHalfAndFinish(saleMessage = '') {
     leagueTierId: currentState.leagueTierId,
     missedTargetCount: currentState.missedTargetCount,
   });
-  const currentTierIndex = getLadderIndex(currentState.leagueTierId);
   const canPromote = outcome.canPromote;
 
   if (outcome.ended) {
@@ -450,7 +449,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
 
   setScreen(`
     <div class="verdict verdict--${result}">
-      <div class="verdict__label">${esc(currentState.club.name)} · ${currentState.leagueTierId === 'tier4' ? '4부' : '5부'} 시즌 결산</div>
+      <div class="verdict__label">${esc(currentState.club.name)} · ${getLeagueTier(currentState.leagueTierId).label} 시즌 결산</div>
       <div class="verdict__result">${RESULT_LABELS[result]}</div>
       <div class="scoreline"><b>${totalPoints.toFixed(0)}</b><span>승점</span></div>
       <div class="halves">
