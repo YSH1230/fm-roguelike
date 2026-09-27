@@ -104,6 +104,14 @@ function esc(text) {
   return String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+// 한국어 조사 '로/으로'. 받침이 없거나 받침이 ㄹ이면 '로', 그 외에는 '으로'.
+function ro(word) {
+  const last = word.charCodeAt(word.length - 1) - 0xac00;
+  if (last < 0 || last > 11171) return '로'; // 한글이 아니면 기본값
+  const jong = last % 28;
+  return jong === 0 || jong === 8 ? '로' : '으로';
+}
+
 const screenEl = () => document.getElementById('screen');
 const dockEl = () => document.getElementById('dock');
 
@@ -528,8 +536,8 @@ function renderDestinationChoice(seasonResult, nextTierId) {
           <div class="option__effect">${stayLabel}. 선수단 <b>유지</b></div>
         </button>
         ${offers.map((c) => `
-          <button class="option" data-move="${c.id}" style="--tier:${c.kit}">
-            <div class="option__name">${esc(c.name)}로 이적</div>
+          <button class="option" data-move="${c.id}">
+            <div class="option__name">${esc(c.name)}${ro(c.name)} 이적</div>
             <div class="option__effect">${esc(c.strength)}. 선수단 <b>초기화</b>, 시작 자금 x${c.startingFundsMultiplier}</div>
           </button>`).join('')}
       </div>
