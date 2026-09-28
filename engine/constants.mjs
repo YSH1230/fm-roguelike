@@ -107,10 +107,12 @@ export const PLAYER_PRICE_TABLE = {
   worldClass: [300, 700],
   legendary: [700, 1600],
 };
+// 선수 가격표의 절반 수준. 감독 이적은 시장 거래가 아니라 계약 해지금(바이아웃)
+// 구조라 톱급 선수 이적료보다 확실히 싸다 — 현실 고증.
 export const MANAGER_PRICE_TABLE = {
-  rookie: [50, 150],
-  tactician: [200, 500],
-  legendary: [800, 1500],
+  rookie: [10, 30],
+  tactician: [80, 200],
+  legendary: [400, 800],
 };
 export const STAFF_PRICE_TABLE = {
   academy: [20, 50],
@@ -171,3 +173,4 @@ export const MISSED_TARGET_LIMIT = 3;
 // 스펙 10절 명성 점수 계산안. 도달 리그 단계 x 10 + 우승 횟수 x 50.
 export const REPUTATION_PER_TIER = 10;
 export const REPUTATION_PER_TITLE = 50;
+export const REPUTATION_PER_UCL_TITLE = 80; // 대륙 대회 우승은 리그 우승보다 희소해서 더 쳐준다

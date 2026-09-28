@@ -1,5 +1,5 @@
 import { getLadderIndex, getNextTier } from './league.mjs';
-import { MISSED_TARGET_LIMIT, REPUTATION_PER_TIER, REPUTATION_PER_TITLE } from './constants.mjs';
+import { MISSED_TARGET_LIMIT, REPUTATION_PER_TIER, REPUTATION_PER_TITLE, REPUTATION_PER_UCL_TITLE } from './constants.mjs';
 
 // 시즌 하나가 끝났을 때 런이 계속되는지 판정한다.
 // season.mjs와 가른 이유: 이 판정은 시즌 여러 개에 걸친 상태(누적 미달 횟수,
@@ -27,6 +27,8 @@ export function nextMissedTargetCount(seasonResult, current) {
 }
 
 // 스펙 10절. 도달 리그 단계는 사다리 인덱스+1로 센다(5부 도달 = 1단계).
-export function computeReputation({ highestTierId, titles }) {
-  return (getLadderIndex(highestTierId) + 1) * REPUTATION_PER_TIER + titles * REPUTATION_PER_TITLE;
+export function computeReputation({ highestTierId, titles, uclTitles = 0 }) {
+  return (getLadderIndex(highestTierId) + 1) * REPUTATION_PER_TIER
+    + titles * REPUTATION_PER_TITLE
+    + uclTitles * REPUTATION_PER_UCL_TITLE;
 }
