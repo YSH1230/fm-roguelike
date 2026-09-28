@@ -121,6 +121,18 @@ const TAG_LABELS = {
   tikiTaka: '티키타카', totalFootball: '토탈풋볼', falseFullBack: '변형 3백',
   buildUpFromBack: '후방 빌드업', counterAttack: '역습',
 };
+// 태그 이름만으로는 뭘 하는 태그인지 안 보인다 - 어떤 포지션이 해당되는지
+// 실제 축구 용어로 짧게 풀어둔다(engine/constants.mjs PLAYSTYLE_TAGS의 positions와 짝).
+const TAG_DESCRIPTIONS = {
+  gegenpressing: 'ST·CMF가 많으면 발동 · 전방 압박',
+  falseNine: 'W·AMF가 많으면 발동 · 가짜 9번',
+  longBallKickAndRush: 'ST·AMF가 많으면 발동 · 롱볼 축구',
+  tikiTaka: 'CMF·AMF가 많으면 발동 · 짧은 패스 점유',
+  totalFootball: 'WB·CMF가 많으면 발동 · 포지션 스위칭',
+  falseFullBack: 'WB·CB가 많으면 발동 · 변형 3백',
+  buildUpFromBack: 'CB·GK가 많으면 발동 · 후방 빌드업',
+  counterAttack: 'W·ST가 많으면 발동 · 선수비 후역습',
+};
 const TRAIT_LABELS = {
   seongGolYouth: '성골 유스', veteranLeader: '베테랑 리더', superSub: '슈퍼 서브',
   hometownHero: '지역 영웅', polyglot: '폴리글롯', journeyman: '저니맨',
@@ -339,6 +351,9 @@ function startRun(club) {
   const funds = crisisBlocked ? baseFunds : rolled.funds;
   const squad = crisisBlocked ? rawSquad : rolled.squad;
   const eventMessage = crisisBlocked ? '위기 관리형: FFP 긴급 감사를 무효화했습니다' : rolled.message;
+  // 이벤트 없음(id === null)이면 팝업을 안 띄운다 - "아무 일도 없었다"는
+  // 알림은 알림이 아니라 소음이다. good/bad는 팝업 색만 가른다.
+  const eventTone = crisisBlocked ? 'good' : rolled.id === 'ffpAudit' ? 'bad' : rolled.id ? 'good' : null;
 
   // 헤어드라이어: 영입 즉시 적응도 +20
   const chemistry = manager.trait === 'hairdryer' ? Math.min(100, CHEMISTRY_START + 20) : CHEMISTRY_START;
@@ -352,6 +367,7 @@ function startRun(club) {
     chemistry,
     funds,
     eventMessage,
+    eventTone,
     leagueTierId: 'tier5',
     highestTierId: 'tier5', // 이번 런에서 도달한 최고 리그 (명성 점수용)
     titles: 0, // 우승 횟수
@@ -377,7 +393,67 @@ function startRun(club) {
   };
   currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
   currentState.managerOffer = generateManagerOffer(3);
-  renderMarket();
+  renderCareerIntro();
+}
+
+// 구단 고르자마자 바로 상점으로 떨어지면 "그냥 시작됐다"는 느낌만 남는다.
+// 이번 시즌 목표(승점 게이지)와 시즌이 어떤 순서로 흘러가는지를 한 번은
+// 보여주고 시작한다 - 이후 시즌은 이미 아는 내용이라 안 보여준다(시즌 종료
+// 화면에서 바로 startNewSeason으로 넘어감, 여기로 안 옴).
+function renderCareerIntro() {
+  const { club, manager, squad } = currentState;
+  const tier = getLeagueTier(currentState.leagueTierId);
+  const scale = tier.championPoints * 1.1;
+  const at = (v) => `${Math.min(100, (v / scale) * 100)}%`;
+  const { lineup, bench } = pickBestXI(squad, currentFormation());
+  const teamPower = computeTeamPower(lineup, bench, manager.tier, currentState.chemistry);
+
+  setScreen(`
+    <div class="verdict">
+      <div class="verdict__label">커리어 시작</div>
+      <div class="verdict__result" style="color:var(--light)">${esc(club.name)}</div>
+      <p class="note" style="text-align:center">${tier.label} 감독으로 취임합니다. 12주 여름 이적시장으로 시즌이 시작됩니다.</p>
+      <div class="pointbar">
+        <div class="pointbar__fill" style="width:${at(teamPower)}"></div>
+        <div class="pointbar__mark" style="left:${at(tier.safePoints)}"></div>
+        <div class="pointbar__mark" style="left:${at(tier.targetPoints)}"></div>
+        <div class="pointbar__mark" style="left:${at(tier.championPoints)}"></div>
+      </div>
+      <div class="pointbar__legend">
+        <span style="left:${at(tier.safePoints)}">잔류 ${tier.safePoints}</span>
+        <span style="left:${at(tier.targetPoints)}">승격 ${tier.targetPoints}</span>
+        <span style="left:${at(tier.championPoints)}">우승 ${tier.championPoints}</span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><h2>이번 시즌 목표</h2></div>
+      <ul class="summary">
+        <li><span>안전권</span><b>${tier.safePoints}점</b></li>
+        <li><span>승격권</span><b>${tier.targetPoints}점</b></li>
+        <li><span>우승</span><b>${tier.championPoints}점</b></li>
+        <li><span>시작 팀 전력</span><b>${teamPower.toFixed(1)}</b></li>
+      </ul>
+      <p class="note">승점은 전/후반기 합산입니다. 안전권을 넘기지 못하면 해임, 목표를 3시즌 연속 못 넘기면 경질됩니다.</p>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><h2>시즌 흐름</h2></div>
+      <ol class="flowsteps">
+        <li>여름 이적시장 (8주) — 선수를 사고 판다</li>
+        <li>전반기 시뮬레이션 — 결산으로 페이스를 확인</li>
+        <li>겨울 이적시장 (4주) — 부족한 자리를 보강</li>
+        <li>후반기 시뮬레이션 — 최종 결과 확정</li>
+        <li>시즌 결산 — 승격/잔류/해임이 갈림</li>
+      </ol>
+    </div>
+    <div class="panel">
+      <div class="panel__head"><h2>감독</h2></div>
+      <p class="staffline">
+        <span>감독 <b>${esc(manager.name)}</b> ${MANAGER_TIER_LABELS[manager.tier] ?? manager.tier}${manager.trait ? ` / ${MANAGER_TRAIT_LABELS[manager.trait] ?? manager.trait}` : ''}</span>
+      </p>
+    </div>
+  `, '<button class="cta" id="start-season-btn">시즌 시작</button>');
+
+  document.getElementById('start-season-btn').onclick = () => renderMarket();
 }
 
 // 수석 스카우터 등급에 따른 매주 매물 수 (스펙 5.3절: 3→4→4→5)
@@ -434,6 +510,7 @@ function startNewSeason() {
   currentState.firstHalfPoints = null;
   currentState.listedForSale = [];
   currentState.eventMessage = ''; // 지난 시즌 이벤트 문구가 다시 뜨지 않도록 비움
+  currentState.eventTone = null;
   currentState.squad = currentState.squad.map((p) => ({
     ...p,
     acquiredThisSeason: false,
@@ -1072,7 +1149,7 @@ function renderChemistryPanel(lineup) {
       const count = lineup.filter((p) => p.playstyleTags.includes(tagId)).length;
       const tier = count >= def.tier5 ? 2 : count >= def.tier3 ? 1 : 0;
       const need = tier === 0 ? def.tier3 : def.tier5;
-      return { label: TAG_LABELS[tagId] ?? tagId, count, need, tier };
+      return { label: TAG_LABELS[tagId] ?? tagId, desc: TAG_DESCRIPTIONS[tagId] ?? '', count, need, tier };
     })
     .sort((a, b) => b.tier - a.tier || b.count - a.count);
 
@@ -1081,20 +1158,28 @@ function renderChemistryPanel(lineup) {
       const count = lineup.filter((p) => p.continentTag === tagId).length;
       const tier = count >= def.tier5 ? 2 : count >= def.tier3 ? 1 : 0;
       const need = tier === 0 ? def.tier3 : def.tier5;
-      return { label: CONTINENT_LABELS[tagId] ?? tagId, count, need, tier };
+      return { label: CONTINENT_LABELS[tagId] ?? tagId, desc: `${CONTINENT_LABELS[tagId] ?? tagId} 출신이 많으면 발동 · 포지션 무관`, count, need, tier };
     })
     .sort((a, b) => b.tier - a.tier || b.count - a.count);
 
-  const chip = (r) => `<li class="chem${r.tier ? ` is-tier${r.tier}` : ''}">
-    <span class="chem__label">${esc(r.label)}</span>
-    <span class="chem__count n">${r.count}<i>/${r.need}</i></span>
+  const row = (r) => `<li class="chem${r.tier ? ` is-tier${r.tier}` : ''}">
+    <div class="chem__status" aria-hidden="true"></div>
+    <div class="chem__body">
+      <div class="chem__top">
+        <span class="chem__label">${esc(r.label)}</span>
+        <span class="chem__count n">${r.count}<i>/${r.need}</i></span>
+      </div>
+      <div class="chem__desc">${esc(r.desc)}</div>
+    </div>
   </li>`;
 
   return `<div class="panel">
-    <div class="panel__head"><h2>팀 케미</h2><span class="panel__count">플레이스타일 · 대륙</span></div>
-    <ul class="chemgrid">${playstyleRows.map(chip).join('')}</ul>
-    <ul class="chemgrid chemgrid--continent">${continentRows.map(chip).join('')}</ul>
-    <p class="note">3명부터 1단계, 5명부터 2단계 보너스가 붙습니다. 보너스는 그 조건을 채운 포지션 선수에게만 갑니다.</p>
+    <div class="panel__head"><h2>팀 케미</h2><span class="panel__count">3명 1단계 · 5명 2단계</span></div>
+    <p class="note">라인업에 같은 태그·같은 대륙 선수가 모이면 발동합니다. 보너스는 조건을 채운 포지션 선수에게만 갑니다.</p>
+    <h3 class="chemgroup__title">플레이스타일</h3>
+    <ul class="chemlist">${playstyleRows.map(row).join('')}</ul>
+    <h3 class="chemgroup__title">대륙</h3>
+    <ul class="chemlist">${continentRows.map(row).join('')}</ul>
   </div>`;
 }
 
@@ -1167,7 +1252,7 @@ function confirmRelease(playerId, question, onConfirm, banner) {
 }
 
 function renderMarket(banner = '') {
-  const { club, manager, staff, squad, funds, chemistry, eventMessage, shopOffer, phase, week, listedForSale } = currentState;
+  const { club, manager, staff, squad, funds, chemistry, eventMessage, eventTone, shopOffer, phase, week, listedForSale } = currentState;
   const maxWeek = phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];
   const phaseLabel = phase === 'summer' ? '여름 이적시장' : '겨울 이적시장';
   const isDeadlineWeek = phase === 'winter' && week === WINTER_MARKET_WEEKS[1];
@@ -1374,7 +1459,7 @@ function renderMarket(banner = '') {
       </section>`,
   };
 
-  const showEvent = phase === 'summer' && week === SUMMER_MARKET_WEEKS[0] && eventMessage;
+  const showEvent = phase === 'summer' && week === SUMMER_MARKET_WEEKS[0] && eventTone;
 
   setScreen(`
     <header class="topbar">
@@ -1421,7 +1506,6 @@ function renderMarket(banner = '') {
     })()}
 
     ${banner ? `<div class="banner">${esc(banner)}</div>` : ''}
-    ${showEvent ? `<div class="banner banner--alert">${esc(eventMessage)}</div>` : ''}
 
     <div class="tabs" role="tablist">
       ${TABS.map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${t.label}${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>` : ''}${t.id === 'squad' ? `<span class="tab__count">${squad.length}</span>` : ''}</button>`).join('')}
@@ -1551,6 +1635,28 @@ function renderMarket(banner = '') {
     });
   }
   document.getElementById('next-week-btn').onclick = nextWeek;
+
+  const eventRoot = document.getElementById('eventmodal-root');
+  if (showEvent) {
+    const [title, ...rest] = eventMessage.split(': ');
+    const detail = rest.join(': ');
+    eventRoot.innerHTML = `
+      <div class="eventmodal-backdrop">
+        <div class="eventmodal eventmodal--${eventTone}">
+          <div class="eventmodal__kicker">${eventTone === 'bad' ? '위기 이벤트' : '시즌 이벤트'}</div>
+          <div class="eventmodal__title">${esc(title)}</div>
+          ${detail ? `<div class="eventmodal__detail">${esc(detail)}</div>` : ''}
+          <button class="cta" id="eventmodal-dismiss">확인</button>
+        </div>
+      </div>`;
+    document.getElementById('eventmodal-dismiss').onclick = () => {
+      currentState.eventTone = null;
+      eventRoot.innerHTML = '';
+      saveRun(currentState, localStorage);
+    };
+  } else {
+    eventRoot.innerHTML = '';
+  }
 
   saveRun(currentState, localStorage);
 }

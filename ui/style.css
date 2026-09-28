@@ -231,6 +231,54 @@ button:not(:disabled):active { transform: scale(0.98); }
 .banner--alert { border-left-color: var(--gold); }
 .banner--ucl { border-left-color: var(--t-worldClass); background: #a579d61a; font-weight: 700; }
 
+/* 시즌 이벤트 팝업. 이벤트인데 다른 사소한 안내랑 똑같은 얇은 배너 한 줄이면
+   그냥 지나쳐버린다 - 화면 전체를 잠깐 막아서 실제로 "일이 생겼다"는 무게를 준다. */
+.eventmodal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s4);
+  background: rgba(8, 15, 13, 0.82);
+  backdrop-filter: blur(3px);
+  animation: eventFadeIn 200ms var(--ease) both;
+}
+@keyframes eventFadeIn { from { opacity: 0; } }
+.eventmodal {
+  width: 100%;
+  max-width: 360px;
+  padding: var(--s6) var(--s4);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--turf);
+  text-align: center;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  animation: eventPop 260ms var(--ease) both;
+}
+@keyframes eventPop { from { opacity: 0; transform: translateY(8px) scale(0.97); } }
+.eventmodal--bad { border-top-color: var(--debit); }
+.eventmodal__kicker {
+  font-size: var(--fs-label);
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.eventmodal--bad .eventmodal__kicker { color: var(--debit); }
+.eventmodal__title {
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  margin: var(--s2) 0 var(--s1);
+  line-height: 1.25;
+}
+.eventmodal__detail {
+  font-size: var(--fs-body);
+  color: var(--muted);
+  margin-bottom: var(--s6);
+}
+.eventmodal .cta { width: 100%; }
+
 /* ============ 전술 / 피치 ============ */
 
 .formations { display: flex; gap: var(--s1); }
@@ -313,9 +361,20 @@ button:not(:disabled):active { transform: scale(0.98); }
 }
 .slot--empty .slot__card { border-style: dashed; border-color: var(--line); background: transparent; padding: 20px 3px 6px; }
 .slot--empty .slot__ovr { background: var(--line); color: var(--muted); }
-/* 주 포지션이 아닌 자리라는 실제 상태 표시 */
-.slot--offpos .slot__card { border-color: var(--gold); border-style: dashed; }
-/* 피파4 팀컬러: 케미 보너스를 받고 있는 선수는 카드 테두리가 밝아진다 */
+/* 주 포지션이 아닌 자리 - 테두리 색은 케미 보너스 전용이라(아래) 여기서는
+   건드리지 않는다. 대신 왼쪽 위에 작은 점만 찍는다. 예전엔 이것도 금색
+   테두리를 써서, 오프포지션이 몇 명만 껴도 피치 전체가 금색으로 뒤덮여
+   진짜 중요한 신호(보너스 받는 선수)가 안 보였다. */
+.slot--offpos .slot__card::before {
+  content: '';
+  position: absolute;
+  top: -3px; left: -3px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  border: 1px solid var(--night);
+}
+/* 피파4 팀컬러: 케미 보너스를 받고 있는 선수만 카드 테두리가 밝아진다 */
 .slot.is-boosted .slot__card { border-color: var(--turf); box-shadow: 0 0 0 1px var(--turf); }
 .slot.is-boosted-strong .slot__card { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
 .slot.is-boosted-strong .slot__ovr { background: var(--gold); }
@@ -419,33 +478,46 @@ button:not(:disabled):active { transform: scale(0.98); }
   vertical-align: middle;
 }
 
-/* 팀 케미 (피파4 팀컬러 참고): 태그별로 몇 명이 있는지, 문턱을 넘었는지 */
-.chemgrid {
-  list-style: none;
-  margin: 0 0 var(--s2);
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 4px;
+/* 팀 케미 (피파4 팀컬러 참고): 태그별로 몇 명이 있는지, 뭘 하는 태그인지,
+   문턱을 넘었는지. 한 줄에 이름+숫자만 있던 예전 판은 설명이 없어서 태그
+   이름이 그냥 암호였다 - 각 줄에 짧은 설명을 더했다. */
+.chemgroup__title {
+  font-size: var(--fs-label);
+  color: var(--muted);
+  margin: var(--s4) 0 var(--s2);
+  text-transform: none;
 }
-.chemgrid--continent { grid-template-columns: repeat(1, 1fr); }
+.chemgroup__title:first-of-type { margin-top: var(--s2); }
+.chemlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .chem {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--s2);
-  padding: 5px var(--s3);
+  padding: var(--s2) var(--s3);
   border-radius: var(--r-md);
   background: var(--surface);
   border: 1px solid var(--line-soft);
-  font-size: var(--fs-label);
-  color: var(--muted);
 }
-.chem.is-tier1 { border-color: var(--turf); color: var(--light); }
+.chem__status {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.chem.is-tier1 .chem__status { background: var(--turf); }
+.chem.is-tier2 .chem__status { background: var(--gold); }
+.chem__body { flex: 1; min-width: 0; }
+.chem__top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s2); }
+.chem__label { font-size: var(--fs-body); color: var(--muted); }
+.chem.is-tier1 .chem__label { color: var(--light); font-weight: 700; }
+.chem.is-tier2 .chem__label { color: var(--light); font-weight: 700; }
+.chem__count { font-size: var(--fs-label); color: var(--muted); }
 .chem.is-tier1 .chem__count { color: var(--turf); }
-.chem.is-tier2 { border-color: var(--gold); background: #dda63a14; color: var(--light); }
 .chem.is-tier2 .chem__count { color: var(--gold); }
-.chem__count i { font-style: normal; color: var(--muted); }
+.chem__count i { font-style: normal; color: var(--muted-dim); }
+.chem__desc { font-size: var(--fs-micro); color: var(--muted-dim); margin-top: 1px; }
 
 /* 이중 비용을 버튼 안에 같이 박는다. 이 게임의 긴장이 여기 있다 */
 .buy {
@@ -816,6 +888,41 @@ button:not(:disabled):active { transform: scale(0.98); }
 .summary li + li { border-top: 1px solid var(--line-soft); }
 .summary span { color: var(--muted); }
 .summary b { font-size: var(--fs-m); }
+
+/* 커리어 인트로: 시즌이 어떤 순서로 흘러가는지 한 번 보여준다 */
+.flowsteps {
+  list-style: none;
+  counter-reset: flowstep;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s2);
+}
+.flowsteps li {
+  counter-increment: flowstep;
+  position: relative;
+  padding-left: 28px;
+  font-size: var(--fs-body);
+  color: var(--muted);
+  line-height: 1.4;
+}
+.flowsteps li::before {
+  content: counter(flowstep);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface-hi);
+  color: var(--turf);
+  font-family: var(--num);
+  font-weight: 800;
+  font-size: var(--fs-micro);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 /* ============ 양자택일 ============ */
 
