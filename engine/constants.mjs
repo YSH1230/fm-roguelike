@@ -175,6 +175,10 @@ export const AGENT_BACKLASH_SURCHARGE_RATIO = 0.1; // 에이전트의 뒷공작:
 
 // 스펙 2절: 기대 목표(targetPoints) 미달이 이만큼 누적되면 해임된다.
 export const MISSED_TARGET_LIMIT = 3;
+// 승격 못 하고 같은 리그에 계속 머무르면 시즌 지급 자금이 미달 누적 1회당
+// 이만큼 깎인다(승격하면 missedTargetCount가 0으로 리셋되니 이 페널티도
+// 같이 풀린다). MISSED_TARGET_LIMIT(3) 전까지만 쌓이므로 최대 -30%.
+export const STAGNATION_FUNDS_PENALTY_PER_MISS = 0.15;
 
 // 스펙 10절 명성 점수 계산안. 도달 리그 단계 x 10 + 우승 횟수 x 50.
 export const REPUTATION_PER_TIER = 10;

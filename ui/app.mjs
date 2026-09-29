@@ -45,6 +45,7 @@ import {
   PROMOTION_TRANSFER_DEMAND_CHANCE,
   PLAYER_TIERS,
   MISSED_TARGET_LIMIT,
+  STAGNATION_FUNDS_PENALTY_PER_MISS,
 } from '../engine/constants.mjs';
 
 
@@ -639,9 +640,13 @@ function rerollCost() {
 function grantSeasonFunds() {
   const base = calculateStartingFunds(getLadderIndex(currentState.leagueTierId))
     * currentState.club.startingFundsMultiplier;
-  const grant = Math.round(currentState.promotionFundsBonusPending
+  const promoted = currentState.promotionFundsBonusPending
     ? base * (1 + PROMOTION_FUNDS_BONUS_RATIO)
-    : base);
+    : base;
+  // 승격 못 하고 같은 리그에 눌러앉을수록(목표 미달 누적) 이사진이 지갑을
+  // 닫는다. 승격하면 missedTargetCount가 0으로 리셋되니 이 페널티도 같이 풀린다.
+  const stagnationPenalty = Math.max(0, 1 - currentState.missedTargetCount * STAGNATION_FUNDS_PENALTY_PER_MISS);
+  const grant = Math.round(promoted * stagnationPenalty);
   currentState.promotionFundsBonusPending = false;
   // 이월은 스펙 2절대로 "구단 잔류 시"만. 구단을 옮기면 남은 돈은 따라오지 않는다.
   const carryover = currentState.freshBudget
@@ -677,6 +682,10 @@ function startNewSeason() {
   currentState.staffOffer = generateStaffOffer();
 
   let banner = `${currentState.club.name}, ${getLeagueTier(currentState.leagueTierId).label} 새 시즌 시작`;
+  if (currentState.missedTargetCount > 0) {
+    const cut = Math.round(currentState.missedTargetCount * STAGNATION_FUNDS_PENALTY_PER_MISS * 100);
+    banner += `. 승격 실패 누적 ${currentState.missedTargetCount}회로 시즌 자금 -${cut}%`;
+  }
   // 장기 집권형: 같은 구단 잔류 시즌마다 적응도 시작값 +3
   if (currentState.manager.trait === 'longTermReign') {
     currentState.chemistry = Math.min(100, currentState.chemistry + 3);
