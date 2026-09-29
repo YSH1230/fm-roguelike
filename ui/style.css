@@ -543,7 +543,9 @@ button:not(:disabled):active { transform: scale(0.98); }
   align-items: center;
   gap: 4px;
   text-align: center;
+  cursor: pointer;
 }
+.chembadge:active .chembadge__ring { transform: scale(0.94); }
 .chembadge__ring {
   width: 52px;
   height: 52px;
@@ -591,7 +593,9 @@ button:not(:disabled):active { transform: scale(0.98); }
   align-items: center;
   gap: 2px;
   font-size: 10px;
+  cursor: pointer;
 }
+.benchchip:active { transform: scale(0.94); }
 .benchchip__pos { color: var(--muted-dim); }
 .benchchip__ovr { font-size: var(--fs-label); color: var(--light); }
 

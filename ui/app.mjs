@@ -1325,7 +1325,7 @@ function renderChemistryPanel(lineup, bench) {
     })
     .sort((a, b) => b.tier - a.tier);
 
-  const badge = (r) => `<li class="chembadge${r.tier ? ` is-tier${r.tier}` : ''}" title="${esc(r.label)} · ${esc(r.desc)}">
+  const badge = (r) => `<li class="chembadge${r.tier ? ` is-tier${r.tier}` : ''}" data-chem-desc="${esc(r.label)}: ${esc(r.desc)}" title="${esc(r.label)} · ${esc(r.desc)}">
     <div class="chembadge__ring">${r.icon}</div>
     <span class="chembadge__label">${esc(r.label)}</span>
     <span class="chembadge__count">${r.caption}</span>
@@ -1346,7 +1346,7 @@ function renderChemistryPanel(lineup, bench) {
     <h3 class="chemgroup__title">선수 특수 태그</h3>
     <ul class="chembadges">
       ${traitRows.map((r) => `
-        <li class="chembadge is-tier1" title="${esc(r.holders.map((p) => p.name).join(', '))} · ${esc(TRAIT_EFFECT_DESCRIPTIONS[r.traitId] ?? '')}">
+        <li class="chembadge is-tier1" data-chem-desc="${esc(TRAIT_LABELS[r.traitId])}: ${esc(TRAIT_EFFECT_DESCRIPTIONS[r.traitId] ?? '')} (보유: ${esc(r.holders.map((p) => p.name).join(', '))})" title="${esc(r.holders.map((p) => p.name).join(', '))} · ${esc(TRAIT_EFFECT_DESCRIPTIONS[r.traitId] ?? '')}">
           <div class="chembadge__ring">${renderTagIcon(TRAIT_ICON_PATHS, r.traitId)}</div>
           <span class="chembadge__label">${esc(TRAIT_LABELS[r.traitId])}</span>
           <span class="chembadge__count">${r.holders.length}명</span>
@@ -1360,6 +1360,7 @@ function renderChemistryPanel(lineup, bench) {
     <h3 class="chemgroup__title">대륙</h3>
     <ul class="chembadges">${continentRows.map(badge).join('')}</ul>
     ${traitSection}
+    <p class="note" id="chem-desc">배지를 누르면 자세한 조건을 알려줍니다.</p>
   </div>`;
 }
 
@@ -1566,7 +1567,7 @@ function renderMarket(banner = '') {
         ${renderPitch(slotted, formationId, club.kit, { interactive: true, selectedSlot: currentState.selectedSlot, finalOVR })}
         <div class="benchstrip">
           <span class="benchstrip__label">벤치</span>
-          ${bench.map((p) => `<div class="benchchip" title="${esc(p.name)}">
+          ${bench.map((p) => `<div class="benchchip" data-bench-player="${p.id}" title="${esc(p.name)} · 탭하면 같은 포지션의 약한 자리에 투입">
             ${renderPortrait(p, { size: 28, kit: club.kit })}
             <span class="benchchip__pos">${p.position}</span>
             <b class="benchchip__ovr n">${p.baseOVR}</b>
@@ -1756,6 +1757,39 @@ function renderMarket(banner = '') {
       currentState.manualOverrides = {};
       currentState.selectedSlot = null;
       renderMarket(banner);
+    });
+    // 벤치 자원도 한 탭으로 투입 - 같은 포지션 슬롯 중 지금 가장 약한(또는 빈)
+    // 자리를 찾아 거기에 넣는다. 그 포지션 슬롯이 이 포메이션에 아예 없으면
+    // (예: 4-3-3에 AMF 없음) 넣을 자리가 없으니 아무 일도 하지 않는다.
+    document.querySelectorAll('[data-bench-player]').forEach((el) => {
+      el.onclick = () => {
+        const playerId = el.dataset.benchPlayer;
+        const player = squad.find((p) => p.id === playerId);
+        if (!player) return;
+        const candidateIdxs = FORMATIONS[formationId].slots
+          .map((pos, i) => (pos === player.position ? i : -1))
+          .filter((i) => i !== -1);
+        if (!candidateIdxs.length) return;
+        let idx = candidateIdxs[0];
+        let lowest = slotted[idx]?.baseOVR ?? -1;
+        for (const i of candidateIdxs) {
+          const cur = slotted[i]?.baseOVR ?? -1;
+          if (cur < lowest) { lowest = cur; idx = i; }
+        }
+        const next = { ...(currentState.manualOverrides ?? {}) };
+        for (const key of Object.keys(next)) {
+          if (next[key] === playerId) delete next[key];
+        }
+        next[idx] = playerId;
+        currentState.manualOverrides = next;
+        currentState.selectedSlot = null;
+        renderMarket(banner);
+      };
+    });
+    document.querySelectorAll('[data-chem-desc]').forEach((el) => {
+      el.addEventListener('click', () => {
+        document.getElementById('chem-desc').textContent = el.dataset.chemDesc;
+      });
     });
   }
   if (tab === 'squad') {
