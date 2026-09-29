@@ -22,7 +22,7 @@ import {
 import { applyTransactionDecay } from '../engine/chemistry.mjs';
 import { computePlayerFinalOVR, countEffectiveContinentRequirement } from '../engine/ovr.mjs';
 import {
-  PLAYSTYLE_TAGS, CONTINENT_TAGS,
+  PLAYSTYLE_TAGS, CONTINENT_TAGS, POSITIONS,
   STAFF_LEVELS, STAFF_PRICE_TABLE,
 } from '../engine/constants.mjs';
 import { computeTeamPower } from '../engine/team-power.mjs';
@@ -828,6 +828,26 @@ function resolveListedSales() {
   return messages.join(' / ');
 }
 
+// 주차가 넘어갔다는 걸 알려주는 짧은 화면 플래시. 시장 화면은 통째로
+// innerHTML을 갈아치우는 구조라 CSS 트랜지션이 안 먹는다(엘리먼트가 아예
+// 사라졌다 새로 생김) - 그 사이에 독립된 오버레이를 잠깐 띄운다.
+// 전/후반기 시뮬레이션으로 넘어가는 주는 renderSimulating이 이미 연출을
+// 맡고 있어서 여기서 또 플래시할 필요가 없다.
+function flashWeekTransition(label, onDone) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    onDone();
+    return;
+  }
+  const el = document.createElement('div');
+  el.className = 'weekflash';
+  el.textContent = label;
+  document.body.appendChild(el);
+  setTimeout(() => {
+    el.remove();
+    onDone();
+  }, 260);
+}
+
 function nextWeek() {
   currentState.chemistry = advanceWeek(currentState.chemistry, currentState.transactedThisWeek);
   currentState.transactedThisWeek = false;
@@ -965,6 +985,10 @@ function enterWinterMarket() {
 }
 
 const RESULT_LABELS = { champion: '우승권!', promotion: '승격권', safe: '안전 잔류', relegation: '강등 위기' };
+// 시즌이 끝난 뒤의 "확정된 결과"는 페이스 예측과 달리 애매하게 두면 안 된다 -
+// 우승/승격/강등처럼 실제로 일어난 일을 그대로 말한다("~권"은 아직 안 정해진
+// 가능성을 말할 때 쓰는 말이라 확정 결과에는 안 맞는다).
+const FINAL_RESULT_LABELS = { champion: '우승', promotion: '승격', safe: '잔류', relegation: '강등' };
 
 function runSecondHalfAndFinish(saleMessage = '') {
   const { manager } = currentState;
@@ -1047,7 +1071,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   setScreen(`
     <div class="verdict verdict--${result}">
       <div class="verdict__label">${esc(currentState.club.name)} · ${getLeagueTier(currentState.leagueTierId).label} 시즌 결산</div>
-      <div class="verdict__result">${RESULT_LABELS[result]}</div>
+      <div class="verdict__result">${FINAL_RESULT_LABELS[result]}</div>
       <div class="scoreline"><b>${totalPoints.toFixed(0)}</b><span>승점</span></div>
       <div class="halves">
         <span>전반기 <b>${currentState.firstHalfPoints.toFixed(1)}</b></span>
@@ -1310,11 +1334,15 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
 // selectedSlot은 피치 자리(숫자 인덱스)거나 벤치 자리("bench-0"~"bench-4")다 -
 // 벤치도 선발 라인업과 똑같이 선수 목록에서 직접 고를 수 있게 같은 피커를 쓴다.
 // 벤치는 고정 포지션이 없어서 포지션 일치 정렬/강조가 없다.
+// 이미 선발/벤치로 뽑힌 선수는 여기 안 보인다 - 그 둘끼리는 슬롯을 직접
+// 클릭해서 맞바꾸면 된다(handleSlotClick). 여기는 순수히 "아직 안 뽑힌
+// 예비 선수를 이 자리에 데려오기"용 목록이다.
 function renderSlotPicker(squad, formationId, selectedSlot, inXI, benchIds) {
   if (selectedSlot === null || selectedSlot === undefined) return '';
   const isBench = typeof selectedSlot === 'string' && selectedSlot.startsWith('bench-');
   const pos = isBench ? null : FORMATIONS[formationId].slots[selectedSlot];
-  const rows = [...squad]
+  const reserves = squad.filter((p) => !inXI.has(p.id) && !benchIds.has(p.id));
+  const rows = [...reserves]
     .sort((a, b) => {
       if (!pos) return b.baseOVR - a.baseOVR;
       const matchDiff = (b.position === pos ? 1 : 0) - (a.position === pos ? 1 : 0);
@@ -1325,14 +1353,13 @@ function renderSlotPicker(squad, formationId, selectedSlot, inXI, benchIds) {
         ${renderPortrait(p, { size: 30 })}
         <span class="pickrow__name">${esc(p.name)}</span>
         <span class="pickrow__pos">${p.position}</span>
-        ${inXI.has(p.id) ? '<span class="tag">선발중</span>' : benchIds.has(p.id) ? '<span class="tag">벤치중</span>' : ''}
         ${playerTagsHtml(p)}
         <b class="pickrow__ovr n">${p.baseOVR}</b>
       </li>`)
     .join('');
   return `<div class="panel picker">
-    <div class="panel__head"><h2>${isBench ? '벤치' : pos} 자리에 넣을 선수</h2></div>
-    <ul class="pickrows">${rows}</ul>
+    <div class="panel__head"><h2>${isBench ? '벤치' : pos} 자리에 데려올 예비 선수</h2></div>
+    <ul class="pickrows">${rows || '<li class="empty">예비 선수가 없습니다. 다른 선발/벤치 자리를 눌러 맞바꾸세요.</li>'}</ul>
   </div>`;
 }
 
@@ -1488,6 +1515,7 @@ function renderMarket(banner = '') {
     // 몇 명째인지만 보여주고, "그래서 사야 하는지"는 유저가 판단한다.
     const boostedTagId = boostedTagIdFor(manager);
     const tags = [
+      `<span class="tag">${CONTINENT_LABELS[c.continentTag] ?? c.continentTag}</span>`,
       ...c.playstyleTags.map((t) => {
         const { count, need } = playstyleTagProgress(t, lineup, boostedTagId);
         return `<span class="tag">${TAG_LABELS[t] ?? t} <b class="tag__progress">${count}/${need}</b></span>`;
@@ -1521,28 +1549,35 @@ function renderMarket(banner = '') {
   const starPlayer = [...squad].sort((a, b) => b.baseOVR - a.baseOVR)[0] ?? null;
   const expiredPlayers = squad.filter((p) => (p.contractYearsLeft ?? 2) <= 0);
 
-  const squadHtml = [...squad]
-    .sort((a, b) => b.baseOVR - a.baseOVR)
-    .map((p) => {
-      const winterBlocked = phase === 'winter' && p.acquiredThisSeason;
-      const yearsLeft = p.contractYearsLeft ?? 2;
-      const contractLabel = yearsLeft <= 0
-        ? '<span class="tag tag--expired">계약 만료</span>'
-        : `계약 ${yearsLeft}년`;
-      return `<li class="player${inXI.has(p.id) ? ' is-xi' : ''}" data-row="${p.id}" style="--tier:var(--t-${tierOf(p.baseOVR)})">
-        ${renderPortrait(p, { size: 36, kit: club.kit })}
-        <b class="player__ovr n">${p.baseOVR}</b>
-        <div>
-          <div class="player__name">${esc(p.name)}${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}</div>
-          <div class="player__meta">${p.position} · ${p.age}세 · <b>${p.price}G</b>${inXI.has(p.id) ? ' · 주전' : ''} · ${contractLabel}</div>
-          ${playerTagsHtml(p)}
-        </div>
-        <div class="player__actions" data-actions="${p.id}">
-          <button class="release" data-release-immediate="${p.id}" title="회수 0%, ${decayLabel}">즉시 방출</button>
-          <button class="release" data-release-listed="${p.id}" ${winterBlocked ? 'disabled title="당해 영입 선수는 겨울 이적명단에 올릴 수 없습니다"' : 'title="1주 뒤 정산"'}>판매 등록</button>
-          ${isDeadlineWeek ? `<button class="release release--deadline" data-release-deadline="${p.id}" title="원가의 40% 회수">데드라인 방출</button>` : ''}
-        </div>
-      </li>`;
+  const renderSquadRow = (p) => {
+    const winterBlocked = phase === 'winter' && p.acquiredThisSeason;
+    const yearsLeft = p.contractYearsLeft ?? 2;
+    const contractLabel = yearsLeft <= 0
+      ? '<span class="tag tag--expired">계약 만료</span>'
+      : `계약 ${yearsLeft}년`;
+    return `<li class="player${inXI.has(p.id) ? ' is-xi' : ''}" data-row="${p.id}" style="--tier:var(--t-${tierOf(p.baseOVR)})">
+      ${renderPortrait(p, { size: 36, kit: club.kit })}
+      <b class="player__ovr n">${p.baseOVR}</b>
+      <div>
+        <div class="player__name">${esc(p.name)}${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}</div>
+        <div class="player__meta">${p.position} · ${p.age}세 · <b>${p.price}G</b>${inXI.has(p.id) ? ' · 주전' : ''} · ${contractLabel}</div>
+        ${playerTagsHtml(p)}
+      </div>
+      <div class="player__actions" data-actions="${p.id}">
+        <button class="release" data-release-immediate="${p.id}" title="회수 0%, ${decayLabel}">즉시 방출</button>
+        <button class="release" data-release-listed="${p.id}" ${winterBlocked ? 'disabled title="당해 영입 선수는 겨울 이적명단에 올릴 수 없습니다"' : 'title="1주 뒤 정산"'}>판매 등록</button>
+        ${isDeadlineWeek ? `<button class="release release--deadline" data-release-deadline="${p.id}" title="원가의 40% 회수">데드라인 방출</button>` : ''}
+      </div>
+    </li>`;
+  };
+  // 포지션별로 묶어서 보여준다 - 뎁스가 어디서 얕은지(예: CB만 8명, ST는 1명)
+  // 한눈에 보이게. 순서는 engine/constants.mjs POSITIONS 순서 그대로.
+  const squadHtml = POSITIONS
+    .map((pos) => {
+      const players = squad.filter((p) => p.position === pos).sort((a, b) => b.baseOVR - a.baseOVR);
+      if (!players.length) return '';
+      return `<h3 class="chemgroup__title">${pos} <span class="panel__count">${players.length}명</span></h3>
+        <ul class="squad">${players.map(renderSquadRow).join('')}</ul>`;
     })
     .join('');
 
@@ -1570,7 +1605,7 @@ function renderMarket(banner = '') {
                 ${renderPortrait(m, { size: 40 })}
                 <div>
                   <div class="player__name">${esc(m.name)}</div>
-                  <div class="player__meta">${MANAGER_TIER_LABELS[m.tier] ?? m.tier} · ${MANAGER_TIER_MULTIPLIER_TEXT[m.tier] ?? ''}</div>
+                  <div class="player__meta">${MANAGER_TIER_LABELS[m.tier] ?? m.tier} · ${MANAGER_TIER_MULTIPLIER_TEXT[m.tier] ?? ''} · ${CONTINENT_LABELS[m.continentTag] ?? m.continentTag}</div>
                   <div class="player__meta">${m.trait ? `${MANAGER_TRAIT_LABELS[m.trait] ?? m.trait}: ${MANAGER_TRAIT_DESCRIPTIONS[m.trait] ?? ''}` : '세부 성향 없음'}</div>
                 </div>
               </div>
@@ -1673,7 +1708,7 @@ function renderMarket(banner = '') {
       <section class="panel tabpanel">
         ${listedHtml ? `<div class="panel__head"><h2>이적 명단</h2></div><ul class="listed">${listedHtml}</ul><div style="height:var(--s4)"></div>` : ''}
         <div class="panel__head"><h2>보유 선수</h2></div>
-        <ul class="squad">${squadHtml}</ul>
+        ${squadHtml}
       </section>`,
     staff: `
       <section class="panel tabpanel">
@@ -1795,19 +1830,39 @@ function renderMarket(banner = '') {
         renderMarket(banner);
       };
     }
+    // 슬롯(피치든 벤치든)을 하나 고른 채로 다른 슬롯을 또 누르면 - 선발/벤치는
+    // 항상 다 차 있으니(스쿼드가 16명보다 많음) "그 자리에 넣을 선수 고르기"가
+    // 아니라 "두 선수 자리를 맞바꾸기"가 자연스럽다. 아직 안 뽑힌 예비 선수를
+    // 데려오는 건 아래 피커(예비 선수만 나옴)에서 한다.
+    const getOccupant = (key) => (typeof key === 'number' ? slotted[key] : bench[Number(key.slice(6))]);
+    const setOccupant = (key, playerId, nextManual, nextBench) => {
+      if (typeof key === 'number') nextManual[key] = playerId;
+      else nextBench[key.slice(6)] = playerId;
+    };
+    const handleSlotClick = (key) => {
+      const prev = currentState.selectedSlot;
+      if (prev === null || prev === undefined) {
+        currentState.selectedSlot = key;
+      } else if (prev === key) {
+        currentState.selectedSlot = null;
+      } else {
+        const a = getOccupant(prev);
+        const b = getOccupant(key);
+        const nextManual = { ...(currentState.manualOverrides ?? {}) };
+        const nextBench = { ...(currentState.benchOverrides ?? {}) };
+        if (a) setOccupant(key, a.id, nextManual, nextBench);
+        if (b) setOccupant(prev, b.id, nextManual, nextBench);
+        currentState.manualOverrides = nextManual;
+        currentState.benchOverrides = nextBench;
+        currentState.selectedSlot = null;
+      }
+      renderMarket(banner);
+    };
     document.querySelectorAll('[data-slot]').forEach((el) => {
-      el.onclick = () => {
-        const idx = Number(el.dataset.slot);
-        currentState.selectedSlot = currentState.selectedSlot === idx ? null : idx;
-        renderMarket(banner);
-      };
+      el.onclick = () => handleSlotClick(Number(el.dataset.slot));
     });
     document.querySelectorAll('[data-bench-slot]').forEach((el) => {
-      el.onclick = () => {
-        const key = `bench-${el.dataset.benchSlot}`;
-        currentState.selectedSlot = currentState.selectedSlot === key ? null : key;
-        renderMarket(banner);
-      };
+      el.onclick = () => handleSlotClick(`bench-${el.dataset.benchSlot}`);
     });
     document.querySelectorAll('[data-pick-slot]').forEach((el) => {
       el.onclick = () => {
@@ -1874,7 +1929,14 @@ function renderMarket(banner = '') {
       };
     });
   }
-  document.getElementById('next-week-btn').onclick = nextWeek;
+  document.getElementById('next-week-btn').onclick = () => {
+    const enteringSim = week === maxWeek; // 전/후반기 시뮬레이션은 renderSimulating이 따로 연출한다
+    if (enteringSim) {
+      nextWeek();
+    } else {
+      flashWeekTransition(`${week + 1}주차`, nextWeek);
+    }
+  };
 
   const eventRoot = document.getElementById('eventmodal-root');
   if (showEvent) {
