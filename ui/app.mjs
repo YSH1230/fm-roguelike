@@ -143,6 +143,18 @@ const TAG_LABELS = {
   tikiTaka: '티키타카', totalFootball: '토탈풋볼', falseFullBack: '변형 3백',
   buildUpFromBack: '후방 빌드업', counterAttack: '역습',
 };
+// 태그 이름만으로는 뭘 하는 전술인지 안 보인다 - 배지 탭 설명 맨 앞에 붙는
+// 한 줄 개념 설명(실제 수치는 renderChemistryPanel이 따로 계산해서 뒤에 붙인다).
+const TAG_CONCEPTS = {
+  gegenpressing: '볼을 뺏기자마자 바로 달려들어 되찾는 전방 압박',
+  falseNine: '최전방 공격수가 처지며 빈 공간을 만드는 가짜 9번',
+  longBallKickAndRush: '길게 띄운 볼로 곧장 전방을 노리는 다이렉트 축구',
+  tikiTaka: '짧은 패스를 촘촘히 돌려 점유율을 지배하는 티키타카',
+  totalFootball: '선수들이 자리를 계속 바꿔가며 뛰는 유동적인 토탈풋볼',
+  falseFullBack: '풀백이 중앙으로 좁혀 들어가 빌드업에 가담하는 변형 3백',
+  buildUpFromBack: '골키퍼·센터백부터 차분히 쌓아 올리는 후방 빌드업',
+  counterAttack: '수비를 두텁게 하고 빈 공간을 빠르게 찌르는 역습',
+};
 const TRAIT_LABELS = {
   seongGolYouth: '성골 유스', veteranLeader: '베테랑 리더', superSub: '슈퍼 서브',
   hometownHero: '지역 영웅', polyglot: '폴리글롯', journeyman: '저니맨',
@@ -214,12 +226,27 @@ const MANAGER_TRAIT_DESCRIPTIONS = {
   firefighter: '안전권은 넘고 목표선은 못 넘은 페이스로 겨울 진입 시 적응도 +30',
   crisisManager: '위기 이벤트 무효화',
   longTermReign: '같은 구단 잔류 시즌마다 적응도 시작값 +3',
-  tacticalPurist: '감독의 전술 태그를 라인업에 자동 부스트',
+  tacticalPurist: '감독의 전술 태그 케미 발동에 필요한 인원 1명 감면',
 };
 const STAFF_ROLE_DESCRIPTIONS = {
   headCoach: '거래 1건당 적응도 하락폭을 등급별로 줄여준다',
   headScout: '매주 매물 수를 늘리고(마스터는 다시 뽑기 비용도 절반)',
 };
+const MANAGER_TIER_MULTIPLIER_TEXT = {
+  rookie: '팀 전력 배율 ×1.00', tactician: '팀 전력 배율 ×1.05',
+  legendary: '팀 전력 배율 ×1.12', god: '팀 전력 배율 ×1.20',
+};
+// 전술 태그는 그 자체로는 장식이다 - 화술의 달인/전술 원리주의자 감독일
+// 때만 실제 효과가 생긴다. 그 사실을 감독 설명에 항상 붙여준다.
+function managerTacticalTagNote(manager) {
+  if (manager.trait === 'silverTongue') {
+    return `이 태그(또는 대륙) 카드 영입비 -30%`;
+  }
+  if (manager.trait === 'tacticalPurist') {
+    return `이 태그 케미 발동 요구 인원 1명 감면`;
+  }
+  return `화술의 달인/전술 원리주의자 감독일 때만 효과 있음(지금은 장식)`;
+}
 
 // 선수단/전술 탭에서 선수 태그(플레이스타일·대륙)를 한눈에 보여준다.
 // 팀 케미 패널은 라인업 전체 집계라 개인이 무슨 태그인지는 안 보였다.
@@ -1325,7 +1352,7 @@ function renderChemistryPanel(lineup, bench) {
       const req5 = 5 - boost;
       const bonus = tier === 2 ? def.tier5 : def.tier3;
       const caption = `${count}/${need} · +${bonus}`;
-      const desc = `해당 포지션 선수 기준 · ${req3}명 이상 OVR +${def.tier3}, ${req5}명 이상 OVR +${def.tier5}`
+      const desc = `${TAG_CONCEPTS[tagId] ?? ''}. 해당 포지션 선수 기준 · ${req3}명 이상 OVR +${def.tier3}, ${req5}명 이상 OVR +${def.tier5}`
         + (boost ? ' (전술 원리주의자로 요구 인원 1명 감면)' : '');
       return { icon: renderTagIcon(PLAYSTYLE_ICON_PATHS, tagId), label: TAG_LABELS[tagId] ?? tagId, desc, caption, tier };
     })
@@ -1340,7 +1367,7 @@ function renderChemistryPanel(lineup, bench) {
       const need = tier === 0 ? req3 : req5;
       const bonus = tier === 2 ? def.tier5 : def.tier3;
       const caption = `${count}/${need} · +${bonus}`;
-      const desc = `포지션 무관 전원 · ${req3}명 이상 OVR +${def.tier3}, ${req5}명 이상 OVR +${def.tier5}`
+      const desc = `같은 대륙 출신끼리 말이 통하고 호흡이 잘 맞는다. 포지션 무관 전원 · ${req3}명 이상 OVR +${def.tier3}, ${req5}명 이상 OVR +${def.tier5}`
         + (req3 < 3 ? ' (폴리글롯으로 요구 인원 감면)' : '');
       return { icon: renderTagIcon(CONTINENT_ICON_PATHS, tagId), label: CONTINENT_LABELS[tagId] ?? tagId, desc, caption, tier };
     })
@@ -1531,7 +1558,8 @@ function renderMarket(banner = '') {
                 ${renderPortrait(m, { size: 40 })}
                 <div>
                   <div class="player__name">${esc(m.name)}</div>
-                  <div class="player__meta">${MANAGER_TIER_LABELS[m.tier] ?? m.tier} · ${TAG_LABELS[m.tacticalTag] ?? m.tacticalTag}${m.trait ? ` · ${MANAGER_TRAIT_LABELS[m.trait] ?? m.trait}` : ''}</div>
+                  <div class="player__meta">${MANAGER_TIER_LABELS[m.tier] ?? m.tier} · ${MANAGER_TIER_MULTIPLIER_TEXT[m.tier] ?? ''}</div>
+                  <div class="player__meta">${m.trait ? `${MANAGER_TRAIT_LABELS[m.trait] ?? m.trait}: ${MANAGER_TRAIT_DESCRIPTIONS[m.trait] ?? ''}` : '세부 성향 없음'}</div>
                 </div>
               </div>
               <button class="hire" data-hire-manager="${m.id}" ${canHire ? '' : 'disabled'}>
@@ -1642,8 +1670,10 @@ function renderMarket(banner = '') {
           ${renderPortrait(manager, { size: 48 })}
           <div>
             <div class="player__name">${esc(manager.name)}</div>
-            <div class="player__meta">${MANAGER_TIER_LABELS[manager.tier] ?? manager.tier} · ${TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag} · ${CONTINENT_LABELS[manager.continentTag] ?? manager.continentTag}</div>
-            ${manager.trait ? `<div class="note">${MANAGER_TRAIT_LABELS[manager.trait]}: ${MANAGER_TRAIT_DESCRIPTIONS[manager.trait] ?? ''}</div>` : '<div class="note">세부 성향 없음</div>'}
+            <div class="player__meta">${MANAGER_TIER_LABELS[manager.tier] ?? manager.tier} · ${MANAGER_TIER_MULTIPLIER_TEXT[manager.tier] ?? ''}</div>
+            <div class="note">전술 성향 ${TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag}: ${managerTacticalTagNote(manager)}</div>
+            <div class="note">출신 대륙 ${CONTINENT_LABELS[manager.continentTag] ?? manager.continentTag}</div>
+            ${manager.trait ? `<div class="note">세부 성향 ${MANAGER_TRAIT_LABELS[manager.trait]}: ${MANAGER_TRAIT_DESCRIPTIONS[manager.trait] ?? ''}</div>` : '<div class="note">세부 성향 없음</div>'}
           </div>
         </div>
       </section>
