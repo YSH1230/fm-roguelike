@@ -18,11 +18,13 @@ export function runHalfSeason(lineup, bench, managerTier, chemistry, leagueTierI
   return convertPowerToPoints(finalPower, leagueAverageOVR) / 2;
 }
 
-export function judgeSeasonResult(totalPoints, leagueTierId) {
+// pointsModifier: 구단별 이사진 기대치 가감(data/clubs.mjs). 튜닝된 리그
+// 기준선(tier.*)은 그대로 두고 판정 문턱만 밀어 올리거나 내린다.
+export function judgeSeasonResult(totalPoints, leagueTierId, pointsModifier = 0) {
   const tier = getLeagueTier(leagueTierId);
-  if (totalPoints >= tier.championPoints) return 'champion';
-  if (totalPoints >= tier.targetPoints) return 'promotion';
-  if (totalPoints >= tier.safePoints) return 'safe';
+  if (totalPoints >= tier.championPoints + pointsModifier) return 'champion';
+  if (totalPoints >= tier.targetPoints + pointsModifier) return 'promotion';
+  if (totalPoints >= tier.safePoints + pointsModifier) return 'safe';
   return 'relegation';
 }
 

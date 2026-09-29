@@ -1,3 +1,5 @@
+import { generateStaffOffer } from './staff.mjs';
+
 const KEY = 'fm-roguelike-save';
 
 // storage를 주입받아 브라우저 localStorage와 테스트용 가짜 스토리지를 둘 다 지원한다.
@@ -41,7 +43,14 @@ export function withRunDefaults(state, defaultFormation) {
   state.manualOverrides ??= {};
   state.uclTitles ??= 0;
   state.managerOffer ??= []; // 다음 '다음 주로'에서 다시 채워진다
+  state.staffOffer ??= generateStaffOffer(); // 구버전 세이브는 스태프 후보 이름/얼굴이 없다
+  if (state.staff) {
+    for (const role of ['headCoach', 'headScout']) {
+      state.staff[role].name ??= '무명';
+    }
+  }
   state.eventTone ??= null; // 구버전 세이브는 이벤트 팝업 정보가 없다 - 안 띄운다
+  state.expectationModifier ??= 0; // 구버전 세이브는 이사진 기대치 가감이 없다 - 중립
   // 계약 시스템 이전 세이브는 선수마다 contractYearsLeft가 없다. 없는 채로
   // 두면 (undefined ?? 2)는 매번 2로 취급되지만, 명시적으로 채워서 다음
   // startNewSeason의 -1 계산이 NaN이 되는 일을 막는다.

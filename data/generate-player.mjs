@@ -43,7 +43,9 @@ function randomInt(min, max, rng) {
 let nextId = 1;
 
 // 로컬~레전더리 절차적 생성 (GOD은 data/god-players.mjs 참고, 여기서 생성 안 함)
-export function generateProceduralPlayer(tierId, rng = Math.random) {
+// position을 넘기면 그 포지션으로 고정한다 - 시작 스쿼드가 포지션별 최소치를
+// 보장해야 해서(generateStartingSquad) 무작위 배정만으로는 부족하다.
+export function generateProceduralPlayer(tierId, rng = Math.random, position = null) {
   const tier = PLAYER_TIERS[tierId];
   if (!tier) throw new Error(`Unknown player tier: ${tierId}`);
 
@@ -64,12 +66,43 @@ export function generateProceduralPlayer(tierId, rng = Math.random) {
     baseOVR,
     price: calculatePlayerPrice(tierId, baseOVR),
     age,
-    position: pick(POSITIONS, rng),
+    position: position ?? pick(POSITIONS, rng),
     playstyleTags: pickN(Object.keys(PLAYSTYLE_TAGS), tier.playstyleTagCount, rng),
     continentTag,
     specialTrait,
     isDraftedYouth: specialTrait === 'seongGolYouth',
   };
+}
+
+// 시작 스쿼드 20명의 포지션 최소치. 4개 포메이션(ui/formations.mjs) 중
+// 어느 걸 골라도 그 포메이션이 요구하는 최대치를 항상 채우게 잡은 바닥값
+// (GK1·CB3·WB2·CMF3·AMF1·W2·ST2, 합 14) - 이 이하로는 강제 오프포지션이
+// 생긴다. 나머지 6자리는 포지션 무관 무작위라 게임마다 스쿼드 색깔이 달라진다.
+const STARTING_SQUAD_SIZE = 20;
+const POSITION_FLOOR = { GK: 1, CB: 3, WB: 2, CMF: 3, AMF: 1, W: 2, ST: 2 };
+
+function buildStartingPositionPlan(rng) {
+  const positions = Object.entries(POSITION_FLOOR).flatMap(([pos, n]) => Array(n).fill(pos));
+  const extra = STARTING_SQUAD_SIZE - positions.length;
+  for (let i = 0; i < extra; i++) positions.push(pick(POSITIONS, rng));
+  return positions;
+}
+
+// 5부 시작 스쿼드: 전원 local 등급(TIER5_SQUAD_WEIGHTS와 같은 이유), 20명,
+// 포지션은 위 바닥값을 보장한 뒤 나머지를 무작위로 채운다.
+export function generateStartingSquad(rng = Math.random) {
+  const positions = buildStartingPositionPlan(rng);
+  const usedNames = new Set();
+  return positions.map((position) => {
+    let player;
+    let tries = 0;
+    do {
+      player = generateProceduralPlayer('local', rng, position);
+      tries += 1;
+    } while (usedNames.has(player.name) && tries < 50);
+    usedNames.add(player.name);
+    return player;
+  });
 }
 
 // tierWeights: { local: 30, bigLeaguer: 25, ... } 처럼 등급별 인원수

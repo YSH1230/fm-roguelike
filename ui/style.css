@@ -94,6 +94,48 @@ button:not(:disabled):active { transform: scale(0.98); }
 .portrait { display: block; border-radius: var(--r-md); flex: none; }
 .crest { display: block; flex: none; }
 
+/* ============ 시네마틱 인트로 / 튜토리얼 ============ */
+/* 새 게임을 시작할 때마다 뜨는 화면이라 오래 붙잡으면 안 된다 - 화면 전체가
+   탭 영역이고, 문장은 한 줄씩 순서대로 나타난다(inline animation-delay). */
+.story {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s4);
+  padding: var(--s6) var(--s6) var(--s8);
+  text-align: center;
+  cursor: pointer;
+}
+.story__line {
+  margin: 0;
+  font-size: var(--fs-l);
+  color: var(--light);
+  opacity: 0;
+  animation: storyFadeIn 700ms var(--ease) forwards;
+}
+.story__line:last-of-type { font-weight: 700; }
+.story__skip {
+  margin: var(--s4) 0 0;
+  font-size: var(--fs-label);
+  color: var(--muted-dim);
+  opacity: 0;
+  animation: storyFadeIn 700ms var(--ease) forwards;
+}
+.story.is-shown,
+.story .is-shown { opacity: 1; animation: none; }
+.story--tutorial {
+  align-items: stretch;
+  text-align: left;
+}
+.story--tutorial .story__line { font-size: var(--fs-m); font-weight: 700; }
+.story--tutorial .story__skip { text-align: center; }
+@keyframes storyFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* ============ 시작 화면 ============ */
 
 .start { padding: var(--s8) var(--s4) var(--s4); }
@@ -211,8 +253,8 @@ button:not(:disabled):active { transform: scale(0.98); }
 .tab__count { font-family: var(--num); font-size: var(--fs-micro); color: var(--muted-dim); margin-left: 3px; }
 
 .panel { padding: var(--s3) var(--s4) 0; }
-.panel__head { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
-.panel__head h2 { font-size: var(--fs-body); }
+.panel__head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
+.panel__head h2 { flex: none; font-size: var(--fs-body); white-space: nowrap; }
 .panel__head > :last-child:not(h2) { margin-left: auto; }
 
 /* 탭 내용이 바뀌었다는 걸 알리는 최소한의 신호 */
@@ -478,46 +520,61 @@ button:not(:disabled):active { transform: scale(0.98); }
   vertical-align: middle;
 }
 
-/* 팀 케미 (피파4 팀컬러 참고): 태그별로 몇 명이 있는지, 뭘 하는 태그인지,
-   문턱을 넘었는지. 한 줄에 이름+숫자만 있던 예전 판은 설명이 없어서 태그
-   이름이 그냥 암호였다 - 각 줄에 짧은 설명을 더했다. */
+/* 팀 케미 (피파4 팀컬러 참고): 예전 판은 태그마다 설명 문장을 붙여 줄글이
+   됐다 - 배지 하나에 정보를 다 태운다. 칠해진 정도(빈 테두리→절반→가득)로
+   문턱 상태를, 배지 아래 숫자로 진행도를 전달한다. 설명은 title 속성으로만
+   남겨 필요할 때만 꺼내 본다. */
 .chemgroup__title {
   font-size: var(--fs-label);
-  color: var(--muted);
+  color: var(--muted-dim);
   margin: var(--s4) 0 var(--s2);
-  text-transform: none;
 }
 .chemgroup__title:first-of-type { margin-top: var(--s2); }
-.chemlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.chem {
+.chembadges {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
-  align-items: flex-start;
-  gap: var(--s2);
-  padding: var(--s2) var(--s3);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  border: 1px solid var(--line-soft);
+  flex-wrap: wrap;
+  gap: var(--s3) var(--s2);
 }
-.chem__status {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  margin-top: 5px;
+.chembadge {
+  flex: 0 0 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.chembadge:active .chembadge__ring { transform: scale(0.94); }
+.chembadge__ring {
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--line);
+  background: var(--surface);
+  font: 700 13px/1 var(--ui);
+  color: var(--muted-dim);
+  transition: border-color 180ms var(--ease), background 180ms var(--ease), color 180ms var(--ease), transform 180ms var(--ease);
 }
-.chem.is-tier1 .chem__status { background: var(--turf); }
-.chem.is-tier2 .chem__status { background: var(--gold); }
-.chem__body { flex: 1; min-width: 0; }
-.chem__top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s2); }
-.chem__label { font-size: var(--fs-body); color: var(--muted); }
-.chem.is-tier1 .chem__label { color: var(--light); font-weight: 700; }
-.chem.is-tier2 .chem__label { color: var(--light); font-weight: 700; }
-.chem__count { font-size: var(--fs-label); color: var(--muted); }
-.chem.is-tier1 .chem__count { color: var(--turf); }
-.chem.is-tier2 .chem__count { color: var(--gold); }
-.chem__count i { font-style: normal; color: var(--muted-dim); }
-.chem__desc { font-size: var(--fs-micro); color: var(--muted-dim); margin-top: 1px; }
+.chembadge.is-tier1 .chembadge__ring {
+  border-color: var(--turf);
+  color: var(--turf);
+  background: color-mix(in srgb, var(--turf) 14%, var(--surface));
+}
+.chembadge.is-tier2 .chembadge__ring {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #251c08;
+  transform: scale(1.04);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 22%, transparent);
+}
+.chembadge__count { font: 700 11px/1 var(--num); color: var(--muted-dim); }
+.chembadge.is-tier1 .chembadge__count { color: var(--turf); }
+.chembadge.is-tier2 .chembadge__count { color: var(--gold); }
 
 /* 이중 비용을 버튼 안에 같이 박는다. 이 게임의 긴장이 여기 있다 */
 .buy {
@@ -543,11 +600,14 @@ button:not(:disabled):active { transform: scale(0.98); }
   gap: var(--s3);
   background: var(--surface);
   border: 1px solid var(--line-soft);
+  border-left: 3px solid var(--tier, var(--line-soft));
   border-radius: var(--r-md);
   padding: var(--s2) var(--s3);
 }
 .mgroffer.is-current { border-color: var(--turf); background: rgba(76, 168, 106, 0.08); }
-.mgroffer__main { min-width: 0; }
+.mgroffer__main { min-width: 0; display: flex; align-items: center; gap: var(--s2); }
+.tactics__manager { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s3); border-left: 3px solid var(--tier, transparent); padding-left: var(--s2); }
+.tactics__manager .player__meta { color: var(--muted); }
 .hire {
   flex: none;
   display: flex; flex-direction: column; align-items: center; gap: 1px;
@@ -669,33 +729,10 @@ button:not(:disabled):active { transform: scale(0.98); }
 .staffline b { color: var(--light); font-weight: 600; }
 
 /* 스타 선수 - 선수단 탭 맨 위, 보유 중 최고 오버롤 카드를 그대로 확대해 보여준다 */
-.starplayer { display: flex; align-items: center; gap: var(--s3); }
+.starplayer { display: flex; align-items: center; gap: var(--s3); border-left: 3px solid var(--tier, transparent); padding-left: var(--s3); }
 .starplayer .player__name { font-size: var(--fs-m); font-weight: 700; }
 .starplayer .player__ovr { margin-left: auto; font-size: 28px; }
 
-/* 커스터마이징 폼: 선수/감독 이름·능력치·성향을 유저가 직접 정한다 */
-.customform { display: grid; gap: var(--s3); }
-.customform label {
-  display: grid;
-  gap: 4px;
-  font-size: var(--fs-label);
-  color: var(--muted);
-}
-.customform input,
-.customform select {
-  font: inherit;
-  font-size: var(--fs-body);
-  color: var(--light);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: var(--s2) var(--s3);
-}
-.customform input:focus,
-.customform select:focus { outline: 2px solid var(--turf); outline-offset: 1px; }
-.customform__actions { display: flex; gap: var(--s2); }
-.customform__actions .cta { flex: 1; }
-.customform__actions .reroll { flex: none; }
 
 /* ============ 하단 고정 CTA ============ */
 
@@ -848,6 +885,17 @@ button:not(:disabled):active { transform: scale(0.98); }
 .standings li.is-mine .standings__name { color: var(--light); font-weight: 700; }
 
 /* ============ 시즌 결산 ============ */
+
+.backlink {
+  display: block;
+  margin: var(--s3) 0 0 var(--s4);
+  font-size: var(--fs-label);
+  color: var(--muted);
+  background: none;
+  border: none;
+  padding: 0;
+}
+.backlink:hover { color: var(--light); }
 
 .verdict { padding: var(--s8) var(--s4) 0; text-align: center; }
 .verdict__label { font-size: var(--fs-label); color: var(--muted); }
