@@ -1,6 +1,6 @@
 // 리그 단계별 결과 분포 실측. 티어 승점 기준선을 정하는 근거 자료를 만든다.
 // 실제 플레이를 근사한다: 12주 동안 자금을 다 쓰며 베스트11을 올리는 플레이어.
-import { generateSquadPool, TIER5_SQUAD_WEIGHTS } from '../data/generate-player.mjs';
+import { generateStartingSquad } from '../data/generate-player.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
 import { runHalfSeason, judgeSeasonResult } from '../engine/season.mjs';
 import { applyTransactionDecay } from '../engine/chemistry.mjs';
@@ -35,7 +35,7 @@ const toSquad = (c) => ({ ...c, seasonsAtClub: 0, acquiredThisSeason: true, inBe
 // 이월(상한 = 지급액의 30%). carried가 있으면 승격해서 온 시즌이므로 승격 보너스도 붙는다.
 // 구단 배율은 시뮬레이터가 구단을 모델링하지 않으므로 1.0으로 둔다.
 function playSeason(tierId, carried) {
-  let squad = carried ? carried.squad : generateSquadPool(TIER5_SQUAD_WEIGHTS).map(toSquad);
+  let squad = carried ? carried.squad : generateStartingSquad().map(toSquad);
   const grant = Math.round(
     calculateStartingFunds(getLadderIndex(tierId)) * (carried ? 1 + PROMOTION_FUNDS_BONUS_RATIO : 1)
   );
@@ -45,7 +45,7 @@ function playSeason(tierId, carried) {
 
   for (const phase of ['summer', 'winter']) {
     for (let w = 0; w < (phase === 'summer' ? 8 : 4); w++) {
-      for (const card of generateShopOffer(SHOP_OFFER_SIZE).sort((a, b) => b.baseOVR - a.baseOVR)) {
+      for (const card of generateShopOffer(SHOP_OFFER_SIZE, [], Math.random, tierId).sort((a, b) => b.baseOVR - a.baseOVR)) {
         const price = applyCostModifiers(card.price, phase === 'winter' ? [WINTER_TAX_RATIO] : []);
         if (funds < price) continue;
         const before = pickBestXI(squad);
