@@ -1,27 +1,35 @@
 import { generateProceduralPlayer } from './generate-player.mjs';
 import { GOD_PLAYER_SHOP_CHANCE } from '../engine/constants.mjs';
 
-// 상점 매물 전용 등급 분포. 시작 스쿼드(TIER5_SQUAD_WEIGHTS)보다 상위 등급
-// 비중을 조금 더 둬서, 12주 이적시장 동안 가끔 더 좋은 카드를 뽑는 재미를 준다.
-// (시작 스쿼드와 같은 분포를 쓰면 상위 등급을 영영 못 보게 됨 — node tune-check로 확인)
-// 상위 등급 비중을 { 45, 30, 15, 8, 2 }에서 아래 값으로 넓혔다(tools/tune-ladder.mjs).
-// 그전에는 legendary가 매물의 2%뿐이어서 12주 36장을 다 봐도 플레이어 베스트11이
-// 2부에서 86, 1부에서 88에 막혔다 — 1부 리그 평균에 못 미쳐서 우승이 불가능했다.
-// 카드 가격은 리그와 무관하게 고정(스펙 7절)이라, 자금이 1.5배씩 늘어나는 상위
-// 리그만 이 분포의 이득을 받는다. 5부는 애초에 비싼 카드를 살 돈이 없어서
-// 2500판 실측 우승률이 21~23%로 기존 24%와 거의 같다(강등 2.4%로 유지).
-const SHOP_TIER_WEIGHTS = { local: 35, bigLeaguer: 25, topClass: 18, worldClass: 14, legendary: 8 };
-const TIER_POOL = Object.entries(SHOP_TIER_WEIGHTS).flatMap(([tier, count]) => Array(count).fill(tier));
+// 상점 매물 등급 분포 - 리그별. 자금은 이미 리그가 낮을수록 적게 설계돼
+// 있는데(engine/economy.mjs calculateStartingFunds) 카드 등급은 예전엔
+// 리그 무관 고정이었다 - 5부에서도 legendary가 뜨는 위화감이 있었다.
+// 아래 값은 tools/tune-ladder.mjs로 재튜닝하기 전 출발점이다(스펙 문서 참고).
+export const SHOP_TIER_WEIGHTS_BY_TIER = {
+  tier5: { local: 70, bigLeaguer: 25, topClass: 5, worldClass: 0, legendary: 0 },
+  tier4: { local: 45, bigLeaguer: 35, topClass: 15, worldClass: 5, legendary: 0 },
+  tier3: { local: 20, bigLeaguer: 30, topClass: 30, worldClass: 15, legendary: 5 },
+  tier2: { local: 10, bigLeaguer: 20, topClass: 30, worldClass: 30, legendary: 10 },
+  tier1: { local: 5, bigLeaguer: 10, topClass: 20, worldClass: 40, legendary: 25 },
+};
+
+function tierPool(tierId) {
+  const weights = SHOP_TIER_WEIGHTS_BY_TIER[tierId] ?? SHOP_TIER_WEIGHTS_BY_TIER.tier1;
+  return Object.entries(weights).flatMap(([tier, count]) => Array(count).fill(tier));
+}
 
 // 상점형 드래프트: N장 전부 살 수 있다(자금이 제약). 스펙 7절.
 // availableGods: 이번 런에서 아직 등장/영입되지 않은 GOD 카드 목록(data/god-players.mjs).
-// 등장해도 목록에서 빼지 않는다 — 실제로 "영입"할 때만 소모(ui/app.mjs에서 처리).
-export function generateShopOffer(size, availableGods = [], rng = Math.random) {
+// 등장해도 목록에서 빼지 않는다 - 실제로 "영입"할 때만 소모(ui/app.mjs에서 처리).
+// tierId: 지금 뛰는 리그 등급. 안 넘기면 가장 관대한 tier1 분포를 쓴다
+// (구버전 호출부·유닛 테스트 호환용 기본값 - 실제 게임은 항상 넘긴다).
+export function generateShopOffer(size, availableGods = [], rng = Math.random, tierId = 'tier1') {
+  const pool = tierPool(tierId);
   return Array.from({ length: size }, () => {
     if (availableGods.length > 0 && rng() < GOD_PLAYER_SHOP_CHANCE) {
       return availableGods[Math.floor(rng() * availableGods.length)];
     }
-    const tier = TIER_POOL[Math.floor(rng() * TIER_POOL.length)];
+    const tier = pool[Math.floor(rng() * pool.length)];
     return generateProceduralPlayer(tier, rng);
   });
 }
