@@ -537,14 +537,13 @@ button:not(:disabled):active { transform: scale(0.98); }
   gap: var(--s3) var(--s2);
 }
 .chembadge {
-  flex: 0 0 60px;
+  flex: 0 0 66px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  cursor: pointer;
+  gap: 4px;
+  text-align: center;
 }
-.chembadge:active .chembadge__ring { transform: scale(0.94); }
 .chembadge__ring {
   width: 52px;
   height: 52px;
@@ -554,10 +553,10 @@ button:not(:disabled):active { transform: scale(0.98); }
   justify-content: center;
   border: 2px solid var(--line);
   background: var(--surface);
-  font: 700 13px/1 var(--ui);
   color: var(--muted-dim);
   transition: border-color 180ms var(--ease), background 180ms var(--ease), color 180ms var(--ease), transform 180ms var(--ease);
 }
+.badgeicon { width: 26px; height: 26px; }
 .chembadge.is-tier1 .chembadge__ring {
   border-color: var(--turf);
   color: var(--turf);
@@ -570,9 +569,31 @@ button:not(:disabled):active { transform: scale(0.98); }
   transform: scale(1.04);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 22%, transparent);
 }
+.chembadge__label { font-size: 10px; line-height: 1.2; color: var(--muted); }
 .chembadge__count { font: 700 11px/1 var(--num); color: var(--muted-dim); }
 .chembadge.is-tier1 .chembadge__count { color: var(--turf); }
 .chembadge.is-tier2 .chembadge__count { color: var(--gold); }
+
+/* 전술 탭 벤치 표시 - 예전엔 피치(선발)만 있고 벤치가 아예 안 보였다 */
+.benchstrip {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  overflow-x: auto;
+  padding: var(--s2) 0;
+  margin-top: var(--s2);
+}
+.benchstrip__label { flex: none; font-size: var(--fs-label); color: var(--muted-dim); }
+.benchchip {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+}
+.benchchip__pos { color: var(--muted-dim); }
+.benchchip__ovr { font-size: var(--fs-label); color: var(--light); }
 
 /* 이중 비용을 버튼 안에 같이 박는다. 이 게임의 긴장이 여기 있다 */
 .buy {

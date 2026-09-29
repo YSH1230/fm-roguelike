@@ -146,14 +146,38 @@ const CONTINENT_LABELS = {
   europe: '유럽', southAmerica: '남미', africa: '아프리카',
   asiaOceania: '아시아·오세아니아', northCentralAmerica: '북중미',
 };
-// 팀 케미 배지 한 장에 들어가는 2글자 각인. 풀네임은 title(호버)로만 남긴다.
-const BADGE_MONOGRAM = {
-  gegenpressing: '게겐', falseNine: '폴나', longBallKickAndRush: '롱볼',
-  tikiTaka: '티키', totalFootball: '토탈', falseFullBack: '변3',
-  buildUpFromBack: '빌드', counterAttack: '역습',
-  europe: '유럽', southAmerica: '남미', africa: '아프',
-  asiaOceania: '아시', northCentralAmerica: '북중',
+// 팀 케미/특수 태그 배지 안에 그리는 작은 기호(글자 대신 아이콘). 풀네임은
+// title(호버)로만 남긴다. crest.mjs/portrait.mjs와 같은 원칙 - 이미지 파일
+//없이 인라인 SVG path만으로 그린다.
+const PLAYSTYLE_ICON_PATHS = {
+  gegenpressing: '<path d="M6 16 L12 9 L18 16"/>',
+  falseNine: '<path d="M7 7 H17 L12 17 Z"/>',
+  longBallKickAndRush: '<path d="M5 18 L18 6 M12 6 H18 V12"/>',
+  tikiTaka: '<circle cx="6" cy="17" r="1.5"/><circle cx="18" cy="17" r="1.5"/><circle cx="12" cy="6" r="1.5"/><path d="M6 17 L12 6 L18 17 Z"/>',
+  totalFootball: '<path d="M4 9 H15 M11 5 L15 9 L11 13 M20 15 H9 M13 19 L9 15 L13 11"/>',
+  falseFullBack: '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/><path d="M5 12 H19"/>',
+  buildUpFromBack: '<circle cx="12" cy="18" r="1.6"/><path d="M12 15 V5 M8 9 L12 5 L16 9"/>',
+  counterAttack: '<path d="M13 2 L5 14 H11 L9 22 L19 9 H12 Z"/>',
 };
+const CONTINENT_ICON_PATHS = {
+  europe: '<path d="M7 5 C10 4 14 4 16 6 C19 7 18 11 16 12 C18 14 16 18 12 18 C9 19 6 16 7 13 C4 11 5 7 7 5 Z"/>',
+  southAmerica: '<path d="M12 3 C15 4 16 7 15 10 C17 12 15 16 13 17 C13 19 11 21 10 19 C9 17 10 14 9 12 C7 10 8 6 10 4 C10 3 11 3 12 3 Z"/>',
+  africa: '<path d="M10 3 C14 3 17 6 16 10 C18 12 17 16 14 18 C13 20 10 20 10 18 C8 17 8 14 7 12 C5 10 6 6 9 4 C9 3 10 3 10 3 Z"/>',
+  asiaOceania: '<path d="M4 8 C8 5 14 5 18 8 C20 9 19 12 16 12 C17 14 14 16 11 15 C9 16 6 15 6 12 C4 11 3 9 4 8 Z"/><circle cx="19" cy="17" r="1.5"/>',
+  northCentralAmerica: '<path d="M6 4 H18 L15 11 C15 13 13 13 13 15 L11 21 L9 15 C9 13 8 12 8 10 Z"/>',
+};
+const TRAIT_ICON_PATHS = {
+  seongGolYouth: '<path d="M12 2 L14.7 8.6 L22 9.3 L16.5 14 L18 21 L12 17.3 L6 21 L7.5 14 L2 9.3 L9.3 8.6 Z"/>',
+  veteranLeader: '<rect x="5" y="9" width="14" height="6" rx="1.5"/><path d="M5 12 H19"/>',
+  superSub: '<path d="M8 15 L8 5 M8 5 L5 8 M8 5 L11 8 M16 9 L16 19 M16 19 L13 16 M16 19 L19 16"/>',
+  hometownHero: '<path d="M4 11 L12 4 L20 11 M6 10 V20 H18 V10"/>',
+  polyglot: '<path d="M4 5 H20 V15 H9 L5 19 V15 H4 Z"/>',
+  journeyman: '<rect x="4" y="8" width="16" height="11" rx="1.5"/><path d="M9 8 V6 C9 5 10 4 11 4 H13 C14 4 15 5 15 6 V8"/>',
+};
+function renderTagIcon(paths, id) {
+  const inner = paths[id] ?? '<circle cx="12" cy="12" r="6"/>';
+  return `<svg class="badgeicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+}
 const MANAGER_TIER_LABELS = { rookie: '루키', tactician: '택티션', legendary: '레전더리', god: 'GOD' };
 const STAFF_LEVEL_LABELS = { academy: '아카데미', proLicense: '프로 라이선스', veteran: '베테랑', master: '마스터' };
 // 선수 카드의 등급 색(--t-*)을 감독/스태프에도 그대로 물린다 - 등급이라는
@@ -1268,7 +1292,7 @@ function renderSlotPicker(squad, formationId, selectedSlot, inXI) {
 // 문턱(기본 3명/5명, 감독·폴리글롯이 있으면 감면)을 넘었는지 색으로 알려준다.
 // tagDef.tier3/tier5는 인원수가 아니라 그 인원 채웠을 때 실제로 붙는 OVR
 // 보너스 값이다(engine/ovr.mjs) - 배지 설명에 필요 인원과 보너스를 분리해서 쓴다.
-function renderChemistryPanel(lineup, squad) {
+function renderChemistryPanel(lineup, bench) {
   const { manager } = currentState;
   const boostedTagId = boostedTagIdFor(manager);
 
@@ -1278,11 +1302,13 @@ function renderChemistryPanel(lineup, squad) {
       const boost = tagId === boostedTagId ? 1 : 0;
       const req3 = 3 - boost;
       const req5 = 5 - boost;
+      const bonus = tier === 2 ? def.tier5 : def.tier3;
+      const caption = `${count}/${need} · +${bonus}`;
       const desc = `해당 포지션 선수 기준 · ${req3}명 이상 OVR +${def.tier3}, ${req5}명 이상 OVR +${def.tier5}`
         + (boost ? ' (전술 원리주의자로 요구 인원 1명 감면)' : '');
-      return { tagId, label: TAG_LABELS[tagId] ?? tagId, desc, count, need, tier };
+      return { icon: renderTagIcon(PLAYSTYLE_ICON_PATHS, tagId), label: TAG_LABELS[tagId] ?? tagId, desc, caption, tier };
     })
-    .sort((a, b) => b.tier - a.tier || b.count - a.count);
+    .sort((a, b) => b.tier - a.tier);
 
   const continentRows = Object.entries(CONTINENT_TAGS)
     .map(([tagId, def]) => {
@@ -1291,29 +1317,39 @@ function renderChemistryPanel(lineup, squad) {
       const req5 = countEffectiveContinentRequirement(5, lineup, tagId);
       const tier = count >= req5 ? 2 : count >= req3 ? 1 : 0;
       const need = tier === 0 ? req3 : req5;
+      const bonus = tier === 2 ? def.tier5 : def.tier3;
+      const caption = `${count}/${need} · +${bonus}`;
       const desc = `포지션 무관 전원 · ${req3}명 이상 OVR +${def.tier3}, ${req5}명 이상 OVR +${def.tier5}`
         + (req3 < 3 ? ' (폴리글롯으로 요구 인원 감면)' : '');
-      return { tagId, label: CONTINENT_LABELS[tagId] ?? tagId, desc, count, need, tier };
+      return { icon: renderTagIcon(CONTINENT_ICON_PATHS, tagId), label: CONTINENT_LABELS[tagId] ?? tagId, desc, caption, tier };
     })
-    .sort((a, b) => b.tier - a.tier || b.count - a.count);
+    .sort((a, b) => b.tier - a.tier);
 
-  const badge = (r) => `<li class="chembadge${r.tier ? ` is-tier${r.tier}` : ''}" data-chem-desc="${esc(r.label)} · ${esc(r.desc)}" title="${esc(r.label)} · ${esc(r.desc)}">
-    <div class="chembadge__ring">${esc(BADGE_MONOGRAM[r.tagId] ?? r.label.slice(0, 2))}</div>
-    <span class="chembadge__count">${r.count}/${r.need}</span>
+  const badge = (r) => `<li class="chembadge${r.tier ? ` is-tier${r.tier}` : ''}" title="${esc(r.label)} · ${esc(r.desc)}">
+    <div class="chembadge__ring">${r.icon}</div>
+    <span class="chembadge__label">${esc(r.label)}</span>
+    <span class="chembadge__count">${r.caption}</span>
   </li>`;
 
-  const traitPlayers = squad.filter((p) => p.specialTrait);
-  const traitSection = traitPlayers.length ? `
+  // 특수 태그는 지금 뛰는 선발+벤치(16명)만 본다 - 그 밖의 선수는 이번 주
+  // 효과가 발동하지 않는 죽은 정보라 노이즈만 된다. 종류별로 묶어서 배지 하나 +
+  // 인원수로 보여준다(선수 한 명씩 카드로 나열하던 예전 판보다 훨씬 짧다).
+  const xiAndBench = [...lineup, ...bench];
+  const traitRows = Object.keys(TRAIT_LABELS)
+    .map((traitId) => ({
+      traitId,
+      holders: xiAndBench.filter((p) => p.specialTrait === traitId),
+    }))
+    .filter((r) => r.holders.length > 0);
+
+  const traitSection = traitRows.length ? `
     <h3 class="chemgroup__title">선수 특수 태그</h3>
-    <ul class="squad">
-      ${traitPlayers.map((p) => `
-        <li class="player">
-          ${renderPortrait(p, { size: 36 })}
-          <b class="player__ovr n">${p.baseOVR}</b>
-          <div>
-            <div class="player__name">${esc(p.name)}<span class="tag tag--trait">${TRAIT_LABELS[p.specialTrait] ?? p.specialTrait}</span></div>
-            <div class="player__meta">${TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? ''}</div>
-          </div>
+    <ul class="chembadges">
+      ${traitRows.map((r) => `
+        <li class="chembadge is-tier1" title="${esc(r.holders.map((p) => p.name).join(', '))} · ${esc(TRAIT_EFFECT_DESCRIPTIONS[r.traitId] ?? '')}">
+          <div class="chembadge__ring">${renderTagIcon(TRAIT_ICON_PATHS, r.traitId)}</div>
+          <span class="chembadge__label">${esc(TRAIT_LABELS[r.traitId])}</span>
+          <span class="chembadge__count">${r.holders.length}명</span>
         </li>`).join('')}
     </ul>` : '';
 
@@ -1324,7 +1360,6 @@ function renderChemistryPanel(lineup, squad) {
     <h3 class="chemgroup__title">대륙</h3>
     <ul class="chembadges">${continentRows.map(badge).join('')}</ul>
     ${traitSection}
-    <p class="note" id="chem-desc">배지를 누르면 어떤 보너스가 붙는지 알려줍니다.</p>
   </div>`;
 }
 
@@ -1529,10 +1564,18 @@ function renderMarket(banner = '') {
           </div>
         </div>
         ${renderPitch(slotted, formationId, club.kit, { interactive: true, selectedSlot: currentState.selectedSlot, finalOVR })}
+        <div class="benchstrip">
+          <span class="benchstrip__label">벤치</span>
+          ${bench.map((p) => `<div class="benchchip" title="${esc(p.name)}">
+            ${renderPortrait(p, { size: 28, kit: club.kit })}
+            <span class="benchchip__pos">${p.position}</span>
+            <b class="benchchip__ovr n">${p.baseOVR}</b>
+          </div>`).join('')}
+        </div>
         ${renderSlotPicker(squad, formationId, currentState.selectedSlot, inXI)}
         <p class="note">칸을 눌러 넣을 선수를 고르세요. 포메이션을 바꾸면 슬롯 구성이 바뀌어 플레이스타일 시너지 발동 조건이 달라집니다.</p>
       </section>
-      ${renderChemistryPanel(lineup, squad)}`,
+      ${renderChemistryPanel(lineup, bench)}`,
     squad: `
       <section class="panel tabpanel">
         <div class="panel__head"><h2>스타 선수</h2></div>
@@ -1713,11 +1756,6 @@ function renderMarket(banner = '') {
       currentState.manualOverrides = {};
       currentState.selectedSlot = null;
       renderMarket(banner);
-    });
-    document.querySelectorAll('[data-chem-desc]').forEach((el) => {
-      el.addEventListener('click', () => {
-        document.getElementById('chem-desc').textContent = el.dataset.chemDesc;
-      });
     });
   }
   if (tab === 'squad') {
