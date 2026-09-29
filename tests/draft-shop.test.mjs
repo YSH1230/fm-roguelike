@@ -30,3 +30,16 @@ test('tierId 없이 호출해도(구버전 호출부) 정상 동작한다', () =
   const offer = generateShopOffer(3);
   assert.equal(offer.length, 3);
 });
+
+test('GOD 카드는 1부가 아니면 절대 안 뜬다', () => {
+  const gods = [{ id: 'god-1', name: 'Test God', baseOVR: 99 }];
+  // rng를 거의 0에 붙여서 GOD_PLAYER_SHOP_CHANCE를 항상 통과하게 만든다 -
+  // 그래도 tier5/tier4에서는 한 장도 안 나와야 한다.
+  const rng = () => 0.0001;
+  for (const tierId of ['tier5', 'tier4', 'tier3', 'tier2']) {
+    const offer = generateShopOffer(50, gods, rng, tierId);
+    assert.ok(offer.every((c) => c.id !== 'god-1'), `${tierId}에 GOD 카드가 뜨면 안 된다`);
+  }
+  const tier1Offer = generateShopOffer(50, gods, rng, 'tier1');
+  assert.ok(tier1Offer.some((c) => c.id === 'god-1'), '1부에서는 GOD 카드가 뜰 수 있어야 한다');
+});

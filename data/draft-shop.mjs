@@ -34,8 +34,11 @@ function tierPool(tierId) {
 // (구버전 호출부·유닛 테스트 호환용 기본값 - 실제 게임은 항상 넘긴다).
 export function generateShopOffer(size, availableGods = [], rng = Math.random, tierId = 'tier1') {
   const pool = tierPool(tierId);
+  // GOD 카드는 1부에서만 굴린다 - 예전엔 리그 무관 고정 확률이라 5부 상점에도
+  // 똑같이 뜰 수 있었다(local 카드들 사이에 OVR 88+ 카드가 섞이는 위화감).
+  const godEligible = tierId === 'tier1' && availableGods.length > 0;
   return Array.from({ length: size }, () => {
-    if (availableGods.length > 0 && rng() < GOD_PLAYER_SHOP_CHANCE) {
+    if (godEligible && rng() < GOD_PLAYER_SHOP_CHANCE) {
       return availableGods[Math.floor(rng() * availableGods.length)];
     }
     const tier = pool[Math.floor(rng() * pool.length)];

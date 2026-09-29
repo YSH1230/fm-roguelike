@@ -146,8 +146,9 @@ export const COACH_CHEMISTRY_DECAY_BY_LEVEL = { academy: 1.5, proLicense: 1, vet
 export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 4, veteran: 4, master: 5 };
 export const SCOUT_MASTER_REROLL_DISCOUNT = 0.5;
 
-// GOD 카드(선수)가 상점에 뜰 확률 — 전 세계 2명뿐이라 극희귀
-export const GOD_PLAYER_SHOP_CHANCE = 0.02;
+// GOD 카드(선수)가 상점에 뜰 확률 — 전 세계 2명뿐이라 극희귀. 1부 상점에서만
+// 굴린다(data/draft-shop.mjs) - 하부리그에 최상위 카드가 섞이면 위화감이 크다.
+export const GOD_PLAYER_SHOP_CHANCE = 0.005;
 
 // 승격 전용 위기: 이적 요구가 발동할 확률 (스펙 8절, 승격 직후 시즌에만)
 export const PROMOTION_TRANSFER_DEMAND_CHANCE = 0.5;
