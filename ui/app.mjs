@@ -1352,23 +1352,35 @@ function renderChemistryPanel(lineup, bench) {
       const req5 = 5 - boost;
       const bonus = tier === 2 ? def.tier5 : def.tier3;
       const caption = `${count}/${need} · +${bonus}`;
-      const desc = `${TAG_CONCEPTS[tagId] ?? ''}. 해당 포지션 선수 기준 · ${req3}명 이상 OVR +${def.tier3}, ${req5}명 이상 OVR +${def.tier5}`
-        + (boost ? ' (전술 원리주의자로 요구 인원 1명 감면)' : '');
+      const positions = def.positions.join('·');
+      // 보유자 수는 라인업 전체로 세지만, 보너스는 그중 해당 포지션에 실제로
+      // 있는 선수에게만 간다 - 그래서 "누가 받는지"를 따로 보여줘야 한다.
+      const beneficiaries = tier
+        ? lineup.filter((p) => p.playstyleTags.includes(tagId) && def.positions.includes(p.position))
+        : [];
+      const desc = `${TAG_CONCEPTS[tagId] ?? ''}. ${positions} 포지션에 있는 보유자만 보너스를 받습니다`
+        + (boost ? ' (전술 원리주의자로 요구 인원 1명 감면)' : '')
+        + `. ${req3}명 이상 모이면 +${def.tier3}, ${req5}명 이상이면 +${def.tier5}`
+        + (beneficiaries.length ? `. 지금 받는 선수: ${beneficiaries.map((p) => p.name).join(', ')}` : '');
       return { icon: renderTagIcon(PLAYSTYLE_ICON_PATHS, tagId), label: TAG_LABELS[tagId] ?? tagId, desc, caption, tier };
     })
     .sort((a, b) => b.tier - a.tier);
 
   const continentRows = Object.entries(CONTINENT_TAGS)
     .map(([tagId, def]) => {
-      const count = lineup.filter((p) => p.continentTag === tagId).length;
+      const members = lineup.filter((p) => p.continentTag === tagId);
+      const count = members.length;
       const req3 = countEffectiveContinentRequirement(3, lineup, tagId);
       const req5 = countEffectiveContinentRequirement(5, lineup, tagId);
       const tier = count >= req5 ? 2 : count >= req3 ? 1 : 0;
       const need = tier === 0 ? req3 : req5;
       const bonus = tier === 2 ? def.tier5 : def.tier3;
       const caption = `${count}/${need} · +${bonus}`;
-      const desc = `같은 대륙 출신끼리 말이 통하고 호흡이 잘 맞는다. 포지션 무관 전원 · ${req3}명 이상 OVR +${def.tier3}, ${req5}명 이상 OVR +${def.tier5}`
-        + (req3 < 3 ? ' (폴리글롯으로 요구 인원 감면)' : '');
+      // 포지션 무관이지만 아무나 받는 게 아니라 "이 대륙 출신 선수"만 받는다.
+      const desc = `같은 대륙 출신끼리 말이 통하고 호흡이 잘 맞는다. 포지션 무관, ${CONTINENT_LABELS[tagId] ?? tagId} 출신 선수만 보너스를 받습니다`
+        + (req3 < 3 ? ' (폴리글롯으로 요구 인원 감면)' : '')
+        + `. ${req3}명 이상 모이면 +${def.tier3}, ${req5}명 이상이면 +${def.tier5}`
+        + (tier ? `. 지금 받는 선수: ${members.map((p) => p.name).join(', ')}` : '');
       return { icon: renderTagIcon(CONTINENT_ICON_PATHS, tagId), label: CONTINENT_LABELS[tagId] ?? tagId, desc, caption, tier };
     })
     .sort((a, b) => b.tier - a.tier);
