@@ -11,6 +11,7 @@ import {
   RELEASE_RECOVERY_DEADLINE,
   STARTING_FUNDS_TIER5,
   FUNDS_MULTIPLIER_PER_LEAGUE_TIER,
+  TIER5_FUNDS_DISCOUNT,
   CARRYOVER_CAP_RATIO,
 } from './constants.mjs';
 
@@ -57,9 +58,11 @@ export function computeReleaseProceeds(originalPrice, method, rng = Math.random)
   }
 }
 
-// 리그 단계(0 = 5부)에 따른 시작 자금
+// 리그 단계(0 = 5부)에 따른 시작 자금. 5부(인덱스 0)만 추가로 깎는다 -
+// 곡선 전체(4부 이상)는 그대로 두고 "5부가 너무 넉넉하다"는 지점만 고친다.
 export function calculateStartingFunds(leagueTierIndex) {
-  return Math.round(STARTING_FUNDS_TIER5 * FUNDS_MULTIPLIER_PER_LEAGUE_TIER ** leagueTierIndex);
+  const base = Math.round(STARTING_FUNDS_TIER5 * FUNDS_MULTIPLIER_PER_LEAGUE_TIER ** leagueTierIndex);
+  return leagueTierIndex === 0 ? Math.round(base * TIER5_FUNDS_DISCOUNT) : base;
 }
 
 // 이월 자금은 다음 시즌 시작 자금의 30%를 넘지 않음

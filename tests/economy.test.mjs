@@ -35,9 +35,13 @@ test('방출 회수: 이적명단은 시즌별 범위 안에서 무작위다', (
   assert.equal(proceeds, 700); // 70%
 });
 
-test('시작 자금은 리그 단계마다 1.5배씩 오른다', () => {
-  assert.equal(calculateStartingFunds(0), 1000); // 5부
+test('시작 자금은 4부 이상부터 리그 단계마다 1.5배씩 오른다', () => {
   assert.equal(calculateStartingFunds(1), 1500); // 4부
+  assert.equal(calculateStartingFunds(2), 2250); // 3부
+});
+
+test('5부만 추가로 자금을 깎는다(TIER5_FUNDS_DISCOUNT)', () => {
+  assert.equal(calculateStartingFunds(0), 550); // 1000 * 0.55
 });
 
 test('이월 자금은 다음 시즌 시작 자금의 30%를 넘지 않는다', () => {

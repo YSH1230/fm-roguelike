@@ -134,6 +134,11 @@ export const RELEASE_RECOVERY_LISTED_WINTER = [0.7, 1.1];
 export const RELEASE_RECOVERY_DEADLINE = 0.4;
 
 export const STARTING_FUNDS_TIER5 = 1000;
+// 5부만 따로 더 깎는다 - base × 1.5^index 공식을 그대로 두고 기준값(1000)만
+// 낮추면 곱셈 구조상 4부 이상 리그 자금까지 전부 비례해서 확 깎여버린다
+// (직접 재실측해서 확인함: 2부/1부 강등률이 50%대로 치솟음). "5부 자금이
+// 너무 많다"는 5부에만 해당하는 얘기라, 5부(인덱스 0)에만 곱한다.
+export const TIER5_FUNDS_DISCOUNT = 0.55;
 export const FUNDS_MULTIPLIER_PER_LEAGUE_TIER = 1.5;
 export const CARRYOVER_CAP_RATIO = 0.3; // 이월 자금 상한 = 다음 시즌 시작 자금의 30%
 
