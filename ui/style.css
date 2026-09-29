@@ -478,7 +478,7 @@ button:not(:disabled):active { transform: scale(0.98); }
   align-items: start;
 }
 /* 영입하면 카드가 상점에서 빠져나간다는 걸 보여준다 */
-.offer.is-leaving { animation: leave 160ms var(--ease) forwards; }
+.offer.is-leaving, .mgroffer.is-leaving { animation: leave 160ms var(--ease) forwards; }
 @keyframes leave { to { opacity: 0; transform: translateX(14px); } }
 
 .offer__aside { display: grid; }

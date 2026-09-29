@@ -681,9 +681,16 @@ function managerHireCost(candidate) {
   return { price: candidate.price, severance, total: candidate.price + severance };
 }
 
-function hireManager(candidate) {
+function hireManager(candidate, rowEl = null) {
   const { total, severance } = managerHireCost(candidate);
   if (currentState.funds < total) return;
+  // 선수 카드처럼 옆으로 빠져나가는 걸 보여준 뒤 실제로 데려온다.
+  if (rowEl && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    rowEl.classList.add('is-leaving');
+    setTimeout(() => hireManager(candidate), 160);
+    rowEl.style.pointerEvents = 'none';
+    return;
+  }
   currentState.funds -= total;
   currentState.manager = candidate;
   // 선수 카드처럼 - 데려온 후보는 그 자리에 다시 안 뜬다.
@@ -692,10 +699,16 @@ function hireManager(candidate) {
 }
 
 // 스태프 교체: 위약금 없이 즉시, 다만 이번 주는 효과 미발동(hiredWeek로 표시).
-function hireStaff(role, level) {
+function hireStaff(role, level, rowEl = null) {
   const [min, max] = STAFF_PRICE_TABLE[level];
   const cost = Math.round((min + max) / 2);
   if (currentState.funds < cost) return;
+  if (rowEl && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    rowEl.classList.add('is-leaving');
+    setTimeout(() => hireStaff(role, level), 160);
+    rowEl.style.pointerEvents = 'none';
+    return;
+  }
   const candidate = currentState.staffOffer[`${role}:${level}`];
   currentState.funds -= cost;
   currentState.staff = { ...currentState.staff, [role]: { ...candidate, hiredWeek: currentState.week } };
@@ -1455,7 +1468,7 @@ function renderMarket(banner = '') {
           ${currentState.managerOffer.map((m) => {
             const { total, severance } = managerHireCost(m);
             const canHire = funds >= total;
-            return `<li class="mgroffer" style="--tier:var(--${MANAGER_TIER_COLOR[m.tier] ?? 't-local'})">
+            return `<li class="mgroffer" data-row="mgr-${m.id}" style="--tier:var(--${MANAGER_TIER_COLOR[m.tier] ?? 't-local'})">
               <div class="mgroffer__main">
                 ${renderPortrait(m, { size: 40 })}
                 <div>
@@ -1482,7 +1495,7 @@ function renderMarket(banner = '') {
               const cost = Math.round((min + max) / 2);
               const isCurrent = currentState.staff[role].level === level;
               const candidate = currentState.staffOffer[`${role}:${level}`];
-              return `<li class="mgroffer${isCurrent ? ' is-current' : ''}" style="--tier:var(--${STAFF_LEVEL_COLOR[level] ?? 't-local'})">
+              return `<li class="mgroffer${isCurrent ? ' is-current' : ''}" data-row="staff-${role}-${level}" style="--tier:var(--${STAFF_LEVEL_COLOR[level] ?? 't-local'})">
                 <div class="mgroffer__main">
                   ${renderPortrait(candidate, { size: 40 })}
                   <div>
@@ -1654,13 +1667,13 @@ function renderMarket(banner = '') {
     document.querySelectorAll('[data-hire-manager]').forEach((btn) => {
       btn.onclick = () => {
         const candidate = currentState.managerOffer.find((m) => m.id === btn.dataset.hireManager);
-        if (candidate) hireManager(candidate);
+        if (candidate) hireManager(candidate, document.querySelector(`[data-row="mgr-${candidate.id}"]`));
       };
     });
     document.querySelectorAll('[data-hire-staff]').forEach((btn) => {
       btn.onclick = () => {
         const [role, level] = btn.dataset.hireStaff.split(':');
-        hireStaff(role, level);
+        hireStaff(role, level, document.querySelector(`[data-row="staff-${role}-${level}"]`));
       };
     });
   }
