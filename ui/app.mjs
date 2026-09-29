@@ -63,11 +63,14 @@ function staggerContracts(squad) {
   return squad.map((p) => ({ ...p, contractYearsLeft: Math.random() < 0.5 ? 1 : 2 }));
 }
 
+const BENCH_SIZE = 5;
+
 // formationId의 슬롯 순서대로 최고 OVR을 채운다. 포지션이 맞는 선수가 없으면
 // 남은 최고 OVR로 대타를 세우고 offPosition으로 표시한다(화면에서 금색 점).
 // manualOverrides(슬롯 인덱스 -> 선수 id)로 고정한 자리는 자동 선발이 건드리지
-// 않는다 - 유저가 전술 탭에서 직접 배치한 선수다.
-function pickBestXI(squad, formationId = DEFAULT_FORMATION, manualOverrides = {}) {
+// 않는다 - 유저가 전술 탭에서 직접 배치한 선수다. benchOverrides도 같은 방식
+// (벤치 슬롯 0~4 -> 선수 id)으로 벤치 구성도 직접 고를 수 있다.
+function pickBestXI(squad, formationId = DEFAULT_FORMATION, manualOverrides = {}, benchOverrides = {}) {
   const { slots } = FORMATIONS[formationId] ?? FORMATIONS[DEFAULT_FORMATION];
   const pool = [...squad];
   const used = new Set();
@@ -92,11 +95,22 @@ function pickBestXI(squad, formationId = DEFAULT_FORMATION, manualOverrides = {}
     used.add(pick.id);
     return { ...pick, slotPosition: pos, offPosition: pick.position !== pos };
   });
-  const bench = pool
-    .filter((p) => !used.has(p.id))
-    .sort((a, b) => b.baseOVR - a.baseOVR)
-    .slice(0, 5)
+
+  const forcedBench = {};
+  for (const [idxStr, playerId] of Object.entries(benchOverrides)) {
+    const idx = Number(idxStr);
+    if (idx < 0 || idx >= BENCH_SIZE) continue;
+    const player = pool.find((p) => p.id === playerId && !used.has(p.id));
+    if (player) {
+      forcedBench[idx] = player;
+      used.add(player.id);
+    }
+  }
+  const leftover = pool.filter((p) => !used.has(p.id)).sort((a, b) => b.baseOVR - a.baseOVR);
+  const bench = Array.from({ length: BENCH_SIZE }, (_, i) => forcedBench[i] ?? leftover.shift())
+    .filter(Boolean)
     .map((p) => ({ ...p, inBench: true }));
+
   return { lineup: lineup.filter(Boolean), slotted: lineup, bench };
 }
 
@@ -477,6 +491,7 @@ function startRun(club) {
     seasonNumber: 1,
     formation: DEFAULT_FORMATION,
     manualOverrides: {},
+    benchOverrides: {},
     selectedSlot: null,
     tab: 'draft',
     week: SUMMER_MARKET_WEEKS[0],
@@ -841,7 +856,7 @@ function runFirstHalf(saleMessage = '') {
     saleMessage = saleMessage ? `${saleMessage} / 계약 만료로 이탈: ${names}` : `계약 만료로 이탈: ${names}`;
   }
 
-  const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides);
+  const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   currentState.firstHalfPoints = runHalfSeason(
     lineup,
     bench,
@@ -926,7 +941,7 @@ const RESULT_LABELS = { champion: '우승권!', promotion: '승격권', safe: '�
 
 function runSecondHalfAndFinish(saleMessage = '') {
   const { manager } = currentState;
-  const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides);
+  const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   const secondHalf = runHalfSeason(
     lineup,
     bench,
@@ -1115,6 +1130,7 @@ function renderDestinationChoice(seasonResult, nextTierId) {
       // 이상에서 강등이 거의 확정이었다). 적응도도 새 팀이므로 기본값으로 돌린다.
       currentState.squad = staggerContracts(generateSquadPool(MOVE_SQUAD_WEIGHTS_BY_TIER[nextTierId]).map(toSquadPlayer));
       currentState.manualOverrides = {}; // 스쿼드가 통째로 바뀌니 예전 수동 배치는 의미가 없다
+      currentState.benchOverrides = {};
       // 스쿼드에서 사라진 GOD 카드는 다시 상점에 나올 수 있게 되돌린다.
       // 안 그러면 이미 영입한 GOD이 선수단에서도 사라지고 이번 런에서 영영 못 본다.
       currentState.availableGodPlayers = GOD_PLAYERS.filter(
@@ -1264,11 +1280,16 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
 // 전술 탭에서 칸을 선택했을 때 그 자리에 넣을 선수를 고르는 목록.
 // 포지션이 맞는 선수를 위로 올리고, 이미 선발인 선수도 옮길 수 있게 그대로 둔다
 // (다른 자리로 옮기면 원래 자리는 자동 배치로 돌아간다).
-function renderSlotPicker(squad, formationId, selectedSlot, inXI) {
+// selectedSlot은 피치 자리(숫자 인덱스)거나 벤치 자리("bench-0"~"bench-4")다 -
+// 벤치도 선발 라인업과 똑같이 선수 목록에서 직접 고를 수 있게 같은 피커를 쓴다.
+// 벤치는 고정 포지션이 없어서 포지션 일치 정렬/강조가 없다.
+function renderSlotPicker(squad, formationId, selectedSlot, inXI, benchIds) {
   if (selectedSlot === null || selectedSlot === undefined) return '';
-  const pos = FORMATIONS[formationId].slots[selectedSlot];
+  const isBench = typeof selectedSlot === 'string' && selectedSlot.startsWith('bench-');
+  const pos = isBench ? null : FORMATIONS[formationId].slots[selectedSlot];
   const rows = [...squad]
     .sort((a, b) => {
+      if (!pos) return b.baseOVR - a.baseOVR;
       const matchDiff = (b.position === pos ? 1 : 0) - (a.position === pos ? 1 : 0);
       return matchDiff || b.baseOVR - a.baseOVR;
     })
@@ -1277,13 +1298,13 @@ function renderSlotPicker(squad, formationId, selectedSlot, inXI) {
         ${renderPortrait(p, { size: 30 })}
         <span class="pickrow__name">${esc(p.name)}</span>
         <span class="pickrow__pos">${p.position}</span>
-        ${inXI.has(p.id) ? '<span class="tag">선발중</span>' : ''}
+        ${inXI.has(p.id) ? '<span class="tag">선발중</span>' : benchIds.has(p.id) ? '<span class="tag">벤치중</span>' : ''}
         ${playerTagsHtml(p)}
         <b class="pickrow__ovr n">${p.baseOVR}</b>
       </li>`)
     .join('');
   return `<div class="panel picker">
-    <div class="panel__head"><h2>${pos} 자리에 넣을 선수</h2></div>
+    <div class="panel__head"><h2>${isBench ? '벤치' : pos} 자리에 넣을 선수</h2></div>
     <ul class="pickrows">${rows}</ul>
   </div>`;
 }
@@ -1397,7 +1418,8 @@ function renderMarket(banner = '') {
   const formationId = currentFormation();
   const tab = TABS.some((t) => t.id === currentState.tab) ? currentState.tab : 'draft';
   const manualOverrides = currentState.manualOverrides ?? {};
-  const { lineup, slotted, bench } = pickBestXI(squad, formationId, manualOverrides);
+  const benchOverrides = currentState.benchOverrides ?? {};
+  const { lineup, slotted, bench } = pickBestXI(squad, formationId, manualOverrides, benchOverrides);
   const inXI = new Set(lineup.map((p) => p.id));
 
   // 스트립은 시너지가 반영된 최종 OVR로 계산한다. 포메이션을 바꿨을 때
@@ -1555,7 +1577,7 @@ function renderMarket(banner = '') {
           <div class="formations">
             ${Object.keys(FORMATIONS).map((id) => `<button data-formation="${id}" aria-pressed="${id === formationId}">${id}</button>`).join('')}
           </div>
-          <button class="reroll" id="reset-lineup-btn" ${Object.keys(manualOverrides).length ? '' : 'disabled'}>오버롤 순 자동 배치</button>
+          <button class="reroll" id="reset-lineup-btn" ${Object.keys(manualOverrides).length || Object.keys(benchOverrides).length ? '' : 'disabled'}>오버롤 순 자동 배치</button>
         </div>
         <div class="tactics__manager" style="--tier:var(--${MANAGER_TIER_COLOR[manager.tier] ?? 't-local'})">
           ${renderPortrait(manager, { size: 40 })}
@@ -1567,13 +1589,13 @@ function renderMarket(banner = '') {
         ${renderPitch(slotted, formationId, club.kit, { interactive: true, selectedSlot: currentState.selectedSlot, finalOVR })}
         <div class="benchstrip">
           <span class="benchstrip__label">벤치</span>
-          ${bench.map((p) => `<div class="benchchip" data-bench-player="${p.id}" title="${esc(p.name)} · 탭하면 같은 포지션의 약한 자리에 투입">
+          ${bench.map((p, i) => `<div class="benchchip${currentState.selectedSlot === `bench-${i}` ? ' is-selected' : ''}" data-bench-slot="${i}" title="${esc(p.name)}">
             ${renderPortrait(p, { size: 28, kit: club.kit })}
             <span class="benchchip__pos">${p.position}</span>
             <b class="benchchip__ovr n">${p.baseOVR}</b>
           </div>`).join('')}
         </div>
-        ${renderSlotPicker(squad, formationId, currentState.selectedSlot, inXI)}
+        ${renderSlotPicker(squad, formationId, currentState.selectedSlot, inXI, new Set(bench.map((p) => p.id)))}
         <p class="note">칸을 눌러 넣을 선수를 고르세요. 포메이션을 바꾸면 슬롯 구성이 바뀌어 플레이스타일 시너지 발동 조건이 달라집니다.</p>
       </section>
       ${renderChemistryPanel(lineup, bench)}`,
@@ -1738,53 +1760,43 @@ function renderMarket(banner = '') {
         renderMarket(banner);
       };
     });
+    document.querySelectorAll('[data-bench-slot]').forEach((el) => {
+      el.onclick = () => {
+        const key = `bench-${el.dataset.benchSlot}`;
+        currentState.selectedSlot = currentState.selectedSlot === key ? null : key;
+        renderMarket(banner);
+      };
+    });
     document.querySelectorAll('[data-pick-slot]').forEach((el) => {
       el.onclick = () => {
-        const idx = Number(el.dataset.pickSlot);
+        const slotKey = el.dataset.pickSlot;
         const playerId = el.dataset.pickPlayer;
-        const next = { ...(currentState.manualOverrides ?? {}) };
-        // 이 선수가 이미 다른 칸에 고정돼 있었다면 그 칸은 비운다(자동 배치로 되돌림)
-        for (const key of Object.keys(next)) {
-          if (next[key] === playerId) delete next[key];
+        // 이 선수가 이미 다른 칸(선발이든 벤치든)에 고정돼 있었다면 그 칸은
+        // 비운다(자동 배치로 되돌림) - 한 선수가 두 자리를 동시에 차지할 수 없다.
+        const nextManual = { ...(currentState.manualOverrides ?? {}) };
+        const nextBench = { ...(currentState.benchOverrides ?? {}) };
+        for (const key of Object.keys(nextManual)) {
+          if (nextManual[key] === playerId) delete nextManual[key];
         }
-        next[idx] = playerId;
-        currentState.manualOverrides = next;
+        for (const key of Object.keys(nextBench)) {
+          if (nextBench[key] === playerId) delete nextBench[key];
+        }
+        if (slotKey.startsWith('bench-')) {
+          nextBench[slotKey.slice(6)] = playerId;
+        } else {
+          nextManual[slotKey] = playerId;
+        }
+        currentState.manualOverrides = nextManual;
+        currentState.benchOverrides = nextBench;
         currentState.selectedSlot = null;
         renderMarket(banner);
       };
     });
     document.getElementById('reset-lineup-btn')?.addEventListener('click', () => {
       currentState.manualOverrides = {};
+      currentState.benchOverrides = {};
       currentState.selectedSlot = null;
       renderMarket(banner);
-    });
-    // 벤치 자원도 한 탭으로 투입 - 같은 포지션 슬롯 중 지금 가장 약한(또는 빈)
-    // 자리를 찾아 거기에 넣는다. 그 포지션 슬롯이 이 포메이션에 아예 없으면
-    // (예: 4-3-3에 AMF 없음) 넣을 자리가 없으니 아무 일도 하지 않는다.
-    document.querySelectorAll('[data-bench-player]').forEach((el) => {
-      el.onclick = () => {
-        const playerId = el.dataset.benchPlayer;
-        const player = squad.find((p) => p.id === playerId);
-        if (!player) return;
-        const candidateIdxs = FORMATIONS[formationId].slots
-          .map((pos, i) => (pos === player.position ? i : -1))
-          .filter((i) => i !== -1);
-        if (!candidateIdxs.length) return;
-        let idx = candidateIdxs[0];
-        let lowest = slotted[idx]?.baseOVR ?? -1;
-        for (const i of candidateIdxs) {
-          const cur = slotted[i]?.baseOVR ?? -1;
-          if (cur < lowest) { lowest = cur; idx = i; }
-        }
-        const next = { ...(currentState.manualOverrides ?? {}) };
-        for (const key of Object.keys(next)) {
-          if (next[key] === playerId) delete next[key];
-        }
-        next[idx] = playerId;
-        currentState.manualOverrides = next;
-        currentState.selectedSlot = null;
-        renderMarket(banner);
-      };
     });
     document.querySelectorAll('[data-chem-desc]').forEach((el) => {
       el.addEventListener('click', () => {

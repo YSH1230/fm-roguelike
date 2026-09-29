@@ -596,6 +596,7 @@ button:not(:disabled):active { transform: scale(0.98); }
   cursor: pointer;
 }
 .benchchip:active { transform: scale(0.94); }
+.benchchip.is-selected { outline: 2px solid var(--turf); border-radius: var(--r-md); }
 .benchchip__pos { color: var(--muted-dim); }
 .benchchip__ovr { font-size: var(--fs-label); color: var(--light); }
 
