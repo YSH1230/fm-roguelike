@@ -468,7 +468,7 @@ function startRun(club) {
     freshBudget: false,
     pendingTransferProceeds: 0,
   };
-  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
+  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
   currentState.managerOffer = generateManagerOffer(3);
   currentState.staffOffer = generateStaffOffer();
   renderCareerIntro();
@@ -588,7 +588,7 @@ function startNewSeason() {
     seasonsAtClub: (p.seasonsAtClub ?? 0) + 1,
     contractYearsLeft: Math.max(0, (p.contractYearsLeft ?? 2) - 1),
   }));
-  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
+  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
   currentState.managerOffer = generateManagerOffer(3);
   currentState.staffOffer = generateStaffOffer();
 
@@ -691,7 +691,7 @@ function rerollShop() {
   const cost = rerollCost();
   if (currentState.funds < cost) return;
   currentState.funds -= cost;
-  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
+  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
   renderMarket();
 }
 
@@ -746,7 +746,7 @@ function nextWeek() {
     runSecondHalfAndFinish(saleMessage);
     return;
   }
-  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
+  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
   currentState.managerOffer = generateManagerOffer(3);
   currentState.staffOffer = generateStaffOffer();
   renderMarket(saleMessage);
@@ -833,7 +833,7 @@ function enterWinterMarket() {
   const { manager } = currentState;
   currentState.phase = 'winter';
   currentState.week = WINTER_MARKET_WEEKS[0];
-  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers);
+  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
   currentState.managerOffer = generateManagerOffer(3);
   currentState.staffOffer = generateStaffOffer();
 
