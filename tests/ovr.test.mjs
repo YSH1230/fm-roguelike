@@ -86,19 +86,19 @@ test('플레이스타일 시너지: 3명이면 tier3 값, 대상 포지션 보�
     makePlayer({ id: 'd', position: 'GK', playstyleTags: [] }),
   ];
   const bonuses = computePlaystyleSynergyBonus(lineup);
-  assert.equal(bonuses.get('a'), 4);
-  assert.equal(bonuses.get('b'), 4);
-  assert.equal(bonuses.get('c'), 4);
+  assert.equal(bonuses.get('a'), 6);
+  assert.equal(bonuses.get('b'), 6);
+  assert.equal(bonuses.get('c'), 6);
   assert.equal(bonuses.get('d') ?? 0, 0);
 });
 
 test('플레이스타일 시너지: 4명은 3명 값, 6명은 5명 값(계단식, 상한 5)', () => {
   const makeTagged = (id) => makePlayer({ id, position: 'ST', playstyleTags: ['gegenpressing'] });
   const lineup4 = ['a', 'b', 'c', 'd'].map(makeTagged);
-  assert.equal(computePlaystyleSynergyBonus(lineup4).get('a'), 4); // tier3 값 유지
+  assert.equal(computePlaystyleSynergyBonus(lineup4).get('a'), 6); // tier3 값 유지
 
   const lineup6 = ['a', 'b', 'c', 'd', 'e', 'f'].map(makeTagged);
-  assert.equal(computePlaystyleSynergyBonus(lineup6).get('a'), 7); // tier5 값 상한
+  assert.equal(computePlaystyleSynergyBonus(lineup6).get('a'), 10); // tier5 값 상한
 });
 
 test('대륙 시너지: 3명이면 tier3, 다국어 구사자(같은 권역)면 2명으로 감면', () => {
@@ -111,8 +111,8 @@ test('대륙 시너지: 3명이면 tier3, 다국어 구사자(같은 권역)면 
     p('b'),
   ]; // 2명 + 다국어 구사자 → 요구 2명 충족 → tier3 발동
   const bonuses = computeContinentSynergyBonus(lineupWithPolyglot);
-  assert.equal(bonuses.get('a'), 3);
-  assert.equal(bonuses.get('b'), 3);
+  assert.equal(bonuses.get('a'), 5);
+  assert.equal(bonuses.get('b'), 5);
 });
 
 test('다국어 구사자는 본인이 그 권역 소속이 아니면 감면을 주지 않는다', () => {
@@ -139,8 +139,8 @@ test('computePlayerFinalOVR은 baseOVR에 모든 가산을 합산한다', () => 
   const teammate1 = makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] });
   const teammate2 = makePlayer({ id: 'c', position: 'CMF', playstyleTags: ['gegenpressing'] });
   const lineup = [player, teammate1, teammate2];
-  // 70 (base) + 4 (저니맨) + 4 (게겐프레싱 3명 시너지) = 78
-  assert.equal(computePlayerFinalOVR(player, lineup, []), 78);
+  // 70 (base) + 4 (저니맨) + 6 (게겐프레싱 3명 시너지) = 80
+  assert.equal(computePlayerFinalOVR(player, lineup, []), 80);
 });
 
 test('전술 원리주의자(boostedTagId)는 해당 태그의 요구 인원을 1명 감면한다', () => {
@@ -151,8 +151,8 @@ test('전술 원리주의자(boostedTagId)는 해당 태그의 요구 인원을 
   assert.equal(computePlaystyleSynergyBonus(lineup).get('a') ?? 0, 0);
 
   const boosted = computePlaystyleSynergyBonus(lineup, 'gegenpressing');
-  assert.equal(boosted.get('a'), 4); // 감면으로 tier3 발동
-  assert.equal(boosted.get('b'), 4);
+  assert.equal(boosted.get('a'), 6); // 감면으로 tier3 발동
+  assert.equal(boosted.get('b'), 6);
 });
 
 test('boostedTagId는 지정한 태그에만 적용되고 다른 태그는 그대로다', () => {

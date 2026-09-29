@@ -500,7 +500,11 @@ let currentState = null;
 function startRun(club) {
   const baseFunds = Math.round(calculateStartingFunds(0) * club.startingFundsMultiplier);
   const rawSquad = staggerContracts(generateStartingSquad().map(toSquadPlayer));
-  const manager = generateProceduralManager('tactician');
+  // 시작 감독은 루키(배율 ×1.00) - 예전엔 택티션(×1.05)이라 시작하자마자
+  // 공짜 보너스가 붙어서, 시장을 한 번도 안 만져도(12주 내내 "다음 주로"만
+  // 눌러도) 5부에서 77%가 잔류했다(직접 실측). "바닥에서 시작한다"는
+  // 오프닝 서사와도 루키 쪽이 더 맞는다.
+  const manager = generateProceduralManager('rookie');
   const staff = assignRandomStaff();
 
   // 초기 정비기(Week 1~3) 이벤트: 자금·스쿼드가 바뀔 수 있다.

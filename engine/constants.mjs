@@ -1,22 +1,28 @@
-// 스펙 5.1절 "플레이스타일 태그 8종" 표
+// 스펙 5.1절 "플레이스타일 태그 8종" 표.
+// 보너스를 기존값보다 크게 올렸다(11-A 밸런스 패치) - 자동 배치(OVR 최고
+// 순 자동 선발)가 항상 이겨서 수동으로 태그를 맞출 이유가 없었다. 이
+// 값들은 tools/tune-ladder.mjs의 시뮬레이션 봇이 태그를 전혀 안 보고
+// OVR로만 사는 "방치 플레이" 기준선이라, 여기를 올려도 그 시뮬레이터
+// 수치(리그 튜닝값)는 안 흔들린다 - 직접 태그를 맞추는 사람만 득을 본다.
 export const PLAYSTYLE_TAGS = {
-  gegenpressing: { positions: ['ST', 'CMF'], tier3: 4, tier5: 7 },
-  falseNine: { positions: ['W', 'AMF'], tier3: 4, tier5: 7 },
-  longBallKickAndRush: { positions: ['ST', 'AMF'], tier3: 4, tier5: 7 },
-  tikiTaka: { positions: ['CMF', 'AMF'], tier3: 3, tier5: 5 },
-  totalFootball: { positions: ['WB', 'CMF'], tier3: 3, tier5: 6 },
-  falseFullBack: { positions: ['WB', 'CB'], tier3: 3, tier5: 5 }, // 변형 3백
-  buildUpFromBack: { positions: ['CB', 'GK'], tier3: 2, tier5: 4 }, // 후방 빌드업
-  counterAttack: { positions: ['W', 'ST'], tier3: 2, tier5: 4 }, // 선수비 후역습
+  gegenpressing: { positions: ['ST', 'CMF'], tier3: 6, tier5: 10 },
+  falseNine: { positions: ['W', 'AMF'], tier3: 6, tier5: 10 },
+  longBallKickAndRush: { positions: ['ST', 'AMF'], tier3: 6, tier5: 10 },
+  tikiTaka: { positions: ['CMF', 'AMF'], tier3: 5, tier5: 8 },
+  totalFootball: { positions: ['WB', 'CMF'], tier3: 5, tier5: 9 },
+  falseFullBack: { positions: ['WB', 'CB'], tier3: 5, tier5: 8 }, // 변형 3백
+  buildUpFromBack: { positions: ['CB', 'GK'], tier3: 4, tier5: 6 }, // 후방 빌드업
+  counterAttack: { positions: ['W', 'ST'], tier3: 4, tier5: 6 }, // 선수비 후역습
 };
 
-// 스펙 5.1절 "대륙 태그 5종" 표 — 포지션 무관, 5개 권역 동일 수치
+// 스펙 5.1절 "대륙 태그 5종" 표 — 포지션 무관, 5개 권역 동일 수치.
+// 위 플레이스타일과 같은 이유로 상향(3/5 → 5/8).
 export const CONTINENT_TAGS = {
-  europe: { tier3: 3, tier5: 5 },
-  southAmerica: { tier3: 3, tier5: 5 },
-  africa: { tier3: 3, tier5: 5 },
-  asiaOceania: { tier3: 3, tier5: 5 },
-  northCentralAmerica: { tier3: 3, tier5: 5 },
+  europe: { tier3: 5, tier5: 8 },
+  southAmerica: { tier3: 5, tier5: 8 },
+  africa: { tier3: 5, tier5: 8 },
+  asiaOceania: { tier3: 5, tier5: 8 },
+  northCentralAmerica: { tier3: 5, tier5: 8 },
 };
 
 // 스펙 5.2절 "배율" — 루키/택티션/레전더리/GOD

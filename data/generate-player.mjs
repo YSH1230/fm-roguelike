@@ -109,6 +109,13 @@ function buildStartingPositionPlan(rng) {
   return positions;
 }
 
+// local 등급 상한(62)을 시작 스쿼드에 그대로 쓰면, 포지션마다 여러 명 중
+// 최고 OVR을 고르는 베스트11 구조상(순서통계) 평균이 리그 평균(tier5 50~58)
+// 위로 쉽게 올라간다 - 실측해보니 시장을 한 번도 안 써도(12주 내내 "다음
+// 주로"만) 5부 잔류율이 77%였다(11-A 밸런스 패치). 시작 스쿼드만 상한을
+// 낮춰서(56) 이 여유를 줄인다 - 상점 매물의 local 등급(50~62)은 안 건드린다.
+const STARTING_SQUAD_MAX_OVR = 56;
+
 // 5부 시작 스쿼드: 전원 local 등급(TIER5_SQUAD_WEIGHTS와 같은 이유), 20명,
 // 포지션은 위 바닥값을 보장한 뒤 나머지를 무작위로 채운다.
 export function generateStartingSquad(rng = Math.random) {
@@ -122,6 +129,9 @@ export function generateStartingSquad(rng = Math.random) {
       tries += 1;
     } while (usedNames.has(player.name) && tries < 50);
     usedNames.add(player.name);
+    if (player.baseOVR > STARTING_SQUAD_MAX_OVR) {
+      player = { ...player, baseOVR: STARTING_SQUAD_MAX_OVR, price: calculatePlayerPrice('local', STARTING_SQUAD_MAX_OVR) };
+    }
     return player;
   });
 }
