@@ -7,7 +7,7 @@ import { generateManagerOffer } from '../data/manager-shop.mjs';
 import { GOD_PLAYERS } from '../data/god-players.mjs';
 import { rollPreseasonEvent } from '../data/run-preseason-event.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
-import { getLeagueTier, getLadderIndex, getNextTier } from '../engine/league.mjs';
+import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
 import { judgeRunOutcome, nextMissedTargetCount, computeReputation } from '../engine/run.mjs';
 import { simulateChampionsLeague, UCL_RESULT_LABELS, UCL_REWARDS_FUNDS } from '../engine/champions-league.mjs';
 import { runHalfSeason, judgeSeasonResult, advanceWeek } from '../engine/season.mjs';
@@ -478,6 +478,16 @@ function startRun(club) {
 // 이번 시즌 목표(승점 게이지)와 시즌이 어떤 순서로 흘러가는지를 한 번은
 // 보여주고 시작한다 - 이후 시즌은 이미 아는 내용이라 안 보여준다(시즌 종료
 // 화면에서 바로 startNewSeason으로 넘어감, 여기로 안 옴).
+// 지금 전력 그대로면 시즌 끝에 몇 점일지 - 팀 전력(65~95대 스쿼드 품질 점수)을
+// 승점 눈금 위에 그대로 얹으면 단위가 다른 두 숫자가 우연히 겹쳐 보일 뿐이라,
+// 엔진이 실제로 쓰는 변환식으로 승점 단위로 바꿔서 눈금과 같은 축에 놓는다.
+const ZONE_VERDICT = {
+  champion: '지금 전력이면 우승권입니다.',
+  promotion: '지금 전력이면 승격권입니다.',
+  safe: '지금 전력이면 안전권입니다.',
+  relegation: '지금 전력으로는 강등권입니다.',
+};
+
 function renderCareerIntro() {
   const { club, manager, squad } = currentState;
   const tier = effectiveTier(currentState.leagueTierId);
@@ -485,6 +495,12 @@ function renderCareerIntro() {
   const at = (v) => `${Math.min(100, (v / scale) * 100)}%`;
   const { lineup, bench } = pickBestXI(squad, currentFormation());
   const teamPower = computeTeamPower(lineup, bench, manager.tier, currentState.chemistry);
+  const leagueAverageOVR = (tier.averageOVR[0] + tier.averageOVR[1]) / 2;
+  const projectedPoints = convertPowerToPoints(teamPower, leagueAverageOVR);
+  const zone = projectedPoints >= tier.championPoints ? 'champion'
+    : projectedPoints >= tier.targetPoints ? 'promotion'
+    : projectedPoints >= tier.safePoints ? 'safe'
+    : 'relegation';
 
   setScreen(`
     <button class="backlink" id="back-to-clubs-btn">← 뒤로</button>
@@ -494,7 +510,7 @@ function renderCareerIntro() {
       <p class="note" style="text-align:center">${tier.label} 감독으로 취임합니다. 12주 여름 이적시장으로 시즌이 시작됩니다.</p>
       ${club.demand ? `<p class="note" style="text-align:center;color:var(--gold)">${esc(club.demand)}</p>` : ''}
       <div class="pointbar">
-        <div class="pointbar__fill" style="width:${at(teamPower)}"></div>
+        <div class="pointbar__fill" style="width:${at(projectedPoints)}"></div>
         <div class="pointbar__mark" style="left:${at(tier.safePoints)}"></div>
         <div class="pointbar__mark" style="left:${at(tier.targetPoints)}"></div>
         <div class="pointbar__mark" style="left:${at(tier.championPoints)}"></div>
@@ -507,6 +523,7 @@ function renderCareerIntro() {
     </div>
     <div class="panel">
       <div class="panel__head"><h2>이번 시즌 목표</h2></div>
+      <p class="note" style="color:${zone === 'relegation' ? 'var(--debit)' : 'var(--turf)'}"><b>${ZONE_VERDICT[zone]}</b> (지금 스쿼드 그대로면 예상 승점 ${projectedPoints.toFixed(0)}점)</p>
       <ul class="summary">
         <li><span>안전권</span><b>${tier.safePoints}점</b></li>
         <li><span>승격권</span><b>${tier.targetPoints}점</b></li>
@@ -514,6 +531,7 @@ function renderCareerIntro() {
         <li><span>시작 팀 전력</span><b>${teamPower.toFixed(1)}</b></li>
       </ul>
       <p class="note">승점은 전/후반기 합산입니다. 안전권을 넘기지 못하면 해임, 목표를 3시즌 연속 못 넘기면 경질됩니다.</p>
+      ${club.weakness ? `<p class="note">약점: ${esc(club.weakness)}. 이 약점을 염두에 두고 시즌을 준비하세요.</p>` : ''}
     </div>
     <div class="panel">
       <div class="panel__head"><h2>감독</h2></div>
