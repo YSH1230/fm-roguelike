@@ -756,6 +756,18 @@ function boostedTagIdFor(manager) {
   return manager.trait === 'tacticalPurist' ? manager.tacticalTag : null;
 }
 
+// 플레이스타일 태그 진행도(고정 3명/5명 문턱, 전술 원리주의자면 1명 감면).
+// 상점 카드와 전술 탭 팀 케미 패널이 똑같은 계산을 쓴다.
+function playstyleTagProgress(tagId, lineup, boostedTagId) {
+  const count = lineup.filter((p) => p.playstyleTags.includes(tagId)).length;
+  const boost = tagId === boostedTagId ? 1 : 0;
+  const req3 = 3 - boost;
+  const req5 = 5 - boost;
+  const tier = count >= req5 ? 2 : count >= req3 ? 1 : 0;
+  const need = tier === 0 ? req3 : req5;
+  return { count, need, tier };
+}
+
 function runFirstHalf(saleMessage = '') {
   const { manager } = currentState;
 
@@ -1231,12 +1243,10 @@ function renderChemistryPanel(lineup, squad) {
 
   const playstyleRows = Object.entries(PLAYSTYLE_TAGS)
     .map(([tagId, def]) => {
-      const count = lineup.filter((p) => p.playstyleTags.includes(tagId)).length;
+      const { count, need, tier } = playstyleTagProgress(tagId, lineup, boostedTagId);
       const boost = tagId === boostedTagId ? 1 : 0;
       const req3 = 3 - boost;
       const req5 = 5 - boost;
-      const tier = count >= req5 ? 2 : count >= req3 ? 1 : 0;
-      const need = tier === 0 ? req3 : req5;
       const desc = `해당 포지션 선수 기준 · ${req3}명 이상 OVR +${def.tier3}, ${req5}명 이상 OVR +${def.tier5}`
         + (boost ? ' (전술 원리주의자로 요구 인원 1명 감면)' : '');
       return { tagId, label: TAG_LABELS[tagId] ?? tagId, desc, count, need, tier };
@@ -1332,7 +1342,6 @@ function renderMarket(banner = '') {
     return members.reduce((sum, p) => sum + finalOVR.get(p.id), 0) / members.length;
   };
   const teamPower = computeTeamPower(lineup, bench, manager.tier, chemistry);
-  const baseAvg = lineup.reduce((t, p) => t + p.baseOVR, 0) / lineup.length;
 
   const weekStart = phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0];
   const dots = Array.from({ length: maxWeek - weekStart + 1 }, (_, i) => {
@@ -1347,11 +1356,14 @@ function renderMarket(banner = '') {
     const price = cardPrice(c);
     const affordable = funds >= price;
     const tier = tierOf(c.baseOVR);
-    // 이 카드를 사면 베스트11 평균이 얼마나 오르는지. 살지 말지의 실제 근거
-    const after = pickBestXI([...squad, toSquadPlayer(c)], formationId, manualOverrides);
-    const gain = after.lineup.reduce((t, p) => t + p.baseOVR, 0) / after.lineup.length - baseAvg;
+    // 정답(팀 +X.X 델타)은 안 주고 재료만 준다 - 태그 옆에 지금 라인업이
+    // 몇 명째인지만 보여주고, "그래서 사야 하는지"는 유저가 판단한다.
+    const boostedTagId = boostedTagIdFor(manager);
     const tags = [
-      ...c.playstyleTags.map((t) => `<span class="tag">${TAG_LABELS[t] ?? t}</span>`),
+      ...c.playstyleTags.map((t) => {
+        const { count, need } = playstyleTagProgress(t, lineup, boostedTagId);
+        return `<span class="tag">${TAG_LABELS[t] ?? t} <b class="tag__progress">${count}/${need}</b></span>`;
+      }),
       c.specialTrait ? `<span class="tag tag--trait">${TRAIT_LABELS[c.specialTrait] ?? c.specialTrait}</span>` : '',
     ].join('');
     return `<li class="offer" data-row="${c.id}" style="--tier:var(--t-${tier})">
@@ -1367,7 +1379,6 @@ function renderMarket(banner = '') {
         </div>
         <div class="offer__figures">
           <span class="offer__ovr n">${c.baseOVR}</span>
-          <span class="offer__delta ${gain >= 0.05 ? 'is-up' : 'is-flat'}">${gain >= 0.05 ? `팀 +${gain.toFixed(1)}` : '전력 변화 없음'}</span>
           <span class="offer__price n${affordable ? '' : ' is-over'}">${price}<i>G</i></span>
         </div>
         <div class="tags">${tags}</div>
