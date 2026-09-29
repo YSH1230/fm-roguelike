@@ -255,16 +255,34 @@ const MANAGER_TIER_MULTIPLIER_TEXT = {
   rookie: '팀 전력 배율 ×1.00', tactician: '팀 전력 배율 ×1.05',
   legendary: '팀 전력 배율 ×1.12', god: '팀 전력 배율 ×1.20',
 };
-// 전술 태그는 그 자체로는 장식이다 - 화술의 달인/전술 원리주의자 감독일
-// 때만 실제 효과가 생긴다. 그 사실을 감독 설명에 항상 붙여준다.
+// 여름 이적시장이 끝나는 시점(전반기 시작 직전)의 라인업으로 딱 한 번 체크한다.
+// 감독의 전술 태그 케미가 그때 안 켜져 있으면 "선호하는 선수단을 못 꾸렸다"는
+// 뜻이라 불화, 켜져 있으면 전술이 자리잡았다는 뜻이라 보너스 - 새 수치 체계
+// 없이 이미 있는 적응도(케미스트리)를 그대로 밀고 올린다.
+const MANAGER_HARMONY_PENALTY = 15;
+const MANAGER_HARMONY_BONUS = 10;
+function applyManagerTacticalHarmony(lineup) {
+  const { manager } = currentState;
+  const { tier } = playstyleTagProgress(manager.tacticalTag, lineup, boostedTagIdFor(manager));
+  const tagLabel = TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag;
+  if (tier === 0) {
+    currentState.chemistry = Math.max(0, currentState.chemistry - MANAGER_HARMONY_PENALTY);
+    return `감독과의 불화: ${manager.name} 감독이 선호하는 전술(${tagLabel})에 맞는 선수단을 못 꾸렸습니다. 적응도 -${MANAGER_HARMONY_PENALTY}`;
+  }
+  currentState.chemistry = Math.min(100, currentState.chemistry + MANAGER_HARMONY_BONUS);
+  return `전술 완성: ${manager.name} 감독이 선호하는 전술(${tagLabel})이 라인업에서 발동했습니다. 적응도 +${MANAGER_HARMONY_BONUS}`;
+}
+
+// 전술 태그는 위 시즌 시작 체크(불화/전술 완성)로 모든 감독에게 항상 의미가
+// 있다. 화술의 달인/전술 원리주의자는 그 위에 추가 효과가 붙는다.
 function managerTacticalTagNote(manager) {
   if (manager.trait === 'silverTongue') {
-    return `이 태그(또는 대륙) 카드 영입비 -30%`;
+    return `시즌 시작 체크 외에 이 태그(또는 대륙) 카드 영입비 -30%`;
   }
   if (manager.trait === 'tacticalPurist') {
-    return `이 태그 케미 발동 요구 인원 1명 감면`;
+    return `시즌 시작 체크 외에 이 태그 케미 발동 요구 인원 1명 감면`;
   }
-  return `화술의 달인/전술 원리주의자 감독일 때만 효과 있음(지금은 장식)`;
+  return `시즌 시작(여름 시장 마감) 때 이 태그 케미가 안 켜져 있으면 불화, 켜져 있으면 보너스`;
 }
 
 // 선수단/전술 탭에서 선수 태그(플레이스타일·대륙)를 한눈에 보여준다.
@@ -941,6 +959,9 @@ function runFirstHalf(saleMessage = '') {
   }
 
   const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const harmonyMsg = applyManagerTacticalHarmony(lineup);
+  saleMessage = saleMessage ? `${saleMessage} / ${harmonyMsg}` : harmonyMsg;
+
   currentState.firstHalfPoints = runHalfSeason(
     lineup,
     bench,
