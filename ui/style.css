@@ -464,6 +464,13 @@ button:not(:disabled):active { transform: scale(0.98); }
 .pickrow__ovr { font-size: var(--fs-m); min-width: 22px; text-align: right; }
 
 .note { margin: var(--s2) 0 0; font-size: var(--fs-label); color: var(--muted); }
+.note--warn {
+  color: var(--debit);
+  background: rgba(226, 86, 77, 0.12);
+  border: 1px solid rgba(226, 86, 77, 0.35);
+  border-radius: var(--r-md);
+  padding: var(--s2) var(--s3);
+}
 .note b { color: var(--gold); font-weight: 600; }
 
 /* ============ 드래프트 상점 ============ */

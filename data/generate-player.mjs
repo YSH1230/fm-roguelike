@@ -74,6 +74,27 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
   };
 }
 
+// 포메이션에 필요한 포지션인데 스쿼드에 그 포지션 선수가 한 명도 없을 때
+// 긴급으로 콜업하는 유스. 무료(0G, 사고파는 카드가 아니라 아카데미 소집이라
+// 가격 개념이 없음)에, 나이 어린 로컬 등급으로 고정하고 성골 유스로 표시한다.
+export function generateEmergencyYouth(position, rng = Math.random) {
+  const continentTag = pick(Object.keys(CONTINENT_TAGS), rng);
+  const name = randomName(continentTag, rng);
+  const tier = PLAYER_TIERS.local;
+  return {
+    id: `youth${String(nextId++).padStart(4, '0')}`,
+    name,
+    baseOVR: randomInt(tier.minOVR, tier.minOVR + 6, rng),
+    price: 0,
+    age: randomInt(17, 20, rng),
+    position,
+    playstyleTags: pickN(Object.keys(PLAYSTYLE_TAGS), tier.playstyleTagCount, rng),
+    continentTag,
+    specialTrait: 'seongGolYouth',
+    isDraftedYouth: true,
+  };
+}
+
 // 시작 스쿼드 20명의 포지션 최소치. 4개 포메이션(ui/formations.mjs) 중
 // 어느 걸 골라도 그 포메이션이 요구하는 최대치를 항상 채우게 잡은 바닥값
 // (GK1·CB3·WB2·CMF3·AMF1·W2·ST2, 합 14) - 이 이하로는 강제 오프포지션이

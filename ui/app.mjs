@@ -1,6 +1,6 @@
 import { CLUBS, buildTierClubOffers, buildLeagueRivals } from '../data/clubs.mjs';
 import { saveRun, loadRun, clearRun, withRunDefaults } from '../data/local-save.mjs';
-import { generateSquadPool, generateStartingSquad, MOVE_SQUAD_WEIGHTS_BY_TIER } from '../data/generate-player.mjs';
+import { generateSquadPool, generateStartingSquad, generateEmergencyYouth, MOVE_SQUAD_WEIGHTS_BY_TIER } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
 import { assignRandomStaff, generateStaffOffer, generateStaffCandidate } from '../data/staff.mjs';
 import { generateManagerOffer } from '../data/manager-shop.mjs';
@@ -62,6 +62,24 @@ function toSquadPlayer(card) {
 // 아니라 "전원을 다시 살지"가 돼버린다 - 절반은 1년, 절반은 2년으로 미리 흩어둔다.
 function staggerContracts(squad) {
   return squad.map((p) => ({ ...p, contractYearsLeft: Math.random() < 0.5 ? 1 : 2 }));
+}
+
+// 지금 포메이션이 요구하는 포지션 중 스쿼드에 아예 없는 것들(계약 만료·방출로
+// 다 빠져나간 경우). 전술 탭에 경고를 미리 띄울 때와 실제로 채울 때 둘 다 쓴다.
+function missingPositions(squad, formationId) {
+  const needed = [...new Set(FORMATIONS[formationId].slots)];
+  return needed.filter((pos) => !squad.some((p) => p.position === pos));
+}
+
+// 포지션 공백을 오프포지션 대타로 억지로 메우는 대신 유스를 긴급 콜업한다.
+// 시즌 시뮬레이션 직전(runFirstHalf/runSecondHalfAndFinish)에 호출해서
+// 실제로 경기를 뛰기 전에 자리를 채운다.
+function ensurePositionCoverage() {
+  const missing = missingPositions(currentState.squad, currentFormation());
+  if (!missing.length) return [];
+  const callUps = missing.map((pos) => toSquadPlayer(generateEmergencyYouth(pos)));
+  currentState.squad = [...currentState.squad, ...callUps];
+  return callUps.map((p) => `${p.name}(${p.position})`);
 }
 
 const BENCH_SIZE = 5;
@@ -912,6 +930,12 @@ function runFirstHalf(saleMessage = '') {
     saleMessage = saleMessage ? `${saleMessage} / 계약 만료로 이탈: ${names}` : `계약 만료로 이탈: ${names}`;
   }
 
+  const callUps = ensurePositionCoverage();
+  if (callUps.length) {
+    const msg = `포지션 공백으로 유스 긴급 콜업: ${callUps.join(', ')}`;
+    saleMessage = saleMessage ? `${saleMessage} / ${msg}` : msg;
+  }
+
   const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   currentState.firstHalfPoints = runHalfSeason(
     lineup,
@@ -1001,6 +1025,11 @@ const FINAL_RESULT_LABELS = { champion: '우승', promotion: '승격', safe: '�
 
 function runSecondHalfAndFinish(saleMessage = '') {
   const { manager } = currentState;
+  const callUps = ensurePositionCoverage();
+  if (callUps.length) {
+    const msg = `포지션 공백으로 유스 긴급 콜업: ${callUps.join(', ')}`;
+    saleMessage = saleMessage ? `${saleMessage} / ${msg}` : msg;
+  }
   const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   const secondHalf = runHalfSeason(
     lineup,
@@ -1663,6 +1692,12 @@ function renderMarket(banner = '') {
           </div>
           <button class="reroll" id="reset-lineup-btn" ${Object.keys(manualOverrides).length || Object.keys(benchOverrides).length ? '' : 'disabled'}>오버롤 순 자동 배치</button>
         </div>
+        ${(() => {
+          const missing = missingPositions(squad, formationId);
+          return missing.length
+            ? `<p class="note note--warn">⚠ 포지션 공백: ${missing.join('·')} 자리에 선수가 없습니다. 시즌을 시작하면 유스가 긴급 콜업됩니다 - 이적시장에서 미리 보강하세요.</p>`
+            : '';
+        })()}
         <div class="tactics__manager" style="--tier:var(--${MANAGER_TIER_COLOR[manager.tier] ?? 't-local'})">
           ${renderPortrait(manager, { size: 40 })}
           <div>
