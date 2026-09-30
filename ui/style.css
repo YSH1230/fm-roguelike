@@ -436,9 +436,7 @@ button:not(:disabled):active { transform: scale(0.98); }
   border: 1px solid var(--night);
 }
 /* 피파4 팀컬러: 케미 보너스를 받고 있는 선수만 카드 테두리가 밝아진다 */
-.slot.is-boosted .slot__card { border-color: var(--turf); box-shadow: 0 0 0 1px var(--turf); }
-.slot.is-boosted-strong .slot__card { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
-.slot.is-boosted-strong .slot__ovr { background: var(--gold); }
+/* 카드 테두리는 등급 색 그대로 둔다 - 케미 상승은 +N 배지(.slot__boost)로만 알린다 */
 
 .pitch--interactive .slot { cursor: pointer; }
 .pitch--interactive .slot:hover .slot__card { border-color: var(--turf); }
@@ -1103,7 +1101,7 @@ button:not(:disabled):active { transform: scale(0.98); }
 .eventmodal p.eventmodal__detail:last-of-type { margin-bottom: var(--s6); }
 
 /* 이사진 요구 카드 */
-.demandcards { display: grid; gap: var(--s2); margin: var(--s3) 0; }
+.demandcards { display: grid; gap: var(--s2); margin: var(--s3) var(--s4); }
 .demandcard {
   display: grid; gap: 2px; text-align: left; width: 100%;
   padding: var(--s3); border-radius: var(--r-md);
@@ -1131,8 +1129,10 @@ button:not(:disabled):active { transform: scale(0.98); }
 
 /* 선수 행: 평소엔 정보만, 눌러서 관리 버튼을 펼친다 */
 .squad .player { cursor: pointer; }
-.squad .player .player__actions { display: none; grid-column: 1 / -1; justify-content: flex-end; flex-wrap: wrap; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--line-soft); }
+.squad .player:not(.player--contract) .player__actions { display: none; grid-column: 1 / -1; justify-content: flex-end; flex-wrap: wrap; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--line-soft); }
 .squad .player.is-open .player__actions { display: flex; }
+.squad .player.player--contract { cursor: default; }
+.tab__count--warn { background: var(--gold); color: var(--night); }
 .player__renew { display: inline-flex; align-items: center; gap: 4px; margin-right: auto; }
 .player__renew em { font-style: normal; font-size: var(--fs-micro); color: var(--muted); margin-right: 2px; }
 .player__actions .release { background: none; border-color: transparent; padding: 4px 6px; color: var(--muted); }

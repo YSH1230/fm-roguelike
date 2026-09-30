@@ -52,3 +52,15 @@ export function optimizeLineup(squad, slots, benchSize, boostedTagId = null) {
   }
   return { xi, bench: benchOf(xi) };
 }
+
+// 슬롯 목록 중 스쿼드로 채울 수 없는 자리의 포지션(부족 인원만큼 반복해서 나온다).
+// 예: CB 슬롯 2개에 CB 1명이면 ['CB'] 하나.
+export function missingSlots(squad, slots) {
+  const have = {};
+  for (const p of squad) have[p.position] = (have[p.position] ?? 0) + 1;
+  return slots.filter((pos) => {
+    const n = have[pos] ?? 0;
+    have[pos] = n - 1;
+    return n <= 0;
+  });
+}

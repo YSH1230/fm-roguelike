@@ -9,8 +9,8 @@ export const DEMAND_CARDS = [
     check: (s) => s.lineup.filter((p) => p.isDraftedYouth).length >= 1 },
   { id: 'chem50', difficulty: 'easy', tags: ['stable'], text: '시즌 종료 때 적응도 50 이상',
     check: (s) => s.chemistry >= 50 },
-  { id: 'spend80', difficulty: 'easy', tags: ['spend'], text: '영입 지출을 시즌 자금의 80% 이하로',
-    check: (s) => s.track.spent <= s.grant * 0.8 },
+  { id: 'age28', difficulty: 'easy', tags: ['age'], text: '선발 평균 나이 28세 이하',
+    check: (s) => avg(s.lineup, (p) => p.age) <= 28 },
 
   { id: 'youth3', difficulty: 'normal', tags: ['youth'], text: '선발 중 유스 출신 3명 이상',
     check: (s) => s.lineup.filter((p) => p.isDraftedYouth).length >= 3 },
@@ -18,13 +18,15 @@ export const DEMAND_CARDS = [
     check: (s) => avg(s.lineup, (p) => p.age) <= 26 },
   { id: 'winter2', difficulty: 'normal', tags: ['stable'], text: '겨울 시장 거래 2건 이하',
     check: (s) => s.track.winterTransactions <= 2 },
+  { id: 'spend60', difficulty: 'normal', tags: ['spend'], text: '선수 영입에 쓴 돈을 시즌 지급 자금의 60% 이하로 (40%는 남기기)',
+    check: (s) => s.track.spent <= s.grant * 0.6 },
 
   { id: 'age24', difficulty: 'hard', tags: ['age'], text: '선발 평균 나이 24세 이하',
     check: (s) => avg(s.lineup, (p) => p.age) <= 24 },
   { id: 'pace', difficulty: 'hard', tags: ['pace'], text: '전반기 승점이 목표 페이스 이상',
     check: (s) => s.firstHalfPoints >= s.goal / 2 },
-  { id: 'spend50', difficulty: 'hard', tags: ['spend'], text: '영입 지출을 시즌 자금의 50% 이하로',
-    check: (s) => s.track.spent <= s.grant * 0.5 },
+  { id: 'spend40', difficulty: 'hard', tags: ['spend'], text: '선수 영입에 쓴 돈을 시즌 지급 자금의 40% 이하로 (60%는 남기기)',
+    check: (s) => s.track.spent <= s.grant * 0.4 },
 ];
 
 export const DIFFICULTIES = ['easy', 'normal', 'hard'];

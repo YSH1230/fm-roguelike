@@ -34,3 +34,10 @@ test('그 포지션 선수가 없으면 대타 없이 공석으로 둔다', () =
   const { xi } = optimizeLineup(squad, SLOTS, 0);
   assert.deepEqual(xi.map((p) => p?.id ?? null), ['gk', 'cb1', null, null, null, null, 's1']);
 });
+
+test('missingSlots: 아예 없는 포지션과 수가 모자란 포지션을 모두 센다', async () => {
+  const { missingSlots } = await import('../engine/lineup.mjs');
+  const squad = [mk('cb1', 'CB', 60), mk('s1', 'ST', 60)];
+  assert.deepEqual(missingSlots(squad, ['GK', 'CB', 'CB', 'ST']), ['GK', 'CB']);
+  assert.deepEqual(missingSlots(squad, ['CB', 'ST']), []);
+});

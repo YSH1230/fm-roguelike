@@ -88,9 +88,9 @@ export function generateEmergencyYouth(position, rng = Math.random) {
     price: 0,
     age: randomInt(17, 20, rng),
     position,
-    playstyleTags: pickN(Object.keys(PLAYSTYLE_TAGS), tier.playstyleTagCount, rng),
-    continentTag,
-    specialTrait: 'seongGolYouth',
+    playstyleTags: [], // 긴급 콜업은 태그·특수 성향이 아무것도 없는 무명 유스
+    continentTag: null,
+    specialTrait: null,
     isDraftedYouth: true,
   };
 }
