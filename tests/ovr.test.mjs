@@ -7,6 +7,8 @@ import {
   computeContinentSynergyBonus,
   computePlayerFinalOVR,
   computePlayerBonusBreakdown,
+  autoRoles,
+  resolveRoles,
 } from '../engine/ovr.mjs';
 
 function makePlayer(overrides = {}) {
@@ -26,9 +28,9 @@ function makePlayer(overrides = {}) {
   };
 }
 
-test('성골 유스는 드래프트 유스 출신이면 본인 +5', () => {
+test('성골 유스는 드래프트 유스 출신이면 본인 +10', () => {
   const p = makePlayer({ specialTrait: 'seongGolYouth', isDraftedYouth: true });
-  assert.equal(computeSelfTraitBonus(p), 5);
+  assert.equal(computeSelfTraitBonus(p), 10);
 });
 
 test('성골 유스는 임시 유스(드래프트 아님)면 가산 없음', () => {
@@ -36,21 +38,21 @@ test('성골 유스는 임시 유스(드래프트 아님)면 가산 없음', () 
   assert.equal(computeSelfTraitBonus(p), 0);
 });
 
-test('홈타운 영웅은 잔류 시즌당 +3, 상한 +9', () => {
+test('홈타운 영웅은 잔류 시즌당 +4, 상한 +12', () => {
   assert.equal(
     computeSelfTraitBonus(makePlayer({ specialTrait: 'hometownHero', seasonsAtClub: 1 })),
-    3
+    4
   );
   assert.equal(
     computeSelfTraitBonus(makePlayer({ specialTrait: 'hometownHero', seasonsAtClub: 5 })),
-    9
+    12
   );
 });
 
-test('저니맨은 이번 시즌 영입이면 본인 +6', () => {
+test('저니맨은 이번 시즌 영입이면 본인 +8', () => {
   assert.equal(
     computeSelfTraitBonus(makePlayer({ specialTrait: 'journeyman', acquiredThisSeason: true })),
-    6
+    8
   );
   assert.equal(
     computeSelfTraitBonus(makePlayer({ specialTrait: 'journeyman', acquiredThisSeason: false })),
@@ -151,8 +153,8 @@ test('computePlayerFinalOVR은 baseOVR에 모든 가산을 합산한다', () => 
   const teammate1 = makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] });
   const teammate2 = makePlayer({ id: 'c', position: 'CMF', playstyleTags: ['gegenpressing'] });
   const lineup = [player, teammate1, teammate2];
-  // 70 (base) + 6 (저니맨) + 6 (게겐프레싱 3명 시너지) = 82
-  assert.equal(computePlayerFinalOVR(player, lineup, []), 82);
+  // 70 (base) + 8 (저니맨, 에이스 슬롯 자동 배정) + 6 (게겐프레싱 3명 시너지) = 84
+  assert.equal(computePlayerFinalOVR(player, lineup, []), 84);
 });
 
 test('전술 원리주의자(boostedTagId)는 해당 태그의 요구 인원을 1명 감면한다', () => {
@@ -186,4 +188,66 @@ test('출처별 상승 내역의 합은 최종 OVR - baseOVR과 같다', () => {
   const sum = parts.reduce((s, x) => s + x.value, 0);
   assert.equal(sum, computePlayerFinalOVR(lineup[0], lineup, []) - 60);
   assert.deepEqual(parts.map((x) => x.id).sort(), ['europe', 'tikiTaka', 'veteranLeader']);
+});
+
+// ---- 역할 슬롯 ----
+const T = (id, trait, extra = {}) => makePlayer({ id, specialTrait: trait, ...extra });
+
+test('에이스 슬롯: 후보가 여럿이면 라인업 OVR을 가장 크게 올리는 한 명만 발동한다', () => {
+  const star = T('star', 'starPower');
+  const journey = T('journey', 'journeyman', { acquiredThisSeason: true });
+  const lineup = [star, journey, makePlayer({ id: 'x' })];
+  const roles = autoRoles(lineup, []);
+  assert.equal(roles.ace, 'star'); // +10 > +8
+  assert.equal(computePlayerFinalOVR(star, lineup, [], null, roles), star.baseOVR + 10);
+  assert.equal(computePlayerFinalOVR(journey, lineup, [], null, roles), journey.baseOVR); // 밀린 태그는 0
+});
+
+test('슬롯 밖(벤치의 에이스 후보/선발의 조커 후보)은 배정되지 않는다', () => {
+  const star = T('star', 'starPower');
+  const sub = T('sub', 'superSub');
+  const roles = autoRoles([makePlayer({ id: 'x' }), sub], [star]);
+  assert.equal(roles.ace, null);
+  assert.equal(roles.joker, null);
+});
+
+test('조커 슬롯: 벤치 슈퍼 서브 한 명이 선발 전원 +3(중첩 없음)', () => {
+  const lineup = [makePlayer({ id: 'a' }), makePlayer({ id: 'b' })];
+  const bench = [T('s1', 'superSub'), T('s2', 'superSub')];
+  const roles = autoRoles(lineup, bench);
+  assert.ok(roles.joker);
+  assert.equal(computePlayerFinalOVR(lineup[0], lineup, bench, null, roles), lineup[0].baseOVR + 3);
+});
+
+test('베테랑 리더는 주장 슬롯이어야 어린 선수를 올린다', () => {
+  const leader = T('leader', 'veteranLeader', { age: 34 });
+  const young = makePlayer({ id: 'young', age: 20 });
+  const lineup = [leader, young];
+  assert.equal(computePlayerFinalOVR(young, lineup, [], null, { captain: null, ace: null, joker: null }), young.baseOVR);
+  assert.equal(computePlayerFinalOVR(young, lineup, [], null, { captain: 'leader', ace: null, joker: null }), young.baseOVR + 3);
+});
+
+test('폴리글롯 대가: 주장으로 뛰는 본인은 대륙 케미를 받지 못한다', () => {
+  const poly = T('poly', 'polyglot', { continentTag: 'europe' });
+  const mate = makePlayer({ id: 'mate', continentTag: 'europe' });
+  const lineup = [poly, mate]; // 유럽 2명 + 폴리글롯 감면으로 3명 문턱(요구 2명) 충족
+  const withRole = { captain: 'poly', ace: null, joker: null };
+  assert.equal(computePlayerFinalOVR(mate, lineup, [], null, withRole), mate.baseOVR + 3);
+  assert.equal(computePlayerFinalOVR(poly, lineup, [], null, withRole), poly.baseOVR); // 본인은 못 받음
+});
+
+test('자동 배정이 오히려 손해면(폴리글롯이 혼자 있을 때) 슬롯을 비워 둔다', () => {
+  const poly = T('poly', 'polyglot', { continentTag: 'europe' });
+  // 유럽 5명이라 폴리글롯 없이도 최고 단계 → 주장에 세우면 본인만 보너스를 잃는다
+  const lineup = [poly, ...['a', 'b', 'c', 'd'].map((id) => makePlayer({ id, continentTag: 'europe' }))];
+  assert.equal(autoRoles(lineup, []).captain, null);
+});
+
+test('resolveRoles: 유저 지정이 자동을 덮고, none은 비우고, 자격 없는 지정은 무시한다', () => {
+  const star = T('star', 'starPower');
+  const journey = T('journey', 'journeyman', { acquiredThisSeason: true });
+  const lineup = [star, journey, makePlayer({ id: 'x' })];
+  assert.equal(resolveRoles({ ace: 'journey' }, lineup, []).ace, 'journey');
+  assert.equal(resolveRoles({ ace: 'none' }, lineup, []).ace, null);
+  assert.equal(resolveRoles({ ace: 'x' }, lineup, []).ace, 'star'); // x는 에이스 태그가 없다 → 자동값
 });

@@ -1,4 +1,4 @@
-import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, SPECIAL_TRAITS } from '../engine/constants.mjs';
+import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, SPECIAL_TRAITS, TRAIT_PRICE_MULT } from '../engine/constants.mjs';
 import { calculatePlayerPrice } from '../engine/economy.mjs';
 import { pick, randomName } from './name-pools.mjs';
 
@@ -58,13 +58,13 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
   // 베테랑 리더는 33세 이상에서만 발동하므로(engine/ovr.mjs), 어린 선수에게는
   // 뽑히지 않게 후보에서 뺀다 — 안 그러면 평생 효과 없는 카드가 생긴다.
   const eligibleTraits = age >= 33 ? SPECIAL_TRAITS : SPECIAL_TRAITS.filter((t) => t !== 'veteranLeader');
-  const specialTrait = rng() < 0.3 ? pick(eligibleTraits, rng) : null;
+  const specialTrait = rng() < 0.2 ? pick(eligibleTraits, rng) : null;
 
   return {
     id: `p${String(nextId++).padStart(4, '0')}`,
     name,
     baseOVR,
-    price: calculatePlayerPrice(tierId, baseOVR),
+    price: Math.round(calculatePlayerPrice(tierId, baseOVR) * (TRAIT_PRICE_MULT[specialTrait] ?? 1)),
     age,
     position: position ?? pick(POSITIONS, rng),
     playstyleTags: pickN(Object.keys(PLAYSTYLE_TAGS), tier.playstyleTagCount, rng),

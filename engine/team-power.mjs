@@ -1,13 +1,14 @@
-import { computePlayerFinalOVR } from './ovr.mjs';
+import { computePlayerFinalOVR, autoRoles } from './ovr.mjs';
 import { chemistryMultiplier, clamp } from './chemistry.mjs';
 import {
   MANAGER_TIER_MULTIPLIER, TEAM_MULTIPLIER_CAP, POWER_VARIANCE_RATIO,
   COACH_POWER_MULTIPLIER, LEAGUE_EXPECTED_MANAGER,
 } from './constants.mjs';
 
-export function computeAverageOVR(lineup, bench, boostedTagId = null) {
+export function computeAverageOVR(lineup, bench, boostedTagId = null, roles = undefined) {
+  const r = roles === undefined ? autoRoles(lineup, bench, boostedTagId) : roles; // 한 번만 구해서 전원에게 쓴다
   const total = lineup.reduce(
-    (sum, player) => sum + computePlayerFinalOVR(player, lineup, bench, boostedTagId),
+    (sum, player) => sum + computePlayerFinalOVR(player, lineup, bench, boostedTagId, r),
     0
   );
   return total / lineup.length;
@@ -23,7 +24,7 @@ export function computeTeamMultiplier(managerTier, chemistry, extras = {}) {
 }
 
 export function computeTeamPower(lineup, bench, managerTier, chemistry, boostedTagId = null, extras = {}) {
-  return computeAverageOVR(lineup, bench, boostedTagId) * computeTeamMultiplier(managerTier, chemistry, extras);
+  return computeAverageOVR(lineup, bench, boostedTagId, extras.roles) * computeTeamMultiplier(managerTier, chemistry, extras);
 }
 
 export function applyVariance(power, varianceRatio = POWER_VARIANCE_RATIO, randomFn = Math.random) {
