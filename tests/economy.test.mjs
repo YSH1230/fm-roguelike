@@ -20,9 +20,9 @@ test('가산 할인/할증은 합산 후 한 번만 적용되고 -60%~+80%로 �
   assert.equal(applyCostModifiers(100, [-1.0, -1.0]), 40); // -60% 하한 클램프
 });
 
-test('재계약 비용은 1년 30%, 2년 60%다', () => {
+test('재계약 비용은 1년 30%, 2년 50%다(2년이 연당 더 싸다)', () => {
   assert.equal(renewalCost(1000, 1), 300);
-  assert.equal(renewalCost(1000, 2), 600);
+  assert.equal(renewalCost(1000, 2), 500);
 });
 
 test('방출 회수: 즉시 0%, 데드라인 40%', () => {

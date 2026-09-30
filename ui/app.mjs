@@ -1773,6 +1773,7 @@ function renderMarket(banner = '') {
         ${playerTagsHtml(p)}
       </div>
       <div class="player__actions" data-actions="${p.id}">
+        ${yearsLeft === 1 ? [1, 2].map((y) => `<button class="renew" data-renew="${p.id}" data-years="${y}" ${funds >= renewalCost(p.price, y) ? '' : 'disabled'} title="계약이 끝나기 전에 미리 붙잡습니다">${y}년<b>${renewalCost(p.price, y)}G</b></button>`).join('') : ''}
         <button class="release" data-release-immediate="${p.id}" title="회수 0%, ${decayLabel}">즉시 방출</button>
         <button class="release" data-release-listed="${p.id}" ${winterBlocked ? 'disabled title="당해 영입 선수는 겨울 이적명단에 올릴 수 없습니다"' : 'title="1주 뒤 정산"'}>판매 등록</button>
         ${isDeadlineWeek ? `<button class="release release--deadline" data-release-deadline="${p.id}" title="원가의 40% 회수">데드라인 방출</button>` : ''}
@@ -2186,8 +2187,10 @@ function renderMarket(banner = '') {
         const cost = renewalCost(player.price, years);
         if (currentState.funds < cost) return;
         currentState.funds -= cost;
-        currentState.squad = currentState.squad.map((p) => p.id === id ? { ...p, contractYearsLeft: years } : p);
-        renderMarket(`${player.name} 재계약 완료(${years}년, ${cost}G)`);
+        // 만료 전 미리 재계약하면 남은 계약에 이어 붙는다(0년 남았으면 그냥 years).
+        const total = Math.max(0, player.contractYearsLeft ?? 2) + years;
+        currentState.squad = currentState.squad.map((p) => p.id === id ? { ...p, contractYearsLeft: total } : p);
+        renderMarket(`${player.name} 재계약 완료(+${years}년 → 계약 ${total}년, ${cost}G)`);
       };
     });
   }
