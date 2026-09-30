@@ -1,4 +1,4 @@
-import { CLUBS, buildTierClubOffers, buildLeagueRivals } from '../data/clubs.mjs';
+import { buildStartClubOffers, buildTierClubOffers, buildLeagueRivals } from '../data/clubs.mjs';
 import { saveRun, loadRun, clearRun, withRunDefaults } from '../data/local-save.mjs';
 import { generateSquadPool, generateStartingSquad, generateEmergencyYouth, MOVE_SQUAD_WEIGHTS_BY_TIER } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
@@ -473,6 +473,7 @@ function renderTutorialFlow() {
 }
 
 function renderClubButtons() {
+  const clubs = buildStartClubOffers(); // 강·중·약 구단이 런마다 다르게 뽑힌다
   const saved = loadRun(localStorage);
   const resume = saved
     ? `<button class="club club--resume" id="resume-btn" style="--kit:${saved.club.kit ?? '#dda63a'}">
@@ -491,8 +492,8 @@ function renderClubButtons() {
       <p class="start__sub">5부 리그 감독으로 시작합니다. 12주 동안 선수를 사고 팔아 한 시즌을 버티세요.</p>
       <div class="clubs">
         ${resume}
-        ${CLUBS.map((club) => {
-          const rankTag = club.expectationModifier > 0 ? '탑독' : club.expectationModifier < 0 ? '언더독' : '중위권';
+        ${clubs.map((club) => {
+          const rankTag = `${club.klassLabel} · ${club.colorLabel}`;
           return `
           <button class="club" data-club="${club.id}" style="--kit:${club.kit}">
             ${renderCrest(club, { size: 40 })}
@@ -513,7 +514,7 @@ function renderClubButtons() {
     currentState = withRunDefaults(saved, DEFAULT_FORMATION); // 구버전 세이브 호환
     renderMarket();
   });
-  for (const club of CLUBS) {
+  for (const club of clubs) {
     document.querySelector(`[data-club="${club.id}"]`).onclick = () => startRun(club);
   }
 }
@@ -1315,7 +1316,7 @@ function renderDestinationChoice(seasonResult, nextTierId) {
             ${renderCrest(c, { size: 32 })}
             <div>
               <div class="option__name">${esc(c.name)}</div>
-              <div class="option__effect"><span class="option__tier">${nextLabel}</span> ${esc(c.strength)}. 선수단 <b>초기화</b>, 시작 자금 x${c.startingFundsMultiplier}</div>
+              <div class="option__effect"><span class="option__tier">${nextLabel}</span> ${c.klassLabel} · ${c.colorLabel}: ${esc(c.strength)}. 선수단 <b>초기화</b>, 시작 자금 x${c.startingFundsMultiplier}</div>
             </div>
           </button>`).join('')}
       </div>
@@ -1337,7 +1338,7 @@ function renderDestinationChoice(seasonResult, nextTierId) {
   for (const c of offers) {
     document.querySelector(`[data-move="${c.id}"]`).onclick = () => {
       currentState.club = c;
-      currentState.expectationModifier = 0; // 새 구단은 이사진 성향 정보가 없다 - 중립으로 리셋
+      currentState.expectationModifier = c.expectationModifier ?? 0; // 새 구단의 유형(강/중/약)이 이사진 기대치를 정한다
       currentState.leagueTierId = nextTierId;
       if (getLadderIndex(nextTierId) > getLadderIndex(currentState.highestTierId)) {
         currentState.highestTierId = nextTierId;
