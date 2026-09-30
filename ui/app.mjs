@@ -37,6 +37,7 @@ import {
   SUMMER_MARKET_WEEKS,
   WINTER_MARKET_WEEKS,
   WINTER_TAX_RATIO,
+  WINTER_FUNDS_RATIO,
   PROMOTION_CHEMISTRY_BONUS,
   PROMOTION_FUNDS_BONUS_RATIO,
   COACH_CHEMISTRY_DECAY_BY_LEVEL,
@@ -1013,7 +1014,14 @@ function enterWinterMarket() {
   currentState.managerOffer = generateManagerOffer(3);
   currentState.staffOffer = generateStaffOffer();
 
-  let banner = `겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%)..`;
+  // 겨울 지원금: 여름에 쓴 돈이 바닥나도 후반기 보강이 가능하게 시즌 지급액의
+  // 일부를 얹는다(이월 상한과 무관한 별도 지급).
+  const winterGrant = Math.round(
+    calculateStartingFunds(getLadderIndex(currentState.leagueTierId))
+      * currentState.club.startingFundsMultiplier * WINTER_FUNDS_RATIO
+  );
+  currentState.funds += winterGrant;
+  let banner = `겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%). 겨울 지원금 +${winterGrant}G.`;
 
   // 소방수: 안전선은 넘었지만 목표선(승격)에는 못 미치는 페이스면 겨울 진입 시 적응도 +30
   const tier = effectiveTier(currentState.leagueTierId);

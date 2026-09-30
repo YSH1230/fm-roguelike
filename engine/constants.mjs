@@ -130,6 +130,7 @@ export const STAFF_PRICE_TABLE = {
 export const COST_MODIFIER_CLAMP_MIN = -0.6; // 할인/할증 가산 합계 하한
 export const COST_MODIFIER_CLAMP_MAX = 0.8; // 할인/할증 가산 합계 상한
 export const WINTER_TAX_RATIO = 0.2; // 겨울 시장 영입비 +20%
+export const WINTER_FUNDS_RATIO = 0.3; // 겨울 시장 진입 시 그 리그 시즌 지급액의 30%를 추가 지급
 
 export const CONTRACT_RENEWAL_RATIO = { 1: 0.3, 2: 0.6 }; // 재계약 연장 연수 → 원가 비율
 
