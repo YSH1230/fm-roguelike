@@ -7,6 +7,7 @@ import { applyTransactionDecay } from '../engine/chemistry.mjs';
 import { computeAverageOVR } from '../engine/team-power.mjs';
 import { applyCostModifiers, calculateStartingFunds, applyCarryoverCap } from '../engine/economy.mjs';
 import { LEAGUE_LADDER, getLeagueTier, getLadderIndex } from '../engine/league.mjs';
+import { optimizeLineup } from '../engine/lineup.mjs';
 import {
   CHEMISTRY_START, CHEMISTRY_DECAY_PER_TRANSACTION, WINTER_TAX_RATIO, SHOP_OFFER_SIZE,
   PROMOTION_STAY_FUNDS_RATIO,
@@ -38,6 +39,23 @@ function pickBestXI(squad) {
 
 const toSquad = (c) => ({ ...c, seasonsAtClub: 0, acquiredThisSeason: true, inBench: false });
 
+// --tags: 시즌을 치를 때만 태그/역할까지 최적화한 라인업을 쓰는 "케미를 아는 플레이어".
+// (영입 판단은 기존 탐욕 방식 그대로라, 태그를 노리고 사 모으는 플레이까지는 아니다 - 그 하한선이다.)
+// --focus: 덧붙여 "한 가지 플레이스타일 태그를 노리고 모으는 플레이어" - 스쿼드에서 가장 흔한
+// 태그를 목표로 잡고, 그 태그 카드는 조금 손해(OVR 평균 -0.35 이내)여도 사 모은다.
+const FOCUS = process.argv.includes('--focus');
+const TAGS = process.argv.includes('--tags') || FOCUS;
+function topTag(squad) {
+  const count = {};
+  for (const p of squad) for (const t of p.playstyleTags ?? []) count[t] = (count[t] ?? 0) + 1;
+  return Object.entries(count).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+function seasonXI(squad) {
+  if (!TAGS) return pickBestXI(squad);
+  const { xi, bench } = optimizeLineup(squad, SLOTS, 5);
+  return { lineup: xi.filter(Boolean), bench: bench.map((p) => ({ ...p, inBench: true })) };
+}
+
 // 해당 리그에 갓 승격한 팀을 근사한다: 아래 리그에서 시즌 수만큼 스쿼드를 키운 상태.
 // 자금은 게임(ui/app.mjs grantSeasonFunds)과 같은 규칙을 쓴다: 매 시즌 지급 +
 // 이월(상한 = 지급액의 30%). carried가 있으면 승격해서 온 시즌이므로 승격 보너스도 붙는다.
@@ -50,21 +68,26 @@ function playSeason(tierId, carried) {
   let funds = grant + Math.round(applyCarryoverCap(carried ? carried.funds : 0, grant));
   let chem = CHEMISTRY_START;
   let firstHalf = null;
+  const focusTag = FOCUS ? topTag(squad) : null;
 
   for (const phase of ['summer', 'winter']) {
     for (let w = 0; w < (phase === 'summer' ? 8 : 4); w++) {
-      for (const card of generateShopOffer(SHOP_OFFER_SIZE, [], Math.random, tierId).sort((a, b) => b.baseOVR - a.baseOVR)) {
+      const offers = generateShopOffer(SHOP_OFFER_SIZE, [], Math.random, tierId)
+        .sort((a, b) => (focusTag ? (b.playstyleTags.includes(focusTag) - a.playstyleTags.includes(focusTag)) : 0) || b.baseOVR - a.baseOVR);
+      for (const card of offers) {
         const price = applyCostModifiers(card.price, phase === 'winter' ? [WINTER_TAX_RATIO] : []);
         if (funds < price) continue;
         const before = pickBestXI(squad);
         const after = pickBestXI([...squad, toSquad(card)]);
-        if (computeAverageOVR(after.lineup, after.bench) <= computeAverageOVR(before.lineup, before.bench)) continue;
+        const gain = computeAverageOVR(after.lineup, after.bench) - computeAverageOVR(before.lineup, before.bench);
+        const tolerance = focusTag && card.playstyleTags.includes(focusTag) ? -0.35 : 0;
+        if (gain <= tolerance) continue;
         funds -= price;
         squad = [...squad, toSquad(card)];
         chem = applyTransactionDecay(chem, 1, CHEMISTRY_DECAY_PER_TRANSACTION);
       }
     }
-    const { lineup, bench } = pickBestXI(squad);
+    const { lineup, bench } = seasonXI(squad);
     const pts = runHalfSeason(lineup, bench, BOT_MANAGER[tierId], chem, tierId, Math.random, null, BOT_COACH);
     if (phase === 'summer') firstHalf = pts;
     else return { points: firstHalf + pts, squad, funds };

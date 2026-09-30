@@ -210,7 +210,7 @@ const TRAIT_EFFECT_DESCRIPTIONS = {
   starPower: '본인 OVR +10',
   seongGolYouth: '유스 출신 본인 OVR +10',
   veteranLeader: '33세 이상이 주장이면 선발 23세 이하 전원 +3, 거래당 적응도 하락 −1',
-  superSub: '벤치 조커면 선발 전원 OVR +3',
+  superSub: '벤치 조커면 선발 전원 OVR +1',
   hometownHero: '뛴 시즌마다 본인 OVR +4 (최대 +12)',
   polyglot: '같은 대륙 케미 요구 인원 2명 감면(최소 2명)',
   journeyman: '이번 시즌 영입이면 본인 OVR +8',

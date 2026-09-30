@@ -211,12 +211,12 @@ test('슬롯 밖(벤치의 에이스 후보/선발의 조커 후보)은 배정�
   assert.equal(roles.joker, null);
 });
 
-test('조커 슬롯: 벤치 슈퍼 서브 한 명이 선발 전원 +3(중첩 없음)', () => {
+test('조커 슬롯: 벤치 슈퍼 서브 한 명이 선발 전원 +1(중첩 없음)', () => {
   const lineup = [makePlayer({ id: 'a' }), makePlayer({ id: 'b' })];
   const bench = [T('s1', 'superSub'), T('s2', 'superSub')];
   const roles = autoRoles(lineup, bench);
   assert.ok(roles.joker);
-  assert.equal(computePlayerFinalOVR(lineup[0], lineup, bench, null, roles), lineup[0].baseOVR + 3);
+  assert.equal(computePlayerFinalOVR(lineup[0], lineup, bench, null, roles), lineup[0].baseOVR + 1);
 });
 
 test('베테랑 리더는 주장 슬롯이어야 어린 선수를 올린다', () => {

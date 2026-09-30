@@ -41,7 +41,7 @@ export function computeTeamTraitBonuses(lineup, bench, roles = null) {
   // 조커 슬롯은 1명이라 중첩이 없다(roles가 null인 옛 계산에서만 벤치 전원이 발동).
   const jokers = bench.filter((p) => p.specialTrait === 'superSub' && assigned(roles, p));
   if (jokers.length > 0) {
-    const bonus = roles ? 3 : Math.min(jokers.length * 2, 4);
+    const bonus = roles ? 1 : Math.min(jokers.length * 2, 4);
     for (const p of lineup) addBonus(p.id, bonus);
   }
 
