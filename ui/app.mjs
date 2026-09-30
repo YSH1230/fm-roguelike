@@ -98,7 +98,8 @@ function pickBestXI(squad, formationId = DEFAULT_FORMATION, manualOverrides = {}
     const idx = Number(idxStr);
     if (!slots[idx]) continue;
     const player = pool.find((p) => p.id === playerId && !used.has(p.id));
-    if (player) {
+    // 본래 포지션 슬롯에만 고정 가능 - 예전 세이브의 다른 포지션 고정은 무시한다.
+    if (player && player.position === slots[idx]) {
       forced[idx] = player;
       used.add(player.id);
     }
@@ -1409,7 +1410,7 @@ function renderSlotPicker(squad, formationId, selectedSlot, inXI, benchIds) {
   if (selectedSlot === null || selectedSlot === undefined) return '';
   const isBench = typeof selectedSlot === 'string' && selectedSlot.startsWith('bench-');
   const pos = isBench ? null : FORMATIONS[formationId].slots[selectedSlot];
-  const reserves = squad.filter((p) => !inXI.has(p.id) && !benchIds.has(p.id));
+  const reserves = squad.filter((p) => !inXI.has(p.id) && !benchIds.has(p.id) && (!pos || p.position === pos));
   const rows = [...reserves]
     .sort((a, b) => {
       if (!pos) return b.baseOVR - a.baseOVR;
@@ -1769,7 +1770,7 @@ function renderMarket(banner = '') {
         </div>
         ${renderBonusDetail(slotted[currentState.selectedSlot], lineup, bench, boostedTagIdFor(manager))}
         ${renderSlotPicker(squad, formationId, currentState.selectedSlot, inXI, new Set(bench.map((p) => p.id)))}
-        <p class="note">칸을 눌러 넣을 선수를 고르세요. 포메이션을 바꾸면 슬롯 구성이 바뀌어 플레이스타일 시너지 발동 조건이 달라집니다.</p>
+        <p class="note">칸을 눌러 넣을 선수를 고르세요(선발 자리엔 그 포지션 선수만 설 수 있습니다). 포메이션을 바꾸면 슬롯 구성이 바뀌어 플레이스타일 시너지 발동 조건이 달라집니다.</p>
       </section>
       ${renderChemistryPanel(lineup, bench)}`,
     squad: `
@@ -1946,6 +1947,14 @@ function renderMarket(banner = '') {
       } else {
         const a = getOccupant(prev);
         const b = getOccupant(key);
+        // 선발 슬롯에는 그 슬롯 포지션의 선수만 설 수 있다(벤치는 제한 없음).
+        const slotPos = (k) => (typeof k === 'number' ? FORMATIONS[formationId].slots[k] : null);
+        const misfit = [[a, key], [b, prev]].find(([p, k]) => p && slotPos(k) && p.position !== slotPos(k));
+        if (misfit) {
+          currentState.selectedSlot = null;
+          renderMarket(`${misfit[0].name}은(는) ${misfit[0].position}이라 ${slotPos(misfit[1])} 자리에 설 수 없습니다.`);
+          return;
+        }
         const nextManual = { ...(currentState.manualOverrides ?? {}) };
         const nextBench = { ...(currentState.benchOverrides ?? {}) };
         if (a) setOccupant(key, a.id, nextManual, nextBench);
