@@ -5,7 +5,7 @@ import { generateProceduralManager } from '../data/generate-manager.mjs';
 import { assignRandomStaff, generateStaffOffer, generateStaffCandidate } from '../data/staff.mjs';
 import { generateManagerOffer } from '../data/manager-shop.mjs';
 import { GOD_PLAYERS } from '../data/god-players.mjs';
-import { rollPreseasonEvent } from '../data/run-preseason-event.mjs';
+import { rollSeasonEvent } from '../data/season-events.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
 import { judgeRunOutcome, nextMissedTargetCount, computeReputation } from '../engine/run.mjs';
@@ -530,18 +530,16 @@ function startRun(club) {
 
   // 초기 정비기(Week 1~3) 이벤트: 자금·스쿼드가 바뀔 수 있다.
   // 위기 관리형 감독은 위기 이벤트(FFP 긴급 감사)를 무효화한다.
-  const rolled = rollPreseasonEvent(rawSquad, baseFunds);
-  const eventIsCrisis = rolled.id === 'ffpAudit';
-  const crisisBlocked = manager.trait === 'crisisManager' && eventIsCrisis;
-  const funds = crisisBlocked ? baseFunds : rolled.funds;
-  const squad = crisisBlocked ? rawSquad : rolled.squad;
-  const eventMessage = crisisBlocked ? '위기 관리형: FFP 긴급 감사를 무효화했습니다' : rolled.message;
+  // 헤어드라이어: 영입 즉시 적응도 +20
+  const startChemistry = manager.trait === 'hairdryer' ? Math.min(100, CHEMISTRY_START + 20) : CHEMISTRY_START;
+  const rolled = rollSeasonEvent(
+    { squad: rawSquad, funds: baseFunds, chemistry: startChemistry, baseFunds, crisisImmune: manager.trait === 'crisisManager' },
+    'summer'
+  );
+  const { funds, squad, chemistry, message: eventMessage } = rolled;
   // 이벤트 없음(id === null)이면 팝업을 안 띄운다 - "아무 일도 없었다"는
   // 알림은 알림이 아니라 소음이다. good/bad는 팝업 색만 가른다.
-  const eventTone = crisisBlocked ? 'good' : rolled.id === 'ffpAudit' ? 'bad' : rolled.id ? 'good' : null;
-
-  // 헤어드라이어: 영입 즉시 적응도 +20
-  const chemistry = manager.trait === 'hairdryer' ? Math.min(100, CHEMISTRY_START + 20) : CHEMISTRY_START;
+  const eventTone = rolled.tone;
 
   currentState = {
     club,
@@ -705,6 +703,24 @@ function grantSeasonFunds() {
   currentState.funds = grant + carryover + proceeds;
 }
 
+// 시즌 이벤트를 굴려 상태에 반영한다(여름 시작/겨울 진입). 이벤트가 없으면 팝업도 없다.
+function applySeasonEvent(phase) {
+  const r = rollSeasonEvent(
+    {
+      squad: currentState.squad, funds: currentState.funds, chemistry: currentState.chemistry,
+      baseFunds: seasonBaseGrant(), crisisImmune: currentState.manager.trait === 'crisisManager',
+    },
+    phase,
+    Math.random,
+    currentState.club.eventBias ?? {}
+  );
+  currentState.squad = r.squad;
+  currentState.funds = r.funds;
+  currentState.chemistry = r.chemistry;
+  currentState.eventMessage = r.message;
+  currentState.eventTone = r.tone;
+}
+
 // 승격/잔류 후 같은 구단으로 새 시즌 시작 — 스펙 4절: 선수단 유지, 시장 상태만 초기화
 function startNewSeason() {
   grantSeasonFunds();
@@ -721,14 +737,13 @@ function startNewSeason() {
   currentState.transactedThisWeek = false;
   currentState.firstHalfPoints = null;
   currentState.listedForSale = [];
-  currentState.eventMessage = ''; // 지난 시즌 이벤트 문구가 다시 뜨지 않도록 비움
-  currentState.eventTone = null;
   currentState.squad = currentState.squad.map((p) => ({
     ...p,
     acquiredThisSeason: false,
     seasonsAtClub: (p.seasonsAtClub ?? 0) + 1,
     contractYearsLeft: Math.max(0, (p.contractYearsLeft ?? 2) - 1),
   }));
+  applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
   currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
   currentState.managerOffer = generateManagerOffer(3);
   currentState.staffOffer = generateStaffOffer();
@@ -1045,6 +1060,7 @@ function enterWinterMarket() {
       * currentState.club.startingFundsMultiplier * WINTER_FUNDS_RATIO
   );
   currentState.funds += winterGrant;
+  applySeasonEvent('winter');
   let banner = `겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%). 겨울 지원금 +${winterGrant}G.`;
 
   // 소방수: 안전선은 넘었지만 목표선(승격)에는 못 미치는 페이스면 겨울 진입 시 적응도 +30
@@ -1881,7 +1897,7 @@ function renderMarket(banner = '') {
       </section>`,
   };
 
-  const showEvent = phase === 'summer' && week === SUMMER_MARKET_WEEKS[0] && eventTone;
+  const showEvent = week === (phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0]) && eventTone;
 
   setScreen(`
     <header class="topbar">
@@ -2125,8 +2141,7 @@ function renderMarket(banner = '') {
       </div>`;
     document.getElementById('eventmodal-dismiss').onclick = () => {
       currentState.seasonBriefing = null;
-      eventRoot.innerHTML = '';
-      saveRun(currentState, localStorage);
+      renderMarket(banner); // 이벤트가 있으면 이어서 이벤트 팝업이 뜬다
     };
   } else if (showEvent) {
     const [title, ...rest] = eventMessage.split(': ');

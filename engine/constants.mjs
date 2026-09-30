@@ -196,3 +196,7 @@ export const BOARD_GOAL_POSITION = 0.6;
 export const BOARD_REWARD_FUNDS_PER_POINT = 0.015;
 export const BOARD_REWARD_FUNDS_CAP = 0.3;
 export const BOARD_REWARD_CHEMISTRY = 5;
+
+// 시즌 이벤트 발생 확률(시즌 여름 시작 / 겨울 시장 진입). 플레이 후 조절 대상.
+export const EVENT_CHANCE_SUMMER = 0.7;
+export const EVENT_CHANCE_WINTER = 0.3;
