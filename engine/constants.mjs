@@ -4,7 +4,14 @@
 // 값들은 tools/tune-ladder.mjs의 시뮬레이션 봇이 태그를 전혀 안 보고
 // OVR로만 사는 "방치 플레이" 기준선이라, 여기를 올려도 그 시뮬레이터
 // 수치(리그 튜닝값)는 안 흔들린다 - 직접 태그를 맞추는 사람만 득을 본다.
-export const PLAYSTYLE_TAGS = {
+// 인원 문턱 3/5/7/9/11명. 7·9·11명 값은 5명 값의 ×1.4/×1.8/×2.4(같은 태그를
+// 몰아줄수록 가파르게 보상). values[i]가 TAG_THRESHOLDS[i]명일 때의 보너스다.
+export const TAG_THRESHOLDS = [3, 5, 7, 9, 11];
+const extendTiers = (tier3, tier5) => [tier3, tier5, Math.round(tier5 * 1.4), Math.round(tier5 * 1.8), Math.round(tier5 * 2.4)];
+const withValues = (defs) => Object.fromEntries(
+  Object.entries(defs).map(([id, d]) => [id, { ...d, values: extendTiers(d.tier3, d.tier5) }])
+);
+export const PLAYSTYLE_TAGS = withValues({
   gegenpressing: { positions: ['ST', 'CMF'], tier3: 6, tier5: 10 },
   falseNine: { positions: ['W', 'AMF'], tier3: 6, tier5: 10 },
   longBallKickAndRush: { positions: ['ST', 'AMF'], tier3: 6, tier5: 10 },
@@ -13,16 +20,16 @@ export const PLAYSTYLE_TAGS = {
   falseFullBack: { positions: ['WB', 'CB'], tier3: 5, tier5: 8 }, // 변형 3백
   buildUpFromBack: { positions: ['CB', 'GK'], tier3: 4, tier5: 6 }, // 후방 빌드업
   counterAttack: { positions: ['W', 'ST'], tier3: 4, tier5: 6 }, // 선수비 후역습
-};
+});
 
 // 스펙 5.1절 "대륙 태그 5종" 표 — 포지션 무관, 5개 권역 동일 수치.
 // 위 플레이스타일과 같은 이유로 상향(3/5 → 5/8).
 export const CONTINENT_TAGS = {
-  europe: { tier3: 5, tier5: 8 },
-  southAmerica: { tier3: 5, tier5: 8 },
-  africa: { tier3: 5, tier5: 8 },
-  asiaOceania: { tier3: 5, tier5: 8 },
-  northCentralAmerica: { tier3: 5, tier5: 8 },
+  europe: { tier3: 3, tier5: 5 },
+  southAmerica: { tier3: 3, tier5: 5 },
+  africa: { tier3: 3, tier5: 5 },
+  asiaOceania: { tier3: 3, tier5: 5 },
+  northCentralAmerica: { tier3: 3, tier5: 5 },
 };
 
 // 스펙 5.2절 "배율" — 루키/택티션/레전더리/GOD

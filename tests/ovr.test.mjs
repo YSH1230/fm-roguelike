@@ -26,9 +26,9 @@ function makePlayer(overrides = {}) {
   };
 }
 
-test('성골 유스는 드래프트 유스 출신이면 본인 +3', () => {
+test('성골 유스는 드래프트 유스 출신이면 본인 +5', () => {
   const p = makePlayer({ specialTrait: 'seongGolYouth', isDraftedYouth: true });
-  assert.equal(computeSelfTraitBonus(p), 3);
+  assert.equal(computeSelfTraitBonus(p), 5);
 });
 
 test('성골 유스는 임시 유스(드래프트 아님)면 가산 없음', () => {
@@ -36,21 +36,21 @@ test('성골 유스는 임시 유스(드래프트 아님)면 가산 없음', () 
   assert.equal(computeSelfTraitBonus(p), 0);
 });
 
-test('홈타운 영웅은 잔류 시즌당 +2, 상한 +6', () => {
+test('홈타운 영웅은 잔류 시즌당 +3, 상한 +9', () => {
   assert.equal(
     computeSelfTraitBonus(makePlayer({ specialTrait: 'hometownHero', seasonsAtClub: 1 })),
-    2
+    3
   );
   assert.equal(
     computeSelfTraitBonus(makePlayer({ specialTrait: 'hometownHero', seasonsAtClub: 5 })),
-    6
+    9
   );
 });
 
-test('저니맨은 이번 시즌 영입이면 본인 +4', () => {
+test('저니맨은 이번 시즌 영입이면 본인 +6', () => {
   assert.equal(
     computeSelfTraitBonus(makePlayer({ specialTrait: 'journeyman', acquiredThisSeason: true })),
-    4
+    6
   );
   assert.equal(
     computeSelfTraitBonus(makePlayer({ specialTrait: 'journeyman', acquiredThisSeason: false })),
@@ -58,25 +58,36 @@ test('저니맨은 이번 시즌 영입이면 본인 +4', () => {
   );
 });
 
-test('베테랑 리더는 23세 이하 라인업 전원에게 +2, 중첩 없음', () => {
+test('베테랑 리더는 23세 이하 라인업 전원에게 +3, 중첩 없음', () => {
   const leader = makePlayer({ id: 'leader', age: 34, specialTrait: 'veteranLeader' });
   const young1 = makePlayer({ id: 'young1', age: 20 });
   const young2 = makePlayer({ id: 'young2', age: 23 });
   const old = makePlayer({ id: 'old', age: 28 });
   const lineup = [leader, young1, young2, old];
   const bonuses = computeTeamTraitBonuses(lineup, []);
-  assert.equal(bonuses.get('young1'), 2);
-  assert.equal(bonuses.get('young2'), 2);
+  assert.equal(bonuses.get('young1'), 3);
+  assert.equal(bonuses.get('young2'), 3);
   assert.equal(bonuses.get('old') ?? 0, 0);
   assert.equal(bonuses.get('leader') ?? 0, 0);
 });
 
-test('슈퍼 서브는 벤치에 있으면 선발 전원 +1, 여러 명이어도 최대 +2', () => {
+test('슈퍼 서브는 벤치 1명당 선발 전원 +2, 여러 명이어도 최대 +4', () => {
   const starter = makePlayer({ id: 'starter' });
   const sub1 = makePlayer({ id: 'sub1', specialTrait: 'superSub', inBench: true });
   const sub2 = makePlayer({ id: 'sub2', specialTrait: 'superSub', inBench: true });
-  const bonuses = computeTeamTraitBonuses([starter], [sub1, sub2]);
-  assert.equal(bonuses.get('starter'), 2);
+  const sub3 = makePlayer({ id: 'sub3', specialTrait: 'superSub', inBench: true });
+  assert.equal(computeTeamTraitBonuses([starter], [sub1]).get('starter'), 2);
+  assert.equal(computeTeamTraitBonuses([starter], [sub1, sub2]).get('starter'), 4);
+  assert.equal(computeTeamTraitBonuses([starter], [sub1, sub2, sub3]).get('starter'), 4);
+});
+
+test('플레이스타일 시너지: 7명/9명/11명 문턱에서 5명 값의 ×1.4/×1.8/×2.4', () => {
+  const make = (n) => Array.from({ length: n }, (_, i) => makePlayer({ id: `p${i}`, position: 'ST', playstyleTags: ['gegenpressing'] }));
+  assert.equal(computePlaystyleSynergyBonus(make(6)).get('p0'), 10);
+  assert.equal(computePlaystyleSynergyBonus(make(7)).get('p0'), 14);
+  assert.equal(computePlaystyleSynergyBonus(make(8)).get('p0'), 14);
+  assert.equal(computePlaystyleSynergyBonus(make(9)).get('p0'), 18);
+  assert.equal(computePlaystyleSynergyBonus(make(11)).get('p0'), 24);
 });
 
 test('플레이스타일 시너지: 3명이면 tier3 값, 대상 포지션 보유자에게만', () => {
@@ -112,8 +123,8 @@ test('대륙 시너지: 3명이면 tier3, 다국어 구사자(같은 권역)면 
     p('b'),
   ]; // 2명 + 다국어 구사자 → 요구 2명 충족 → tier3 발동
   const bonuses = computeContinentSynergyBonus(lineupWithPolyglot);
-  assert.equal(bonuses.get('a'), 5);
-  assert.equal(bonuses.get('b'), 5);
+  assert.equal(bonuses.get('a'), 3);
+  assert.equal(bonuses.get('b'), 3);
 });
 
 test('다국어 구사자는 본인이 그 권역 소속이 아니면 감면을 주지 않는다', () => {
@@ -140,8 +151,8 @@ test('computePlayerFinalOVR은 baseOVR에 모든 가산을 합산한다', () => 
   const teammate1 = makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] });
   const teammate2 = makePlayer({ id: 'c', position: 'CMF', playstyleTags: ['gegenpressing'] });
   const lineup = [player, teammate1, teammate2];
-  // 70 (base) + 4 (저니맨) + 6 (게겐프레싱 3명 시너지) = 80
-  assert.equal(computePlayerFinalOVR(player, lineup, []), 80);
+  // 70 (base) + 6 (저니맨) + 6 (게겐프레싱 3명 시너지) = 82
+  assert.equal(computePlayerFinalOVR(player, lineup, []), 82);
 });
 
 test('전술 원리주의자(boostedTagId)는 해당 태그의 요구 인원을 1명 감면한다', () => {

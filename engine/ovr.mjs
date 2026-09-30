@@ -1,14 +1,14 @@
-import { PLAYSTYLE_TAGS, CONTINENT_TAGS } from './constants.mjs';
+import { PLAYSTYLE_TAGS, CONTINENT_TAGS, TAG_THRESHOLDS } from './constants.mjs';
 
 // --- 본인 정보만으로 계산되는 특수 성향 (성골 유스, 홈타운 영웅, 저니맨) ---
 export function computeSelfTraitBonus(player) {
   switch (player.specialTrait) {
     case 'seongGolYouth':
-      return player.isDraftedYouth ? 3 : 0;
+      return player.isDraftedYouth ? 5 : 0;
     case 'hometownHero':
-      return Math.min(player.seasonsAtClub, 3) * 2; // 상한 +6 (3시즌분)
+      return Math.min(player.seasonsAtClub, 3) * 3; // 상한 +9 (3시즌분)
     case 'journeyman':
-      return player.acquiredThisSeason ? 4 : 0;
+      return player.acquiredThisSeason ? 6 : 0;
     default:
       return 0;
   }
@@ -26,23 +26,24 @@ export function computeTeamTraitBonuses(lineup, bench) {
   );
   if (hasVeteranLeader) {
     for (const p of lineup) {
-      if (p.age <= 23) addBonus(p.id, 2);
+      if (p.age <= 23) addBonus(p.id, 3);
     }
   }
 
   const superSubCount = bench.filter((p) => p.specialTrait === 'superSub').length;
   if (superSubCount > 0) {
-    const bonus = Math.min(superSubCount, 2); // 중첩 상한 +2
+    const bonus = Math.min(superSubCount * 2, 4); // 1명당 +2, 중첩 상한 +4
     for (const p of lineup) addBonus(p.id, bonus);
   }
 
   return bonuses;
 }
 
-// --- 계단식 인원수 판정 (4명은 3명 값, 6명 이상은 5명 값) ---
-function tieredValue(count, tier3, tier5) {
-  if (count >= 5) return tier5;
-  if (count >= 3) return tier3;
+// --- 계단식 인원수 판정 (문턱 사이 인원은 아래 문턱 값: 4명은 3명 값, 6명은 5명 값) ---
+function tieredValue(count, values) {
+  for (let i = TAG_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (count >= TAG_THRESHOLDS[i]) return values[i];
+  }
   return 0;
 }
 
@@ -57,7 +58,7 @@ export function computePlaystyleSynergyBonus(lineup, boostedTagId = null, onlyTa
     const effectiveCount = tagId === boostedTagId ? holders.length + 1 : holders.length;
     if (effectiveCount < 3) continue;
     const holdersInPosition = holders.filter((p) => tagDef.positions.includes(p.position));
-    const value = tieredValue(effectiveCount, tagDef.tier3, tagDef.tier5);
+    const value = tieredValue(effectiveCount, tagDef.values);
     for (const p of holdersInPosition) {
       bonuses.set(p.id, (bonuses.get(p.id) ?? 0) + value);
     }
@@ -70,7 +71,7 @@ export function countEffectiveContinentRequirement(baseCount, lineup, continentT
     (p) => p.specialTrait === 'polyglot' && p.continentTag === continentTag
   );
   if (!hasPolyglotForThisContinent) return baseCount;
-  return Math.max(2, baseCount - 1);
+  return Math.max(2, baseCount - 2);
 }
 
 export function computeContinentSynergyBonus(lineup, onlyTagId = null) {
@@ -122,11 +123,11 @@ export function computePlayerBonusBreakdown(player, lineup, bench, boostedTagId 
 
   const inLineup = lineup.some((p) => p.id === player.id);
   if (inLineup && player.age <= 23 && lineup.some((p) => p.specialTrait === 'veteranLeader' && p.age >= 33)) {
-    parts.push({ kind: 'team', id: 'veteranLeader', value: 2 });
+    parts.push({ kind: 'team', id: 'veteranLeader', value: 3 });
   }
   const superSubCount = bench.filter((p) => p.specialTrait === 'superSub').length;
   if (superSubCount > 0 && inLineup) {
-    parts.push({ kind: 'team', id: 'superSub', value: Math.min(superSubCount, 2) });
+    parts.push({ kind: 'team', id: 'superSub', value: Math.min(superSubCount * 2, 4) });
   }
 
   for (const tagId of Object.keys(PLAYSTYLE_TAGS)) {

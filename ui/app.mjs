@@ -49,6 +49,7 @@ import {
   PLAYER_TIERS,
   MISSED_TARGET_LIMIT,
   STAGNATION_FUNDS_PENALTY_PER_MISS,
+  TAG_THRESHOLDS,
   BOARD_REWARD_FUNDS_PER_POINT,
   BOARD_REWARD_FUNDS_CAP,
   BOARD_REWARD_CHEMISTRY,
@@ -186,12 +187,12 @@ const TRAIT_LABELS = {
 };
 // 전술 탭 "선수 특수 태그" 섹션에 쓰는 효과 설명(engine/ovr.mjs 실제 수치와 짝).
 const TRAIT_EFFECT_DESCRIPTIONS = {
-  seongGolYouth: '드래프트로 뽑은 유스 출신이면 본인 OVR +3',
-  veteranLeader: '33세 이상이 선발이면 라인업 내 23세 이하 전원 OVR +2',
-  superSub: '벤치에 있으면 선발 전원 OVR +1 (최대 +2 중첩)',
-  hometownHero: '한 구단에서 뛴 시즌마다 본인 OVR +2 (최대 +6)',
-  polyglot: '같은 대륙 선수가 있으면 대륙 케미 요구 인원 1명 감면(최소 2명)',
-  journeyman: '이번 시즌에 영입됐으면 본인 OVR +4',
+  seongGolYouth: '드래프트로 뽑은 유스 출신이면 본인 OVR +5',
+  veteranLeader: '33세 이상이 선발이면 라인업 내 23세 이하 전원 OVR +3',
+  superSub: '벤치에 있으면 선발 전원 OVR +2 (최대 +4 중첩)',
+  hometownHero: '한 구단에서 뛴 시즌마다 본인 OVR +3 (최대 +9)',
+  polyglot: '같은 대륙 선수가 있으면 그 대륙 케미 요구 인원 2명 감면(최소 2명)',
+  journeyman: '이번 시즌에 영입됐으면 본인 OVR +6',
 };
 const CONTINENT_LABELS = {
   europe: '유럽', southAmerica: '남미', africa: '아프리카',
@@ -1009,15 +1010,18 @@ function boostedTagIdFor(manager) {
 
 // 플레이스타일 태그 진행도(고정 3명/5명 문턱, 전술 원리주의자면 1명 감면).
 // 상점 카드와 전술 탭 팀 케미 패널이 똑같은 계산을 쓴다.
+// 문턱은 3/5/7/9/11명(감독이 전술 원리주의자면 그 태그만 1명씩 감면).
+// tier = 넘은 문턱 수(0~5), need = 다음에 채워야 할 인원(다 넘었으면 마지막 문턱).
 function playstyleTagProgress(tagId, lineup, boostedTagId) {
   const count = lineup.filter((p) => p.playstyleTags.includes(tagId)).length;
   const boost = tagId === boostedTagId ? 1 : 0;
-  const req3 = 3 - boost;
-  const req5 = 5 - boost;
-  const tier = count >= req5 ? 2 : count >= req3 ? 1 : 0;
-  const need = tier === 0 ? req3 : req5;
-  return { count, need, tier, req3, req5 };
+  const req = TAG_THRESHOLDS.map((n) => n - boost);
+  const tier = req.filter((n) => count >= n).length;
+  const need = req[Math.min(tier, req.length - 1)];
+  return { count, need, tier, req, values: PLAYSTYLE_TAGS[tagId].values };
 }
+// "3명 +6 · 5명 +10 · ..." 형태의 단계표 문구
+const tagLadderText = (req, values) => req.map((n, i) => `${n}명 +${values[i]}`).join(' · ');
 
 function runFirstHalf(saleMessage = '') {
   const { manager } = currentState;
@@ -1570,11 +1574,9 @@ function renderChemistryPanel(lineup, bench) {
 
   const playstyleRows = Object.entries(PLAYSTYLE_TAGS)
     .map(([tagId, def]) => {
-      const { count, need, tier } = playstyleTagProgress(tagId, lineup, boostedTagId);
+      const { count, need, tier, req, values } = playstyleTagProgress(tagId, lineup, boostedTagId);
       const boost = tagId === boostedTagId ? 1 : 0;
-      const req3 = 3 - boost;
-      const req5 = 5 - boost;
-      const bonus = tier === 2 ? def.tier5 : def.tier3;
+      const bonus = values[Math.max(0, tier - 1)];
       const caption = `${count}/${need} · +${bonus}`;
       const positions = def.positions.join('·');
       // 보유자 수는 라인업 전체로 세지만, 보너스는 그중 해당 포지션에 실제로
@@ -1584,12 +1586,12 @@ function renderChemistryPanel(lineup, bench) {
         : [];
       const desc = `${positions} 포지션에 있는 보유자만 보너스를 받습니다`
         + (boost ? ' (전술 원리주의자로 요구 인원 1명 감면)' : '')
-        + `. ${req3}명 이상 모이면 +${def.tier3}, ${req5}명 이상이면 +${def.tier5}`
+        + `. 단계: ${tagLadderText(req, values)}`
         + (beneficiaries.length ? `. 지금 받는 선수: ${beneficiaries.map((p) => p.name).join(', ')}` : '');
       // 다음 단계까지 몇 명 더 필요하고, 그때 지금 라인업 중 몇 명이 받는지(계획용).
       const receivers = lineup.filter((p) => def.positions.includes(p.position)).length;
-      const more = tier === 2 ? '최대' : `${need - count}명 더 → +${tier === 0 ? def.tier3 : def.tier5} (${receivers}명 수혜)`;
-      return { icon: renderTagIcon(PLAYSTYLE_ICON_PATHS, tagId), label: TAG_LABELS[tagId] ?? tagId, desc, caption, tier, more, near: tier < 2 && need - count === 1 };
+      const more = tier >= req.length ? '최대' : `${need - count}명 더 → +${values[tier]} (${receivers}명 수혜)`;
+      return { icon: renderTagIcon(PLAYSTYLE_ICON_PATHS, tagId), label: TAG_LABELS[tagId] ?? tagId, desc, caption, tier, more, near: tier < req.length && need - count === 1 };
     })
     .sort((a, b) => b.tier - a.tier);
 
@@ -1613,7 +1615,7 @@ function renderChemistryPanel(lineup, bench) {
     })
     .sort((a, b) => b.tier - a.tier);
 
-  const badge = (r) => `<li class="chembadge${r.tier ? ` is-tier${r.tier}` : ''}${r.near ? ' is-near' : ''}" data-chem-desc="${esc(r.label)}: ${esc(r.desc)}${r.more ? ` — 다음 단계: ${esc(r.more)}` : ''}" title="${esc(r.label)} · ${esc(r.desc)}">
+  const badge = (r) => `<li class="chembadge${r.tier ? ` is-tier${Math.min(r.tier, 2)}` : ''}${r.near ? ' is-near' : ''}" data-chem-desc="${esc(r.label)}: ${esc(r.desc)}${r.more ? ` — 다음 단계: ${esc(r.more)}` : ''}" title="${esc(r.label)} · ${esc(r.desc)}">
     <div class="chembadge__ring">${r.icon}</div>
     <span class="chembadge__label">${esc(r.label)}</span>
     <span class="chembadge__count">${r.caption}${r.near ? ' ▲' : ''}</span>
@@ -1738,8 +1740,9 @@ function renderMarket(banner = '') {
     const boostedTagId = boostedTagIdFor(manager);
     // 칩에는 "라벨 n/m"만 - 영입 시 발동(▲ 초록)/강화(▲ 금색)는 색으로, 보너스
     // 포지션이 아니면 흐리게. 자세한 문장은 칩을 눌렀을 때 카드 아래에 뜬다.
-    const chip = (label, count, need, reachesAt3, reachesAt5, desc, dim = false) => {
-      const lvl = reachesAt5 ? 2 : reachesAt3 ? 1 : 0;
+    // reach: 영입하면 넘는 문턱의 순번(0 = 첫 문턱 발동, 1 이상 = 강화), 없으면 -1
+    const chip = (label, count, need, reach, desc, dim = false) => {
+      const lvl = reach < 0 ? 0 : reach === 0 ? 1 : 2;
       return `<button type="button" class="tag tag--btn${lvl ? ` tag--up${lvl}` : ''}${dim ? ' tag--dim' : ''}" data-tag-desc="${esc(desc)}">${label} <b class="tag__progress">${count}/${need}</b>${lvl ? ' ▲' : ''}</button>`;
     };
     const tags = [
@@ -1749,16 +1752,17 @@ function renderMarket(banner = '') {
         const r5 = countEffectiveContinentRequirement(5, lineup, c.continentTag);
         const label = CONTINENT_LABELS[c.continentTag] ?? c.continentTag;
         const desc = `${label}: 지금 라인업 ${n}명. ${r3}명이면 +${CONTINENT_TAGS[c.continentTag].tier3}, ${r5}명이면 +${CONTINENT_TAGS[c.continentTag].tier5}(포지션 무관).` + (n + 1 === r3 ? ' 영입하면 발동!' : n + 1 === r5 ? ' 영입하면 강화!' : '');
-        return chip(label, n, n >= r3 ? r5 : r3, n + 1 === r3, n + 1 === r5, desc);
+        return chip(label, n, n >= r3 ? r5 : r3, [r3, r5].indexOf(n + 1), desc);
       })(),
       ...c.playstyleTags.map((t) => {
-        const { count, need, req3, req5 } = playstyleTagProgress(t, lineup, boostedTagId);
+        const { count, need, req, values } = playstyleTagProgress(t, lineup, boostedTagId);
         const def = PLAYSTYLE_TAGS[t];
         const receives = def.positions.includes(c.position);
-        const desc = `${TAG_LABELS[t] ?? t}: 지금 라인업 ${count}명. ${req3}명이면 +${def.tier3}, ${req5}명이면 +${def.tier5}(${def.positions.join('·')} 포지션만 받음).`
-          + (count + 1 === req3 ? ' 영입하면 발동!' : count + 1 === req5 ? ' 영입하면 강화!' : '')
+        const reach = req.indexOf(count + 1);
+        const desc = `${TAG_LABELS[t] ?? t}: 지금 라인업 ${count}명. ${tagLadderText(req, values)}(${def.positions.join('·')} 포지션만 받음).`
+          + (reach === 0 ? ' 영입하면 발동!' : reach > 0 ? ' 영입하면 강화!' : '')
           + (receives ? '' : ` 단 ${c.position}은(는) 보너스 대상 포지션이 아니라 이 선수 본인은 못 받습니다.`);
-        return chip(TAG_LABELS[t] ?? t, count, need, count + 1 === req3, count + 1 === req5, desc, !receives);
+        return chip(TAG_LABELS[t] ?? t, count, need, reach, desc, !receives);
       }),
       c.specialTrait ? `<span class="tag tag--trait">${TRAIT_LABELS[c.specialTrait] ?? c.specialTrait}</span>` : '',
     ].join('');
