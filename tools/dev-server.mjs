@@ -1,6 +1,18 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
+import { networkInterfaces } from 'node:os';
+
+// 같은 와이파이에 있는 폰으로 확인할 때 쓸 주소. localhost는 이 PC에서만
+// 열리니, 실제 랜(사설 IP) 주소를 찾아서 같이 보여준다.
+function lanAddress() {
+  for (const iface of Object.values(networkInterfaces())) {
+    for (const addr of iface ?? []) {
+      if (addr.family === 'IPv4' && !addr.internal) return addr.address;
+    }
+  }
+  return null;
+}
 
 const ROOT = process.cwd();
 const PORT = process.env.PORT ?? 8080;
@@ -30,4 +42,8 @@ createServer(async (req, res) => {
     res.writeHead(404);
     res.end('Not found');
   }
-}).listen(PORT, () => console.log(`http://localhost:${PORT}`));
+}).listen(PORT, () => {
+  console.log(`http://localhost:${PORT}`);
+  const lan = lanAddress();
+  if (lan) console.log(`폰에서(같은 와이파이): http://${lan}:${PORT}`);
+});
