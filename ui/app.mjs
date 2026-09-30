@@ -1941,8 +1941,12 @@ function renderMarket(banner = '') {
             </div>`}
       </section>
       ${expiredPlayers.length || expiringPlayers.length ? `
-      <section class="panel tabpanel${expiredPlayers.length ? ' panel--warn' : ''}">
-        <div class="panel__head"><h2>계약 관리</h2><span class="panel__count">${expiredPlayers.length ? '만료 선수는 여름 안에 정하세요' : '1년 남은 선수'}</span></div>
+      <section class="panel tabpanel${expiredPlayers.length ? ' panel--warn' : ''}${currentState.contractCollapsed ? ' is-collapsed' : ''}" id="contract-panel">
+        <button class="panel__head panel__head--toggle" id="contract-toggle" aria-expanded="${!currentState.contractCollapsed}">
+          <h2>계약 관리 <span class="panel__count">${expiredPlayers.length + expiringPlayers.length}명</span></h2>
+          <span class="panel__count">${expiredPlayers.length ? '만료 선수는 여름 안에 정하세요' : '1년 남은 선수'}</span>
+          <i class="panel__chev" aria-hidden="true">⌄</i>
+        </button>
         <ul class="squad">${[...expiredPlayers, ...expiringPlayers].map((p) => {
           const expired = (p.contractYearsLeft ?? 2) <= 0;
           return `
@@ -2194,6 +2198,12 @@ function renderMarket(banner = '') {
       });
     });
   }
+  document.getElementById('contract-toggle')?.addEventListener('click', () => {
+    currentState.contractCollapsed = !currentState.contractCollapsed;
+    const panel = document.getElementById('contract-panel');
+    panel.classList.toggle('is-collapsed', currentState.contractCollapsed);
+    document.getElementById('contract-toggle').setAttribute('aria-expanded', String(!currentState.contractCollapsed));
+  });
   document.getElementById('funds-info-btn')?.addEventListener('click', () => {
     const box = document.getElementById('funds-info');
     box.hidden = !box.hidden;

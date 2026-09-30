@@ -1133,6 +1133,12 @@ button:not(:disabled):active { transform: scale(0.98); }
 .squad .player.is-open .player__actions { display: flex; }
 .squad .player.player--contract { cursor: default; }
 .tab__count--warn { background: var(--gold); color: var(--night); }
+/* 계약 관리 패널 접기/펼치기 */
+.panel__head--toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--s2); background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.panel__head--toggle h2 { margin: 0; }
+.panel__chev { font-style: normal; color: var(--muted-dim); transition: transform 160ms var(--ease); }
+.is-collapsed .panel__chev { transform: rotate(-90deg); }
+.is-collapsed > .squad { display: none; }
 .player__renew { display: inline-flex; align-items: center; gap: 4px; margin-right: auto; }
 .player__renew em { font-style: normal; font-size: var(--fs-micro); color: var(--muted); margin-right: 2px; }
 .player__actions .release { background: none; border-color: transparent; padding: 4px 6px; color: var(--muted); }
