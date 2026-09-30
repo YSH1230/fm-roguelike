@@ -42,6 +42,8 @@ export function withRunDefaults(state, defaultFormation) {
   state.seasonNumber ??= 1;
   state.manualOverrides ??= {};
   state.benchOverrides ??= {};
+  state.boardDemand ??= null;
+  state.seasonTrack ??= { spent: 0, winterTransactions: 0 };
   state.uclTitles ??= 0;
   state.managerOffer ??= []; // 다음 '다음 주로'에서 다시 채워진다
   state.staffOffer ??= generateStaffOffer(); // 구버전 세이브는 스태프 후보 이름/얼굴이 없다

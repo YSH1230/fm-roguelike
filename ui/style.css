@@ -1101,3 +1101,18 @@ button:not(:disabled):active { transform: scale(0.98); }
 .eventmodal--goal .eventmodal__kicker { color: var(--gold); }
 .eventmodal p.eventmodal__detail { margin-bottom: var(--s3); line-height: 1.5; }
 .eventmodal p.eventmodal__detail:last-of-type { margin-bottom: var(--s6); }
+
+/* 이사진 요구 카드 */
+.demandcards { display: grid; gap: var(--s2); margin: var(--s3) 0; }
+.demandcard {
+  display: grid; gap: 2px; text-align: left; width: 100%;
+  padding: var(--s3); border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--line); color: var(--light); font: inherit; cursor: pointer;
+}
+.demandcard__level { font-size: var(--fs-micro); color: var(--muted); }
+.demandcard__text { font-weight: 700; }
+.demandcard__reward { font-size: var(--fs-micro); color: var(--turf); }
+.demandcard--hard .demandcard__level { color: var(--debit); }
+.demandcard--normal .demandcard__level { color: var(--gold); }
+.demandcard:hover, .demandcard.is-picked { border-color: var(--turf); box-shadow: 0 0 0 1px var(--turf); }
+.demandcards--modal { text-align: left; }

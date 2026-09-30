@@ -6,6 +6,7 @@ import { assignRandomStaff, generateStaffOffer, generateStaffCandidate } from '.
 import { generateManagerOffer } from '../data/manager-shop.mjs';
 import { GOD_PLAYERS } from '../data/god-players.mjs';
 import { rollSeasonEvent } from '../data/season-events.mjs';
+import { drawDemandOffer, getDemand, evaluateDemand, DIFFICULTY_LABELS } from '../data/board-demands.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
 import { judgeRunOutcome, nextMissedTargetCount, computeReputation } from '../engine/run.mjs';
@@ -50,6 +51,7 @@ import {
   BOARD_REWARD_FUNDS_PER_POINT,
   BOARD_REWARD_FUNDS_CAP,
   BOARD_REWARD_CHEMISTRY,
+  BOARD_DEMAND_REWARD,
 } from '../engine/constants.mjs';
 
 
@@ -571,6 +573,8 @@ function startRun(club) {
     staffOffer: generateStaffOffer(),
     firstHalfPoints: null,
     listedForSale: [], // { card, method, resolveWeek }
+    boardDemand: null, // 이번 시즌 고른 이사진 요구 카드 { cardId, difficulty }
+    seasonTrack: { spent: 0, winterTransactions: 0 }, // 요구 카드 판정용 카운터
     boardTrustUsed: false,
     promotionFundsBonusPending: false,
     freshBudget: false,
@@ -579,7 +583,7 @@ function startRun(club) {
   currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
   currentState.managerOffer = generateManagerOffer(3);
   currentState.staffOffer = generateStaffOffer();
-  renderCareerIntro();
+  renderDemandChoice(currentState.club.demandBias ?? {}, () => renderCareerIntro());
 }
 
 // 구단 고르자마자 바로 상점으로 떨어지면 "그냥 시작됐다"는 느낌만 남는다.
@@ -595,6 +599,37 @@ const ZONE_VERDICT = {
   safe: '지금 전력이면 안전권입니다.',
   relegation: '지금 전력으로는 강등권입니다.',
 };
+
+// 이사진 요구 카드 3장(쉬움/보통/어려움) 중 하나를 고르는 화면. 안 골라도 되고,
+// 못 채워도 페널티는 없다 - 달성하면 다음 시즌 자금 보너스만 붙는다.
+function demandCardHtml(card, attr) {
+  const reward = Math.round(BOARD_DEMAND_REWARD[card.difficulty] * 100);
+  return `<button class="demandcard demandcard--${card.difficulty}" ${attr}="${card.id}">
+    <span class="demandcard__level">${DIFFICULTY_LABELS[card.difficulty]}</span>
+    <span class="demandcard__text">${esc(card.text)}</span>
+    <b class="demandcard__reward">달성 시 다음 시즌 자금 +${reward}%</b>
+  </button>`;
+}
+
+function renderDemandChoice(bias, onDone) {
+  const offer = drawDemandOffer(Math.random, bias);
+  setScreen(`
+    <div class="verdict">
+      <div class="verdict__label">이사진 요구</div>
+      <div class="verdict__result" style="color:var(--light)">${esc(currentState.club.name)}</div>
+      <p class="note" style="text-align:center">이사진이 시즌 목표와 별개로 조건을 하나 제시합니다. 하나를 고르세요. 달성하면 보너스가 있고, 못 해도 불이익은 없습니다.</p>
+    </div>
+    <div class="demandcards">${offer.map((c) => demandCardHtml(c, 'data-demand')).join('')}</div>
+  `, '<button class="reroll" id="skip-demand-btn">요구 없이 시작</button>');
+  document.querySelectorAll('[data-demand]').forEach((el) => {
+    el.onclick = () => {
+      const card = getDemand(el.dataset.demand);
+      currentState.boardDemand = { cardId: card.id, difficulty: card.difficulty };
+      onDone();
+    };
+  });
+  document.getElementById('skip-demand-btn').onclick = () => { currentState.boardDemand = null; onDone(); };
+}
 
 function renderCareerIntro() {
   const { club, manager, squad } = currentState;
@@ -640,6 +675,7 @@ function renderCareerIntro() {
         <li><span>시작 팀 전력</span><b>${teamPower.toFixed(1)}</b></li>
       </ul>
       <p class="note"><b>이사진 목표 ${currentBoardGoal()}점.</b> ${BOARD_RULE_TEXT}</p>
+      ${currentState.boardDemand ? `<p class="note"><b>선택한 요구:</b> ${esc(getDemand(currentState.boardDemand.cardId).text)} (${DIFFICULTY_LABELS[currentState.boardDemand.difficulty]})</p>` : ''}
       <p class="note">승점은 전/후반기 합산입니다. 안전권을 넘기지 못하면 해임, 목표를 3시즌 연속 못 넘기면 경질됩니다.</p>
       ${club.weakness ? `<p class="note">약점: ${esc(club.weakness)}. 이 약점을 염두에 두고 시즌을 준비하세요.</p>` : ''}
     </div>
@@ -727,10 +763,12 @@ function startNewSeason() {
   // 지난 시즌 이사진 목표 초과 보상(있으면) - 팝업에 결과를 같이 띄운다.
   const review = currentState.pendingBoardReview ?? null;
   currentState.pendingBoardReview = null;
-  if (review && review.funds > 0) {
-    currentState.funds += review.funds;
-    currentState.chemistry = Math.min(100, currentState.chemistry + review.chemistry);
+  if (review) {
+    currentState.funds += review.funds + (review.demand?.achieved ? review.demand.funds : 0);
+    if (review.funds > 0) currentState.chemistry = Math.min(100, currentState.chemistry + review.chemistry);
   }
+  currentState.boardDemand = null;
+  currentState.seasonTrack = { spent: 0, winterTransactions: 0 };
   currentState.seasonNumber += 1;
   currentState.week = SUMMER_MARKET_WEEKS[0];
   currentState.phase = 'summer';
@@ -762,7 +800,7 @@ function startNewSeason() {
   if (currentState.leagueTierId === 'tier1') {
     banner += '. 이번 시즌 목표: 리그 우승 + 챔피언스리그';
   }
-  currentState.seasonBriefing = { review, goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
+  currentState.seasonBriefing = { review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
   renderMarket(banner);
 }
 
@@ -805,6 +843,8 @@ function buyCard(card, rowEl = null) {
     return;
   }
   currentState.funds -= price;
+  currentState.seasonTrack.spent += price;
+  if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
   currentState.squad = [...currentState.squad, toSquadPlayer(card)];
   currentState.justBoughtIds = [...(currentState.justBoughtIds ?? []), card.id];
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
@@ -871,6 +911,7 @@ function rerollShop() {
 
 // 방출 3단계 (스펙 7절): 즉시(0%) / 이적 명단(1주 소모, 여름·겨울 범위 회수율) / Week12 데드라인(40%, 소모 없음)
 function releaseImmediate(card) {
+  if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
   currentState.transactedThisWeek = true;
@@ -881,6 +922,7 @@ function listForSale(card) {
   const method = currentState.phase === 'summer' ? 'listedSummer' : 'listedWinter';
   // 겨울 이적명단은 당해 영입 선수를 받지 않는다 (스펙 7절)
   if (method === 'listedWinter' && card.acquiredThisSeason) return;
+  if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
   currentState.listedForSale.push({ card, method, resolveWeek: currentState.week + 1 });
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
@@ -1149,7 +1191,20 @@ function runSecondHalfAndFinish(saleMessage = '') {
   // 이사진 목표 정산 - 보상은 다음 시즌 시작(startNewSeason)에 지급하고 팝업으로 알린다.
   const goal = currentBoardGoal();
   const reward = boardReward(totalPoints, goal, seasonBaseGrant());
-  currentState.pendingBoardReview = { goal, points: Math.round(totalPoints), ...reward };
+  const chosen = currentState.boardDemand;
+  const demandCard = chosen ? getDemand(chosen.cardId) : null;
+  const demandAchieved = demandCard ? evaluateDemand(demandCard.id, {
+    lineup, chemistry: currentState.chemistry, track: currentState.seasonTrack,
+    firstHalfPoints: currentState.firstHalfPoints, grant: seasonBaseGrant(), goal,
+  }) : false;
+  const demandFunds = demandAchieved ? Math.round(seasonBaseGrant() * BOARD_DEMAND_REWARD[chosen.difficulty]) : 0;
+  currentState.pendingBoardReview = {
+    goal, points: Math.round(totalPoints), ...reward,
+    demand: demandCard ? { text: demandCard.text, difficulty: chosen.difficulty, achieved: demandAchieved, funds: demandFunds } : null,
+  };
+  const demandLine = demandCard
+    ? `이사진 요구 "${demandCard.text}" → <b>${demandAchieved ? `달성! 다음 시즌 자금 +${demandFunds}G` : '미달(불이익 없음)'}</b>`
+    : '';
   const goalLine = reward.surplus > 0
     ? `이사진 목표 ${goal}점 → <b>${reward.surplus}점 초과 달성!</b> 다음 시즌 자금 +${reward.funds}G, 적응도 +${reward.chemistry}`
     : `이사진 목표 ${goal}점 → ${reward.surplus === 0 ? '딱 맞췄지만 초과는 아닙니다' : `${-reward.surplus}점 모자랐습니다`}`;
@@ -1205,6 +1260,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
         <li><span>최종 팀 전력</span><b>${computeTeamPower(lineup, bench, manager.tier, currentState.chemistry).toFixed(1)}</b></li>
         <li><span>최종 적응도</span><b>${currentState.chemistry.toFixed(1)}</b></li>
         <li><span>${goalLine}</span></li>
+        ${demandLine ? `<li><span>${demandLine}</span></li>` : ''}
         <li><span>남은 자금 (다음 시즌에 상한 30%까지 이월)</span><b>${currentState.funds.toFixed(0)}G</b></li>
       </ul>
       ${closingHtml}
@@ -2124,8 +2180,11 @@ function renderMarket(banner = '') {
   const eventRoot = document.getElementById('eventmodal-root');
   const briefing = currentState.seasonBriefing;
   if (briefing) {
-    const { review, goal, tierLabel, seasonNumber } = briefing;
+    const { review, goal, tierLabel, seasonNumber, demandOffer } = briefing;
     const tier = effectiveTier(currentState.leagueTierId);
+    const demandReviewHtml = review?.demand
+      ? `<p class="eventmodal__detail">요구 "${esc(review.demand.text)}": <b>${review.demand.achieved ? `달성! 자금 +${review.demand.funds.toLocaleString('ko-KR')}G` : '미달(불이익 없음)'}</b></p>`
+      : '';
     const reviewHtml = !review ? '' : review.surplus > 0
       ? `<p class="eventmodal__detail"><b>지난 시즌 목표 ${review.goal}점 → ${review.points}점, ${review.surplus}점 초과 달성!</b><br>보상: 자금 +${review.funds.toLocaleString('ko-KR')}G, 적응도 +${review.chemistry}</p>`
       : `<p class="eventmodal__detail">지난 시즌 목표 ${review.goal}점 → ${review.points}점 (${review.surplus === 0 ? '초과 달성은 못 했습니다' : `${-review.surplus}점 부족`}). 보상 없음.</p>`;
@@ -2135,10 +2194,20 @@ function renderMarket(banner = '') {
           <div class="eventmodal__kicker">시즌 ${seasonNumber} · 이사진 브리핑</div>
           <div class="eventmodal__title">${tierLabel} 목표 승점 ${goal}점</div>
           ${reviewHtml}
+          ${demandReviewHtml}
           <p class="eventmodal__detail">안전선 ${tier.safePoints}점 · 승격선 ${tier.targetPoints}점. ${BOARD_RULE_TEXT}</p>
+          <div class="demandcards demandcards--modal">${(demandOffer ?? []).map((id) => demandCardHtml(getDemand(id), 'data-pick-demand')).join('')}</div>
+          <p class="eventmodal__detail">위 카드에서 이번 시즌 이사진 요구를 고르면 달성 시 보너스가 붙습니다(안 골라도 됩니다).</p>
           <button class="cta" id="eventmodal-dismiss">목표 확인</button>
         </div>
       </div>`;
+    eventRoot.querySelectorAll('[data-pick-demand]').forEach((el) => {
+      el.onclick = () => {
+        const card = getDemand(el.dataset.pickDemand);
+        currentState.boardDemand = { cardId: card.id, difficulty: card.difficulty };
+        eventRoot.querySelectorAll('[data-pick-demand]').forEach((o) => o.classList.toggle('is-picked', o === el));
+      };
+    });
     document.getElementById('eventmodal-dismiss').onclick = () => {
       currentState.seasonBriefing = null;
       renderMarket(banner); // 이벤트가 있으면 이어서 이벤트 팝업이 뜬다

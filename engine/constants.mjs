@@ -200,3 +200,6 @@ export const BOARD_REWARD_CHEMISTRY = 5;
 // 시즌 이벤트 발생 확률(시즌 여름 시작 / 겨울 시장 진입). 플레이 후 조절 대상.
 export const EVENT_CHANCE_SUMMER = 0.7;
 export const EVENT_CHANCE_WINTER = 0.3;
+
+// 이사진 요구 카드 달성 보상 - 다음 시즌 지급액 대비 비율(난이도별).
+export const BOARD_DEMAND_REWARD = { easy: 0.05, normal: 0.10, hard: 0.20 };
