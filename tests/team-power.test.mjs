@@ -33,21 +33,22 @@ test('computeAverageOVR은 11명의 최종 OVR 평균을 낸다(태그 없는 �
 });
 
 test('computeTeamMultiplier는 감독 배율 × 적응도 배율이고 캡을 넘지 않는다', () => {
-  // god(1.20) × 적응도 100(1.12) = 1.344 → 캡 1.30으로 clamp
-  const capped = computeTeamMultiplier('god', 100);
-  assert.equal(capped, 1.30);
+  // god(1.20) × 적응도 100(1.08) = 1.296 - 곡선을 완만하게 바꾼 뒤엔 캡(1.30) 바로 아래다
+  const top = computeTeamMultiplier('god', 100);
+  assert.ok(Math.abs(top - 1.296) < 1e-9);
+  assert.ok(top <= 1.30);
 
-  // rookie(1.00) × 적응도 60(구간 보간 값) → 캡 안 걸림
-  const uncapped = computeTeamMultiplier('rookie', 40);
-  assert.equal(uncapped, 1.00);
+  // rookie(1.00) × 적응도 60(1.015)
+  const plain = computeTeamMultiplier('rookie', 60);
+  assert.ok(Math.abs(plain - 1.015) < 1e-9);
 });
 
 test('computeTeamPower는 평균 OVR × 팀 배율이다', () => {
   const lineup = Array.from({ length: 11 }, (_, i) =>
     makePlayer({ id: `p${i}`, baseOVR: 70 })
   );
-  const power = computeTeamPower(lineup, [], 'rookie', 40);
-  assert.equal(power, 70 * 1.00);
+  const power = computeTeamPower(lineup, [], 'rookie', 60);
+  assert.ok(Math.abs(power - 70 * 1.015) < 1e-9);
 });
 
 test('computeTeamPower correctly multiplies non-uniform average OVR by a non-identity team multiplier', () => {

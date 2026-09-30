@@ -19,7 +19,7 @@ import {
   computeReleaseProceeds,
   renewalCost,
 } from '../engine/economy.mjs';
-import { applyTransactionDecay } from '../engine/chemistry.mjs';
+import { applyTransactionDecay, chemistryMultiplier } from '../engine/chemistry.mjs';
 import { computePlayerFinalOVR, computePlayerBonusBreakdown, countEffectiveContinentRequirement } from '../engine/ovr.mjs';
 import {
   PLAYSTYLE_TAGS, CONTINENT_TAGS, POSITIONS,
@@ -1866,12 +1866,19 @@ function renderMarket(banner = '') {
           <span class="res__label">자금</span>
           <span class="res__val n">${funds.toLocaleString('ko-KR')}<i>G</i></span>
         </div>
-        <div class="res__item">
-          <span class="res__label">적응도</span>
-          <span class="res__val n">${chemistry.toFixed(1)}</span>
+        <div class="res__item res__item--btn" id="chem-info-btn" role="button" tabindex="0">
+          <span class="res__label">적응도 <i class="res__hint">ⓘ</i></span>
+          <span class="res__val n">${chemistry.toFixed(1)} <i class="res__mult">전력 ×${chemistryMultiplier(chemistry).toFixed(3)}</i></span>
           <div class="chembar${chemistry < 40 ? ' is-low' : ''}"><i style="width:${Math.min(100, chemistry)}%"></i></div>
         </div>
       </div>
+      <p class="note chem-info" id="chem-info" hidden>
+        <b>적응도 = 팀 조직력.</b> 높을수록 팀 전력이 오르고, 낮을수록 깎입니다
+        (0 → ×0.94 · 60 → ×1.015 · 100 → ×1.08, 지금은 ×${chemistryMultiplier(chemistry).toFixed(3)}).<br>
+        <b>오르는 때:</b> 영입·방출이 없는 주마다 +1, 전술 완성 +10, 승격 +${PROMOTION_CHEMISTRY_BONUS}, 일부 감독 성향.<br>
+        <b>깎이는 때:</b> 영입·방출 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'} (팀 전력 약 −${((chemistryMultiplier(chemistry) - chemistryMultiplier(Math.max(0, chemistry - decay))) * 100).toFixed(2)}%), 감독과의 불화 −${MANAGER_HARMONY_PENALTY}.<br>
+        그래서 자주 갈아치울수록 손해, 한 번에 굵직하게 바꾸고 기다릴수록 이득입니다.
+      </p>
     </header>
 
     ${(() => {
@@ -2016,6 +2023,10 @@ function renderMarket(banner = '') {
       });
     });
   }
+  document.getElementById('chem-info-btn')?.addEventListener('click', () => {
+    const box = document.getElementById('chem-info');
+    box.hidden = !box.hidden;
+  });
   document.querySelectorAll('[data-tag-desc]').forEach((el) => {
     el.addEventListener('click', () => {
       const hint = el.closest('.offer')?.querySelector('.offer__hint');

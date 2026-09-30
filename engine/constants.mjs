@@ -38,13 +38,10 @@ export const CHEMISTRY_START = 60;
 export const CHEMISTRY_DECAY_PER_TRANSACTION = 2;
 export const CHEMISTRY_RECOVERY_PER_STABLE_WEEK = 1;
 
-// 40 미만 ×0.95, 40~95 ×1.00~×1.04 선형, 96 이상 ×1.12
-export const CHEMISTRY_LOW_THRESHOLD = 40;
-export const CHEMISTRY_HIGH_THRESHOLD = 96;
-export const CHEMISTRY_LOW_MULTIPLIER = 0.95;
-export const CHEMISTRY_MID_MULTIPLIER_AT_LOW = 1.00;
-export const CHEMISTRY_MID_MULTIPLIER_AT_HIGH = 1.04;
-export const CHEMISTRY_HIGH_MULTIPLIER = 1.12;
+// 적응도 -> 팀 전력 배율 꺾은선(적응도, 배율). 예전엔 96 이상에서 ×1.12로
+// 절벽처럼 뛰었지만 12주 시장 안에 96은 사실상 못 넘어서 체감이 없었다.
+// 시작값(60)에서 예전과 거의 같은 ×1.015로 맞춰 리그 밸런스를 안 흔든다.
+export const CHEMISTRY_CURVE = [[0, 0.94], [60, 1.015], [100, 1.08]];
 
 // 스펙 12절 "미확정 사항" — 시뮬레이터로 조정할 튜닝 상수.
 // 여기서는 브레인스토밍에서 제시된 출발값을 그대로 코드 상수로 둔다.

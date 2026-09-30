@@ -13,21 +13,12 @@ test('clamp는 값을 min~max 사이로 제한한다', () => {
   assert.equal(clamp(50, 0, 100), 50);
 });
 
-test('적응도 40 미만이면 배율 0.95', () => {
-  assert.equal(chemistryMultiplier(0), 0.95);
-  assert.equal(chemistryMultiplier(39), 0.95);
-});
-
-test('적응도 40~95는 1.00~1.04 선형 보간', () => {
-  assert.equal(chemistryMultiplier(40), 1.00);
-  assert.ok(Math.abs(chemistryMultiplier(95) - (1.00 + (55 / 56) * 0.04)) < 0.001);
-  const mid = chemistryMultiplier(67.5); // 40과 95의 중간
-  assert.ok(Math.abs(mid - 1.02) < 0.001);
-});
-
-test('적응도 96 이상은 배율 1.12', () => {
-  assert.equal(chemistryMultiplier(96), 1.12);
-  assert.equal(chemistryMultiplier(100), 1.12);
+test('적응도 배율은 0=0.94, 60=1.015, 100=1.08을 잇는 꺾은선이다', () => {
+  assert.equal(chemistryMultiplier(0), 0.94);
+  assert.ok(Math.abs(chemistryMultiplier(60) - 1.015) < 1e-9);
+  assert.ok(Math.abs(chemistryMultiplier(100) - 1.08) < 1e-9);
+  assert.ok(Math.abs(chemistryMultiplier(30) - 0.9775) < 1e-9);
+  assert.ok(chemistryMultiplier(99) < chemistryMultiplier(100)); // 절벽 없음
 });
 
 test('거래 발생 시 적응도가 거래당 지정된 값만큼 하락하고 0 밑으로 안 내려간다', () => {
