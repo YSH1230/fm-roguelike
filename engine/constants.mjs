@@ -151,8 +151,8 @@ export const STARTING_FUNDS_TIER5 = 1000;
 // (직접 재실측해서 확인함: 2부/1부 강등률이 50%대로 치솟음). "5부 자금이
 // 너무 많다"는 5부에만 해당하는 얘기라, 5부(인덱스 0)에만 곱한다.
 export const TIER5_FUNDS_DISCOUNT = 0.55;
-export const FUNDS_MULTIPLIER_PER_LEAGUE_TIER = 1.5;
-export const CARRYOVER_CAP_RATIO = 0.3; // 이월 자금 상한 = 다음 시즌 시작 자금의 30%
+export const FUNDS_MULTIPLIER_PER_LEAGUE_TIER = 1.35; // 리그가 오를수록 지급액이 늘되 예전(1.5)보다 완만하게
+export const CARRYOVER_CAP_RATIO = 0.2; // 이월 자금 상한 = 다음 시즌 시작 자금의 20%
 
 // 스펙 7절 "드래프트(상점형)"
 export const SHOP_OFFER_SIZE = 3; // 스카우터 없을 때 기본값
@@ -160,6 +160,11 @@ export const SHOP_REROLL_COST = 50;
 
 // 스펙 5.3절 "스태프" 효과표
 export const COACH_CHEMISTRY_DECAY_BY_LEVEL = { academy: 1.5, proLicense: 1, veteran: 0.5, master: 0 };
+// 수석 코치 등급이 팀 전력에 직접 곱해지는 배율(적응도 하락 완화와 별개).
+export const COACH_POWER_MULTIPLIER = { academy: 1.0, proLicense: 1.01, veteran: 1.025, master: 1.04 };
+// 리그가 "이 정도 감독은 있어야 한다"고 기대하는 감독 배율. 감독 배율을 이 값으로
+// 나눈 값이 실제로 곱해진다 - 상위 리그에서 루키 감독을 유지하면 그만큼 손해.
+export const LEAGUE_EXPECTED_MANAGER = { tier5: 1.0, tier4: 1.0, tier3: 1.03, tier2: 1.06, tier1: 1.1 };
 export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 4, veteran: 4, master: 5 };
 export const SCOUT_MASTER_REROLL_DISCOUNT = 0.5;
 
@@ -176,7 +181,9 @@ export const WINTER_MARKET_WEEKS = [9, 12];
 
 // 스펙 8절 "승격 보상" — 적응도 상승 속도 2배는 슬라이스에서 생략(별도 시즌 플래그 필요), 나머지 둘만 적용
 export const PROMOTION_CHEMISTRY_BONUS = 5;
-export const PROMOTION_FUNDS_BONUS_RATIO = 0.1;
+// 스쿼드를 유지한 채 승격한 첫 시즌의 지급액 비율(예전엔 +10% 보너스). 이미 키운
+// 스쿼드에 새 리그 지급액을 그대로 주면 돈이 남아돌아 계산 없이 사고팔 수 있었다.
+export const PROMOTION_STAY_FUNDS_RATIO = 0.7;
 
 // 스펙 3절/8절 "이벤트" — 슬라이스 범위: 일반 위기 2 + 일반 기회 3 + 승격 전용 위기 2
 export const PROMOTION_TRANSFER_DEMAND_OVR_PENALTY = 5; // 거부 시 그 시즌 OVR 하락(출발값, 튜닝 대상)

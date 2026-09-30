@@ -9,8 +9,16 @@ import { applyCostModifiers, calculateStartingFunds, applyCarryoverCap } from '.
 import { LEAGUE_LADDER, getLeagueTier, getLadderIndex } from '../engine/league.mjs';
 import {
   CHEMISTRY_START, CHEMISTRY_DECAY_PER_TRANSACTION, WINTER_TAX_RATIO, SHOP_OFFER_SIZE,
-  PROMOTION_FUNDS_BONUS_RATIO,
+  PROMOTION_STAY_FUNDS_RATIO,
 } from '../engine/constants.mjs';
+
+// 봇이 감독·수석 코치에 얼마나 투자하는지. 기본은 "적당히 투자하는 플레이어":
+// 상위 리그로 갈수록 감독 등급을 올린다. --rookie는 감독/스태프를 안 사는 플레이어.
+const ROOKIE = process.argv.includes('--rookie');
+const BOT_MANAGER = ROOKIE
+  ? { tier5: 'rookie', tier4: 'rookie', tier3: 'rookie', tier2: 'rookie', tier1: 'rookie' }
+  : { tier5: 'tactician', tier4: 'tactician', tier3: 'tactician', tier2: 'legendary', tier1: 'legendary' };
+const BOT_COACH = ROOKIE ? 'academy' : 'proLicense';
 
 const SLOTS = ['GK', 'CB', 'CB', 'WB', 'WB', 'CMF', 'CMF', 'CMF', 'W', 'W', 'ST'];
 
@@ -37,7 +45,7 @@ const toSquad = (c) => ({ ...c, seasonsAtClub: 0, acquiredThisSeason: true, inBe
 function playSeason(tierId, carried) {
   let squad = carried ? carried.squad : generateStartingSquad().map(toSquad);
   const grant = Math.round(
-    calculateStartingFunds(getLadderIndex(tierId)) * (carried ? 1 + PROMOTION_FUNDS_BONUS_RATIO : 1)
+    calculateStartingFunds(getLadderIndex(tierId)) * (carried ? PROMOTION_STAY_FUNDS_RATIO : 1)
   );
   let funds = grant + Math.round(applyCarryoverCap(carried ? carried.funds : 0, grant));
   let chem = CHEMISTRY_START;
@@ -57,7 +65,7 @@ function playSeason(tierId, carried) {
       }
     }
     const { lineup, bench } = pickBestXI(squad);
-    const pts = runHalfSeason(lineup, bench, 'tactician', chem, tierId);
+    const pts = runHalfSeason(lineup, bench, BOT_MANAGER[tierId], chem, tierId, Math.random, null, BOT_COACH);
     if (phase === 'summer') firstHalf = pts;
     else return { points: firstHalf + pts, squad, funds };
   }

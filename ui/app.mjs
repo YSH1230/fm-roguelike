@@ -41,7 +41,7 @@ import {
   WINTER_TAX_RATIO,
   WINTER_FUNDS_RATIO,
   PROMOTION_CHEMISTRY_BONUS,
-  PROMOTION_FUNDS_BONUS_RATIO,
+  PROMOTION_STAY_FUNDS_RATIO,
   COACH_CHEMISTRY_DECAY_BY_LEVEL,
   SCOUT_SHOP_OFFER_SIZE_BY_LEVEL,
   SCOUT_MASTER_REROLL_DISCOUNT,
@@ -50,6 +50,9 @@ import {
   MISSED_TARGET_LIMIT,
   STAGNATION_FUNDS_PENALTY_PER_MISS,
   TAG_THRESHOLDS,
+  MANAGER_TIER_MULTIPLIER,
+  LEAGUE_EXPECTED_MANAGER,
+  COACH_POWER_MULTIPLIER,
   BOARD_REWARD_FUNDS_PER_POINT,
   BOARD_REWARD_FUNDS_CAP,
   BOARD_REWARD_CHEMISTRY,
@@ -156,6 +159,10 @@ function currentFormation() {
 
 // 이사진이 이번 시즌 요구하는 승점(안전선~승격선 사이). 리그와 구단 기대치만으로
 // 정해지니 따로 저장하지 않고 필요할 때 계산한다.
+// 팀 전력 계산에 들어가는 리그/스태프 요소(감독 리그 적합도, 수석 코치 직접 효과)
+function powerExtras() {
+  return { leagueTierId: currentState.leagueTierId, coachLevel: currentState.staff.headCoach.level };
+}
 function currentBoardGoal() {
   return boardGoalPoints(effectiveTier(currentState.leagueTierId));
 }
@@ -258,7 +265,9 @@ const MANAGER_TRAIT_DESCRIPTIONS = {
 function staffBenefit(role, level) {
   if (role === 'headCoach') {
     const v = COACH_CHEMISTRY_DECAY_BY_LEVEL[level];
-    return v === 0 ? '거래해도 적응도 유지' : `거래당 적응도 −${v}`;
+    const power = COACH_POWER_MULTIPLIER[level];
+    return (v === 0 ? '거래해도 적응도 유지' : `거래당 적응도 −${v}`)
+      + (power > 1 ? ` · 팀 전력 +${((power - 1) * 100).toFixed(1)}%` : '');
   }
   const n = SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[level];
   return `매주 매물 ${n}장${level === 'master' ? ' · 다시 뽑기 절반' : ''}`;
@@ -647,7 +656,7 @@ function renderCareerIntro() {
   const scale = tier.championPoints * 1.1;
   const at = (v) => `${Math.min(100, (v / scale) * 100)}%`;
   const { lineup, bench } = pickBestXI(squad, currentFormation());
-  const teamPower = computeTeamPower(lineup, bench, manager.tier, currentState.chemistry);
+  const teamPower = computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, null, powerExtras());
   const leagueAverageOVR = (tier.averageOVR[0] + tier.averageOVR[1]) / 2;
   const projectedPoints = convertPowerToPoints(teamPower, leagueAverageOVR);
   const zone = projectedPoints >= tier.championPoints ? 'champion'
@@ -729,7 +738,7 @@ function grantSeasonFunds() {
   const base = calculateStartingFunds(getLadderIndex(currentState.leagueTierId))
     * currentState.club.startingFundsMultiplier;
   const promoted = currentState.promotionFundsBonusPending
-    ? base * (1 + PROMOTION_FUNDS_BONUS_RATIO)
+    ? base * PROMOTION_STAY_FUNDS_RATIO
     : base;
   // 승격 못 하고 같은 리그에 눌러앉을수록(목표 미달 누적) 이사진이 지갑을
   // 닫는다. 승격하면 missedTargetCount가 0으로 리셋되니 이 페널티도 같이 풀린다.
@@ -1058,7 +1067,8 @@ function runFirstHalf(saleMessage = '') {
     currentState.chemistry,
     currentState.leagueTierId,
     Math.random,
-    boostedTagIdFor(manager)
+    boostedTagIdFor(manager),
+    currentState.staff.headCoach.level
   );
 
   const tierLabel = getLeagueTier(currentState.leagueTierId).label;
@@ -1161,7 +1171,8 @@ function runSecondHalfAndFinish(saleMessage = '') {
     currentState.chemistry,
     currentState.leagueTierId,
     Math.random,
-    boostedTagIdFor(manager)
+    boostedTagIdFor(manager),
+    currentState.staff.headCoach.level
   );
   const totalPoints = currentState.firstHalfPoints + secondHalf;
   let result = judgeSeasonResult(totalPoints, currentState.leagueTierId, currentState.expectationModifier ?? 0);
@@ -1182,7 +1193,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   // 챔피언스리그: 1부에서만, 리그 승격/강등과 별개로 매 시즌 병행해서 돈다.
   let uclResultId = null;
   if (currentState.leagueTierId === 'tier1') {
-    const teamPower = computeTeamPower(lineup, bench, manager.tier, currentState.chemistry);
+    const teamPower = computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, boostedTagIdFor(manager), powerExtras());
     uclResultId = simulateChampionsLeague(teamPower);
     currentState.funds += UCL_REWARDS_FUNDS[uclResultId];
     if (uclResultId === 'champion') currentState.uclTitles += 1;
@@ -1231,7 +1242,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   let dockHtml;
   let closingHtml = '';
   if (canPromote) {
-    closingHtml = `<p class="note">승격 보상: 적응도 +${PROMOTION_CHEMISTRY_BONUS}, 자금 +${PROMOTION_FUNDS_BONUS_RATIO * 100}%</p>`;
+    closingHtml = `<p class="note">승격 보상: 적응도 +${PROMOTION_CHEMISTRY_BONUS}, 새 리그 첫 시즌 지급액은 ${PROMOTION_STAY_FUNDS_RATIO * 100}%(스쿼드를 유지할 때)</p>`;
     dockHtml = `<button class="cta" id="promote-btn">${getLeagueTier(getNextTier(currentState.leagueTierId)).label}로 승격</button>`;
   } else {
     const left = MISSED_TARGET_LIMIT - currentState.missedTargetCount;
@@ -1276,7 +1287,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
     ${uclResultId ? `<div class="banner banner--ucl">챔피언스리그 ${UCL_RESULT_LABELS[uclResultId]}. 상금 +${UCL_REWARDS_FUNDS[uclResultId]}G${uclResultId === 'champion' ? ' · 명성 대폭 상승' : ''}</div>` : ''}
     <div class="panel">
       <ul class="summary">
-        <li><span>최종 팀 전력</span><b>${computeTeamPower(lineup, bench, manager.tier, currentState.chemistry).toFixed(1)}</b></li>
+        <li><span>최종 팀 전력</span><b>${computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, boostedTagIdFor(manager), powerExtras()).toFixed(1)}</b></li>
         <li><span>최종 적응도</span><b>${currentState.chemistry.toFixed(1)}</b></li>
         <li><span>${goalLine}</span></li>
         ${demandLine ? `<li><span>${demandLine}</span></li>` : ''}
@@ -1355,6 +1366,7 @@ function renderDestinationChoice(seasonResult, nextTierId) {
   };
   for (const c of offers) {
     document.querySelector(`[data-move="${c.id}"]`).onclick = () => {
+      currentState.promotionFundsBonusPending = false; // 새 구단은 선수단이 초기화되므로 감액 대상이 아니다
       currentState.club = c;
       currentState.expectationModifier = c.expectationModifier ?? 0; // 새 구단의 유형(강/중/약)이 이사진 기대치를 정한다
       currentState.leagueTierId = nextTierId;
@@ -1717,7 +1729,7 @@ function renderMarket(banner = '') {
     if (!members.length) return null;
     return members.reduce((sum, p) => sum + finalOVR.get(p.id), 0) / members.length;
   };
-  const teamPower = computeTeamPower(lineup, bench, manager.tier, chemistry);
+  const teamPower = computeTeamPower(lineup, bench, manager.tier, chemistry, boostedTagIdFor(manager), powerExtras());
 
   const weekStart = phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0];
   const dots = Array.from({ length: maxWeek - weekStart + 1 }, (_, i) => {
@@ -1973,6 +1985,19 @@ function renderMarket(banner = '') {
         ${squadHtml}
       </section>`,
     staff: `
+      <section class="panel tabpanel">
+        <div class="panel__head"><h2>감독·스태프가 팀 전력에 주는 영향</h2></div>
+        ${(() => {
+          const expected = LEAGUE_EXPECTED_MANAGER[currentState.leagueTierId] ?? 1;
+          const mgr = MANAGER_TIER_MULTIPLIER[manager.tier];
+          const fit = mgr / expected;
+          const coach = COACH_POWER_MULTIPLIER[staff.headCoach.level] ?? 1;
+          const tone = fit < 1 ? 'var(--debit)' : 'var(--turf)';
+          return `<p class="note">${getLeagueTier(currentState.leagueTierId).label}는 감독 배율 <b>×${expected.toFixed(2)}</b>를 기대합니다.
+            지금 감독 ×${mgr.toFixed(2)} → 팀 전력 <b style="color:${tone}">×${fit.toFixed(3)}</b>${fit < 1 ? ' (기대에 못 미쳐 손해)' : ''}.
+            수석 코치(${STAFF_LEVEL_LABELS[staff.headCoach.level]}) 직접 효과 <b>×${coach.toFixed(3)}</b>.</p>`;
+        })()}
+      </section>
       <section class="panel tabpanel">
         <div class="panel__head"><h2>감독</h2></div>
         <div class="starplayer" style="--tier:var(--${MANAGER_TIER_COLOR[manager.tier] ?? 't-local'})">

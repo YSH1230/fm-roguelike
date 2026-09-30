@@ -74,3 +74,17 @@ test('applyVariance는 randomFn 결과에 따라 ±ratio 범위로 조정한다'
   assert.equal(applyVariance(100, 0.05, () => 0), 95); // 최소치
   assert.equal(applyVariance(100, 0.05, () => 0.5), 100); // 중간값(변화 없음)
 });
+
+test('리그가 기대하는 감독 대비 배율: 1부에서 루키는 손해, 레전더리는 이득이다', () => {
+  const rookie = computeTeamMultiplier('rookie', 60, { leagueTierId: 'tier1' });
+  const legendary = computeTeamMultiplier('legendary', 60, { leagueTierId: 'tier1' });
+  assert.ok(Math.abs(rookie - (1.0 / 1.1) * 1.015) < 1e-9);
+  assert.ok(legendary > 1.015);
+  assert.equal(computeTeamMultiplier('rookie', 60, { leagueTierId: 'tier5' }), computeTeamMultiplier('rookie', 60));
+});
+
+test('수석 코치 등급이 팀 전력에 직접 곱해진다', () => {
+  const none = computeTeamMultiplier('rookie', 60, { coachLevel: 'academy' });
+  const master = computeTeamMultiplier('rookie', 60, { coachLevel: 'master' });
+  assert.ok(Math.abs(master / none - 1.04) < 1e-9);
+});

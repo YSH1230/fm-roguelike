@@ -28,10 +28,10 @@ test('getLeagueTier는 5부와 4부의 체급 정보를 반환한다', () => {
   assert.equal(tier5.championPoints, 80);
 
   const tier4 = getLeagueTier('tier4');
-  assert.deepEqual(tier4.averageOVR, [60, 67]);
+  assert.deepEqual(tier4.averageOVR, [57, 64]);
   assert.equal(tier4.safePoints, 40);
-  assert.equal(tier4.targetPoints, 70);
-  assert.equal(tier4.championPoints, 84);
+  assert.equal(tier4.targetPoints, 73);
+  assert.equal(tier4.championPoints, 86);
 });
 
 test('리그 사다리는 5부에서 1부까지 5단계다', () => {
