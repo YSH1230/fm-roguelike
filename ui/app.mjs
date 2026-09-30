@@ -246,23 +246,42 @@ const MANAGER_TRAIT_LABELS = {
 // 감독·스태프 칸(사단 꾸리기)에서 "이 성향이 뭘 하는지" 보여주는 설명.
 const MANAGER_TRAIT_DESCRIPTIONS = {
   hairdryer: '영입 즉시 적응도 +20',
-  boardTrust: '강등 확정 시 1회 한정 무효화',
-  silverTongue: '감독과 같은 대륙·전술 태그 선수 영입비 -30%',
-  youthCallUp: '유스 매물 등장 확률 상승',
-  reboundArchitect: '거래 1건당 적응도 하락폭 절반',
-  firefighter: '안전권은 넘고 목표선은 못 넘은 페이스로 겨울 진입 시 적응도 +30',
+  boardTrust: '강등을 1회 면제',
+  silverTongue: '같은 대륙·전술 태그 선수 영입비 -30%',
+  youthCallUp: '유스 매물이 더 자주 나옴',
+  reboundArchitect: '거래당 적응도 하락 절반',
+  firefighter: '위기 페이스로 겨울 진입 시 적응도 +30',
   crisisManager: '위기 이벤트 무효화',
-  longTermReign: '같은 구단 잔류 시즌마다 적응도 시작값 +3',
-  tacticalPurist: '감독의 전술 태그 케미 발동에 필요한 인원 1명 감면',
+  longTermReign: '잔류 시즌마다 적응도 +3',
+  tacticalPurist: '전술 태그 케미 발동 인원 1명 감면',
 };
-const STAFF_ROLE_DESCRIPTIONS = {
-  headCoach: '거래 1건당 적응도 하락폭을 등급별로 줄여준다',
-  headScout: '매주 매물 수를 늘리고(마스터는 다시 뽑기 비용도 절반)',
-};
+// 등급별로 뭐가 얼마나 좋아지는지 한 줄. 코치 수치는 "거래 1건당 적응도 하락".
+function staffBenefit(role, level) {
+  if (role === 'headCoach') {
+    const v = COACH_CHEMISTRY_DECAY_BY_LEVEL[level];
+    return v === 0 ? '거래해도 적응도 유지' : `거래당 적응도 −${v}`;
+  }
+  const n = SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[level];
+  return `매주 매물 ${n}장${level === 'master' ? ' · 다시 뽑기 절반' : ''}`;
+}
 const MANAGER_TIER_MULTIPLIER_TEXT = {
   rookie: '팀 전력 배율 ×1.00', tactician: '팀 전력 배율 ×1.05',
   legendary: '팀 전력 배율 ×1.12', god: '팀 전력 배율 ×1.20',
 };
+// 감독 카드에 쓰는 요약 칩(등급·배율 / 전술 / 대륙)과 성향 한 줄.
+function managerChipsHtml(m) {
+  return `<div class="chips">
+    <span class="tag tag--tier">${MANAGER_TIER_LABELS[m.tier] ?? m.tier} ${MANAGER_TIER_MULTIPLIER_TEXT[m.tier]?.replace('팀 전력 배율 ', '') ?? ''}</span>
+    <span class="tag">${TAG_LABELS[m.tacticalTag] ?? m.tacticalTag}</span>
+    <span class="tag">${CONTINENT_LABELS[m.continentTag] ?? m.continentTag}</span>
+  </div>`;
+}
+function managerTraitHtml(m) {
+  return m.trait
+    ? `<p class="traitline"><b>${MANAGER_TRAIT_LABELS[m.trait] ?? m.trait}</b> ${MANAGER_TRAIT_DESCRIPTIONS[m.trait] ?? ''}</p>`
+    : '<p class="traitline traitline--none">세부 성향 없음</p>';
+}
+
 // 여름 이적시장이 끝나는 시점(전반기 시작 직전)의 라인업으로 딱 한 번 체크한다.
 // 감독의 전술 태그 케미가 그때 안 켜져 있으면 "선호하는 선수단을 못 꾸렸다"는
 // 뜻이라 불화, 켜져 있으면 전술이 자리잡았다는 뜻이라 보너스 - 새 수치 체계
@@ -279,18 +298,6 @@ function applyManagerTacticalHarmony(lineup) {
   }
   currentState.chemistry = Math.min(100, currentState.chemistry + MANAGER_HARMONY_BONUS);
   return `전술 완성: ${manager.name} 감독이 선호하는 전술(${tagLabel})이 라인업에서 발동했습니다. 적응도 +${MANAGER_HARMONY_BONUS}`;
-}
-
-// 전술 태그는 위 시즌 시작 체크(불화/전술 완성)로 모든 감독에게 항상 의미가
-// 있다. 화술의 달인/전술 원리주의자는 그 위에 추가 효과가 붙는다.
-function managerTacticalTagNote(manager) {
-  if (manager.trait === 'silverTongue') {
-    return `시즌 시작 체크 외에 이 태그(또는 대륙) 카드 영입비 -30%`;
-  }
-  if (manager.trait === 'tacticalPurist') {
-    return `시즌 시작 체크 외에 이 태그 케미 발동 요구 인원 1명 감면`;
-  }
-  return `시즌 시작(여름 시장 마감) 때 이 태그 케미가 안 켜져 있으면 불화, 켜져 있으면 보너스`;
 }
 
 // 선수단/전술 탭에서 선수 태그(플레이스타일·대륙)를 한눈에 보여준다.
@@ -1763,7 +1770,7 @@ function renderMarket(banner = '') {
     const yearsLeft = p.contractYearsLeft ?? 2;
     const contractLabel = yearsLeft <= 0
       ? '<span class="tag tag--expired">계약 만료</span>'
-      : `계약 ${yearsLeft}년`;
+      : yearsLeft === 1 ? '<span class="tag tag--expiring">계약 1년</span>' : `계약 ${yearsLeft}년`;
     return `<li class="player${inXI.has(p.id) ? ' is-xi' : ''}" data-row="${p.id}" style="--tier:var(--t-${tierOf(p.baseOVR)})">
       ${renderPortrait(p, { size: 36, kit: club.kit })}
       <b class="player__ovr n">${p.baseOVR}</b>
@@ -1773,7 +1780,7 @@ function renderMarket(banner = '') {
         ${playerTagsHtml(p)}
       </div>
       <div class="player__actions" data-actions="${p.id}">
-        ${yearsLeft === 1 ? [1, 2].map((y) => `<button class="renew" data-renew="${p.id}" data-years="${y}" ${funds >= renewalCost(p.price, y) ? '' : 'disabled'} title="계약이 끝나기 전에 미리 붙잡습니다">${y}년<b>${renewalCost(p.price, y)}G</b></button>`).join('') : ''}
+        ${yearsLeft <= 1 ? `<span class="player__renew"><em>재계약</em>${[1, 2].map((y) => `<button class="renew" data-renew="${p.id}" data-years="${y}" ${funds >= renewalCost(p.price, y) ? '' : 'disabled'}>${y}년 <b>${renewalCost(p.price, y)}G</b></button>`).join('')}</span>` : ''}
         <button class="release" data-release-immediate="${p.id}" title="회수 0%, ${decayLabel}">즉시 방출</button>
         <button class="release" data-release-listed="${p.id}" ${winterBlocked ? 'disabled title="당해 영입 선수는 겨울 이적명단에 올릴 수 없습니다"' : 'title="1주 뒤 정산"'}>판매 등록</button>
         ${isDeadlineWeek ? `<button class="release release--deadline" data-release-deadline="${p.id}" title="원가의 40% 회수">데드라인 방출</button>` : ''}
@@ -1813,10 +1820,10 @@ function renderMarket(banner = '') {
             return `<li class="mgroffer" data-row="mgr-${m.id}" style="--tier:var(--${MANAGER_TIER_COLOR[m.tier] ?? 't-local'})">
               <div class="mgroffer__main">
                 ${renderPortrait(m, { size: 40 })}
-                <div>
+                <div class="mgroffer__body">
                   <div class="player__name">${esc(m.name)}</div>
-                  <div class="player__meta">${MANAGER_TIER_LABELS[m.tier] ?? m.tier} · ${MANAGER_TIER_MULTIPLIER_TEXT[m.tier] ?? ''} · ${CONTINENT_LABELS[m.continentTag] ?? m.continentTag}</div>
-                  <div class="player__meta">${m.trait ? `${MANAGER_TRAIT_LABELS[m.trait] ?? m.trait}: ${MANAGER_TRAIT_DESCRIPTIONS[m.trait] ?? ''}` : '세부 성향 없음'}</div>
+                  ${managerChipsHtml(m)}
+                  ${managerTraitHtml(m)}
                 </div>
               </div>
               <button class="hire" data-hire-manager="${m.id}" ${canHire ? '' : 'disabled'}>
@@ -1843,7 +1850,7 @@ function renderMarket(banner = '') {
                   ${renderPortrait(candidate, { size: 40 })}
                   <div>
                     <div class="player__name">${esc(candidate.name)}${isCurrent ? '<span class="tag tag--new">현재</span>' : ''}</div>
-                    <div class="player__meta">${STAFF_LEVEL_LABELS[level]}</div>
+                    <div class="player__meta"><b class="staff__level">${STAFF_LEVEL_LABELS[level]}</b> · ${staffBenefit(role, level)}</div>
                   </div>
                 </div>
                 <button class="hire" data-hire-staff="${role}:${level}" ${isCurrent || funds < cost ? 'disabled' : ''}>
@@ -1853,7 +1860,7 @@ function renderMarket(banner = '') {
               </li>`;
             }).join('')}
           </ul>`).join('')}
-        <p class="note">스태프 영입은 위약금 없이 즉시 적용되지만, 영입한 주에는 새 효과가 아직 발동하지 않습니다.</p>
+        <p class="note">위약금 없이 바로 교체되지만, 영입한 주에는 새 효과가 발동하지 않습니다.</p>
       </section>`,
     tactics: `
       <section class="panel tabpanel">
@@ -1933,12 +1940,11 @@ function renderMarket(banner = '') {
         <div class="panel__head"><h2>감독</h2></div>
         <div class="starplayer" style="--tier:var(--${MANAGER_TIER_COLOR[manager.tier] ?? 't-local'})">
           ${renderPortrait(manager, { size: 48 })}
-          <div>
+          <div class="mgroffer__body">
             <div class="player__name">${esc(manager.name)}</div>
-            <div class="player__meta">${MANAGER_TIER_LABELS[manager.tier] ?? manager.tier} · ${MANAGER_TIER_MULTIPLIER_TEXT[manager.tier] ?? ''}</div>
-            <div class="note">전술 성향 ${TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag}: ${managerTacticalTagNote(manager)}</div>
-            <div class="note">출신 대륙 ${CONTINENT_LABELS[manager.continentTag] ?? manager.continentTag}</div>
-            ${manager.trait ? `<div class="note">세부 성향 ${MANAGER_TRAIT_LABELS[manager.trait]}: ${MANAGER_TRAIT_DESCRIPTIONS[manager.trait] ?? ''}</div>` : '<div class="note">세부 성향 없음</div>'}
+            ${managerChipsHtml(manager)}
+            ${managerTraitHtml(manager)}
+            <p class="traitline traitline--none">전술 태그: 여름 시장이 끝날 때 라인업에서 발동하면 적응도 +${MANAGER_HARMONY_BONUS}, 못 켜면 −${MANAGER_HARMONY_PENALTY}</p>
           </div>
         </div>
       </section>
@@ -1950,8 +1956,7 @@ function renderMarket(banner = '') {
               ${renderPortrait(staff[role], { size: 36 })}
               <div style="grid-column:2 / -1">
                 <div class="player__name">${esc(staff[role].name ?? '무명')}</div>
-                <div class="player__meta">${STAFF_ROLE_LABELS[role]} · ${STAFF_LEVEL_LABELS[staff[role].level] ?? staff[role].level}</div>
-                <div class="note">${STAFF_ROLE_DESCRIPTIONS[role]}</div>
+                <div class="player__meta">${STAFF_ROLE_LABELS[role]} · <b class="staff__level">${STAFF_LEVEL_LABELS[staff[role].level] ?? staff[role].level}</b> · ${staffBenefit(role, staff[role].level)}</div>
               </div>
             </li>`).join('')}
         </ul>
@@ -1979,7 +1984,7 @@ function renderMarket(banner = '') {
         </div>
         <div class="res__item res__item--btn" id="chem-info-btn" role="button" tabindex="0">
           <span class="res__label">적응도 <i class="res__hint">ⓘ</i></span>
-          <span class="res__val n">${chemistry.toFixed(1)} <i class="res__mult">전력 ×${chemistryMultiplier(chemistry).toFixed(3)}</i></span>
+          <span class="res__val n">${chemistry.toFixed(1)}</span>
           <div class="chembar${chemistry < 40 ? ' is-low' : ''}"><i style="width:${Math.min(100, chemistry)}%"></i></div>
         </div>
       </div>
@@ -2178,6 +2183,13 @@ function renderMarket(banner = '') {
         };
       }
     }
+    // 선수 행을 누르면 관리 버튼(재계약/판매 등록/방출)이 펼쳐진다.
+    document.querySelectorAll('.squad .player[data-row]').forEach((row) => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        row.classList.toggle('is-open');
+      });
+    });
     document.querySelectorAll('[data-renew]').forEach((btn) => {
       btn.onclick = () => {
         const id = btn.dataset.renew;

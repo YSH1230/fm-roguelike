@@ -736,10 +736,10 @@ button:not(:disabled):active { transform: scale(0.98); }
 
 /* 재계약 - 방출과 반대로 "돈을 써서 붙잡는" 긍정 행동이라 turf 톤 */
 .renew {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 4px;
   font-size: var(--fs-micro);
   padding: 4px 8px;
   border-radius: var(--r-sm);
@@ -1116,3 +1116,30 @@ button:not(:disabled):active { transform: scale(0.98); }
 .demandcard--normal .demandcard__level { color: var(--gold); }
 .demandcard:hover, .demandcard.is-picked { border-color: var(--turf); box-shadow: 0 0 0 1px var(--turf); }
 .demandcards--modal { text-align: left; }
+
+/* ============ 정돈: 감독/스태프 카드, 선수단 행 ============ */
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 0; }
+.tag--tier { color: var(--tier, var(--muted)); background: transparent; border: 1px solid var(--tier, var(--line)); font-weight: 700; }
+.tag--expiring { color: var(--gold); background: rgba(221, 166, 58, 0.14); font-weight: 700; }
+.traitline { margin: 6px 0 0; font-size: var(--fs-label); line-height: 1.45; color: var(--muted); }
+.traitline b { color: var(--light); font-weight: 700; margin-right: 4px; }
+.traitline--none { color: var(--muted-dim); }
+.mgroffer__body { min-width: 0; }
+.staff__level { color: var(--tier, var(--light)); font-weight: 700; }
+.mgroffer__main { align-items: flex-start; }
+.mgroffer .portrait { flex: none; }
+
+/* 선수 행: 평소엔 정보만, 눌러서 관리 버튼을 펼친다 */
+.squad .player { cursor: pointer; }
+.squad .player .player__actions { display: none; grid-column: 1 / -1; justify-content: flex-end; flex-wrap: wrap; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--line-soft); }
+.squad .player.is-open .player__actions { display: flex; }
+.player__renew { display: inline-flex; align-items: center; gap: 4px; margin-right: auto; }
+.player__renew em { font-style: normal; font-size: var(--fs-micro); color: var(--muted); margin-right: 2px; }
+.player__actions .release { background: none; border-color: transparent; padding: 4px 6px; color: var(--muted); }
+.player__actions .release[data-release-immediate] { color: var(--debit); }
+.player__actions .release:hover:not(:disabled) { background: rgba(226, 86, 77, 0.14); color: var(--debit); }
+.player__actions .release--deadline { color: var(--gold); }
+/* 눌러서 펼친다는 단서: 오른쪽 끝 작은 화살표 */
+.squad .player[data-row]::after { content: '⌄'; grid-column: 4; grid-row: 1; color: var(--muted-dim); font-size: 14px; line-height: 1; transition: transform 160ms var(--ease); }
+.squad .player.is-open[data-row]::after { transform: rotate(180deg); }
+.squad .player--confirm::after { content: none; }
