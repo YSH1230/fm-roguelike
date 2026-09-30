@@ -38,7 +38,7 @@ test('누적 승점은 경기마다 단조 증가하고 승/무/패 수가 승�
 test('리그 순위표: 내 최종 누적 승점이 입력과 같고, 페이스에 맞는 순위에 자리 잡는다', async () => {
   const { simulateLeagueTable, rankingAt } = await import('../engine/half-results.mjs');
   const tier = { safePoints: 38, targetPoints: 68, championPoints: 80 };
-  for (const [pts, maxRank, minRank] of [[42, 2, 1], [34, 5, 2], [19, 17, 10], [8, 20, 17]]) {
+  for (const [pts, maxRank, minRank] of [[42, 2, 1], [34, 5, 2], [19, 18, 10], [8, 20, 17]]) {
     const table = simulateLeagueTable(pts, tier);
     const me = table.find((t) => t.id === 'me');
     assert.equal(me.cumulative.at(-1), pts);
@@ -46,4 +46,20 @@ test('리그 순위표: 내 최종 누적 승점이 입력과 같고, 페이스�
     const rank = rankingAt(table, 19).indexOf('me') + 1;
     assert.ok(rank >= minRank && rank <= maxRank, `pts ${pts} -> rank ${rank}`);
   }
+});
+
+test('최종 순위: 판정 구간(우승=1, 승격=2~3, 강등=18~20)을 벗어나지 않는다', async () => {
+  const { finalLeagueRank } = await import('../engine/half-results.mjs');
+  const tier = { safePoints: 44, targetPoints: 74, championPoints: 86 };
+  for (let i = 0; i < 30; i++) {
+    assert.equal(finalLeagueRank(90, tier, 'champion'), 1);
+    const promo = finalLeagueRank(76, tier, 'promotion');
+    assert.ok(promo >= 2 && promo <= 3);
+    const rel = finalLeagueRank(30, tier, 'relegation');
+    assert.ok(rel >= 18 && rel <= 20);
+    const safe = finalLeagueRank(55, tier, 'safe');
+    assert.ok(safe >= 4 && safe <= 17);
+  }
+  const cl = finalLeagueRank(76, tier, 'promotion', Math.random, 4);
+  assert.ok(cl >= 2 && cl <= 4);
 });

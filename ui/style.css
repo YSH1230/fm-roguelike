@@ -1100,6 +1100,27 @@ button:not(:disabled):active { transform: scale(0.98); }
 .eventmodal p.eventmodal__detail { margin-bottom: var(--s3); line-height: 1.5; }
 .eventmodal p.eventmodal__detail:last-of-type { margin-bottom: var(--s6); }
 
+/* 최종 순위 / 챔피언스리그 */
+.finalrank { text-align: center; color: var(--muted); font-size: var(--fs-body); margin: 2px 0 var(--s2); }
+.finalrank b { color: var(--light); font-size: var(--fs-l); }
+.uclhead { display: flex; justify-content: space-between; padding: var(--s6) var(--s4) 0; font-size: var(--fs-label); color: var(--muted); }
+.uclnext { margin: var(--s3) var(--s4); padding: var(--s4); text-align: center; background: var(--surface); border-radius: var(--r-lg); border-top: 3px solid var(--gold); display: grid; gap: var(--s2); }
+.uclnext__stage { font-size: var(--fs-label); color: var(--gold); font-weight: 800; }
+.uclnext__vs { display: grid; gap: 2px; }
+.uclnext__vs b { font-size: var(--fs-l); }
+.uclnext__vs span { color: var(--muted); font-size: var(--fs-label); }
+.uclnext__power { font-size: var(--fs-micro); color: var(--muted); }
+.ucltable, .ucllog, .uclbracket { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ucltable__row { display: grid; grid-template-columns: 22px 1fr auto auto 34px; gap: var(--s2); align-items: center; padding: 5px var(--s2); background: var(--surface); border-radius: var(--r-sm); font-size: var(--fs-label); }
+.ucltable__row.is-mine, .ucllog li.is-mine, .uclbracket li.is-mine { border: 1px solid var(--turf); }
+.ucltable__row.is-cut { margin-bottom: 4px; }
+.ucltable__rank { color: var(--muted); text-align: center; }
+.ucltable__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ucllog li { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--s2); align-items: center; padding: 5px var(--s2); background: var(--surface); border-radius: var(--r-sm); font-size: var(--fs-label); }
+.ucllog li span:last-of-type { text-align: right; }
+.ucllog li em { grid-column: 1 / -1; text-align: center; font-style: normal; color: var(--gold); font-size: var(--fs-micro); }
+.uclbracket li { padding: 6px var(--s2); background: var(--surface); border-radius: var(--r-sm); font-size: var(--fs-label); }
+.uclbracket li span { color: var(--gold); font-weight: 800; margin-right: 6px; }
 /* 이사진 요구 카드 */
 .demandcards { display: grid; gap: var(--s2); margin: var(--s3) var(--s4); }
 .demandcard {

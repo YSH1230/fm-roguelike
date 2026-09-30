@@ -51,7 +51,7 @@ export function simulateLeagueTable(myPoints, tier, rng = Math.random, rivalCoun
   const champ = tier.championPoints / 2;
   const target = tier.targetPoints / 2;
   const safe = tier.safePoints / 2;
-  const anchors = [[1, champ], [3, target], [16, safe], [20, safe * 0.55]];
+  const anchors = [[1, champ], [3, target], [17, safe], [20, safe * 0.55]];
   const pointsAtRank = (rank) => {
     for (let i = 1; i < anchors.length; i++) {
       const [r0, p0] = anchors[i - 1];
@@ -76,4 +76,26 @@ export function rankingAt(table, round) {
   return [...table]
     .sort((a, b) => b.cumulative[round - 1] - a.cumulative[round - 1] || a.tie - b.tie)
     .map((t) => t.id);
+}
+
+// 시즌 최종 순위(1~20). 내 승점(전 시즌)과 리그 기준선으로 나머지 19팀 승점을 순위별로 깔아
+// 순위를 세고, 판정 결과가 말하는 구간으로 맞춘다(우승=1위, 승격=상위 3위(1부는 CL권 4위),
+// 강등=18~20위, 잔류=그 사이). 그래서 "승점 → 판정 → 순위"가 어긋나지 않는다.
+export function finalLeagueRank(points, tier, result, rng = Math.random, promoSpots = 3) {
+  const anchors = [[1, tier.championPoints], [promoSpots, tier.targetPoints], [17, tier.safePoints], [20, tier.safePoints * 0.55]];
+  const pointsAtRank = (rank) => {
+    for (let i = 1; i < anchors.length; i++) {
+      const [r0, p0] = anchors[i - 1];
+      const [r1, p1] = anchors[i];
+      if (rank <= r1) return p0 + ((rank - r0) / (r1 - r0)) * (p1 - p0);
+    }
+    return anchors.at(-1)[1];
+  };
+  let rank = 1;
+  for (let i = 1; i <= 19; i++) {
+    const rival = pointsAtRank(i) + (rng() - 0.5) * 4;
+    if (rival > points || (Math.round(rival) === Math.round(points) && rng() < 0.5)) rank += 1;
+  }
+  const range = { champion: [1, 1], promotion: [2, promoSpots], safe: [promoSpots + 1, 17], relegation: [18, 20] }[result] ?? [1, 20];
+  return Math.min(range[1], Math.max(range[0], rank));
 }
