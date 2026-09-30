@@ -26,7 +26,8 @@ import {
   PLAYSTYLE_TAGS, CONTINENT_TAGS, POSITIONS,
   STAFF_LEVELS, STAFF_PRICE_TABLE,
 } from '../engine/constants.mjs';
-import { computeTeamPower } from '../engine/team-power.mjs';
+import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
+import { optimizeLineup } from '../engine/lineup.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait } from './portrait.mjs';
 import { renderCrest } from './crest.mjs';
@@ -1858,7 +1859,8 @@ function renderMarket(banner = '') {
           <div class="formations">
             ${Object.keys(FORMATIONS).map((id) => `<button data-formation="${id}" aria-pressed="${id === formationId}">${id}</button>`).join('')}
           </div>
-          <button class="reroll" id="reset-lineup-btn" ${Object.keys(manualOverrides).length || Object.keys(benchOverrides).length ? '' : 'disabled'}>오버롤 순 자동 배치</button>
+          <button class="reroll" id="auto-lineup-btn">케미 포함 최적 배치</button>
+          <button class="reroll" id="reset-lineup-btn" ${Object.keys(manualOverrides).length || Object.keys(benchOverrides).length ? '' : 'disabled'}>배치 초기화</button>
         </div>
         ${(() => {
           const missing = missingPositions(squad, formationId);
@@ -2116,6 +2118,24 @@ function renderMarket(banner = '') {
         currentState.selectedSlot = null;
         renderMarket(banner);
       };
+    });
+    // 케미(태그/대륙/특수 성향)까지 반영한 평균 최종 OVR이 가장 높은 조합을
+    // 찾아 슬롯에 고정한다(포지션은 항상 지킨다).
+    document.getElementById('auto-lineup-btn')?.addEventListener('click', () => {
+      const boosted = boostedTagIdFor(manager);
+      const before = computeAverageOVR(lineup, bench, boosted);
+      const { xi, bench: nextBench } = optimizeLineup(squad, FORMATIONS[formationId].slots, BENCH_SIZE, boosted);
+      const nextManual = {};
+      xi.forEach((p, i) => { if (p && p.position === FORMATIONS[formationId].slots[i]) nextManual[i] = p.id; });
+      const nextBenchOv = {};
+      nextBench.forEach((p, i) => { nextBenchOv[i] = p.id; });
+      currentState.manualOverrides = nextManual;
+      currentState.benchOverrides = nextBenchOv;
+      currentState.selectedSlot = null;
+      const after = computeAverageOVR(xi.filter(Boolean), nextBench, boosted);
+      renderMarket(after > before + 0.005
+        ? `최적 배치: 선발 평균 OVR ${before.toFixed(1)} → ${after.toFixed(1)}`
+        : '이미 최적 배치입니다.');
     });
     document.getElementById('reset-lineup-btn')?.addEventListener('click', () => {
       currentState.manualOverrides = {};
