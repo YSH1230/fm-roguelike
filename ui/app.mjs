@@ -28,7 +28,7 @@ import {
 } from '../engine/constants.mjs';
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
-import { generateHalfResults, MATCHES_PER_HALF } from '../engine/half-results.mjs';
+import { simulateLeagueTable, rankingAt, MATCHES_PER_HALF } from '../engine/half-results.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait } from './portrait.mjs';
 import { renderCrest } from './crest.mjs';
@@ -363,88 +363,101 @@ function setScreen(html, dock = '') {
   dockEl().innerHTML = dock;
 }
 
-// 전/후반기 시뮬레이션: 이미 계산된 승점을 19경기의 실제 결과(승/무/패, 스코어)로 풀어서
-// 한 경기씩 보여준다. 누적 승점과 목표 페이스(잔류/승격/우승선 × 진행률)가 전부 실제 값이라
-// "지금 이 페이스면 어디까지 가는지"가 경기마다 바뀌는 게 읽힌다. 화면을 누르면 빨리 감기.
-const RESULT_TEXT = { W: '승', D: '무', L: '패' };
-
+// 전/후반기 시뮬레이션: 경기장 위에서 공이 오가는 연출은 그대로 두고, 아래 순위표는
+// 실제 승점 기반이다. 내 승점은 이미 계산된 시즌 결과이고, 다른 19팀은 리그 기준선에 맞춰
+// 깔린 승점(engine/half-results.mjs)이라 라운드마다 순위가 진짜로 바뀐다.
+// 화면을 누르면 빨리 감기.
 function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints, onDone) {
-  const results = generateHalfResults(finalPoints);
-  const opponents = buildLeagueRivals(currentState.leagueTierId, MATCHES_PER_HALF).map((c) => c.name);
-  const tier = effectiveTier(currentState.leagueTierId);
-  const final = results.at(-1).points;
-  const half = (v) => v / 2;
-  const scale = Math.max(half(tier.championPoints) * 1.1, final);
-  const at = (v) => `${Math.min(100, (v / scale) * 100)}%`;
   const N = MATCHES_PER_HALF;
+  const tier = effectiveTier(currentState.leagueTierId);
+  const table = simulateLeagueTable(finalPoints, tier);
+  const rivals = buildLeagueRivals(currentState.leagueTierId, N).map((c) => ({ name: c.name, kit: c.kit }));
+  const info = new Map(table.map((t, i) => [t.id, t.id === 'me' ? { name: clubName, kit: kitColor } : rivals[i - 1] ?? { name: `상대 ${i}`, kit: '#4a5a52' }]));
+  const pointsOf = new Map(table.map((t) => [t.id, t.cumulative]));
+  const SHOWN = 6; // 상위 6팀 + 내가 그 밖이면 내 순위 한 줄
 
-  // 진행률만큼 깎은 기준선과 비교해서 지금 페이스가 어디인지 말한다.
-  const paceOf = (pts, r) => {
-    const f = r / N;
-    if (pts >= half(tier.championPoints) * f) return ['우승 페이스', 'champion'];
-    if (pts >= half(tier.targetPoints) * f) return ['승격 페이스', 'promotion'];
-    if (pts >= half(tier.safePoints) * f) return ['안전 잔류 페이스', 'safe'];
-    return ['강등 위기 페이스', 'relegation'];
+  // 순위가 바뀌는 게 실제로 눈에 보이게: 이전 라운드 대비 오른 승점은 잠깐 초록으로
+  // 반짝이고(is-up), 줄 순서가 바뀌면 FLIP으로 부드럽게 미끄러진다.
+  const prevPoints = new Map();
+  const buildStandingsHtml = (round) => {
+    const order = rankingAt(table, round || 1);
+    const rankOf = (id) => order.indexOf(id) + 1;
+    let ids = order.slice(0, SHOWN);
+    if (!ids.includes('me')) ids = [...ids.slice(0, SHOWN - 1), 'me'];
+    return ids.map((id) => {
+      const pts = round ? pointsOf.get(id)[round - 1] : 0;
+      const isUp = pts > (prevPoints.get(id) ?? 0);
+      prevPoints.set(id, pts);
+      const { name, kit } = info.get(id);
+      return `<li class="${id === 'me' ? 'is-mine' : ''}" data-key="${id}">
+        <span class="standings__rank">${rankOf(id)}</span>
+        ${renderCrest({ name, kit }, { size: 22 })}
+        <span class="standings__name">${esc(name)}</span>
+        <span class="standings__pts n${isUp ? ' is-up' : ''}">${pts}</span>
+      </li>`;
+    }).join('');
+  };
+
+  // FLIP: 갱신 전 각 행의 위치를 기록해뒀다가, 갱신 후 그 자리에서 시작하는
+  // 것처럼 보이게 transform으로 되돌린 다음 0으로 애니메이션한다.
+  const updateStandings = (round) => {
+    const el = document.getElementById('sim-standings');
+    if (!el) return;
+    const before = new Map();
+    for (const li of el.children) before.set(li.dataset.key, li.getBoundingClientRect().top);
+    el.innerHTML = buildStandingsHtml(round);
+    for (const li of el.children) {
+      const prevTop = before.get(li.dataset.key);
+      if (prevTop == null) continue;
+      const delta = prevTop - li.getBoundingClientRect().top;
+      if (!delta) continue;
+      li.style.transition = 'none';
+      li.style.transform = `translateY(${delta}px)`;
+      requestAnimationFrame(() => {
+        li.style.transition = 'transform 320ms var(--ease)';
+        li.style.transform = '';
+      });
+    }
   };
 
   setScreen(`
-    <div class="roundsim" style="--kit:${kitColor}">
-      <div class="roundsim__head">
-        <span>${esc(clubName)} · ${esc(tierLabel)} · ${esc(phaseLabel)}</span>
-        <span id="rs-round" class="n">0/${N}</span>
+    <div class="matchsim" style="--kit:${kitColor}">
+      <div class="matchsim__head">
+        <span class="matchsim__club">${esc(clubName)} · ${esc(tierLabel)} · ${esc(phaseLabel)}</span>
+        <span class="matchsim__clock" id="sim-clock">0/${N}</span>
       </div>
-      <div class="roundsim__fixture" id="rs-fixture"><span class="roundsim__vs">킥오프</span></div>
-      <div class="roundsim__stats">
-        <div><span>승점</span><b id="rs-pts" class="n">0</b></div>
-        <div><span>승 · 무 · 패</span><b id="rs-wdl" class="n">0 · 0 · 0</b></div>
-        <div><span>득실</span><b id="rs-gd" class="n">0</b></div>
+      <div class="matchsim__pitch">
+        <div class="matchsim__pitchLines"></div>
+        <div class="matchsim__ball"></div>
       </div>
-      <div class="roundsim__form" id="rs-form"></div>
-      <div class="pointbar">
-        <div class="pointbar__fill" id="rs-fill" style="width:0"></div>
-        <div class="pointbar__mark" style="left:${at(half(tier.safePoints))}"></div>
-        <div class="pointbar__mark" style="left:${at(half(tier.targetPoints))}"></div>
-        <div class="pointbar__mark" style="left:${at(half(tier.championPoints))}"></div>
+      <div class="matchsim__ticker">
+        <span class="matchsim__dot"></span>
+        <span id="sim-phrase">킥오프</span>
       </div>
-      <div class="pointbar__legend">
-        <span style="left:${at(half(tier.safePoints))}">잔류 ${half(tier.safePoints).toFixed(0)}</span>
-        <span style="left:${at(half(tier.targetPoints))}">승격 ${half(tier.targetPoints).toFixed(0)}</span>
-        <span style="left:${at(half(tier.championPoints))}">우승 ${half(tier.championPoints).toFixed(0)}</span>
+      <div class="panel">
+        <div class="panel__head"><h2>실시간 순위</h2><span class="panel__count">승점</span></div>
+        <ul class="standings" id="sim-standings">${buildStandingsHtml(0)}</ul>
       </div>
-      <p class="roundsim__pace" id="rs-pace">&nbsp;</p>
-      <ol class="roundsim__log" id="rs-log"></ol>
-      <p class="note roundsim__skip">화면을 누르면 빨리 감기</p>
+      <p class="note" style="text-align:center">화면을 누르면 빨리 감기</p>
     </div>
   `);
 
   let round = 0;
-  let wins = 0; let draws = 0; let losses = 0; let gd = 0;
   let delay = 430;
-  document.querySelector('.roundsim').onclick = () => { delay = 40; };
+  let prevRank = table.length;
+  document.querySelector('.matchsim').onclick = () => { delay = 40; };
 
   const step = () => {
     if (round >= N) { setTimeout(onDone, 700); return; }
-    const m = results[round];
     round += 1;
-    if (m.result === 'W') wins += 1; else if (m.result === 'D') draws += 1; else losses += 1;
-    gd += m.gf - m.ga;
-    const [paceText, paceKey] = paceOf(m.points, round);
-    const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
-    set('rs-round', `${round}/${N}`);
-    set('rs-fixture', `<span class="roundsim__vs">R${round} · vs ${esc(opponents[round - 1] ?? '상대')}</span>
-      <b class="roundsim__score is-${m.result}">${m.gf} : ${m.ga}</b><em class="is-${m.result}">${RESULT_TEXT[m.result]}</em>`);
-    const log = document.getElementById('rs-log');
-    if (log) {
-      log.insertAdjacentHTML('afterbegin', `<li class="is-${m.result}"><span>R${round} · ${esc(opponents[round - 1] ?? '상대')}</span><b class="n">${m.gf} : ${m.ga}</b><em>${RESULT_TEXT[m.result]}</em></li>`);
-    }
-    set('rs-pts', String(m.points));
-    set('rs-wdl', `${wins} · ${draws} · ${losses}`);
-    set('rs-gd', gd > 0 ? `+${gd}` : String(gd));
-    set('rs-form', results.slice(Math.max(0, round - 6), round).map((x) => `<i class="is-${x.result}">${RESULT_TEXT[x.result]}</i>`).join(''));
-    const pace = document.getElementById('rs-pace');
-    if (pace) { pace.textContent = paceText; pace.className = `roundsim__pace is-${paceKey}`; }
-    const fill = document.getElementById('rs-fill');
-    if (fill) fill.style.width = at(m.points);
+    const rank = rankingAt(table, round).indexOf('me') + 1;
+    const move = prevRank - rank;
+    prevRank = rank;
+    const clock = document.getElementById('sim-clock');
+    if (clock) clock.textContent = `${round}/${N}`;
+    const phrase = document.getElementById('sim-phrase');
+    if (phrase) phrase.textContent = `${round}라운드 · ${rank}위${round > 1 && move ? (move > 0 ? ` ▲${move}` : ` ▼${-move}`) : ''}`;
+    updateStandings(round);
     setTimeout(step, delay);
   };
   setTimeout(step, 500);

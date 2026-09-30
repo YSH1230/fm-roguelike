@@ -42,3 +42,38 @@ export function generateHalfResults(points, rng = Math.random) {
     return { result, gf, ga, points: total };
   });
 }
+
+// 20팀 리그의 한 반기(19라운드) 순위표. 내 승점은 입력 그대로(실제 시즌 결과)이고,
+// 나머지 19팀 승점은 리그 기준선(우승/승격/잔류선의 반)에 맞춰 순위별로 깔아서
+// 내 승점이 "우승 페이스면 1~2위, 승격 페이스면 3위 근처, 잔류선이면 16위 근처"로
+// 자연스럽게 자리 잡게 한다. 팀마다 라운드별 누적 승점 배열을 만들어 매 라운드 순위가 바뀐다.
+export function simulateLeagueTable(myPoints, tier, rng = Math.random, rivalCount = 19) {
+  const champ = tier.championPoints / 2;
+  const target = tier.targetPoints / 2;
+  const safe = tier.safePoints / 2;
+  const anchors = [[1, champ], [3, target], [16, safe], [20, safe * 0.55]];
+  const pointsAtRank = (rank) => {
+    for (let i = 1; i < anchors.length; i++) {
+      const [r0, p0] = anchors[i - 1];
+      const [r1, p1] = anchors[i];
+      if (rank <= r1) return p0 + ((rank - r0) / (r1 - r0)) * (p1 - p0);
+    }
+    return anchors.at(-1)[1];
+  };
+  const teams = [{ id: 'me', target: Math.max(0, Math.round(myPoints)) }];
+  for (let i = 1; i <= rivalCount; i++) {
+    teams.push({ id: `r${i}`, target: Math.max(0, Math.round(pointsAtRank(i) + (rng() - 0.5) * 3)) });
+  }
+  return teams.map((t) => ({
+    ...t,
+    cumulative: generateHalfResults(t.target, rng).map((m) => m.points),
+    tie: rng(), // 승점이 같을 때 순서를 고정해서 순위가 깜빡이지 않게 한다
+  }));
+}
+
+// round(1~19) 시점의 순위(id 배열, 1위부터)
+export function rankingAt(table, round) {
+  return [...table]
+    .sort((a, b) => b.cumulative[round - 1] - a.cumulative[round - 1] || a.tie - b.tie)
+    .map((t) => t.id);
+}
