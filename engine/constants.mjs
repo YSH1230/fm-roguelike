@@ -188,3 +188,11 @@ export const STAGNATION_FUNDS_PENALTY_PER_MISS = 0.15;
 export const REPUTATION_PER_TIER = 10;
 export const REPUTATION_PER_TITLE = 50;
 export const REPUTATION_PER_UCL_TITLE = 80; // 대륙 대회 우승은 리그 우승보다 희소해서 더 쳐준다
+
+// 이사진 시즌 목표(승점) - 안전선과 승격선 사이 어디쯤에 둘지(0=안전선, 1=승격선).
+// 초과 달성한 승점 1점당 다음 시즌 지급액의 1.5%(상한 30%)를 보너스로 주고,
+// 한 점이라도 넘기면 적응도도 올려준다.
+export const BOARD_GOAL_POSITION = 0.6;
+export const BOARD_REWARD_FUNDS_PER_POINT = 0.015;
+export const BOARD_REWARD_FUNDS_CAP = 0.3;
+export const BOARD_REWARD_CHEMISTRY = 5;

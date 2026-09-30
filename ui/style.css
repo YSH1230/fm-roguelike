@@ -1096,3 +1096,8 @@ button:not(:disabled):active { transform: scale(0.98); }
 .res__hint { font-style: normal; color: var(--muted-dim); }
 .res__mult { font-style: normal; font: 600 11px/1 var(--num); color: var(--muted); margin-left: 4px; }
 .chem-info { margin: var(--s2) 0 0; line-height: 1.5; }
+
+.eventmodal--goal { border-top-color: var(--gold); }
+.eventmodal--goal .eventmodal__kicker { color: var(--gold); }
+.eventmodal p.eventmodal__detail { margin-bottom: var(--s3); line-height: 1.5; }
+.eventmodal p.eventmodal__detail:last-of-type { margin-bottom: var(--s6); }

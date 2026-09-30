@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runFullSeason, judgeSeasonResult } from '../engine/season.mjs';
+import { runFullSeason, judgeSeasonResult, boardGoalPoints, boardReward } from '../engine/season.mjs';
 
 function makePlayer(overrides = {}) {
   return {
@@ -22,4 +22,13 @@ test('judgeSeasonResult은 승점 구간에 맞는 결과를 낸다', () => {
   assert.equal(judgeSeasonResult(50, 'tier5'), 'safe'); // 안전~승격 사이
   assert.equal(judgeSeasonResult(70, 'tier5'), 'promotion'); // 승격~우승 사이
   assert.equal(judgeSeasonResult(85, 'tier5'), 'champion'); // 우승 80 이상
+});
+
+test('이사진 목표는 안전선~승격선 사이이고, 초과 승점만큼 보상하되 상한이 있다', () => {
+  const tier = { safePoints: 38, targetPoints: 68 };
+  assert.equal(boardGoalPoints(tier), 56);
+  assert.deepEqual(boardReward(56, 56, 1000), { surplus: 0, funds: 0, chemistry: 0 });
+  assert.equal(boardReward(50, 56, 1000).funds, 0);
+  assert.deepEqual(boardReward(64, 56, 1000), { surplus: 8, funds: 120, chemistry: 5 });
+  assert.equal(boardReward(100, 56, 1000).funds, 300); // 상한 30%
 });

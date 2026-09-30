@@ -1,6 +1,7 @@
 import { computeTeamPower, applyVariance } from './team-power.mjs';
 import { convertPowerToPoints, getLeagueTier } from './league.mjs';
 import { applyStableWeekRecovery } from './chemistry.mjs';
+import { BOARD_GOAL_POSITION, BOARD_REWARD_FUNDS_PER_POINT, BOARD_REWARD_FUNDS_CAP, BOARD_REWARD_CHEMISTRY } from './constants.mjs';
 
 // 이적시장 한 주가 지나갈 때: 거래가 있었으면 그대로, 없었으면 적응도 +1 (스펙 6절)
 export function advanceWeek(chemistry, hadTransactionThisWeek) {
@@ -37,4 +38,18 @@ export function runFullSeason(lineup, bench, managerTier, chemistry, leagueTierI
   const secondHalf = runHalfSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng);
   const totalPoints = firstHalf + secondHalf;
   return { firstHalf, secondHalf, totalPoints, result: judgeSeasonResult(totalPoints, leagueTierId) };
+}
+
+// 이사진이 그 시즌 요구하는 승점. tier는 구단 기대치가 이미 반영된 리그 기준선
+// (안전선/승격선)이다.
+export function boardGoalPoints(tier) {
+  return Math.round(tier.safePoints + (tier.targetPoints - tier.safePoints) * BOARD_GOAL_POSITION);
+}
+
+// 목표를 넘긴 승점만큼 보상. baseGrant는 그 리그의 시즌 지급액.
+export function boardReward(totalPoints, goal, baseGrant) {
+  const surplus = Math.round(totalPoints - goal);
+  if (surplus <= 0) return { surplus, funds: 0, chemistry: 0 };
+  const ratio = Math.min(BOARD_REWARD_FUNDS_CAP, surplus * BOARD_REWARD_FUNDS_PER_POINT);
+  return { surplus, funds: Math.round(baseGrant * ratio), chemistry: BOARD_REWARD_CHEMISTRY };
 }

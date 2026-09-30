@@ -10,7 +10,7 @@ import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
 import { judgeRunOutcome, nextMissedTargetCount, computeReputation } from '../engine/run.mjs';
 import { simulateChampionsLeague, UCL_RESULT_LABELS, UCL_REWARDS_FUNDS } from '../engine/champions-league.mjs';
-import { runHalfSeason, judgeSeasonResult, advanceWeek } from '../engine/season.mjs';
+import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardReward } from '../engine/season.mjs';
 import { resolvePromotionTransferDemand } from '../engine/events.mjs';
 import {
   calculateStartingFunds,
@@ -47,6 +47,9 @@ import {
   PLAYER_TIERS,
   MISSED_TARGET_LIMIT,
   STAGNATION_FUNDS_PENALTY_PER_MISS,
+  BOARD_REWARD_FUNDS_PER_POINT,
+  BOARD_REWARD_FUNDS_CAP,
+  BOARD_REWARD_CHEMISTRY,
 } from '../engine/constants.mjs';
 
 
@@ -146,6 +149,16 @@ function effectiveTier(tierId) {
 function currentFormation() {
   return FORMATIONS[currentState.formation] ? currentState.formation : DEFAULT_FORMATION;
 }
+
+// 이사진이 이번 시즌 요구하는 승점(안전선~승격선 사이). 리그와 구단 기대치만으로
+// 정해지니 따로 저장하지 않고 필요할 때 계산한다.
+function currentBoardGoal() {
+  return boardGoalPoints(effectiveTier(currentState.leagueTierId));
+}
+function seasonBaseGrant() {
+  return calculateStartingFunds(getLadderIndex(currentState.leagueTierId)) * currentState.club.startingFundsMultiplier;
+}
+const BOARD_RULE_TEXT = `목표를 넘긴 승점 1점당 다음 시즌 자금 +${BOARD_REWARD_FUNDS_PER_POINT * 100}%(최대 +${BOARD_REWARD_FUNDS_CAP * 100}%), 한 점이라도 넘기면 적응도 +${BOARD_REWARD_CHEMISTRY}.`;
 
 function tierOf(ovr) {
   if (ovr >= 95) return 'god';
@@ -625,8 +638,10 @@ function renderCareerIntro() {
         <li><span>안전권</span><b>${tier.safePoints}점</b></li>
         <li><span>승격권</span><b>${tier.targetPoints}점</b></li>
         <li><span>우승</span><b>${tier.championPoints}점</b></li>
+        <li><span><b>이사진 목표</b></span><b>${currentBoardGoal()}점</b></li>
         <li><span>시작 팀 전력</span><b>${teamPower.toFixed(1)}</b></li>
       </ul>
+      <p class="note"><b>이사진 목표 ${currentBoardGoal()}점.</b> ${BOARD_RULE_TEXT}</p>
       <p class="note">승점은 전/후반기 합산입니다. 안전권을 넘기지 못하면 해임, 목표를 3시즌 연속 못 넘기면 경질됩니다.</p>
       ${club.weakness ? `<p class="note">약점: ${esc(club.weakness)}. 이 약점을 염두에 두고 시즌을 준비하세요.</p>` : ''}
     </div>
@@ -693,6 +708,13 @@ function grantSeasonFunds() {
 // 승격/잔류 후 같은 구단으로 새 시즌 시작 — 스펙 4절: 선수단 유지, 시장 상태만 초기화
 function startNewSeason() {
   grantSeasonFunds();
+  // 지난 시즌 이사진 목표 초과 보상(있으면) - 팝업에 결과를 같이 띄운다.
+  const review = currentState.pendingBoardReview ?? null;
+  currentState.pendingBoardReview = null;
+  if (review && review.funds > 0) {
+    currentState.funds += review.funds;
+    currentState.chemistry = Math.min(100, currentState.chemistry + review.chemistry);
+  }
   currentState.seasonNumber += 1;
   currentState.week = SUMMER_MARKET_WEEKS[0];
   currentState.phase = 'summer';
@@ -725,6 +747,7 @@ function startNewSeason() {
   if (currentState.leagueTierId === 'tier1') {
     banner += '. 이번 시즌 목표: 리그 우승 + 챔피언스리그';
   }
+  currentState.seasonBriefing = { review, goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
   renderMarket(banner);
 }
 
@@ -996,6 +1019,7 @@ function renderHalfTimeVerdict(saleMessage, lineup, slotted, bench) {
       </div>
     </div>
     ${saleMessage ? `<div class="banner">${esc(saleMessage)}</div>` : ''}
+    <p class="note">이사진 목표 <b>${currentBoardGoal()}점</b> - 전반기 ${points.toFixed(0)}점(목표 페이스 ${(currentBoardGoal() / 2).toFixed(0)}점).</p>
     <p class="note">겨울 이적시장에서 스쿼드를 보강하세요(윈터 택스 +${WINTER_TAX_RATIO * 100}%).</p>
     <div class="panel">
       <div class="panel__head"><h2>전반기 라인업</h2><span class="panel__count">${currentFormation()}</span></div>
@@ -1106,6 +1130,14 @@ function runSecondHalfAndFinish(saleMessage = '') {
     return;
   }
 
+  // 이사진 목표 정산 - 보상은 다음 시즌 시작(startNewSeason)에 지급하고 팝업으로 알린다.
+  const goal = currentBoardGoal();
+  const reward = boardReward(totalPoints, goal, seasonBaseGrant());
+  currentState.pendingBoardReview = { goal, points: Math.round(totalPoints), ...reward };
+  const goalLine = reward.surplus > 0
+    ? `이사진 목표 ${goal}점 → <b>${reward.surplus}점 초과 달성!</b> 다음 시즌 자금 +${reward.funds}G, 적응도 +${reward.chemistry}`
+    : `이사진 목표 ${goal}점 → ${reward.surplus === 0 ? '딱 맞췄지만 초과는 아닙니다' : `${-reward.surplus}점 모자랐습니다`}`;
+
   let dockHtml;
   let closingHtml = '';
   if (canPromote) {
@@ -1156,6 +1188,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
       <ul class="summary">
         <li><span>최종 팀 전력</span><b>${computeTeamPower(lineup, bench, manager.tier, currentState.chemistry).toFixed(1)}</b></li>
         <li><span>최종 적응도</span><b>${currentState.chemistry.toFixed(1)}</b></li>
+        <li><span>${goalLine}</span></li>
         <li><span>남은 자금 (다음 시즌에 상한 30%까지 이월)</span><b>${currentState.funds.toFixed(0)}G</b></li>
       </ul>
       ${closingHtml}
@@ -2073,7 +2106,29 @@ function renderMarket(banner = '') {
   };
 
   const eventRoot = document.getElementById('eventmodal-root');
-  if (showEvent) {
+  const briefing = currentState.seasonBriefing;
+  if (briefing) {
+    const { review, goal, tierLabel, seasonNumber } = briefing;
+    const tier = effectiveTier(currentState.leagueTierId);
+    const reviewHtml = !review ? '' : review.surplus > 0
+      ? `<p class="eventmodal__detail"><b>지난 시즌 목표 ${review.goal}점 → ${review.points}점, ${review.surplus}점 초과 달성!</b><br>보상: 자금 +${review.funds.toLocaleString('ko-KR')}G, 적응도 +${review.chemistry}</p>`
+      : `<p class="eventmodal__detail">지난 시즌 목표 ${review.goal}점 → ${review.points}점 (${review.surplus === 0 ? '초과 달성은 못 했습니다' : `${-review.surplus}점 부족`}). 보상 없음.</p>`;
+    eventRoot.innerHTML = `
+      <div class="eventmodal-backdrop">
+        <div class="eventmodal eventmodal--${review && review.surplus > 0 ? 'good' : 'goal'}">
+          <div class="eventmodal__kicker">시즌 ${seasonNumber} · 이사진 브리핑</div>
+          <div class="eventmodal__title">${tierLabel} 목표 승점 ${goal}점</div>
+          ${reviewHtml}
+          <p class="eventmodal__detail">안전선 ${tier.safePoints}점 · 승격선 ${tier.targetPoints}점. ${BOARD_RULE_TEXT}</p>
+          <button class="cta" id="eventmodal-dismiss">목표 확인</button>
+        </div>
+      </div>`;
+    document.getElementById('eventmodal-dismiss').onclick = () => {
+      currentState.seasonBriefing = null;
+      eventRoot.innerHTML = '';
+      saveRun(currentState, localStorage);
+    };
+  } else if (showEvent) {
     const [title, ...rest] = eventMessage.split(': ');
     const detail = rest.join(': ');
     eventRoot.innerHTML = `
