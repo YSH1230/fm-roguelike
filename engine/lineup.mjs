@@ -1,8 +1,8 @@
 import { computeAverageOVR } from './team-power.mjs';
 
-// 케미(태그/대륙/특수 성향)까지 반영한 최종 OVR 평균이 가장 높은 선발 11명을
-// 찾는다. 선발 슬롯에는 그 슬롯 포지션의 선수만 넣는다(그 포지션 선수가 아예
-// 없으면 남은 최고 OVR이 대타로 선다).
+// 케미(태그/대륙/특수 성향)까지 반영한 최종 OVR 평균이 가장 높은 선발을
+// 찾는다. 선발 슬롯에는 그 슬롯 포지션의 선수만 넣고, 그 포지션 선수가 없으면
+// 공석(null)으로 둔다(대타 없음).
 // 시작은 포지션별 최고 OVR 탐욕 배치, 그 뒤 "슬롯 1개 교체 → 2개 동시 교체"를
 // 더 좋아지는 동안 반복한다. 태그 시너지는 3명 문턱이라 1개 교체만으로는
 // 못 넘는 경우가 있어 2개 동시 교체까지 본다.
@@ -13,11 +13,6 @@ export function optimizeLineup(squad, slots, benchSize, boostedTagId = null) {
   const used = new Set();
   slots.forEach((pos, i) => {
     const pick = squad.filter((p) => !used.has(p.id) && p.position === pos).sort(byOvr)[0];
-    if (pick) { xi[i] = pick; used.add(pick.id); }
-  });
-  slots.forEach((_, i) => {
-    if (xi[i]) return;
-    const pick = squad.filter((p) => !used.has(p.id)).sort(byOvr)[0];
     if (pick) { xi[i] = pick; used.add(pick.id); }
   });
 

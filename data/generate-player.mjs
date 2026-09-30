@@ -84,7 +84,7 @@ export function generateEmergencyYouth(position, rng = Math.random) {
   return {
     id: `youth${String(nextId++).padStart(4, '0')}`,
     name,
-    baseOVR: randomInt(tier.minOVR, tier.minOVR + 6, rng),
+    baseOVR: tier.minOVR, // 긴급 콜업은 등급 최저 능력치
     price: 0,
     age: randomInt(17, 20, rng),
     position,

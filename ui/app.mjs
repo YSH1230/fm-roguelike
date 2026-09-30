@@ -73,9 +73,11 @@ function staggerContracts(squad) {
 
 // 지금 포메이션이 요구하는 포지션 중 스쿼드에 아예 없는 것들(계약 만료·방출로
 // 다 빠져나간 경우). 전술 탭에 경고를 미리 띄울 때와 실제로 채울 때 둘 다 쓴다.
+// 한 포지션에 슬롯이 둘이면(CB 2명 등) 부족한 인원만큼 여러 번 나온다.
 function missingPositions(squad, formationId) {
-  const needed = [...new Set(FORMATIONS[formationId].slots)];
-  return needed.filter((pos) => !squad.some((p) => p.position === pos));
+  const have = {};
+  for (const p of squad) have[p.position] = (have[p.position] ?? 0) + 1;
+  return FORMATIONS[formationId].slots.filter((pos) => (have[pos]--) <= 0);
 }
 
 // 포지션 공백을 오프포지션 대타로 억지로 메우는 대신 유스를 긴급 콜업한다.
@@ -92,7 +94,8 @@ function ensurePositionCoverage() {
 const BENCH_SIZE = 5;
 
 // formationId의 슬롯 순서대로 최고 OVR을 채운다. 포지션이 맞는 선수가 없으면
-// 남은 최고 OVR로 대타를 세우고 offPosition으로 표시한다(화면에서 금색 점).
+// 그 포지션 선수가 없으면 공석으로 둔다(오프포지션 대타 없음) - 이적시장이
+// 끝나도 비어 있으면 ensurePositionCoverage가 최저 능력치 유스를 콜업한다.
 // manualOverrides(슬롯 인덱스 -> 선수 id)로 고정한 자리는 자동 선발이 건드리지
 // 않는다 - 유저가 전술 탭에서 직접 배치한 선수다. benchOverrides도 같은 방식
 // (벤치 슬롯 0~4 -> 선수 id)으로 벤치 구성도 직접 고를 수 있다.
@@ -116,9 +119,8 @@ function pickBestXI(squad, formationId = DEFAULT_FORMATION, manualOverrides = {}
     const byPosition = pool
       .filter((p) => !used.has(p.id) && p.position === pos)
       .sort((a, b) => b.baseOVR - a.baseOVR);
-    const fallback = pool.filter((p) => !used.has(p.id)).sort((a, b) => b.baseOVR - a.baseOVR);
-    const pick = byPosition[0] ?? fallback[0];
-    if (!pick) return null; // 스쿼드가 11명 미만 — 빈 슬롯
+    const pick = byPosition[0];
+    if (!pick) return null; // 그 포지션 선수 없음 — 공석
     used.add(pick.id);
     return { ...pick, slotPosition: pos, offPosition: pick.position !== pos };
   });

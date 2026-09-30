@@ -28,3 +28,9 @@ test('케미 문턱을 넘기는 조합이면 OVR이 조금 낮은 선수도 고
   assert.equal(computeAverageOVR(xi, bench) > computeAverageOVR(
     [squad[0], squad[1], squad[2], squad[3], squad[5], squad[6], squad[7]], [squad[4]]), true);
 });
+
+test('그 포지션 선수가 없으면 대타 없이 공석으로 둔다', () => {
+  const squad = [mk('gk', 'GK', 60), mk('cb1', 'CB', 70), mk('s1', 'ST', 66)];
+  const { xi } = optimizeLineup(squad, SLOTS, 0);
+  assert.deepEqual(xi.map((p) => p?.id ?? null), ['gk', 'cb1', null, null, null, null, 's1']);
+});
