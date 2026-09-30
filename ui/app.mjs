@@ -20,7 +20,7 @@ import {
   renewalCost,
 } from '../engine/economy.mjs';
 import { applyTransactionDecay } from '../engine/chemistry.mjs';
-import { computePlayerFinalOVR, countEffectiveContinentRequirement } from '../engine/ovr.mjs';
+import { computePlayerFinalOVR, computePlayerBonusBreakdown, countEffectiveContinentRequirement } from '../engine/ovr.mjs';
 import {
   PLAYSTYLE_TAGS, CONTINENT_TAGS, POSITIONS,
   STAFF_LEVELS, STAFF_PRICE_TABLE,
@@ -161,18 +161,6 @@ const TAG_LABELS = {
   gegenpressing: '게겐프레싱', falseNine: '폴스나인', longBallKickAndRush: '롱볼',
   tikiTaka: '티키타카', totalFootball: '토탈풋볼', falseFullBack: '변형 3백',
   buildUpFromBack: '후방 빌드업', counterAttack: '역습',
-};
-// 태그 이름만으로는 뭘 하는 전술인지 안 보인다 - 배지 탭 설명 맨 앞에 붙는
-// 한 줄 개념 설명(실제 수치는 renderChemistryPanel이 따로 계산해서 뒤에 붙인다).
-const TAG_CONCEPTS = {
-  gegenpressing: '볼을 뺏기자마자 바로 달려들어 되찾는 전방 압박',
-  falseNine: '최전방 공격수가 처지며 빈 공간을 만드는 가짜 9번',
-  longBallKickAndRush: '길게 띄운 볼로 곧장 전방을 노리는 다이렉트 축구',
-  tikiTaka: '짧은 패스를 촘촘히 돌려 점유율을 지배하는 티키타카',
-  totalFootball: '선수들이 자리를 계속 바꿔가며 뛰는 유동적인 토탈풋볼',
-  falseFullBack: '풀백이 중앙으로 좁혀 들어가 빌드업에 가담하는 변형 3백',
-  buildUpFromBack: '골키퍼·센터백부터 차분히 쌓아 올리는 후방 빌드업',
-  counterAttack: '수비를 두텁게 하고 빈 공간을 빠르게 찌르는 역습',
 };
 const TRAIT_LABELS = {
   seongGolYouth: '성골 유스', veteranLeader: '베테랑 리더', superSub: '슈퍼 서브',
@@ -931,7 +919,7 @@ function playstyleTagProgress(tagId, lineup, boostedTagId) {
   const req5 = 5 - boost;
   const tier = count >= req5 ? 2 : count >= req3 ? 1 : 0;
   const need = tier === 0 ? req3 : req5;
-  return { count, need, tier };
+  return { count, need, tier, req3, req5 };
 }
 
 function runFirstHalf(saleMessage = '') {
@@ -1024,7 +1012,7 @@ function enterWinterMarket() {
   currentState.managerOffer = generateManagerOffer(3);
   currentState.staffOffer = generateStaffOffer();
 
-  let banner = `겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%).`;
+  let banner = `겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%)..`;
 
   // 소방수: 안전선은 넘었지만 목표선(승격)에는 못 미치는 페이스면 겨울 진입 시 적응도 +30
   const tier = effectiveTier(currentState.leagueTierId);
@@ -1377,6 +1365,7 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
       ${slotAttr} title="${esc(p.name)} · ${p.position} · OVR ${shown}${boost ? ` (+${boost})` : ''}">
       <div class="slot__card">
         <span class="slot__ovr n">${shown}</span>
+        ${boost > 0 ? `<span class="slot__boost n">+${boost}</span>` : ''}
         ${renderPortrait(p, { size: 34, kit })}
         <span class="slot__pos">${pos}</span>
         <span class="slot__name">${esc(p.name)}</span>
@@ -1389,6 +1378,22 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
     ? `<p class="note"><b>금색 점선</b> ${off}명은 주 포지션이 아닌 자리에 섰습니다.</p>`
     : '';
   return `<div class="pitch${interactive ? ' pitch--interactive' : ''}">${chips}</div>${note}`;
+}
+
+// 피치에서 선수 칸을 눌렀을 때: 그 선수가 어떤 케미에서 몇 점 받는지 출처별로.
+function renderBonusDetail(player, lineup, bench, boostedTagId) {
+  if (!player) return '';
+  const labelOf = { playstyle: TAG_LABELS, continent: CONTINENT_LABELS, self: TRAIT_LABELS, team: TRAIT_LABELS };
+  const parts = computePlayerBonusBreakdown(player, lineup, bench, boostedTagId);
+  const total = parts.reduce((s, x) => s + x.value, 0);
+  const rows = parts.length
+    ? parts.map((x) => `<div class="bonusdetail__row"><span>${esc(labelOf[x.kind][x.id] ?? x.id)}</span><b>+${x.value}</b></div>`).join('')
+      + `<div class="bonusdetail__row bonusdetail__total"><span>합계</span><b>+${total}</b></div>`
+    : '<div class="note">받는 케미 보너스가 없습니다. (태그 인원이 모자라거나, 그 태그의 보너스 포지션이 아닙니다)</div>';
+  return `<div class="panel bonusdetail">
+    <div class="panel__head"><h2>${esc(player.name)} · ${player.position} · 기본 ${player.baseOVR}</h2></div>
+    ${rows}
+  </div>`;
 }
 
 // 전술 탭에서 칸을 선택했을 때 그 자리에 넣을 선수를 고르는 목록.
@@ -1448,11 +1453,14 @@ function renderChemistryPanel(lineup, bench) {
       const beneficiaries = tier
         ? lineup.filter((p) => p.playstyleTags.includes(tagId) && def.positions.includes(p.position))
         : [];
-      const desc = `${TAG_CONCEPTS[tagId] ?? ''}. ${positions} 포지션에 있는 보유자만 보너스를 받습니다`
+      const desc = `${positions} 포지션에 있는 보유자만 보너스를 받습니다`
         + (boost ? ' (전술 원리주의자로 요구 인원 1명 감면)' : '')
         + `. ${req3}명 이상 모이면 +${def.tier3}, ${req5}명 이상이면 +${def.tier5}`
         + (beneficiaries.length ? `. 지금 받는 선수: ${beneficiaries.map((p) => p.name).join(', ')}` : '');
-      return { icon: renderTagIcon(PLAYSTYLE_ICON_PATHS, tagId), label: TAG_LABELS[tagId] ?? tagId, desc, caption, tier };
+      // 다음 단계까지 몇 명 더 필요하고, 그때 지금 라인업 중 몇 명이 받는지(계획용).
+      const receivers = lineup.filter((p) => def.positions.includes(p.position)).length;
+      const more = tier === 2 ? '최대' : `${need - count}명 더 → +${tier === 0 ? def.tier3 : def.tier5} (${receivers}명 수혜)`;
+      return { icon: renderTagIcon(PLAYSTYLE_ICON_PATHS, tagId), label: TAG_LABELS[tagId] ?? tagId, desc, caption, tier, more, near: tier < 2 && need - count === 1 };
     })
     .sort((a, b) => b.tier - a.tier);
 
@@ -1471,14 +1479,15 @@ function renderChemistryPanel(lineup, bench) {
         + (req3 < 3 ? ' (폴리글롯으로 요구 인원 감면)' : '')
         + `. ${req3}명 이상 모이면 +${def.tier3}, ${req5}명 이상이면 +${def.tier5}`
         + (tier ? `. 지금 받는 선수: ${members.map((p) => p.name).join(', ')}` : '');
-      return { icon: renderTagIcon(CONTINENT_ICON_PATHS, tagId), label: CONTINENT_LABELS[tagId] ?? tagId, desc, caption, tier };
+      const more = tier === 2 ? '최대' : `${need - count}명 더 → +${tier === 0 ? def.tier3 : def.tier5}`;
+      return { icon: renderTagIcon(CONTINENT_ICON_PATHS, tagId), label: CONTINENT_LABELS[tagId] ?? tagId, desc, caption, tier, more, near: tier < 2 && need - count === 1 };
     })
     .sort((a, b) => b.tier - a.tier);
 
-  const badge = (r) => `<li class="chembadge${r.tier ? ` is-tier${r.tier}` : ''}" data-chem-desc="${esc(r.label)}: ${esc(r.desc)}" title="${esc(r.label)} · ${esc(r.desc)}">
+  const badge = (r) => `<li class="chembadge${r.tier ? ` is-tier${r.tier}` : ''}${r.near ? ' is-near' : ''}" data-chem-desc="${esc(r.label)}: ${esc(r.desc)}${r.more ? ` — 다음 단계: ${esc(r.more)}` : ''}" title="${esc(r.label)} · ${esc(r.desc)}">
     <div class="chembadge__ring">${r.icon}</div>
     <span class="chembadge__label">${esc(r.label)}</span>
-    <span class="chembadge__count">${r.caption}</span>
+    <span class="chembadge__count">${r.caption}${r.near ? ' ▲' : ''}</span>
   </li>`;
 
   // 특수 태그는 지금 뛰는 선발+벤치(16명)만 본다 - 그 밖의 선수는 이번 주
@@ -1553,7 +1562,7 @@ function renderMarket(banner = '') {
 
   // 스트립은 시너지가 반영된 최종 OVR로 계산한다. 포메이션을 바꿨을 때
   // 숫자가 왜 움직이는지(태그 발동/해제) 읽히게 하려면 baseOVR로는 안 된다.
-  const finalOVR = new Map(lineup.map((p) => [p.id, computePlayerFinalOVR(p, lineup, bench)]));
+  const finalOVR = new Map(lineup.map((p) => [p.id, computePlayerFinalOVR(p, lineup, bench, boostedTagIdFor(manager))]));
   const groupAvg = (positions) => {
     const members = lineup.filter((p) => positions.includes(p.slotPosition));
     if (!members.length) return null;
@@ -1577,11 +1586,29 @@ function renderMarket(banner = '') {
     // 정답(팀 +X.X 델타)은 안 주고 재료만 준다 - 태그 옆에 지금 라인업이
     // 몇 명째인지만 보여주고, "그래서 사야 하는지"는 유저가 판단한다.
     const boostedTagId = boostedTagIdFor(manager);
+    // 칩에는 "라벨 n/m"만 - 영입 시 발동(▲ 초록)/강화(▲ 금색)는 색으로, 보너스
+    // 포지션이 아니면 흐리게. 자세한 문장은 칩을 눌렀을 때 카드 아래에 뜬다.
+    const chip = (label, count, need, reachesAt3, reachesAt5, desc, dim = false) => {
+      const lvl = reachesAt5 ? 2 : reachesAt3 ? 1 : 0;
+      return `<button type="button" class="tag tag--btn${lvl ? ` tag--up${lvl}` : ''}${dim ? ' tag--dim' : ''}" data-tag-desc="${esc(desc)}">${label} <b class="tag__progress">${count}/${need}</b>${lvl ? ' ▲' : ''}</button>`;
+    };
     const tags = [
-      `<span class="tag">${CONTINENT_LABELS[c.continentTag] ?? c.continentTag}</span>`,
+      (() => {
+        const n = lineup.filter((p) => p.continentTag === c.continentTag).length;
+        const r3 = countEffectiveContinentRequirement(3, lineup, c.continentTag);
+        const r5 = countEffectiveContinentRequirement(5, lineup, c.continentTag);
+        const label = CONTINENT_LABELS[c.continentTag] ?? c.continentTag;
+        const desc = `${label}: 지금 라인업 ${n}명. ${r3}명이면 +${CONTINENT_TAGS[c.continentTag].tier3}, ${r5}명이면 +${CONTINENT_TAGS[c.continentTag].tier5}(포지션 무관).` + (n + 1 === r3 ? ' 영입하면 발동!' : n + 1 === r5 ? ' 영입하면 강화!' : '');
+        return chip(label, n, n >= r3 ? r5 : r3, n + 1 === r3, n + 1 === r5, desc);
+      })(),
       ...c.playstyleTags.map((t) => {
-        const { count, need } = playstyleTagProgress(t, lineup, boostedTagId);
-        return `<span class="tag">${TAG_LABELS[t] ?? t} <b class="tag__progress">${count}/${need}</b></span>`;
+        const { count, need, req3, req5 } = playstyleTagProgress(t, lineup, boostedTagId);
+        const def = PLAYSTYLE_TAGS[t];
+        const receives = def.positions.includes(c.position);
+        const desc = `${TAG_LABELS[t] ?? t}: 지금 라인업 ${count}명. ${req3}명이면 +${def.tier3}, ${req5}명이면 +${def.tier5}(${def.positions.join('·')} 포지션만 받음).`
+          + (count + 1 === req3 ? ' 영입하면 발동!' : count + 1 === req5 ? ' 영입하면 강화!' : '')
+          + (receives ? '' : ` 단 ${c.position}은(는) 보너스 대상 포지션이 아니라 이 선수 본인은 못 받습니다.`);
+        return chip(TAG_LABELS[t] ?? t, count, need, count + 1 === req3, count + 1 === req5, desc, !receives);
       }),
       c.specialTrait ? `<span class="tag tag--trait">${TRAIT_LABELS[c.specialTrait] ?? c.specialTrait}</span>` : '',
     ].join('');
@@ -1601,6 +1628,7 @@ function renderMarket(banner = '') {
           <span class="offer__price n${affordable ? '' : ' is-over'}">${price}<i>G</i></span>
         </div>
         <div class="tags">${tags}</div>
+        <p class="offer__hint" hidden></p>
         <button class="buy" data-buy="${c.id}" ${affordable ? '' : 'disabled'}>
           <span>${affordable ? '영입' : '자금 부족'}</span>
           <span class="buy__cost">${price}G · ${decayLabel}</span>
@@ -1739,6 +1767,7 @@ function renderMarket(banner = '') {
             <b class="benchchip__ovr n">${p.baseOVR}</b>
           </div>`).join('')}
         </div>
+        ${renderBonusDetail(slotted[currentState.selectedSlot], lineup, bench, boostedTagIdFor(manager))}
         ${renderSlotPicker(squad, formationId, currentState.selectedSlot, inXI, new Set(bench.map((p) => p.id)))}
         <p class="note">칸을 눌러 넣을 선수를 고르세요. 포메이션을 바꾸면 슬롯 구성이 바뀌어 플레이스타일 시너지 발동 조건이 달라집니다.</p>
       </section>
@@ -1970,6 +1999,14 @@ function renderMarket(banner = '') {
       });
     });
   }
+  document.querySelectorAll('[data-tag-desc]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const hint = el.closest('.offer')?.querySelector('.offer__hint');
+      if (!hint) return;
+      hint.textContent = el.dataset.tagDesc;
+      hint.hidden = false;
+    });
+  });
   if (tab === 'squad') {
     for (const p of squad) {
       document.querySelector(`[data-release-immediate="${p.id}"]`).onclick = () => {

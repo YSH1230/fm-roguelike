@@ -6,6 +6,7 @@ import {
   computePlaystyleSynergyBonus,
   computeContinentSynergyBonus,
   computePlayerFinalOVR,
+  computePlayerBonusBreakdown,
 } from '../engine/ovr.mjs';
 
 function makePlayer(overrides = {}) {
@@ -162,4 +163,16 @@ test('boostedTagId는 지정한 태그에만 적용되고 다른 태그는 그�
   ]; // 티키타카 2명, gegenpressing으로 감면을 걸어도 무관해야 함
   const boosted = computePlaystyleSynergyBonus(lineup, 'gegenpressing');
   assert.equal(boosted.get('a') ?? 0, 0);
+});
+
+test('출처별 상승 내역의 합은 최종 OVR - baseOVR과 같다', () => {
+  const lineup = [
+    makePlayer({ id: 'a', position: 'CMF', baseOVR: 60, age: 20, continentTag: 'europe', playstyleTags: ['tikiTaka'] }),
+    makePlayer({ id: 'b', position: 'AMF', baseOVR: 60, continentTag: 'europe', playstyleTags: ['tikiTaka'] }),
+    makePlayer({ id: 'c', position: 'CMF', baseOVR: 60, continentTag: 'europe', playstyleTags: ['tikiTaka'], specialTrait: 'veteranLeader', age: 34 }),
+  ];
+  const parts = computePlayerBonusBreakdown(lineup[0], lineup, []);
+  const sum = parts.reduce((s, x) => s + x.value, 0);
+  assert.equal(sum, computePlayerFinalOVR(lineup[0], lineup, []) - 60);
+  assert.deepEqual(parts.map((x) => x.id).sort(), ['europe', 'tikiTaka', 'veteranLeader']);
 });

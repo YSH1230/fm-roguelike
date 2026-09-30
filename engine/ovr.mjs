@@ -49,9 +49,10 @@ function tieredValue(count, tier3, tier5) {
 // 시너지 발동 인원수는 포지션과 무관하게 라인업(베스트11) 전체의 태그 보유자 수로 센다.
 // 버프 지급은 그중 대상 포지션에 있는 보유자에게만 한다 (스펙 5.1 "베스트11 배치자만 카운트").
 // boostedTagId: 감독의 전술 원리주의자 성향이 지정한 태그의 요구 인원을 1명 감면(스펙 5.2절).
-export function computePlaystyleSynergyBonus(lineup, boostedTagId = null) {
+export function computePlaystyleSynergyBonus(lineup, boostedTagId = null, onlyTagId = null) {
   const bonuses = new Map();
   for (const [tagId, tagDef] of Object.entries(PLAYSTYLE_TAGS)) {
+    if (onlyTagId && tagId !== onlyTagId) continue;
     const holders = lineup.filter((p) => p.playstyleTags.includes(tagId));
     const effectiveCount = tagId === boostedTagId ? holders.length + 1 : holders.length;
     if (effectiveCount < 3) continue;
@@ -72,9 +73,10 @@ export function countEffectiveContinentRequirement(baseCount, lineup, continentT
   return Math.max(2, baseCount - 1);
 }
 
-export function computeContinentSynergyBonus(lineup) {
+export function computeContinentSynergyBonus(lineup, onlyTagId = null) {
   const bonuses = new Map();
   for (const continentTag of Object.keys(CONTINENT_TAGS)) {
+    if (onlyTagId && continentTag !== onlyTagId) continue;
     const members = lineup.filter((p) => p.continentTag === continentTag);
     if (members.length === 0) continue;
 
@@ -107,4 +109,33 @@ export function computePlayerFinalOVR(player, lineup, bench, boostedTagId = null
     (playstyleBonuses.get(player.id) ?? 0) +
     (continentBonuses.get(player.id) ?? 0)
   );
+}
+
+// 최종 OVR이 baseOVR보다 왜 올랐는지 출처별로 쪼갠다(전술 탭 "누가 무슨 케미로
+// 몇 점" 표시용). 위 계산 함수를 그대로 재사용하니 합계는 항상
+// computePlayerFinalOVR - baseOVR과 같다.
+// kind: 'self' | 'team' | 'playstyle' | 'continent', id: 태그/특수성향 id.
+export function computePlayerBonusBreakdown(player, lineup, bench, boostedTagId = null) {
+  const parts = [];
+  const self = computeSelfTraitBonus(player);
+  if (self) parts.push({ kind: 'self', id: player.specialTrait, value: self });
+
+  const inLineup = lineup.some((p) => p.id === player.id);
+  if (inLineup && player.age <= 23 && lineup.some((p) => p.specialTrait === 'veteranLeader' && p.age >= 33)) {
+    parts.push({ kind: 'team', id: 'veteranLeader', value: 2 });
+  }
+  const superSubCount = bench.filter((p) => p.specialTrait === 'superSub').length;
+  if (superSubCount > 0 && inLineup) {
+    parts.push({ kind: 'team', id: 'superSub', value: Math.min(superSubCount, 2) });
+  }
+
+  for (const tagId of Object.keys(PLAYSTYLE_TAGS)) {
+    const value = computePlaystyleSynergyBonus(lineup, boostedTagId, tagId).get(player.id);
+    if (value) parts.push({ kind: 'playstyle', id: tagId, value });
+  }
+  for (const tagId of Object.keys(CONTINENT_TAGS)) {
+    const value = computeContinentSynergyBonus(lineup, tagId).get(player.id);
+    if (value) parts.push({ kind: 'continent', id: tagId, value });
+  }
+  return parts;
 }
