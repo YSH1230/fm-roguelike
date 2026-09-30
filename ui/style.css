@@ -1133,6 +1133,39 @@ button:not(:disabled):active { transform: scale(0.98); }
 .squad .player.is-open .player__actions { display: flex; }
 .squad .player.player--contract { cursor: default; }
 .tab__count--warn { background: var(--gold); color: var(--night); }
+.nore { color: var(--muted); font-size: var(--fs-micro); }
+.transferdemand { margin: var(--s3) 0; }
+.transferdemand__btns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+.transferdemand__btns .reroll { display: grid; gap: 2px; text-align: center; }
+.transferdemand__btns small { color: var(--muted); }
+/* 역할 칸(주장/에이스/조커) */
+.rolechips { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s2); margin: var(--s3) 0 var(--s2); }
+.rolechip { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: var(--s2) var(--s3); background: var(--surface); border: 1px dashed var(--line); border-radius: var(--r-md); color: var(--muted); font: inherit; cursor: pointer; min-width: 0; }
+.rolechip.is-on { border-style: solid; border-color: var(--turf); color: var(--light); }
+.rolechip.is-open { box-shadow: 0 0 0 1px var(--turf); }
+.rolechip__slot { font-size: var(--fs-micro); font-weight: 700; color: var(--muted); }
+.rolechip__slot i { font-style: normal; font-weight: 500; color: var(--muted-dim); }
+.rolechip__who { font-size: var(--fs-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rolechip em { font-style: normal; font-size: var(--fs-micro); color: var(--turf); }
+.rolenote { margin: 0 0 var(--s2); }
+.rolepicks { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.rolepick { display: grid; gap: 2px; width: 100%; text-align: left; padding: var(--s2) var(--s3); background: var(--surface-hi); border: 1px solid var(--line-soft); border-radius: var(--r-md); color: var(--light); font: inherit; cursor: pointer; }
+.rolepick span { font-size: var(--fs-label); color: var(--muted); }
+.rolepick small { font-size: var(--fs-micro); color: var(--muted); }
+.rolepick__cost { color: var(--gold) !important; }
+.rolepick.is-on { border-color: var(--turf); }
+.rolepicks__foot { display: flex; gap: var(--s2); }
+.rolepick--plain { text-align: center; color: var(--muted); }
+/* 특수 태그 상태 줄 */
+.traitrows { list-style: none; margin: 0 0 var(--s3); padding: 0; display: grid; gap: 3px; }
+.traitrow { display: grid; grid-template-columns: 22px 1fr auto auto; gap: var(--s2); align-items: center; padding: 5px var(--s2); border-radius: var(--r-md); background: var(--surface); font-size: var(--fs-label); cursor: pointer; }
+.traitrow__icon { width: 20px; height: 20px; color: var(--muted); }
+.traitrow__icon .badgeicon { width: 100%; height: 100%; }
+.traitrow__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.traitrow__trait { color: var(--muted); font-size: var(--fs-micro); }
+.traitrow__state { font-size: var(--fs-micro); color: var(--muted-dim); }
+.traitrow.is-on .traitrow__icon, .traitrow.is-on .traitrow__state { color: var(--turf); }
+.traitrow.is-wait .traitrow__state { color: var(--gold); }
 /* 계약 관리 패널 접기/펼치기 */
 .panel__head--toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: var(--s2); background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .panel__head--toggle h2 { margin: 0; }

@@ -89,8 +89,8 @@ export const TRAIT_ROLE = {
   superSub: 'joker',
 };
 // 대가(영입가/재계약비 배수). 역할 효과와 별개로 그 태그를 가진 선수에게 늘 붙는다.
-export const TRAIT_PRICE_MULT = { starPower: 1.5 };
-export const TRAIT_RENEWAL_MULT = { veteranLeader: 1.5, starPower: 1.5 };
+export const TRAIT_PRICE_MULT = { starPower: 2 };
+export const TRAIT_RENEWAL_MULT = { veteranLeader: 1.5, starPower: 2 };
 // 성골 유스 대가: 에이스로 뛴 시즌이 끝나면 이 확률로 이적 요구가 온다(수락 = 자유계약으로 떠남, 거부 = OVR 하락).
 export const SEONGGOL_TRANSFER_DEMAND_CHANCE = 0.3;
 export const SEONGGOL_REJECT_OVR_PENALTY = 3;
