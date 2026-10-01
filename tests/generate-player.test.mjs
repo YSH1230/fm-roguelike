@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateProceduralPlayer, generateSquadPool, TIER5_SQUAD_WEIGHTS } from '../data/generate-player.mjs';
-import { PLAYER_TIERS } from '../engine/constants.mjs';
+import { PLAYER_TIERS, PLAYSTYLE_TAGS } from '../engine/constants.mjs';
 
 function seededRng(seed) {
   let s = seed;
@@ -23,7 +23,10 @@ test('생성된 선수의 OVR은 등급 범위 안에 있다', () => {
 test('생성된 선수의 플레이스타일 태그 수는 등급 규칙과 일치한다', () => {
   const rng = seededRng(2);
   const legendary = generateProceduralPlayer('legendary', rng);
-  assert.equal(legendary.playstyleTags.length, PLAYER_TIERS.legendary.playstyleTagCount);
+  assert.equal(legendary.playstyleTags.length, 1 + PLAYER_TIERS.legendary.advancedSlots.length);
+  assert.equal(PLAYSTYLE_TAGS[legendary.playstyleTags[0]].grade, 'basic');
+  assert.ok(PLAYSTYLE_TAGS[legendary.playstyleTags[0]].positions.includes(legendary.position));
+  assert.equal(PLAYSTYLE_TAGS[legendary.playstyleTags[1]].grade, 'hard');
   assert.equal(new Set(legendary.playstyleTags).size, legendary.playstyleTags.length); // 중복 없음
 });
 

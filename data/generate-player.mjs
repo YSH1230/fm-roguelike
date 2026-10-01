@@ -1,4 +1,4 @@
-import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, SPECIAL_TRAITS, TRAIT_PRICE_MULT } from '../engine/constants.mjs';
+import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, BASIC_TAGS, ADVANCED_TAGS, SPECIAL_TRAITS, TRAIT_PRICE_MULT } from '../engine/constants.mjs';
 import { calculatePlayerPrice } from '../engine/economy.mjs';
 import { pick, randomName } from './name-pools.mjs';
 
@@ -42,6 +42,20 @@ function randomInt(min, max, rng) {
 
 let nextId = 1;
 
+// 기본기 1개(그 포지션이 보너스 대상인 것 중) + 등급이 허락하는 전술 태그.
+function pickPlaystyleTags(tier, position, rng) {
+  const tags = [pick(BASIC_TAGS.filter((t) => PLAYSTYLE_TAGS[t].positions.includes(position)), rng)];
+  // 그 포지션이 보너스를 받는 태그를 우선 뽑는다(받을 수 없는 태그는 인원만 채우는 함정). 없으면 등급 → 전체 순으로 완화.
+  const usable = (t) => !tags.includes(t) && PLAYSTYLE_TAGS[t].positions.includes(position);
+  for (const slot of tier.advancedSlots) {
+    const gradeOk = (t) => slot === 'any' || PLAYSTYLE_TAGS[t].grade === slot;
+    const pool = [ADVANCED_TAGS.filter((t) => usable(t) && gradeOk(t)), ADVANCED_TAGS.filter(usable), ADVANCED_TAGS.filter((t) => !tags.includes(t))]
+      .find((p) => p.length);
+    tags.push(pick(pool, rng));
+  }
+  return tags;
+}
+
 // 로컬~레전더리 절차적 생성 (GOD은 data/god-players.mjs 참고, 여기서 생성 안 함)
 // position을 넘기면 그 포지션으로 고정한다 - 시작 스쿼드가 포지션별 최소치를
 // 보장해야 해서(generateStartingSquad) 무작위 배정만으로는 부족하다.
@@ -57,6 +71,7 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
   // 30% 확률로 특수 성향 하나 부여 (스펙: 등급 무관 0~1개).
   // 베테랑 리더는 33세 이상에서만 발동하므로(engine/ovr.mjs), 어린 선수에게는
   // 뽑히지 않게 후보에서 뺀다 — 안 그러면 평생 효과 없는 카드가 생긴다.
+  const pos = position ?? pick(POSITIONS, rng);
   const eligibleTraits = age >= 33 ? SPECIAL_TRAITS : SPECIAL_TRAITS.filter((t) => t !== 'veteranLeader');
   const specialTrait = rng() < 0.2 ? pick(eligibleTraits, rng) : null;
 
@@ -66,8 +81,8 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
     baseOVR,
     price: Math.round(calculatePlayerPrice(tierId, baseOVR) * (TRAIT_PRICE_MULT[specialTrait] ?? 1)),
     age,
-    position: position ?? pick(POSITIONS, rng),
-    playstyleTags: pickN(Object.keys(PLAYSTYLE_TAGS), tier.playstyleTagCount, rng),
+    position: pos,
+    playstyleTags: pickPlaystyleTags(tier, pos, rng),
     continentTag,
     specialTrait,
     isDraftedYouth: specialTrait === 'seongGolYouth',

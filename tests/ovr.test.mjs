@@ -83,16 +83,22 @@ test('슈퍼 서브는 벤치 1명당 선발 전원 +2, 여러 명이어도 최�
   assert.equal(computeTeamTraitBonuses([starter], [sub1, sub2, sub3]).get('starter'), 4);
 });
 
-test('플레이스타일 시너지: 7명/9명/11명 문턱에서 5명 값의 ×1.4/×1.8/×2.4', () => {
+test('플레이스타일 시너지: 문턱 3/6/9명에서 어려움 태그는 +5/+10/+15, 문턱 사이는 아래 값', () => {
   const make = (n) => Array.from({ length: n }, (_, i) => makePlayer({ id: `p${i}`, position: 'ST', playstyleTags: ['gegenpressing'] }));
+  assert.equal(computePlaystyleSynergyBonus(make(2)).get('p0') ?? 0, 0);
+  assert.equal(computePlaystyleSynergyBonus(make(3)).get('p0'), 5);
+  assert.equal(computePlaystyleSynergyBonus(make(5)).get('p0'), 5);
   assert.equal(computePlaystyleSynergyBonus(make(6)).get('p0'), 10);
-  assert.equal(computePlaystyleSynergyBonus(make(7)).get('p0'), 14);
-  assert.equal(computePlaystyleSynergyBonus(make(8)).get('p0'), 14);
-  assert.equal(computePlaystyleSynergyBonus(make(9)).get('p0'), 18);
-  assert.equal(computePlaystyleSynergyBonus(make(11)).get('p0'), 24);
+  assert.equal(computePlaystyleSynergyBonus(make(9)).get('p0'), 15);
 });
 
-test('플레이스타일 시너지: 3명이면 tier3 값, 대상 포지션 보유자에게만', () => {
+test('기본기 태그는 약하다(+1/+2/+3)', () => {
+  const make = (n) => Array.from({ length: n }, (_, i) => makePlayer({ id: `p${i}`, position: 'CB', playstyleTags: ['pass'] }));
+  assert.equal(computePlaystyleSynergyBonus(make(3)).get('p0'), 1);
+  assert.equal(computePlaystyleSynergyBonus(make(6)).get('p0'), 2);
+});
+
+test('플레이스타일 시너지: 3명이면 첫 값, 대상 포지션 보유자에게만', () => {
   const lineup = [
     makePlayer({ id: 'a', position: 'ST', playstyleTags: ['gegenpressing'] }),
     makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] }),
@@ -100,19 +106,10 @@ test('플레이스타일 시너지: 3명이면 tier3 값, 대상 포지션 보�
     makePlayer({ id: 'd', position: 'GK', playstyleTags: [] }),
   ];
   const bonuses = computePlaystyleSynergyBonus(lineup);
-  assert.equal(bonuses.get('a'), 6);
-  assert.equal(bonuses.get('b'), 6);
-  assert.equal(bonuses.get('c'), 6);
+  assert.equal(bonuses.get('a'), 5);
+  assert.equal(bonuses.get('b'), 5);
+  assert.equal(bonuses.get('c'), 5);
   assert.equal(bonuses.get('d') ?? 0, 0);
-});
-
-test('플레이스타일 시너지: 4명은 3명 값, 6명은 5명 값(계단식, 상한 5)', () => {
-  const makeTagged = (id) => makePlayer({ id, position: 'ST', playstyleTags: ['gegenpressing'] });
-  const lineup4 = ['a', 'b', 'c', 'd'].map(makeTagged);
-  assert.equal(computePlaystyleSynergyBonus(lineup4).get('a'), 6); // tier3 값 유지
-
-  const lineup6 = ['a', 'b', 'c', 'd', 'e', 'f'].map(makeTagged);
-  assert.equal(computePlaystyleSynergyBonus(lineup6).get('a'), 10); // tier5 값 상한
 });
 
 test('대륙 시너지: 3명이면 tier3, 다국어 구사자(같은 권역)면 2명으로 감면', () => {
@@ -153,29 +150,16 @@ test('computePlayerFinalOVR은 baseOVR에 모든 가산을 합산한다', () => 
   const teammate1 = makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] });
   const teammate2 = makePlayer({ id: 'c', position: 'CMF', playstyleTags: ['gegenpressing'] });
   const lineup = [player, teammate1, teammate2];
-  // 70 (base) + 8 (저니맨, 에이스 슬롯 자동 배정) + 6 (게겐프레싱 3명 시너지) = 84
-  assert.equal(computePlayerFinalOVR(player, lineup, []), 84);
+  // 70 (base) + 8 (저니맨, 에이스 슬롯 자동 배정) + 5 (게겐프레싱 3명 시너지) = 83
+  assert.equal(computePlayerFinalOVR(player, lineup, []), 83);
 });
 
-test('전술 원리주의자(boostedTagId)는 해당 태그의 요구 인원을 1명 감면한다', () => {
+test('같은 태그 보유자가 3명 미만이면 보너스가 없다', () => {
   const lineup = [
     makePlayer({ id: 'a', position: 'ST', playstyleTags: ['gegenpressing'] }),
     makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] }),
-  ]; // 게겐프레싱 2명뿐 — 원래는 3명 미만이라 발동 안 함
+  ];
   assert.equal(computePlaystyleSynergyBonus(lineup).get('a') ?? 0, 0);
-
-  const boosted = computePlaystyleSynergyBonus(lineup, 'gegenpressing');
-  assert.equal(boosted.get('a'), 6); // 감면으로 tier3 발동
-  assert.equal(boosted.get('b'), 6);
-});
-
-test('boostedTagId는 지정한 태그에만 적용되고 다른 태그는 그대로다', () => {
-  const lineup = [
-    makePlayer({ id: 'a', position: 'CMF', playstyleTags: ['tikiTaka'] }),
-    makePlayer({ id: 'b', position: 'AMF', playstyleTags: ['tikiTaka'] }),
-  ]; // 티키타카 2명, gegenpressing으로 감면을 걸어도 무관해야 함
-  const boosted = computePlaystyleSynergyBonus(lineup, 'gegenpressing');
-  assert.equal(boosted.get('a') ?? 0, 0);
 });
 
 test('출처별 상승 내역의 합은 최종 OVR - baseOVR과 같다', () => {

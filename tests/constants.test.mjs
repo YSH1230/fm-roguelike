@@ -15,13 +15,14 @@ import {
 // 11-A 밸런스 패치로 스펙 초안 수치보다 상향됨(engine/constants.mjs 주석 참고) -
 // 이 테스트는 "8종/5종이 있고 각 태그 요구 인원(3/5명)은 그대로"라는 구조를
 // 고정하는 용도지, 보너스 절댓값을 스펙에 못박는 용도가 아니다.
-test('플레이스타일 태그 8종의 구조(포지션·요구 인원)가 유지된다', () => {
-  assert.equal(Object.keys(PLAYSTYLE_TAGS).length, 8);
+test('플레이스타일 태그 11종의 구조(포지션·등급별 보너스)가 유지된다', () => {
+  assert.equal(Object.keys(PLAYSTYLE_TAGS).length, 11);
   assert.deepEqual(PLAYSTYLE_TAGS.gegenpressing.positions, ['ST', 'CMF']);
   assert.deepEqual(PLAYSTYLE_TAGS.tikiTaka.positions, ['CMF', 'AMF']);
   assert.deepEqual(PLAYSTYLE_TAGS.totalFootball.positions, ['WB', 'CMF']);
   for (const tag of Object.values(PLAYSTYLE_TAGS)) {
-    assert.ok(tag.tier5 > tag.tier3, '5명 보너스가 3명 보너스보다 커야 한다');
+    assert.equal(tag.values.length, 3);
+    assert.ok(tag.values[1] > tag.values[0] && tag.values[2] > tag.values[1], '문턱이 높을수록 보너스가 커야 한다');
   }
 });
 

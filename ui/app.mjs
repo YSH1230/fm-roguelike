@@ -217,6 +217,7 @@ const TAG_LABELS = {
   gegenpressing: '게겐프레싱', falseNine: '폴스나인', longBallKickAndRush: '롱볼',
   tikiTaka: '티키타카', totalFootball: '토탈풋볼', falseFullBack: '변형 3백',
   buildUpFromBack: '후방 빌드업', counterAttack: '역습',
+  pass: '패스', dribble: '개인기', physical: '피지컬',
 };
 const TRAIT_LABELS = {
   starPower: '스타 기질', seongGolYouth: '성골 유스', veteranLeader: '베테랑 리더', superSub: '슈퍼 서브',
@@ -261,6 +262,9 @@ const CONTINENT_LABELS = {
 // title(호버)로만 남긴다. crest.mjs/portrait.mjs와 같은 원칙 - 이미지 파일
 //없이 인라인 SVG path만으로 그린다.
 const PLAYSTYLE_ICON_PATHS = {
+  pass: '<circle cx="6" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><path d="M8 12 H16 M13 9 L16 12 L13 15"/>',
+  dribble: '<path d="M5 18 C8 18 8 10 11 10 C14 10 13 16 16 16 C18 16 18 8 19 6"/>',
+  physical: '<path d="M6 10 H18 V14 H6 Z M3 9 V15 M21 9 V15"/>',
   gegenpressing: '<path d="M6 16 L12 9 L18 16"/>',
   falseNine: '<path d="M7 7 H17 L12 17 Z"/>',
   longBallKickAndRush: '<path d="M5 18 L18 6 M12 6 H18 V12"/>',
@@ -312,7 +316,7 @@ const MANAGER_TRAIT_DESCRIPTIONS = {
   firefighter: '위기 페이스로 겨울 진입 시 적응도 +30',
   crisisManager: '위기 이벤트 무효화',
   longTermReign: '잔류 시즌마다 적응도 +3',
-  tacticalPurist: '전술 태그 케미 발동 인원 1명 감면',
+  tacticalPurist: '선호 전술이 발동했을 때 적응도 보너스 2배(+20)',
 };
 // 등급별로 뭐가 얼마나 좋아지는지 한 줄. 코치 수치는 "거래 1건당 적응도 하락".
 function staffBenefit(role, level) {
@@ -357,8 +361,9 @@ function applyManagerTacticalHarmony(lineup) {
     currentState.chemistry = Math.max(0, currentState.chemistry - MANAGER_HARMONY_PENALTY);
     return `감독과의 불화: ${manager.name} 감독이 선호하는 전술(${tagLabel})에 맞는 선수단을 못 꾸렸습니다. 적응도 -${MANAGER_HARMONY_PENALTY}`;
   }
-  currentState.chemistry = Math.min(100, currentState.chemistry + MANAGER_HARMONY_BONUS);
-  return `전술 완성: ${manager.name} 감독이 선호하는 전술(${tagLabel})이 라인업에서 발동했습니다. 적응도 +${MANAGER_HARMONY_BONUS}`;
+  const bonus = manager.trait === 'tacticalPurist' ? MANAGER_HARMONY_BONUS * 2 : MANAGER_HARMONY_BONUS;
+  currentState.chemistry = Math.min(100, currentState.chemistry + bonus);
+  return `전술 완성: ${manager.name} 감독이 선호하는 전술(${tagLabel})이 라인업에서 발동했습니다. 적응도 +${bonus}`;
 }
 
 // 선수단/전술 탭에서 선수 태그(플레이스타일·대륙)를 한눈에 보여준다.
@@ -1226,18 +1231,17 @@ function nextWeek() {
   renderMarket(saleMessage);
 }
 
+// 예전 원리주의자 문턱 감면은 없앴다. 엔진 인자 정리 전까지 늘 null.
 function boostedTagIdFor(manager) {
-  return manager.trait === 'tacticalPurist' ? manager.tacticalTag : null;
+  return null;
 }
 
-// 플레이스타일 태그 진행도(고정 3명/5명 문턱, 전술 원리주의자면 1명 감면).
+// 플레이스타일 태그 진행도(문턱 3/6/9명).
 // 상점 카드와 전술 탭 팀 케미 패널이 똑같은 계산을 쓴다.
-// 문턱은 3/5/7/9/11명(감독이 전술 원리주의자면 그 태그만 1명씩 감면).
 // tier = 넘은 문턱 수(0~5), need = 다음에 채워야 할 인원(다 넘었으면 마지막 문턱).
 function playstyleTagProgress(tagId, lineup, boostedTagId) {
   const count = lineup.filter((p) => p.playstyleTags.includes(tagId)).length;
-  const boost = tagId === boostedTagId ? 1 : 0;
-  const req = TAG_THRESHOLDS.map((n) => n - boost);
+  const req = TAG_THRESHOLDS;
   const tier = req.filter((n) => count >= n).length;
   const need = req[Math.min(tier, req.length - 1)];
   return { count, need, tier, req, values: PLAYSTYLE_TAGS[tagId].values };
@@ -2243,7 +2247,6 @@ function renderChemistryPanel(lineup, bench, roles) {
   const playstyleRows = Object.entries(PLAYSTYLE_TAGS)
     .map(([tagId, def]) => {
       const { count, need, tier, req, values } = playstyleTagProgress(tagId, lineup, boostedTagId);
-      const boost = tagId === boostedTagId ? 1 : 0;
       const bonus = values[Math.max(0, tier - 1)];
       const caption = `${count}/${need} · +${bonus}`;
       const positions = def.positions.join('·');
@@ -2253,7 +2256,6 @@ function renderChemistryPanel(lineup, bench, roles) {
         ? lineup.filter((p) => p.playstyleTags.includes(tagId) && def.positions.includes(p.position))
         : [];
       const desc = `${positions} 포지션에 있는 보유자만 보너스를 받습니다`
-        + (boost ? ' (전술 원리주의자로 요구 인원 1명 감면)' : '')
         + `. 단계: ${tagLadderText(req, values)}`
         + (beneficiaries.length ? `. 지금 받는 선수: ${beneficiaries.map((p) => p.name).join(', ')}` : '');
       // 다음 단계까지 몇 명 더 필요하고, 그때 지금 라인업 중 몇 명이 받는지(계획용).

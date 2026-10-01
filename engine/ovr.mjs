@@ -58,16 +58,15 @@ function tieredValue(count, values) {
 
 // 시너지 발동 인원수는 포지션과 무관하게 라인업(베스트11) 전체의 태그 보유자 수로 센다.
 // 버프 지급은 그중 대상 포지션에 있는 보유자에게만 한다 (스펙 5.1 "베스트11 배치자만 카운트").
-// boostedTagId: 감독의 전술 원리주의자 성향이 지정한 태그의 요구 인원을 1명 감면(스펙 5.2절).
+// boostedTagId: 예전 전술 원리주의자 감면용 자리 - 지금은 안 쓴다(인자 정리는 별도).
 export function computePlaystyleSynergyBonus(lineup, boostedTagId = null, onlyTagId = null) {
   const bonuses = new Map();
   for (const [tagId, tagDef] of Object.entries(PLAYSTYLE_TAGS)) {
     if (onlyTagId && tagId !== onlyTagId) continue;
     const holders = lineup.filter((p) => p.playstyleTags.includes(tagId));
-    const effectiveCount = tagId === boostedTagId ? holders.length + 1 : holders.length;
-    if (effectiveCount < 3) continue;
+    if (holders.length < TAG_THRESHOLDS[0]) continue;
     const holdersInPosition = holders.filter((p) => tagDef.positions.includes(p.position));
-    const value = tieredValue(effectiveCount, tagDef.values);
+    const value = tieredValue(holders.length, tagDef.values);
     for (const p of holdersInPosition) {
       bonuses.set(p.id, (bonuses.get(p.id) ?? 0) + value);
     }

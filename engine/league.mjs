@@ -32,6 +32,13 @@ export function convertPowerToPoints(
 //   3부 우승  3.7 / 승격 16.6 / 안전 69.0 / 강등 10.7
 //   2부 우승  4.1 / 승격 11.7 / 안전 63.5 / 강등 20.7
 //   1부 우승  2.8 (승격 칸은 없음) / 안전 69.4 / 강등 18.8
+// 플레이스타일 태그 재설계(기본기 3종 + 문턱 3/6/9, 보통·어려움은 중상급 선수만) 후 2000판 재측정.
+// 봇이 우연히 얻던 태그 보너스가 줄어 상위 리그가 어려워져 3·2·1부 상대 평균을 내렸다:
+//   5부 우승 11.6 / 승격 20.8 / 안전 62.4 / 강등  5.2
+//   4부 우승  6.6 / 승격 21.6 / 안전 65.6 / 강등  6.2
+//   3부 우승  4.8 / 승격 16.0 / 안전 69.7 / 강등  9.6
+//   2부 우승  2.9 / 승격 12.4 / 안전 66.1 / 강등 18.6
+//   1부 우승  2.5 (승격 칸은 없음) / 안전 67.1 / 강등 19.4
 // 자금이 줄어 봇 전력이 5~8점 낮아져서 상대 평균(averageOVR)을 같은 만큼 내려 균형을 유지했다.
 // 리그가 오를수록 승격 확률이 내려간다.
 const LEAGUE_TIERS = {
@@ -40,14 +47,14 @@ const LEAGUE_TIERS = {
   // 2000판 실측: 우승 10.8% / 승격 22.7% / 안전 56.5% / 강등 9.9%
   tier4: { label: '4부', averageOVR: [49.9, 56.9], safePoints: 40, targetPoints: 73, championPoints: 86 },
   // 2000판 실측: 우승 8.8% / 승격 17.3% / 안전 54.6% / 강등 19.3%
-  tier3: { label: '3부', averageOVR: [52.8, 59.8], safePoints: 42, targetPoints: 76, championPoints: 89 },
+  tier3: { label: '3부', averageOVR: [52.0, 59.0], safePoints: 42, targetPoints: 76, championPoints: 89 },
   // 2000판 실측: 우승 7.0% / 승격 11.8% / 안전 52.3% / 강등 28.8%
-  tier2: { label: '2부', averageOVR: [61, 68], safePoints: 44, targetPoints: 79, championPoints: 91 },
+  tier2: { label: '2부', averageOVR: [60.4, 67.4], safePoints: 44, targetPoints: 79, championPoints: 91 },
   // 2000판 실측: 우승 4.3% / 승격 12.7% / 안전 49.5% / 강등 33.6%
   // 상위 4개 리그가 4부 우승률 10% 아래 좁은 띠에 몰려 있어서, 우승률 순서를
   // 지키면 1부는 4~5%가 상한이다. championPoints 88~89로는 1부 우승률이 2부와
   // 오차 범위 안에서 겹쳐(6.6% vs 5.9%) 순서가 판마다 뒤집혔다. 91로 벌렸다.
-  tier1: { label: '1부', averageOVR: [62.6, 69.6], safePoints: 46, targetPoints: 82, championPoints: 95 },
+  tier1: { label: '1부', averageOVR: [61.2, 68.2], safePoints: 46, targetPoints: 82, championPoints: 95 },
 };
 
 // 낮은 리그부터. 사다리 순서는 엔진이 소유한다.

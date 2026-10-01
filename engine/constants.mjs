@@ -1,26 +1,27 @@
-// 스펙 5.1절 "플레이스타일 태그 8종" 표.
-// 보너스를 기존값보다 크게 올렸다(11-A 밸런스 패치) - 자동 배치(OVR 최고
-// 순 자동 선발)가 항상 이겨서 수동으로 태그를 맞출 이유가 없었다. 이
-// 값들은 tools/tune-ladder.mjs의 시뮬레이션 봇이 태그를 전혀 안 보고
-// OVR로만 사는 "방치 플레이" 기준선이라, 여기를 올려도 그 시뮬레이터
-// 수치(리그 튜닝값)는 안 흔들린다 - 직접 태그를 맞추는 사람만 득을 본다.
-// 인원 문턱 3/5/7/9/11명. 7·9·11명 값은 5명 값의 ×1.4/×1.8/×2.4(같은 태그를
-// 몰아줄수록 가파르게 보상). values[i]가 TAG_THRESHOLDS[i]명일 때의 보너스다.
-export const TAG_THRESHOLDS = [3, 5, 7, 9, 11];
-const extendTiers = (tier3, tier5) => [tier3, tier5, Math.round(tier5 * 1.4), Math.round(tier5 * 1.8), Math.round(tier5 * 2.4)];
+// 플레이스타일 태그 11종: 기본기(basic) 3 + 보통(mid) 4 + 어려움(hard) 4.
+// - 기본기: 모든 선수가 포지션에 맞는 것 1개를 가진다. 흔한 만큼 보너스는 작다("개인 능력" 느낌).
+// - 보통/어려움: 중상급 이상 선수만 가진다. 어려울수록 선수가 드물고 보너스가 크다.
+// 문턱은 전 태그 공통 3/6/9명. values[i]가 TAG_THRESHOLDS[i]명일 때의 보너스다.
+export const TAG_THRESHOLDS = [3, 6, 9];
+const GRADE_VALUES = { basic: [1, 2, 3], mid: [3, 6, 10], hard: [5, 10, 15] };
 const withValues = (defs) => Object.fromEntries(
-  Object.entries(defs).map(([id, d]) => [id, { ...d, values: extendTiers(d.tier3, d.tier5) }])
+  Object.entries(defs).map(([id, d]) => [id, { ...d, values: GRADE_VALUES[d.grade] }])
 );
 export const PLAYSTYLE_TAGS = withValues({
-  gegenpressing: { positions: ['ST', 'CMF'], tier3: 6, tier5: 10 },
-  falseNine: { positions: ['W', 'AMF'], tier3: 6, tier5: 10 },
-  longBallKickAndRush: { positions: ['ST', 'AMF'], tier3: 6, tier5: 10 },
-  tikiTaka: { positions: ['CMF', 'AMF'], tier3: 5, tier5: 8 },
-  totalFootball: { positions: ['WB', 'CMF'], tier3: 5, tier5: 9 },
-  falseFullBack: { positions: ['WB', 'CB'], tier3: 5, tier5: 8 }, // 변형 3백
-  buildUpFromBack: { positions: ['CB', 'GK'], tier3: 4, tier5: 6 }, // 후방 빌드업
-  counterAttack: { positions: ['W', 'ST'], tier3: 4, tier5: 6 }, // 선수비 후역습
+  pass: { grade: 'basic', positions: ['GK', 'CB', 'CMF', 'AMF'] }, // 패스 선호
+  dribble: { grade: 'basic', positions: ['WB', 'W', 'AMF', 'ST'] }, // 개인기 선호
+  physical: { grade: 'basic', positions: ['GK', 'CB', 'CMF', 'ST'] }, // 피지컬(몸싸움·제공권)
+  longBallKickAndRush: { grade: 'mid', positions: ['ST', 'AMF'] },
+  falseFullBack: { grade: 'mid', positions: ['WB', 'CB'] }, // 변형 3백
+  buildUpFromBack: { grade: 'mid', positions: ['CB', 'GK'] }, // 후방 빌드업
+  counterAttack: { grade: 'mid', positions: ['W', 'ST'] }, // 선수비 후역습
+  gegenpressing: { grade: 'hard', positions: ['ST', 'CMF'] },
+  falseNine: { grade: 'hard', positions: ['W', 'AMF'] },
+  tikiTaka: { grade: 'hard', positions: ['CMF', 'AMF'] },
+  totalFootball: { grade: 'hard', positions: ['WB', 'CMF'] },
 });
+export const BASIC_TAGS = Object.keys(PLAYSTYLE_TAGS).filter((t) => PLAYSTYLE_TAGS[t].grade === 'basic');
+export const ADVANCED_TAGS = Object.keys(PLAYSTYLE_TAGS).filter((t) => PLAYSTYLE_TAGS[t].grade !== 'basic');
 
 // 스펙 5.1절 "대륙 태그 5종" 표 — 포지션 무관, 5개 권역 동일 수치.
 // 위 플레이스타일과 같은 이유로 상향(3/5 → 5/8).
@@ -68,13 +69,14 @@ export const BASE_POINTS_AT_LEAGUE_AVERAGE = 18;
 // ±20%로도 강등이 충분히 나온다(시장 미사용 15%) — 운의 비중을 다시 낮췄다.
 export const POWER_VARIANCE_RATIO = 0.20;
 
-// 스펙 5.1절 "6등급" — OVR 범위와 등급별 플레이스타일 태그 개수
+// 스펙 5.1절 "6등급" — OVR 범위와 등급별 전술 태그 칸(기본기 1개는 모두 공통).
+// advancedSlots의 각 칸은 'mid'/'hard'/'any'(보통+어려움)에서 하나를 뽑는다.
 export const PLAYER_TIERS = {
-  local: { minOVR: 50, maxOVR: 62, playstyleTagCount: 1 },
-  bigLeaguer: { minOVR: 63, maxOVR: 72, playstyleTagCount: 1 },
-  topClass: { minOVR: 73, maxOVR: 80, playstyleTagCount: 2 },
-  worldClass: { minOVR: 81, maxOVR: 87, playstyleTagCount: 2 },
-  legendary: { minOVR: 88, maxOVR: 94, playstyleTagCount: 3 },
+  local: { minOVR: 50, maxOVR: 62, advancedSlots: [] },
+  bigLeaguer: { minOVR: 63, maxOVR: 72, advancedSlots: [] },
+  topClass: { minOVR: 73, maxOVR: 80, advancedSlots: ['mid'] },
+  worldClass: { minOVR: 81, maxOVR: 87, advancedSlots: ['any'] },
+  legendary: { minOVR: 88, maxOVR: 94, advancedSlots: ['hard', 'any'] },
   // god는 전 세계 2명, 개별 수작업 카드 — data/god-players.mjs 참고, 여기서 생성 안 함
 };
 

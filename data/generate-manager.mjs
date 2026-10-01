@@ -3,7 +3,7 @@ import {
   MANAGER_TRAITS,
   HIGH_TIER_RESTRICTED_TRAITS,
   MANAGER_PRICE_TABLE,
-  PLAYSTYLE_TAGS,
+  ADVANCED_TAGS,
   CONTINENT_TAGS,
 } from '../engine/constants.mjs';
 import { randomInRange } from '../engine/economy.mjs';
@@ -36,7 +36,7 @@ export function generateProceduralManager(tierId, rng = Math.random) {
     tier: tierId,
     multiplier: MANAGER_TIER_MULTIPLIER[tierId],
     price: Math.round(randomInRange(minPrice, maxPrice, rng)),
-    tacticalTag: pick(Object.keys(PLAYSTYLE_TAGS), rng),
+    tacticalTag: pick(ADVANCED_TAGS, rng),
     continentTag,
     trait,
   };
