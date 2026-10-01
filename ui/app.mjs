@@ -2324,43 +2324,6 @@ function showLineupWarning(missing, onProceed, onCancel) {
   document.getElementById('warn-cancel').onclick = () => { root.innerHTML = ''; onCancel(); };
 }
 
-// 첫 런 안내: 손가락이 핵심 버튼(영입 → 다음 주로)을 차례로 가리킨다. 한 번 지나가면 다시 안 나온다.
-const TUTORIAL_KEY = 'fm-roguelike-tutorial';
-function tutorialStep() {
-  try { return Number(localStorage.getItem(TUTORIAL_KEY) ?? 0); } catch { return 0; }
-}
-function setTutorialStep(n) {
-  try { localStorage.setItem(TUTORIAL_KEY, String(n)); } catch { /* 안내는 없어도 된다 */ }
-}
-function showHandHint(target, text, onDone) {
-  document.querySelector('.handhint')?.remove();
-  target.scrollIntoView({ block: 'center', behavior: 'instant' });
-  const r = target.getBoundingClientRect();
-  // 손가락은 버튼 가장자리에서 버튼을 가리키고, 말풍선은 카드 위(없으면 버튼 위)에 띄워서
-  // 카드 정보를 가리지 않는다.
-  const below = r.bottom + 60 < window.innerHeight;
-  const anchor = (target.closest('.offer') ?? target).getBoundingClientRect();
-  const el = document.createElement('div');
-  el.className = 'handhint';
-  el.innerHTML = `<span class="handhint__hand${below ? '' : ' is-up'}" style="left:${Math.round(r.left + r.width / 2)}px;top:${Math.round(below ? r.bottom - 14 : r.top - 44)}px">${below ? '👆' : '👇'}</span>
-    <span class="handhint__bubble" style="left:${Math.round(anchor.left + 8)}px;top:${Math.round(Math.max(8, anchor.top - 8))}px">${esc(text)}<small>탭하면 안내를 끕니다</small></span>`;
-  document.body.appendChild(el);
-  el.querySelector('.handhint__bubble').onclick = () => { setTutorialStep(2); el.remove(); };
-  target.addEventListener('click', () => { onDone(); el.remove(); }, { once: true });
-}
-function maybeShowTutorial(tab) {
-  document.querySelector('.handhint')?.remove();
-  const step = tutorialStep();
-  if (step >= 2 || currentState.seasonNumber !== 1 || currentState.phase !== 'summer') return;
-  if (step === 0 && tab === 'draft' && currentState.week === SUMMER_MARKET_WEEKS[0]) {
-    const btn = document.querySelector('[data-buy]:not(:disabled)');
-    if (btn) showHandHint(btn, '마음에 드는 선수를 영입해 보세요', () => setTutorialStep(1));
-  } else if (step === 1) {
-    const btn = document.getElementById('next-week-btn');
-    if (btn) showHandHint(btn, '다음 주로 넘기면 이적시장이 진행됩니다', () => setTutorialStep(2));
-  }
-}
-
 function renderMarket(banner = '') {
   const { club, manager, staff, squad, funds, chemistry, eventMessage, eventTone, shopOffer, phase, week, listedForSale } = currentState;
   const maxWeek = phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];
@@ -3094,7 +3057,6 @@ function renderMarket(banner = '') {
   }
 
   saveRun(currentState, localStorage);
-  maybeShowTutorial(tab);
 }
 
 if (UCL_DEMO) {
