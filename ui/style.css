@@ -1170,6 +1170,44 @@ button:not(:disabled):active { transform: scale(0.98); }
 .uclmatch__result.is-패 { color: var(--debit); }
 .uclmatch #um-end .cta { width: 100%; }
 
+/* 기록 / 업적 / 트로피 */
+.start__records { margin: 0 0 var(--s4); }
+.records { padding: var(--s4); display: grid; gap: var(--s3); }
+.records__title { font-size: var(--fs-title); margin: 0; }
+.recstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s2); text-align: center; }
+.recstats--five { grid-template-columns: repeat(5, 1fr); }
+.recstat span { display: block; font-size: var(--fs-micro); color: var(--muted); }
+.recstat b { font-size: var(--fs-l); }
+.ach { list-style: none; margin: 0 0 var(--s3); padding: 0; display: grid; gap: 3px; }
+.ach__item { display: grid; grid-template-columns: 28px 1fr; gap: var(--s2); align-items: center; padding: var(--s2) var(--s3); background: var(--surface); border-radius: var(--r-md); opacity: 0.55; }
+.ach__item.is-on { opacity: 1; border-left: 3px solid var(--gold); }
+.ach__item b { display: block; font-size: var(--fs-body); }
+.ach__item small { display: block; color: var(--muted); font-size: var(--fs-micro); }
+.ach__item em { font-style: normal; color: var(--gold); font-size: var(--fs-micro); }
+.rechist { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.rechist li { display: grid; grid-template-columns: 56px 1fr auto; gap: var(--s2); align-items: center; padding: 6px var(--s2); background: var(--surface); border-radius: var(--r-sm); font-size: var(--fs-label); }
+.rechist li em { grid-column: 2 / -1; font-style: normal; color: var(--gold); font-size: var(--fs-micro); }
+.achtoast { position: fixed; left: 0; right: 0; top: var(--s4); z-index: 80; display: grid; gap: var(--s2); justify-items: center; pointer-events: none; animation: eventPop 260ms var(--ease) both; }
+.achtoast.is-out { opacity: 0; transition: opacity 500ms; }
+.achtoast__item { display: grid; gap: 2px; padding: var(--s3) var(--s4); background: var(--surface-hi); border: 1px solid var(--gold); border-radius: var(--r-lg); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5); text-align: center; max-width: 320px; }
+.achtoast__item span { font-size: var(--fs-micro); color: var(--gold); font-weight: 800; }
+.achtoast__item small { color: var(--muted); font-size: var(--fs-micro); }
+.trophy { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: radial-gradient(circle at 50% 38%, #2a2410 0%, #0b0f0d 70%); overflow: hidden; animation: eventFadeIn 400ms var(--ease) both; }
+.trophy--ucl { background: radial-gradient(circle at 50% 38%, #1c2a4a 0%, #080b12 72%); }
+.trophy__rays { position: absolute; width: 140vmax; height: 140vmax; left: 50%; top: 38%; translate: -50% -50%; background: repeating-conic-gradient(from 0deg, rgba(221, 166, 58, 0.16) 0 8deg, transparent 8deg 24deg); animation: trophySpin 28s linear infinite; mask-image: radial-gradient(circle, #000 0%, transparent 62%); -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 62%); }
+.trophy__confetti { position: absolute; inset: 0; pointer-events: none; }
+.trophy__confetti i { position: absolute; top: -12px; left: var(--x); width: 8px; height: 14px; background: var(--c); border-radius: 2px; animation: trophyFall var(--d) linear var(--w) infinite; }
+.trophy__body { position: relative; display: grid; gap: var(--s3); justify-items: center; text-align: center; padding: var(--s6); max-width: 360px; }
+.trophy__cup { width: 150px; height: 150px; filter: drop-shadow(0 0 22px rgba(221, 166, 58, 0.65)); animation: trophyRise 900ms var(--ease) both, trophyGlow 2.4s ease-in-out 900ms infinite; }
+.trophy__kicker { font-size: var(--fs-label); letter-spacing: 0.3em; color: var(--gold); font-weight: 800; }
+.trophy__title { margin: 0; font-size: 30px; line-height: 1.2; animation: eventPop 600ms var(--ease) 500ms both; }
+.trophy__sub { margin: 0; color: var(--muted); animation: eventPop 600ms var(--ease) 700ms both; }
+.trophy .cta { width: 220px; margin-top: var(--s3); animation: eventPop 600ms var(--ease) 900ms both; }
+@keyframes trophyRise { from { opacity: 0; transform: translateY(40px) scale(0.6); } }
+@keyframes trophyGlow { 50% { filter: drop-shadow(0 0 40px rgba(246, 215, 122, 0.95)); transform: scale(1.04); } }
+@keyframes trophySpin { to { rotate: 360deg; } }
+@keyframes trophyFall { to { transform: translateY(110vh) rotate(540deg); } }
+@media (prefers-reduced-motion: reduce) { .trophy__rays, .trophy__confetti i, .trophy__cup { animation: none; } }
 /* 이사진 요구 카드 */
 .demandcards { display: grid; gap: var(--s2); margin: var(--s3) var(--s4); }
 .demandcard {

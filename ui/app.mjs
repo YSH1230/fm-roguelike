@@ -1,5 +1,9 @@
 import { buildStartClubOffers, buildTierClubOffers, buildLeagueRivals } from '../data/clubs.mjs';
 import { saveRun, loadRun, clearRun, withRunDefaults } from '../data/local-save.mjs';
+import {
+  loadRecords, saveRecords, recordRunStart, recordPromotion, recordSeason, recordUcl,
+  uclReached, ACHIEVEMENTS, unlockedIds, newlyUnlocked,
+} from '../data/records.mjs';
 import { generateSquadPool, generateStartingSquad, generateEmergencyYouth, MOVE_SQUAD_WEIGHTS_BY_TIER } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
 import { assignRandomStaff, generateStaffOffer, generateStaffCandidate } from '../data/staff.mjs';
@@ -510,6 +514,111 @@ function renderTutorialFlow() {
   document.getElementById('tutorial-screen').onclick = () => renderClubButtons();
 }
 
+// ---------- 역대 기록 / 업적 / 트로피 ----------
+// 런과 별개로 쌓이는 기록(data/records.mjs). 갱신하면서 새로 풀린 업적은 토스트로 알린다.
+function updateRecords(fn) {
+  const before = loadRecords(localStorage);
+  const after = fn(before);
+  saveRecords(localStorage, after);
+  const fresh = newlyUnlocked(before, after);
+  if (fresh.length) showAchievementToast(fresh);
+  return after;
+}
+
+function showAchievementToast(list) {
+  const el = document.createElement('div');
+  el.className = 'achtoast';
+  el.innerHTML = list.map((a) => `<div class="achtoast__item"><span>🏅 업적 달성</span><b>${esc(a.label)}</b><small>${esc(a.desc)}</small></div>`).join('');
+  document.body.appendChild(el);
+  setTimeout(() => el.classList.add('is-out'), 4200);
+  setTimeout(() => el.remove(), 4800);
+}
+
+// 우승 트로피 연출(전체 화면). kind: 'league' | 'ucl'
+function showTrophy({ kind, title, sub }, onClose = () => {}) {
+  const el = document.createElement('div');
+  el.className = `trophy trophy--${kind}`;
+  const confetti = Array.from({ length: 28 }, (_, i) => `<i style="--x:${Math.round(Math.random() * 100)}%;--d:${(2.4 + Math.random() * 2.4).toFixed(2)}s;--w:${(Math.random() * 1.8).toFixed(2)}s;--c:${['#dda63a', '#f0ead9', '#4ca86a', '#5b9bd5'][i % 4]}"></i>`).join('');
+  el.innerHTML = `
+    <div class="trophy__rays"></div>
+    <div class="trophy__confetti">${confetti}</div>
+    <div class="trophy__body">
+      <svg class="trophy__cup" viewBox="0 0 100 100" aria-hidden="true">
+        <defs><linearGradient id="trophyGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6d77a"/><stop offset="0.55" stop-color="#dda63a"/><stop offset="1" stop-color="#9c6a17"/></linearGradient></defs>
+        <path d="M30 14 H70 V38 C70 52 62 60 50 62 C38 60 30 52 30 38 Z" fill="url(#trophyGold)"/>
+        <path d="M30 20 H17 C17 37 24 43 33 45 M70 20 H83 C83 37 76 43 67 45" fill="none" stroke="url(#trophyGold)" stroke-width="4" stroke-linecap="round"/>
+        <rect x="45" y="62" width="10" height="14" fill="url(#trophyGold)"/>
+        <rect x="31" y="76" width="38" height="9" rx="2" fill="url(#trophyGold)"/>
+        <path d="M40 20 C40 34 42 44 47 52" fill="none" stroke="#fff6cf" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round"/>
+      </svg>
+      <div class="trophy__kicker">${kind === 'ucl' ? 'CHAMPIONS' : 'CHAMPION'}</div>
+      <h2 class="trophy__title">${esc(title)}</h2>
+      <p class="trophy__sub">${esc(sub)}</p>
+      <button class="cta" id="trophy-close">계속</button>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('#trophy-close').onclick = () => { el.remove(); onClose(); };
+}
+
+const LEAGUE_NAMES = { tier5: '5부', tier4: '4부', tier3: '3부', tier2: '2부', tier1: '1부' };
+const UCL_RESULT_SHORT = { league: '리그 단계', playoff: '플레이오프', r16: '16강', qf: '8강', sf: '4강', final: '준우승', champion: '우승' };
+
+function renderRecords() {
+  const r = loadRecords(localStorage);
+  const have = new Set(unlockedIds(r));
+  const stat = (label, value) => `<div class="recstat"><span>${label}</span><b class="n">${value}</b></div>`;
+  const groups = ['커리어', '리그', '챔피언스리그'];
+  const achHtml = groups.map((g) => `
+    <h3 class="chemgroup__title">${g}</h3>
+    <ul class="ach">
+      ${ACHIEVEMENTS.filter((a) => a.group === g).map((a) => {
+        const on = have.has(a.id);
+        const prog = a.progress ? a.progress(r) : null;
+        return `<li class="ach__item${on ? ' is-on' : ''}">
+          <span class="ach__icon">${on ? '🏆' : '🔒'}</span>
+          <div><b>${esc(a.label)}</b><small>${esc(a.desc)}</small>${prog && !on ? `<em>${prog[0]} / ${prog[1]}</em>` : ''}</div>
+        </li>`;
+      }).join('')}
+    </ul>`).join('');
+  const hist = [...r.history].reverse().slice(0, 12).map((h) => `<li>
+      <span class="n">${h.season}시즌</span><span>${esc(h.club)} · ${LEAGUE_NAMES[h.tierId]}</span>
+      <b>${h.result === 'champion' ? '우승' : h.rank ? `${h.rank}위` : ''}</b>
+      ${h.ucl ? `<em>챔스 ${UCL_RESULT_SHORT[h.ucl]}</em>` : ''}
+    </li>`).join('');
+
+  setScreen(`
+    <div class="records">
+      <button class="backlink" id="records-back">← 뒤로</button>
+      <h1 class="records__title">기록 · 업적</h1>
+      <div class="panel">
+        <div class="panel__head"><h2>역대 기록</h2></div>
+        <div class="recstats">
+          ${stat('시작한 런', r.runs)}${stat('치른 시즌', r.seasons)}${stat('승격', r.promotions)}${stat('최고 리그', LEAGUE_NAMES[r.highestTier])}
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel__head"><h2>리그 우승</h2></div>
+        <div class="recstats recstats--five">
+          ${Object.entries(LEAGUE_NAMES).reverse().map(([id, name]) => stat(name, r.titles[id])).join('')}
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel__head"><h2>챔피언스리그</h2><span class="panel__count">진출 ${r.uclEntries}회</span></div>
+        <div class="recstats recstats--five">
+          ${stat('우승', r.ucl.champion)}${stat('준우승', r.ucl.final)}${stat('4강', r.ucl.sf)}${stat('8강', r.ucl.qf)}${stat('16강', r.ucl.r16)}
+        </div>
+        <p class="note">리그·챔스 더블 ${r.doubles}회 · 16강 이상 ${uclReached(r, 'r16')}회</p>
+      </div>
+      <div class="panel">
+        <div class="panel__head"><h2>업적</h2><span class="panel__count">${have.size} / ${ACHIEVEMENTS.length}</span></div>
+        ${achHtml}
+      </div>
+      ${hist ? `<div class="panel"><div class="panel__head"><h2>최근 시즌</h2></div><ul class="rechist">${hist}</ul></div>` : ''}
+    </div>
+  `);
+  document.getElementById('records-back').onclick = () => renderClubButtons();
+}
+
 function renderClubButtons() {
   const clubs = buildStartClubOffers(); // 강·중·약 구단이 런마다 다르게 뽑힌다
   const saved = loadRun(localStorage);
@@ -528,6 +637,7 @@ function renderClubButtons() {
     <div class="start">
       <h1 class="start__title">FM<br>ROGUELIKE</h1>
       <p class="start__sub">5부 리그 감독으로 시작합니다. 12주 동안 선수를 사고 팔아 한 시즌을 버티세요.</p>
+      <button class="reroll start__records" id="records-btn">🏆 기록 · 업적</button>
       <div class="clubs">
         ${resume}
         ${clubs.map((club) => {
@@ -548,6 +658,7 @@ function renderClubButtons() {
     </div>
   `);
 
+  document.getElementById('records-btn')?.addEventListener('click', renderRecords);
   document.getElementById('resume-btn')?.addEventListener('click', () => {
     currentState = withRunDefaults(saved, DEFAULT_FORMATION); // 구버전 세이브 호환
     if (currentState.ucl) renderUcl(); else renderMarket();
@@ -560,6 +671,7 @@ function renderClubButtons() {
 let currentState = null;
 
 function startRun(club) {
+  updateRecords(recordRunStart);
   const baseFunds = Math.round(calculateStartingFunds(0) * club.startingFundsMultiplier);
   const rawSquad = staggerContracts(generateStartingSquad().map(toSquadPlayer));
   // 시작 감독은 루키(배율 ×1.00) - 예전엔 택티션(×1.05)이라 시작하자마자
@@ -1405,12 +1517,32 @@ function renderUcl(opts = {}) {
     saveRun(currentState, localStorage);
     playUclMatch(next, () => renderUcl({ fresh: true }));
   });
+  if (opts.fresh && s.stage === 'done' && s.result === 'champion' && !currentState.uclTrophyShown) {
+    currentState.uclTrophyShown = true;
+    showTrophy({ kind: 'ucl', title: '챔피언스리그 우승', sub: `${currentState.club.name} · 시즌 ${currentState.seasonNumber}` });
+  }
   document.getElementById('ucl-next')?.addEventListener('click', () => {
+    updateRecords((r) => recordUcl(r, { result: s.result, season: currentState.seasonNumber }));
+    currentState.uclTrophyShown = false;
     currentState.funds += UCL_REWARDS_FUNDS[s.result];
     if (s.result === 'champion') currentState.uclTitles += 1;
     currentState.ucl = null;
     startNewSeason();
   });
+}
+
+// 시즌 결과를 역대 기록에 남기고, 리그 우승이면 트로피 연출을 띄운다.
+function recordSeasonEnd(result, points, rank = null) {
+  updateRecords((r) => recordSeason(r, {
+    season: currentState.seasonNumber, club: currentState.club.name, tierId: currentState.leagueTierId, result, rank, points: Math.round(points),
+  }));
+  if (result === 'champion') {
+    showTrophy({
+      kind: 'league',
+      title: `${LEAGUE_NAMES[currentState.leagueTierId]} 우승`,
+      sub: `${currentState.club.name} · 시즌 ${currentState.seasonNumber} · 승점 ${Math.round(points)}`,
+    });
+  }
 }
 
 function runSecondHalfAndFinish(saleMessage = '') {
@@ -1475,6 +1607,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   if (outcome.ended) {
     // 같은 클릭에서 보드진의 신임이 발동하고도 목표 미달로 경질될 수 있다.
     // 그 경우에도 성향이 발동했다는 사실은 알려야 한다.
+    recordSeasonEnd(result, totalPoints);
     renderRunEnd(outcome.reason, totalPoints, boardTrustMessage, uclResultId);
     return;
   }
@@ -1571,7 +1704,9 @@ function runSecondHalfAndFinish(saleMessage = '') {
     </div>
   `, dockHtml);
 
+  recordSeasonEnd(result, totalPoints, finalRank);
   document.getElementById('promote-btn')?.addEventListener('click', () => {
+    updateRecords(recordPromotion);
     const nextTier = getNextTier(currentState.leagueTierId);
     currentState.chemistry = Math.min(100, currentState.chemistry + PROMOTION_CHEMISTRY_BONUS);
     currentState.promotionFundsBonusPending = true; // 지급 시점(startNewSeason)에 반영
