@@ -343,7 +343,7 @@ function managerTraitHtml(m) {
     : '<p class="traitline traitline--none">세부 성향 없음</p>';
 }
 
-// 여름 이적시장이 끝나는 시점(전반기 시작 직전)의 라인업으로 딱 한 번 체크한다.
+// 이적시장이 끝나는 시점(여름: 전반기 직전, 겨울: 후반기 직전)의 라인업으로 각각 한 번 체크한다.
 // 감독의 전술 태그 케미가 그때 안 켜져 있으면 "선호하는 선수단을 못 꾸렸다"는
 // 뜻이라 불화, 켜져 있으면 전술이 자리잡았다는 뜻이라 보너스 - 새 수치 체계
 // 없이 이미 있는 적응도(케미스트리)를 그대로 밀고 올린다.
@@ -1757,6 +1757,9 @@ function runSecondHalfAndFinish(saleMessage = '') {
     saleMessage = saleMessage ? `${saleMessage} / ${msg}` : msg;
   }
   const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  // 겨울 마감 시점에도 여름과 똑같이 한 번 체크(겨울에 선수단을 갈아엎은 걸 반영)
+  const harmonyMsg = applyManagerTacticalHarmony(lineup);
+  saleMessage = saleMessage ? `${saleMessage} / ${harmonyMsg}` : harmonyMsg;
   const secondHalf = runHalfSeason(
     lineup,
     bench,
@@ -2740,7 +2743,7 @@ function renderMarket(banner = '') {
             <div class="player__name">${esc(manager.name)}</div>
             ${managerChipsHtml(manager)}
             ${managerTraitHtml(manager)}
-            <p class="traitline traitline--none">전술 태그: 여름 시장이 끝날 때 라인업에서 발동하면 적응도 +${MANAGER_HARMONY_BONUS}, 못 켜면 −${MANAGER_HARMONY_PENALTY}</p>
+            <p class="traitline traitline--none">전술 태그: 여름·겨울 시장이 끝날 때마다 라인업에서 발동하면 적응도 +${MANAGER_HARMONY_BONUS}, 못 켜면 −${MANAGER_HARMONY_PENALTY}</p>
           </div>
         </div>
       </section>
