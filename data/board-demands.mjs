@@ -29,6 +29,17 @@ export const DEMAND_CARDS = [
     check: (s) => s.track.spent <= s.grant * 0.4 },
 ];
 
+// 1부 전용 챔피언스리그 카드. tier가 있는 카드는 그 리그 오퍼에만 나오고, 1부 오퍼에는 "챔스 진출"이
+// 항상 포함된다. deferred 카드는 챔스가 끝난 뒤(uclResult)에야 판정한다.
+DEMAND_CARDS.push(
+  { id: 'uclQualify', difficulty: 'normal', tags: ['pace'], tier: 'tier1', text: '챔피언스리그 진출 (리그 4위 이내)',
+    check: (s) => !!s.uclQualified },
+  { id: 'uclQF', difficulty: 'hard', tags: ['pace'], tier: 'tier1', deferred: true, text: '챔피언스리그 8강 이상',
+    check: (s) => ['qf', 'sf', 'final', 'champion'].includes(s.uclResult) },
+  { id: 'uclChamp', difficulty: 'hard', tags: [], tier: 'tier1', deferred: true, text: '챔피언스리그 우승',
+    check: (s) => s.uclResult === 'champion' },
+);
+
 export const DIFFICULTIES = ['easy', 'normal', 'hard'];
 export const DIFFICULTY_LABELS = { easy: '쉬움', normal: '보통', hard: '어려움' };
 
@@ -37,13 +48,15 @@ export function getDemand(cardId) {
 }
 
 // 난이도마다 1장씩(쉬움/보통/어려움). bias = { [tag]: 가중치 배수 }
-export function drawDemandOffer(rng = Math.random, bias = {}) {
-  return DIFFICULTIES.map((difficulty) => {
-    const pool = DEMAND_CARDS.filter((c) => c.difficulty === difficulty);
+export function drawDemandOffer(rng = Math.random, bias = {}, tierId = null) {
+  const offer = DIFFICULTIES.map((difficulty) => {
+    const pool = DEMAND_CARDS.filter((c) => c.difficulty === difficulty && (!c.tier || c.tier === tierId));
     const weights = pool.map((c) => c.tags.reduce((w, t) => w * (bias[t] ?? 1), 1));
     let pick = rng() * weights.reduce((a, b) => a + b, 0);
     return pool.find((_, i) => (pick -= weights[i]) < 0) ?? pool.at(-1);
   });
+  if (tierId === 'tier1') offer[1] = getDemand('uclQualify'); // 1부는 챔피언스리그 진출 요구가 항상 있다
+  return offer;
 }
 
 export function evaluateDemand(cardId, state) {

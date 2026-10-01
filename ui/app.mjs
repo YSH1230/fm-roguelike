@@ -765,7 +765,7 @@ function demandCardHtml(card, attr) {
 }
 
 function renderDemandChoice(bias, onDone) {
-  const offer = drawDemandOffer(Math.random, bias);
+  const offer = drawDemandOffer(Math.random, bias, currentState.leagueTierId);
   setScreen(`
     <div class="verdict">
       <div class="verdict__label">이사진 요구</div>
@@ -955,7 +955,7 @@ function startNewSeason() {
   }
   const transferDemand = currentState.pendingTransferDemand ?? null;
   currentState.pendingTransferDemand = null;
-  currentState.seasonBriefing = { transferDemand, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
+  currentState.seasonBriefing = { transferDemand, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}, currentState.leagueTierId).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
   renderMarket(banner);
 }
 
@@ -1417,6 +1417,12 @@ function renderUcl(opts = {}) {
         <div class="verdict__label">챔피언스리그</div>
         <div class="verdict__result">${UCL_RESULT_LABELS[s.result]}</div>
         <p class="note" style="text-align:center">상금 <b>+${reward}G</b>${s.result === 'champion' ? ' · 명성 대폭 상승' : ''}</p>
+        ${(() => {
+          const dm = currentState.pendingBoardReview?.demand;
+          if (!dm?.deferred) return '';
+          const ok = evaluateDemand(dm.cardId, { uclQualified: true, uclResult: s.result });
+          return `<p class="note" style="text-align:center">이사진 요구 "${esc(dm.text)}" → <b>${ok ? '달성! 다음 시즌 자금 보너스' : '미달(불이익 없음)'}</b></p>`;
+        })()}
       </div>`;
   } else {
     const legInfo = s.stage !== 'league' && s.stage !== 'final' ? ` · ${s.leg}차전` : '';
@@ -1523,6 +1529,13 @@ function renderUcl(opts = {}) {
   }
   document.getElementById('ucl-next')?.addEventListener('click', () => {
     updateRecords((r) => recordUcl(r, { result: s.result, season: currentState.seasonNumber }));
+    // 챔스 결과로 판정하는 이사진 요구(deferred)를 여기서 확정한다.
+    const dm = currentState.pendingBoardReview?.demand;
+    if (dm?.deferred) {
+      dm.achieved = evaluateDemand(dm.cardId, { uclQualified: true, uclResult: s.result });
+      dm.funds = dm.achieved ? Math.round(seasonBaseGrant() * BOARD_DEMAND_REWARD[dm.difficulty]) : 0;
+      dm.deferred = false;
+    }
     currentState.uclTrophyShown = false;
     currentState.funds += UCL_REWARDS_FUNDS[s.result];
     if (s.result === 'champion') currentState.uclTitles += 1;
@@ -1623,17 +1636,20 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const reward = boardReward(totalPoints, goal, seasonBaseGrant());
   const chosen = currentState.boardDemand;
   const demandCard = chosen ? getDemand(chosen.cardId) : null;
-  const demandAchieved = demandCard ? evaluateDemand(demandCard.id, {
+  // 챔피언스리그 결과가 필요한 카드(deferred)는 챔스에 나갈 때만 챔스가 끝난 뒤로 판정을 미룬다.
+  const demandDeferred = !!demandCard?.deferred && uclQualified;
+  const demandAchieved = demandCard && !demandDeferred ? evaluateDemand(demandCard.id, {
     lineup, chemistry: currentState.chemistry, track: currentState.seasonTrack,
     firstHalfPoints: currentState.firstHalfPoints, grant: seasonBaseGrant(), goal,
+    uclQualified, uclResult: null,
   }) : false;
   const demandFunds = demandAchieved ? Math.round(seasonBaseGrant() * BOARD_DEMAND_REWARD[chosen.difficulty]) : 0;
   currentState.pendingBoardReview = {
     goal, points: Math.round(totalPoints), ...reward,
-    demand: demandCard ? { text: demandCard.text, difficulty: chosen.difficulty, achieved: demandAchieved, funds: demandFunds } : null,
+    demand: demandCard ? { cardId: demandCard.id, text: demandCard.text, difficulty: chosen.difficulty, achieved: demandAchieved, funds: demandFunds, deferred: demandDeferred } : null,
   };
   const demandLine = demandCard
-    ? `이사진 요구 "${demandCard.text}" → <b>${demandAchieved ? `달성! 다음 시즌 자금 +${demandFunds}G` : '미달(불이익 없음)'}</b>`
+    ? `이사진 요구 "${demandCard.text}" → <b>${demandDeferred ? '챔피언스리그가 끝나면 판정됩니다' : demandAchieved ? `달성! 다음 시즌 자금 +${demandFunds}G` : '미달(불이익 없음)'}</b>`
     : '';
   const goalLine = reward.surplus > 0
     ? `이사진 목표 ${goal}점 → <b>${reward.surplus}점 초과 달성!</b> 다음 시즌 자금 +${reward.funds}G, 적응도 +${reward.chemistry}`
