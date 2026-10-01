@@ -1104,23 +1104,67 @@ button:not(:disabled):active { transform: scale(0.98); }
 .finalrank { text-align: center; color: var(--muted); font-size: var(--fs-body); margin: 2px 0 var(--s2); }
 .finalrank b { color: var(--light); font-size: var(--fs-l); }
 .uclhead { display: flex; justify-content: space-between; padding: var(--s6) var(--s4) 0; font-size: var(--fs-label); color: var(--muted); }
+.uclhead b { color: var(--gold); }
 .uclnext { margin: var(--s3) var(--s4); padding: var(--s4); text-align: center; background: var(--surface); border-radius: var(--r-lg); border-top: 3px solid var(--gold); display: grid; gap: var(--s2); }
 .uclnext__stage { font-size: var(--fs-label); color: var(--gold); font-weight: 800; }
-.uclnext__vs { display: grid; gap: 2px; }
-.uclnext__vs b { font-size: var(--fs-l); }
+.uclnext__vs { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--s2); align-items: center; }
+.uclnext__vs > div { display: grid; gap: 4px; justify-items: center; }
+.uclnext__vs b { font-size: var(--fs-body); }
 .uclnext__vs span { color: var(--muted); font-size: var(--fs-label); }
-.uclnext__power { font-size: var(--fs-micro); color: var(--muted); }
-.ucltable, .ucllog, .uclbracket { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.ucltable__row { display: grid; grid-template-columns: 22px 1fr auto auto 34px; gap: var(--s2); align-items: center; padding: 5px var(--s2); background: var(--surface); border-radius: var(--r-sm); font-size: var(--fs-label); }
-.ucltable__row.is-mine, .ucllog li.is-mine, .uclbracket li.is-mine { border: 1px solid var(--turf); }
-.ucltable__row.is-cut { margin-bottom: 4px; }
+.uclnext__power, .uclnext__agg { font-size: var(--fs-micro); color: var(--muted); }
+.uclnext__agg { color: var(--light); }
+
+/* 리그 단계 순위표 */
+.ucltable__legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--s3); font-size: var(--fs-micro); color: var(--muted); margin-bottom: var(--s2); }
+.ucltable__legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 3px; }
+.zone-seed { --zone: var(--gold); }
+.zone-in { --zone: var(--turf); }
+.zone-out { --zone: var(--line); }
+.ucltable__legend i { background: var(--zone); }
+.ucltable, .ucllog, .uclties { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ucltable__row { display: grid; grid-template-columns: 22px 28px 20px minmax(0, 1fr) auto 30px 28px; gap: 6px; align-items: center; height: 34px; padding: 0 var(--s2); background: var(--surface); border-radius: var(--r-sm); border-left: 3px solid var(--zone, var(--line)); font-size: var(--fs-label); will-change: transform; }
+.ucltable__row.is-mine { background: var(--surface-hi); outline: 1px solid var(--turf); }
 .ucltable__rank { color: var(--muted); text-align: center; }
 .ucltable__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ucllog li { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--s2); align-items: center; padding: 5px var(--s2); background: var(--surface); border-radius: var(--r-sm); font-size: var(--fs-label); }
-.ucllog li span:last-of-type { text-align: right; }
-.ucllog li em { grid-column: 1 / -1; text-align: center; font-style: normal; color: var(--gold); font-size: var(--fs-micro); }
-.uclbracket li { padding: 6px var(--s2); background: var(--surface); border-radius: var(--r-sm); font-size: var(--fs-label); }
-.uclbracket li span { color: var(--gold); font-weight: 800; margin-right: 6px; }
+.ucltable__gd { color: var(--muted); text-align: right; }
+.ucltable__pts { text-align: right; font-size: var(--fs-body); }
+.ucltable__form { display: inline-flex; gap: 2px; }
+.ucltable__form i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.ucltable__form .f-W { background: var(--turf); }
+.ucltable__form .f-L { background: var(--debit); }
+.ucltable__form .f-D { background: var(--muted); }
+.mv { font-style: normal; font-size: 10px; font-weight: 800; text-align: center; color: var(--muted-dim); }
+.mv.up { color: var(--turf); }
+.mv.down { color: var(--debit); }
+
+/* 지난 경기 / 토너먼트 */
+.ucllog li, .uclties__tie { display: grid; grid-template-columns: 1fr auto 1fr; gap: var(--s2); align-items: center; padding: 6px var(--s2); background: var(--surface); border-radius: var(--r-sm); font-size: var(--fs-label); }
+.ucllog li.is-mine, .uclties__tie.is-mine { outline: 1px solid var(--turf); }
+.ucllog li span:last-of-type, .uclties__tie span:last-of-type { text-align: right; }
+.ucllog li em, .uclties__tie em { grid-column: 1 / -1; text-align: center; font-style: normal; color: var(--muted); font-size: var(--fs-micro); }
+.uclties__tie .is-win { font-weight: 800; color: var(--light); }
+.uclties__tie span:not(.is-win) { color: var(--muted); }
+
+/* 경기 진행 화면 */
+.uclmatch { padding: var(--s6) var(--s4) 0; display: grid; gap: var(--s3); }
+.uclmatch__stage { text-align: center; font-size: var(--fs-label); color: var(--gold); font-weight: 800; }
+.uclmatch__board { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: var(--s2); }
+.uclmatch__team { display: grid; gap: 4px; justify-items: center; text-align: center; font-size: var(--fs-label); }
+.uclmatch__score { display: flex; align-items: center; gap: 8px; font-size: 44px; line-height: 1; transition: transform 200ms var(--ease), color 200ms; }
+.uclmatch__score i { font-style: normal; color: var(--muted); font-size: 30px; }
+.uclmatch__score.is-goal { transform: scale(1.18); color: var(--gold); }
+.uclmatch__clock { display: flex; justify-content: center; align-items: baseline; gap: var(--s2); color: var(--muted); font-size: var(--fs-label); }
+.uclmatch__clock b { font-size: var(--fs-l); color: var(--light); }
+.uclmatch__feed { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; max-height: 190px; overflow: hidden; }
+.uclmatch__feed li { padding: 6px var(--s3); background: var(--surface); border-radius: var(--r-sm); font-size: var(--fs-label); color: var(--muted); animation: eventPop 220ms var(--ease) both; }
+.uclmatch__feed li.is-me { color: var(--light); border-left: 3px solid var(--turf); }
+.uclmatch__feed li.is-opp { border-left: 3px solid var(--debit); }
+.uclmatch__feed li.is-note { text-align: center; color: var(--gold); font-weight: 700; }
+.uclmatch__result { text-align: center; font-size: var(--fs-l); font-weight: 800; margin: var(--s2) 0; }
+.uclmatch__result.is-승 { color: var(--turf); }
+.uclmatch__result.is-패 { color: var(--debit); }
+.uclmatch #um-end .cta { width: 100%; }
+
 /* 이사진 요구 카드 */
 .demandcards { display: grid; gap: var(--s2); margin: var(--s3) var(--s4); }
 .demandcard {

@@ -10,7 +10,10 @@ import { drawDemandOffer, getDemand, evaluateDemand, DIFFICULTY_LABELS } from '.
 import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
 import { judgeRunOutcome, nextMissedTargetCount, computeReputation } from '../engine/run.mjs';
-import { createUcl, advanceUcl, uclRanking, nameOf, UCL_RESULT_LABELS, UCL_REWARDS_FUNDS } from '../engine/champions-league.mjs';
+import {
+  createUcl, advanceUcl, uclRanking, nameOf, teamOf, tieAggregate,
+  UCL_RESULT_LABELS, UCL_REWARDS_FUNDS, UCL_STAGE_LABELS, UCL_LEAGUE_DAYS, UCL_QUALIFY_SPOTS, UCL_SEED_SPOTS,
+} from '../engine/champions-league.mjs';
 import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardReward } from '../engine/season.mjs';
 import { resolvePromotionTransferDemand } from '../engine/events.mjs';
 import {
@@ -1193,76 +1196,206 @@ const RESULT_LABELS = { champion: '우승권!', promotion: '승격권', safe: '�
 // 가능성을 말할 때 쓰는 말이라 확정 결과에는 안 맞는다).
 const FINAL_RESULT_LABELS = { champion: '우승', promotion: '승격', safe: '잔류', relegation: '강등' };
 
-// 챔피언스리그 화면. 리그 시즌이 끝난 뒤 진행 버튼으로 한 경기씩 넘긴다.
-const UCL_STAGE_LABELS = { league: '리그 단계', semi: '준결승', final: '결승', done: '종료' };
-function renderUcl() {
+// 챔피언스리그 화면. 리그 시즌이 끝난 뒤 "경기 시작" 버튼으로 내 경기를 한 번씩 진행한다.
+// 경기를 시작하면 전/후반이 나뉜 경기 진행 화면(공 연출 + 득점 이벤트)이 먼저 나오고,
+// 끝나면 순위표(리그 단계)와 토너먼트 대진표가 갱신된다.
+const crestOf = (t, size = 22) => renderCrest({ name: t.name, kit: t.kit }, { size });
+
+// 내 팀 득점자 이름(라인업 공격/미드 선수, 포지션 가중). 상대 득점은 이름 없이 표시한다.
+function myScorerPool() {
+  const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const weight = { ST: 4, W: 3, AMF: 3, CMF: 2, WB: 1 };
+  return lineup.flatMap((p) => Array(weight[p.position] ?? 0).fill(p.name));
+}
+
+function playUclMatch(state, onDone) {
+  const m = state.last;
+  const me = teamOf(state, 'me');
+  const opp = teamOf(state, m.oppId);
+  const pool = myScorerPool();
+  const scorerOf = (side) => (side === 'me' && pool.length ? pool[Math.floor(Math.random() * pool.length)] : side === 'me' ? '내 팀' : '상대');
+  const events = m.events.map((e) => ({ ...e, who: scorerOf(e.side) }));
+
+  setScreen(`
+    <div class="uclmatch" style="--kit:${me.kit}">
+      <div class="uclmatch__stage">${esc(m.label)}</div>
+      <div class="uclmatch__board">
+        <div class="uclmatch__team">${crestOf(me, 34)}<b>${esc(me.name)}</b></div>
+        <div class="uclmatch__score n"><span id="um-me">0</span><i>:</i><span id="um-opp">0</span></div>
+        <div class="uclmatch__team">${crestOf(opp, 34)}<b>${esc(opp.name)}</b></div>
+      </div>
+      <div class="uclmatch__clock"><span id="um-phase">전반</span><b id="um-min" class="n">0'</b></div>
+      <div class="matchsim__pitch">
+        <div class="matchsim__pitchLines"></div>
+        <div class="matchsim__ball"></div>
+      </div>
+      <ul class="uclmatch__feed" id="um-feed"><li class="is-note">킥오프</li></ul>
+      <div id="um-end"></div>
+      <p class="note" style="text-align:center">화면을 누르면 빨리 감기</p>
+    </div>
+  `);
+
+  let minute = 0; let myGoals = 0; let oppGoals = 0; let delay = 70;
+  document.querySelector('.uclmatch').onclick = () => { delay = 8; };
+  const feed = (html, cls = '') => {
+    const ul = document.getElementById('um-feed');
+    if (ul) ul.insertAdjacentHTML('afterbegin', `<li class="${cls}">${html}</li>`);
+  };
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+
+  const finish = () => {
+    const res = m.me > m.opp ? '승' : m.me < m.opp ? '패' : '무';
+    const pensText = m.pens ? ` · 승부차기 ${m.pens === 'me' ? '승리' : '패배'}` : '';
+    set('um-phase', '종료');
+    feed(`경기 종료 ${m.me} : ${m.opp}${pensText}`, 'is-note');
+    const end = document.getElementById('um-end');
+    if (end) {
+      end.innerHTML = `<div class="uclmatch__result is-${m.pens ? (m.pens === 'me' ? '승' : '패') : res}">${m.me} : ${m.opp} ${m.pens ? (m.pens === 'me' ? '승부차기 승' : '승부차기 패') : res}</div>
+        <button class="cta" id="um-continue">순위표 보기</button>`;
+      document.getElementById('um-continue').onclick = onDone;
+    }
+  };
+
+  const tick = () => {
+    if (minute >= 90) { setTimeout(finish, 500); return; }
+    minute += 1;
+    set('um-min', `${minute}'`);
+    if (minute === 46) set('um-phase', '후반');
+    for (const e of events.filter((x) => x.minute === minute)) {
+      if (e.side === 'me') myGoals += 1; else oppGoals += 1;
+      set('um-me', String(myGoals)); set('um-opp', String(oppGoals));
+      document.querySelector('.uclmatch__score')?.classList.add('is-goal');
+      setTimeout(() => document.querySelector('.uclmatch__score')?.classList.remove('is-goal'), 600);
+      feed(`<b class="n">${minute}'</b> ⚽ ${e.side === 'me' ? esc(e.who) : `${esc(opp.name)} 득점`}`, e.side === 'me' ? 'is-me' : 'is-opp');
+    }
+    if (minute === 45) {
+      feed(`하프타임 ${myGoals} : ${oppGoals}`, 'is-note');
+      set('um-phase', '하프타임');
+      setTimeout(tick, delay > 20 ? 1300 : 120);
+      return;
+    }
+    setTimeout(tick, delay);
+  };
+  setTimeout(tick, 600);
+}
+
+function renderUcl(opts = {}) {
   const s = currentState.ucl;
   const me = 'me';
   const nm = (id) => esc(nameOf(s, id));
-  const myFixture = () => {
-    if (s.stage === 'league') return s.fixtures[s.day].find(([a, b]) => a === me || b === me);
-    if (s.stage === 'semi') return s.bracket.semi.find(([a, b]) => a === me || b === me);
-    if (s.stage === 'final') return s.bracket.final;
-    return null;
-  };
-  const fx = myFixture();
-  const opp = fx ? fx.find((id) => id !== me) : null;
+  const fresh = !!opts.fresh && s.prevRank.length > 0;
 
-  const rank = uclRanking(s);
-  const tableRows = rank.map((id, i) => {
-    const r = s.table[id];
-    return `<li class="ucltable__row${id === me ? ' is-mine' : ''}${i === 3 ? ' is-cut' : ''}">
-      <span class="ucltable__rank">${i + 1}</span><span class="ucltable__name">${nm(id)}</span>
-      <span class="n">${r.w}-${r.d}-${r.l}</span><span class="n">${r.gf - r.ga >= 0 ? '+' : ''}${r.gf - r.ga}</span><b class="n">${r.p}</b>
-    </li>`;
-  }).join('');
+  const mineTie = s.ties.find((t) => t.a === me || t.b === me) ?? null;
+  const fixture = s.stage === 'league' ? s.fixtures[s.day]?.find(([a, b]) => a === me || b === me) : mineTie ? [mineTie.a, mineTie.b] : null;
+  const oppId = fixture ? fixture.find((id) => id !== me) : null;
+  const opp = oppId ? teamOf(s, oppId) : null;
+  const myTeam = teamOf(s, me);
 
-  const logRows = s.log.map((m) => `<li class="${m.mine ? 'is-mine' : ''}">
-      <span>${nm(m.a)}</span><b class="n">${m.ga} : ${m.gb}</b><span>${nm(m.b)}</span>${m.pens ? `<em>승부차기 ${nm(m.pens === 'a' ? m.a : m.b)} 승</em>` : ''}
-    </li>`).join('');
-
-  let center;
+  // ----- 다음 경기 / 결과 카드 -----
+  let top;
   if (s.stage === 'done') {
     const reward = UCL_REWARDS_FUNDS[s.result];
-    center = `<div class="verdict verdict--${s.result === 'champion' ? 'champion' : 'safe'}">
+    top = `<div class="verdict verdict--${s.result === 'champion' ? 'champion' : 'safe'}">
         <div class="verdict__label">챔피언스리그</div>
         <div class="verdict__result">${UCL_RESULT_LABELS[s.result]}</div>
         <p class="note" style="text-align:center">상금 <b>+${reward}G</b>${s.result === 'champion' ? ' · 명성 대폭 상승' : ''}</p>
       </div>`;
   } else {
-    const stageText = s.stage === 'league' ? `리그 단계 ${s.day + 1}/${s.fixtures.length}라운드` : UCL_STAGE_LABELS[s.stage];
-    center = `<div class="uclnext">
+    const legInfo = s.stage !== 'league' && s.stage !== 'final' ? ` · ${s.leg}차전` : '';
+    const stageText = s.stage === 'league' ? `리그 단계 ${s.day + 1}/${UCL_LEAGUE_DAYS}라운드` : `${UCL_STAGE_LABELS[s.stage]}${legInfo}`;
+    const agg = mineTie && mineTie.legs.length
+      ? (() => { const a = tieAggregate(mineTie); const mineIsA = mineTie.a === me; return `1차전 ${mineIsA ? a.a : a.b} : ${mineIsA ? a.b : a.a} (지금 합계)`; })()
+      : '';
+    top = `<div class="uclnext">
         <div class="uclnext__stage">${stageText}</div>
-        <div class="uclnext__vs"><b>${nm(me)}</b><span>vs</span><b>${opp ? nm(opp) : ''}</b></div>
-        <div class="uclnext__power">상대 전력 ${opp ? s.teams.find((t) => t.id === opp).power : ''}</div>
+        <div class="uclnext__vs">
+          <div>${crestOf(myTeam, 40)}<b>${esc(myTeam.name)}</b></div><span>vs</span><div>${opp ? crestOf(opp, 40) : ''}<b>${opp ? esc(opp.name) : ''}</b></div>
+        </div>
+        <div class="uclnext__power">내 전력 ${Math.round(myTeam.power)} · 상대 전력 ${opp ? opp.power : ''}</div>
+        ${agg ? `<div class="uclnext__agg">${agg}</div>` : ''}
       </div>`;
   }
 
-  const bracket = s.bracket ? `<div class="panel"><div class="panel__head"><h2>토너먼트</h2></div>
-      <ul class="uclbracket">
-        ${s.bracket.semi.map(([a, b]) => `<li class="${a === me || b === me ? 'is-mine' : ''}"><span>준결승</span> ${nm(a)} vs ${nm(b)}</li>`).join('')}
-        ${s.bracket.final ? `<li class="${s.bracket.final.includes(me) ? 'is-mine' : ''}"><span>결승</span> ${nm(s.bracket.final[0])} vs ${nm(s.bracket.final[1])}</li>` : ''}
-      </ul></div>` : '';
+  // ----- 직전 경기 요약(내 경기 + 같은 라운드 다른 경기) -----
+  const logRows = s.log.map((m) => `<li class="${m.mine ? 'is-mine' : ''}">
+      <span>${nm(m.a)}</span><b class="n">${m.ga} : ${m.gb}</b><span>${nm(m.b)}</span>${m.pens ? `<em>승부차기 ${nm(m.pens === 'a' ? m.a : m.b)} 승</em>` : ''}
+    </li>`).join('');
+
+  // ----- 리그 단계 순위표 -----
+  const rank = uclRanking(s);
+  const prevIndex = new Map(s.prevRank.map((id, i) => [id, i]));
+  const zoneOf = (i) => (i < UCL_SEED_SPOTS ? 'seed' : i < UCL_QUALIFY_SPOTS ? 'in' : 'out');
+  const rowsHtml = rank.map((id, i) => {
+    const r = s.table[id];
+    const t = teamOf(s, id);
+    const moved = fresh ? (prevIndex.get(id) ?? i) - i : 0;
+    const arrow = moved > 0 ? `<i class="mv up">▲${moved}</i>` : moved < 0 ? `<i class="mv down">▼${-moved}</i>` : '<i class="mv"></i>';
+    const gd = r.gf - r.ga;
+    return `<li class="ucltable__row zone-${zoneOf(i)}${id === me ? ' is-mine' : ''}" data-id="${id}" data-prev="${prevIndex.get(id) ?? i}" data-idx="${i}">
+      <span class="ucltable__rank n">${i + 1}</span>${arrow}
+      ${crestOf(t, 20)}<span class="ucltable__name">${esc(t.name)}</span>
+      <span class="ucltable__form">${r.form.map((f) => `<i class="f-${f}"></i>`).join('')}</span>
+      <span class="n ucltable__gd">${gd >= 0 ? '+' : ''}${gd}</span><b class="n ucltable__pts">${r.p}</b>
+    </li>`;
+  }).join('');
+
+  // ----- 토너먼트 대진 -----
+  const tieLine = (t) => {
+    const a = tieAggregate(t);
+    const legsText = t.legs.map((l) => `${l.ga}-${l.gb}`).join(', ');
+    const w = t.winner;
+    return `<li class="uclties__tie${t.a === me || t.b === me ? ' is-mine' : ''}">
+      <span class="${w === t.a ? 'is-win' : ''}">${nm(t.a)}</span>
+      <b class="n">${t.legs.length ? `${a.a} - ${a.b}` : 'vs'}</b>
+      <span class="${w === t.b ? 'is-win' : ''}">${nm(t.b)}</span>
+      ${t.legs.length > 1 || t.pens ? `<em>${legsText}${t.pens ? ` · 승부차기 ${nm(t.pens === 'a' ? t.a : t.b)}` : ''}</em>` : ''}
+    </li>`;
+  };
+  const knockoutRounds = ['r16', 'qf', 'sf', 'final']
+    .map((key) => ({ key, ties: s.rounds[key] ?? (s.stage === key ? s.ties : null) }))
+    .filter((r) => r.ties && r.ties.length);
+  const bracket = knockoutRounds.length ? `<div class="panel">
+      <div class="panel__head"><h2>토너먼트</h2><span class="panel__count">16강부터 · 4강까지 2경기 합계</span></div>
+      ${knockoutRounds.map((r) => `<h3 class="chemgroup__title">${UCL_STAGE_LABELS[r.key]}</h3><ul class="uclties">${r.ties.map(tieLine).join('')}</ul>`).join('')}
+    </div>` : '';
 
   const dock = s.stage === 'done'
     ? '<button class="cta" id="ucl-next">다음 시즌으로</button>'
-    : `<button class="cta" id="ucl-play">${s.stage === 'league' ? '경기 진행' : `${UCL_STAGE_LABELS[s.stage]} 진행`}</button>`;
+    : `<button class="cta" id="ucl-play">${s.stage === 'league' ? '경기 시작' : `${UCL_STAGE_LABELS[s.stage]}${s.stage === 'final' ? '' : ` ${s.leg}차전`} 시작`}</button>`;
 
   setScreen(`
     <div class="uclhead"><span>챔피언스리그</span><b>${UCL_STAGE_LABELS[s.stage]}</b></div>
-    ${center}
-    ${s.log.length ? `<div class="panel"><div class="panel__head"><h2>지난 경기</h2></div><ul class="ucllog">${logRows}</ul></div>` : ''}
-    <div class="panel">
-      <div class="panel__head"><h2>리그 단계 순위</h2><span class="panel__count">상위 4팀 토너먼트</span></div>
-      <ul class="ucltable">${tableRows}</ul>
-    </div>
+    ${top}
     ${bracket}
+    <div class="panel">
+      <div class="panel__head"><h2>리그 단계 순위</h2><span class="panel__count">24팀 · 6경기</span></div>
+      <div class="ucltable__legend"><i class="zone-seed"></i>1~8 시드 <i class="zone-in"></i>9~16 16강 진출 <i class="zone-out"></i>탈락</div>
+      <ul class="ucltable" id="ucl-table">${rowsHtml}</ul>
+    </div>
+    ${s.log.length ? `<div class="panel"><div class="panel__head"><h2>지난 라운드 결과</h2></div><ul class="ucllog">${logRows}</ul></div>` : ''}
   `, dock);
 
+  // 순위가 바뀐 만큼 행이 미끄러진다(FLIP) - 직전 경기 직후에만.
+  if (fresh) {
+    const table = document.getElementById('ucl-table');
+    const rowH = table?.firstElementChild?.getBoundingClientRect().height ?? 34;
+    for (const li of table?.children ?? []) {
+      const delta = (Number(li.dataset.prev) - Number(li.dataset.idx)) * (rowH + 2);
+      if (!delta) continue;
+      li.style.transition = 'none';
+      li.style.transform = `translateY(${delta}px)`;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        li.style.transition = 'transform 700ms var(--ease)';
+        li.style.transform = '';
+      }));
+    }
+  }
+
   document.getElementById('ucl-play')?.addEventListener('click', () => {
-    currentState.ucl = advanceUcl(s);
+    const next = advanceUcl(s);
+    currentState.ucl = next;
     saveRun(currentState, localStorage);
-    renderUcl();
+    playUclMatch(next, () => renderUcl({ fresh: true }));
   });
   document.getElementById('ucl-next')?.addEventListener('click', () => {
     currentState.funds += UCL_REWARDS_FUNDS[s.result];
