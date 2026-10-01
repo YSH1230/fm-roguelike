@@ -12,7 +12,7 @@ import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from
 import { judgeRunOutcome, nextMissedTargetCount, computeReputation } from '../engine/run.mjs';
 import {
   createUcl, advanceUcl, uclRanking, nameOf, teamOf, tieAggregate,
-  UCL_RESULT_LABELS, UCL_REWARDS_FUNDS, UCL_STAGE_LABELS, UCL_LEAGUE_DAYS, UCL_QUALIFY_SPOTS, UCL_SEED_SPOTS,
+  UCL_RESULT_LABELS, UCL_REWARDS_FUNDS, UCL_STAGE_LABELS, UCL_STYLE_LABELS, UCL_LEAGUE_DAYS, UCL_DIRECT_SPOTS, UCL_PLAYOFF_SPOTS,
 } from '../engine/champions-league.mjs';
 import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardReward } from '../engine/season.mjs';
 import { resolvePromotionTransferDemand } from '../engine/events.mjs';
@@ -1218,7 +1218,7 @@ function playUclMatch(state, onDone) {
 
   setScreen(`
     <div class="uclmatch" style="--kit:${me.kit}">
-      <div class="uclmatch__stage">${esc(m.label)}</div>
+      <div class="uclmatch__stage">${esc(m.label)} · ${m.home === null ? '중립' : m.home ? '홈' : '원정'}</div>
       <div class="uclmatch__board">
         <div class="uclmatch__team">${crestOf(me, 34)}<b>${esc(me.name)}</b></div>
         <div class="uclmatch__score n"><span id="um-me">0</span><i>:</i><span id="um-opp">0</span></div>
@@ -1229,7 +1229,7 @@ function playUclMatch(state, onDone) {
         <div class="matchsim__pitchLines"></div>
         <div class="matchsim__ball"></div>
       </div>
-      <ul class="uclmatch__feed" id="um-feed"><li class="is-note">킥오프</li></ul>
+      <ul class="uclmatch__feed" id="um-feed">${m.fortress ? '<li class="is-note">⚠ 원정팀의 무덤 — 적응도 절반</li>' : ''}<li class="is-note">킥오프</li></ul>
       <div id="um-end"></div>
       <p class="note" style="text-align:center">화면을 누르면 빨리 감기</p>
     </div>
@@ -1290,6 +1290,12 @@ function renderUcl(opts = {}) {
   const oppId = fixture ? fixture.find((id) => id !== me) : null;
   const opp = oppId ? teamOf(s, oppId) : null;
   const myTeam = teamOf(s, me);
+  // 다음 경기가 홈/원정/중립 중 어디인지(리그: 일정의 앞쪽이 홈, 토너먼트: 1차전 홈=낮은 시드, 2차전 홈=높은 시드)
+  const venue = s.stage === 'league'
+    ? (fixture && fixture[0] === me ? 'home' : 'away')
+    : s.stage === 'final' ? 'neutral'
+    : mineTie && (s.leg === 1 ? mineTie.b : mineTie.a) === me ? 'home' : 'away';
+  const fortress = venue === 'away' && !!opp?.fortress;
 
   // ----- 다음 경기 / 결과 카드 -----
   let top;
@@ -1311,7 +1317,9 @@ function renderUcl(opts = {}) {
         <div class="uclnext__vs">
           <div>${crestOf(myTeam, 40)}<b>${esc(myTeam.name)}</b></div><span>vs</span><div>${opp ? crestOf(opp, 40) : ''}<b>${opp ? esc(opp.name) : ''}</b></div>
         </div>
-        <div class="uclnext__power">내 전력 ${Math.round(myTeam.power)} · 상대 전력 ${opp ? opp.power : ''}</div>
+        <div class="uclnext__venue is-${venue}">${{ home: '홈 경기', away: '원정 경기', neutral: '중립 경기(단판)' }[venue]}</div>
+        <div class="uclnext__power">내 전력 ${Math.round(myTeam.power)} · 상대 전력 ${opp ? opp.power : ''}${opp ? ` · ${UCL_STYLE_LABELS[opp.style]}` : ''}</div>
+        ${fortress ? `<div class="uclnext__fortress">⚠ 원정팀의 무덤 — 이 원정에서는 적응도가 절반이 되어 내 전력이 ${Math.round(s.myPowerAway)}로 떨어집니다</div>` : ''}
         ${agg ? `<div class="uclnext__agg">${agg}</div>` : ''}
       </div>`;
   }
@@ -1324,7 +1332,7 @@ function renderUcl(opts = {}) {
   // ----- 리그 단계 순위표 -----
   const rank = uclRanking(s);
   const prevIndex = new Map(s.prevRank.map((id, i) => [id, i]));
-  const zoneOf = (i) => (i < UCL_SEED_SPOTS ? 'seed' : i < UCL_QUALIFY_SPOTS ? 'in' : 'out');
+  const zoneOf = (i) => (i < UCL_DIRECT_SPOTS ? 'seed' : i < UCL_PLAYOFF_SPOTS ? 'in' : 'out');
   const rowsHtml = rank.map((id, i) => {
     const r = s.table[id];
     const t = teamOf(s, id);
@@ -1351,7 +1359,7 @@ function renderUcl(opts = {}) {
       ${t.legs.length > 1 || t.pens ? `<em>${legsText}${t.pens ? ` · 승부차기 ${nm(t.pens === 'a' ? t.a : t.b)}` : ''}</em>` : ''}
     </li>`;
   };
-  const knockoutRounds = ['r16', 'qf', 'sf', 'final']
+  const knockoutRounds = ['playoff', 'r16', 'qf', 'sf', 'final']
     .map((key) => ({ key, ties: s.rounds[key] ?? (s.stage === key ? s.ties : null) }))
     .filter((r) => r.ties && r.ties.length);
   const bracket = knockoutRounds.length ? `<div class="panel">
@@ -1368,8 +1376,8 @@ function renderUcl(opts = {}) {
     ${top}
     ${bracket}
     <div class="panel">
-      <div class="panel__head"><h2>리그 단계 순위</h2><span class="panel__count">24팀 · 6경기</span></div>
-      <div class="ucltable__legend"><i class="zone-seed"></i>1~8 시드 <i class="zone-in"></i>9~16 16강 진출 <i class="zone-out"></i>탈락</div>
+      <div class="panel__head"><h2>리그 단계 순위</h2><span class="panel__count">36팀 · 8경기</span></div>
+      <div class="ucltable__legend"><i class="zone-seed"></i>1~8 16강 직행 <i class="zone-in"></i>9~24 플레이오프 <i class="zone-out"></i>25위~ 탈락</div>
       <ul class="ucltable" id="ucl-table">${rowsHtml}</ul>
     </div>
     ${s.log.length ? `<div class="panel"><div class="panel__head"><h2>지난 라운드 결과</h2></div><ul class="ucllog">${logRows}</ul></div>` : ''}
@@ -1444,6 +1452,9 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const isTop = currentState.leagueTierId === 'tier1';
   const finalRank = finalLeagueRank(totalPoints, tier, result, Math.random, isTop ? 4 : 3);
   const uclQualified = isTop && finalRank <= 4;
+  const uclPowerAway = uclQualified
+    ? computeTeamPower(lineup, bench, manager.tier, currentState.chemistry / 2, boostedTagIdFor(manager), powerExtras(currentRoles(lineup, bench)))
+    : 0;
   const uclPower = uclQualified
     ? computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, boostedTagIdFor(manager), powerExtras(currentRoles(lineup, bench)))
     : 0;
@@ -1570,7 +1581,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   });
   document.getElementById('continue-btn')?.addEventListener('click', startNewSeason);
   document.getElementById('ucl-btn')?.addEventListener('click', () => {
-    currentState.ucl = createUcl(uclPower);
+    currentState.ucl = createUcl(uclPower, Math.random, { myPowerAway: uclPowerAway });
     currentState.ucl.teams[0].name = currentState.club.name;
     saveRun(currentState, localStorage);
     renderUcl();

@@ -1112,6 +1112,11 @@ button:not(:disabled):active { transform: scale(0.98); }
 .uclnext__vs b { font-size: var(--fs-body); }
 .uclnext__vs span { color: var(--muted); font-size: var(--fs-label); }
 .uclnext__power, .uclnext__agg { font-size: var(--fs-micro); color: var(--muted); }
+.uclnext__venue { font-size: var(--fs-label); font-weight: 800; }
+.uclnext__venue.is-home { color: var(--turf); }
+.uclnext__venue.is-away { color: var(--light); }
+.uclnext__venue.is-neutral { color: var(--gold); }
+.uclnext__fortress { font-size: var(--fs-label); color: var(--debit); background: rgba(226, 86, 77, 0.1); border-radius: var(--r-sm); padding: 6px var(--s2); line-height: 1.4; }
 .uclnext__agg { color: var(--light); }
 
 /* 리그 단계 순위표 */
