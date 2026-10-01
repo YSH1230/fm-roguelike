@@ -9,9 +9,7 @@ import {
   RELEASE_RECOVERY_LISTED_SUMMER,
   RELEASE_RECOVERY_LISTED_WINTER,
   RELEASE_RECOVERY_DEADLINE,
-  STARTING_FUNDS_TIER5,
-  FUNDS_MULTIPLIER_PER_LEAGUE_TIER,
-  TIER5_FUNDS_DISCOUNT,
+  STARTING_FUNDS_BY_TIER,
   CARRYOVER_CAP_RATIO,
 } from './constants.mjs';
 
@@ -61,11 +59,32 @@ export function computeReleaseProceeds(originalPrice, method, rng = Math.random)
 // 리그 단계(0 = 5부)에 따른 시작 자금. 5부(인덱스 0)만 추가로 깎는다 -
 // 곡선 전체(4부 이상)는 그대로 두고 "5부가 너무 넉넉하다"는 지점만 고친다.
 export function calculateStartingFunds(leagueTierIndex) {
-  const base = Math.round(STARTING_FUNDS_TIER5 * FUNDS_MULTIPLIER_PER_LEAGUE_TIER ** leagueTierIndex);
-  return leagueTierIndex === 0 ? Math.round(base * TIER5_FUNDS_DISCOUNT) : base;
+  return STARTING_FUNDS_BY_TIER[leagueTierIndex];
 }
 
-// 이월 자금은 다음 시즌 시작 자금의 30%를 넘지 않음
+// 이월 자금은 다음 시즌 시작 자금의 10%를 넘지 않음
 export function applyCarryoverCap(leftoverFunds, nextSeasonStartingFunds) {
   return Math.min(leftoverFunds, nextSeasonStartingFunds * CARRYOVER_CAP_RATIO);
+}
+
+// 시즌 결산 후 남은 돈 중 이월 상한을 넘는 몫은 구단이 "운영 명분"으로 회수한다.
+// 어디에 쓰였는지(구단 운영비, 경기장 증축 등)를 2~3개 항목으로 나눠 보여주기 위한 순수 함수.
+const RECALL_REASONS = ['구단 운영비', '경기장 증축', '유소년 아카데미 투자', '시설 유지보수', '스태프 임금 인상'];
+export function recallFunds(leftover, nextGrant, rng = Math.random) {
+  const carried = Math.round(applyCarryoverCap(Math.max(0, leftover), nextGrant));
+  const recalled = Math.max(0, Math.round(leftover) - carried);
+  if (recalled === 0) return { carried, recalled: 0, items: [] };
+  const pool = [...RECALL_REASONS];
+  const count = recalled >= 60 ? 3 : 2;
+  const picks = [];
+  for (let i = 0; i < count && pool.length; i++) picks.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+  const weights = picks.map(() => 0.5 + rng());
+  const total = weights.reduce((a, b) => a + b, 0);
+  let left = recalled;
+  const items = picks.map((label, i) => {
+    const amount = i === picks.length - 1 ? left : Math.round((recalled * weights[i]) / total);
+    left -= amount;
+    return { label, amount };
+  });
+  return { carried, recalled, items };
 }

@@ -32,6 +32,7 @@ import { resolvePromotionTransferDemand } from '../engine/events.mjs';
 import {
   calculateStartingFunds,
   applyCarryoverCap,
+  recallFunds,
   applyCostModifiers,
   computeReleaseProceeds,
   renewalCost,
@@ -67,6 +68,7 @@ import {
   PLAYER_TIERS,
   MISSED_TARGET_LIMIT,
   STAGNATION_FUNDS_PENALTY_PER_MISS,
+  SAME_LEAGUE_FUNDS_RATIO,
   TAG_THRESHOLDS,
   ROLE_SLOTS,
   TRAIT_ROLE,
@@ -911,18 +913,24 @@ function rerollCost() {
 function grantSeasonFunds() {
   const base = calculateStartingFunds(getLadderIndex(currentState.leagueTierId))
     * currentState.club.startingFundsMultiplier;
-  const promoted = currentState.promotionFundsBonusPending
-    ? base * PROMOTION_STAY_FUNDS_RATIO
-    : base;
+  // 새 구단(선수단 초기화)은 전액, 승격해서 선수단을 유지하면 70%, 같은 리그에 남으면 60%.
+  // 잔류 시즌엔 선수단을 많이 갈 필요가 없어서 큰돈이 필요 없다.
+  const promoted = currentState.freshBudget
+    ? base
+    : currentState.promotionFundsBonusPending
+      ? base * PROMOTION_STAY_FUNDS_RATIO
+      : base * SAME_LEAGUE_FUNDS_RATIO;
   // 승격 못 하고 같은 리그에 눌러앉을수록(목표 미달 누적) 이사진이 지갑을
   // 닫는다. 승격하면 missedTargetCount가 0으로 리셋되니 이 페널티도 같이 풀린다.
   const stagnationPenalty = Math.max(0, 1 - currentState.missedTargetCount * STAGNATION_FUNDS_PENALTY_PER_MISS);
   const grant = Math.round(promoted * stagnationPenalty);
   currentState.promotionFundsBonusPending = false;
-  // 이월은 스펙 2절대로 "구단 잔류 시"만. 구단을 옮기면 남은 돈은 따라오지 않는다.
-  const carryover = currentState.freshBudget
-    ? 0
-    : Math.round(applyCarryoverCap(currentState.funds, grant));
+  // 이월은 "구단 잔류 시"만, 그것도 작게. 남은 돈 중 상한을 넘는 몫은 구단이 운영 명분으로 회수한다.
+  // 구단을 옮기면 남은 돈은 따라오지 않는다.
+  const leftover = currentState.freshBudget ? 0 : currentState.funds;
+  const recall = recallFunds(leftover, grant);
+  const carryover = currentState.freshBudget ? 0 : recall.carried;
+  currentState.fundsReport = { leftover: Math.round(leftover), carried: carryover, recalled: recall.recalled, items: recall.items, grant };
   currentState.freshBudget = false;
   // 순서 주의: 이적료는 이월이 아니라 지급 뒤에 더한다. 지급 전에 더하면
   // 이월 상한(지급액의 30%)에 걸려 버튼에 적힌 금액보다 적게 들어온다.
@@ -999,7 +1007,8 @@ function startNewSeason() {
   }
   const transferDemand = currentState.pendingTransferDemand ?? null;
   currentState.pendingTransferDemand = null;
-  currentState.seasonBriefing = { transferDemand, aging: agingReport, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}, currentState.leagueTierId).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
+  const fundsReport = currentState.fundsReport ?? null;
+  currentState.seasonBriefing = { transferDemand, aging: agingReport, fundsReport, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}, currentState.leagueTierId).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
   renderMarket(banner);
 }
 
@@ -3014,6 +3023,15 @@ function renderMarket(banner = '') {
   if (briefing) {
     const { review, goal, tierLabel, seasonNumber, demandOffer } = briefing;
     const tier = effectiveTier(currentState.leagueTierId);
+    const fr = briefing.fundsReport;
+    const fundsHtml = fr ? `<div class="agingbox">
+        <b>시즌 자금 정산</b>
+        <ul>
+          <li>이번 시즌 지급 <span class="n">+${fr.grant.toLocaleString('ko-KR')}G</span></li>
+          ${fr.leftover > 0 ? `<li>지난 시즌 남은 돈 <span class="n">${fr.leftover.toLocaleString('ko-KR')}G → 이월 ${fr.carried.toLocaleString('ko-KR')}G</span></li>` : ''}
+          ${fr.items.map((x) => `<li class="is-down">회수 · ${esc(x.label)} <span class="n">−${x.amount.toLocaleString('ko-KR')}G</span></li>`).join('')}
+        </ul>
+      </div>` : '';
     const ag = briefing.aging ?? { changes: [], retired: [] };
     const ups = [...ag.changes].filter((c) => c.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 4);
     const downs = [...ag.changes].filter((c) => c.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 4);
@@ -3047,6 +3065,7 @@ function renderMarket(banner = '') {
           ${reviewHtml}
           ${demandReviewHtml}
           ${transferHtml}
+          ${fundsHtml}
           ${agingHtml}
           <p class="eventmodal__detail">안전선 ${tier.safePoints}점 · 승격선 ${tier.targetPoints}점. ${BOARD_RULE_TEXT}</p>
           <div class="demandcards demandcards--modal">${(demandOffer ?? []).map((id) => demandCardHtml(getDemand(id), 'data-pick-demand')).join('')}</div>

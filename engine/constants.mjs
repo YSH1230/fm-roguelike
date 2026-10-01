@@ -161,14 +161,16 @@ export const RELEASE_RECOVERY_LISTED_SUMMER = [0.5, 1.0];
 export const RELEASE_RECOVERY_LISTED_WINTER = [0.7, 1.1];
 export const RELEASE_RECOVERY_DEADLINE = 0.4;
 
-export const STARTING_FUNDS_TIER5 = 1000;
+// 리그별 시즌 지급 자금(5부→1부). "그 리그에서 굵직한 선수를 사는 값"에 맞췄다:
+// 하부(5·4부)는 선수 5~6명 교체분, 상위 리그는 굵직한 선수 3~4명분만 준다.
+export const STARTING_FUNDS_BY_TIER = [330, 480, 800, 1300, 2000];
+// 같은 리그에 남았을 때(선수단을 크게 안 갈아도 되는 시즌)의 지급 비율
+export const SAME_LEAGUE_FUNDS_RATIO = 0.6;
 // 5부만 따로 더 깎는다 - base × 1.5^index 공식을 그대로 두고 기준값(1000)만
 // 낮추면 곱셈 구조상 4부 이상 리그 자금까지 전부 비례해서 확 깎여버린다
 // (직접 재실측해서 확인함: 2부/1부 강등률이 50%대로 치솟음). "5부 자금이
 // 너무 많다"는 5부에만 해당하는 얘기라, 5부(인덱스 0)에만 곱한다.
-export const TIER5_FUNDS_DISCOUNT = 0.55;
-export const FUNDS_MULTIPLIER_PER_LEAGUE_TIER = 1.35; // 리그가 오를수록 지급액이 늘되 예전(1.5)보다 완만하게
-export const CARRYOVER_CAP_RATIO = 0.2; // 이월 자금 상한 = 다음 시즌 시작 자금의 20%
+export const CARRYOVER_CAP_RATIO = 0.1; // 이월 자금 상한 = 다음 시즌 시작 자금의 10%(나머지는 구단이 회수)
 
 // 스펙 7절 "드래프트(상점형)"
 export const SHOP_OFFER_SIZE = 3; // 스카우터 없을 때 기본값

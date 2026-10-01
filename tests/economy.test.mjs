@@ -35,16 +35,23 @@ test('방출 회수: 이적명단은 시즌별 범위 안에서 무작위다', (
   assert.equal(proceeds, 700); // 70%
 });
 
-test('시작 자금은 4부 이상부터 리그 단계마다 1.35배씩 오른다', () => {
-  assert.equal(calculateStartingFunds(1), 1350); // 4부
-  assert.equal(calculateStartingFunds(2), 1823); // 3부 (1000 × 1.35²)
+test('시즌 지급 자금은 리그가 오를수록 늘고, 하부는 5~6명분·상위는 굵직한 3~4명분이다', () => {
+  assert.deepEqual([0, 1, 2, 3, 4].map(calculateStartingFunds), [330, 480, 800, 1300, 2000]);
+  for (let i = 1; i < 5; i++) assert.ok(calculateStartingFunds(i) > calculateStartingFunds(i - 1));
 });
 
-test('5부만 추가로 자금을 깎는다(TIER5_FUNDS_DISCOUNT)', () => {
-  assert.equal(calculateStartingFunds(0), 550); // 1000 * 0.55
+test('이월 자금은 다음 시즌 시작 자금의 10%를 넘지 않는다', () => {
+  assert.equal(applyCarryoverCap(1000, 1500), 150);
+  assert.equal(applyCarryoverCap(100, 1500), 100); // 10%보다 적으면 그대로
 });
 
-test('이월 자금은 다음 시즌 시작 자금의 20%를 넘지 않는다', () => {
-  assert.equal(applyCarryoverCap(1000, 1500), 300);
-  assert.equal(applyCarryoverCap(100, 1500), 100); // 20%보다 적으면 그대로
+test('남은 돈은 이월 상한만큼 남기고 나머지는 2~3개 명분으로 나뉘어 회수된다', async () => {
+  const { recallFunds } = await import('../engine/economy.mjs');
+  const r = recallFunds(1000, 1500);
+  assert.equal(r.carried, 150);
+  assert.equal(r.recalled, 850);
+  assert.ok(r.items.length >= 2 && r.items.length <= 3);
+  assert.equal(r.items.reduce((s, x) => s + x.amount, 0), 850);
+  assert.deepEqual(recallFunds(100, 1500), { carried: 100, recalled: 0, items: [] });
+  assert.deepEqual(recallFunds(0, 500), { carried: 0, recalled: 0, items: [] });
 });

@@ -24,30 +24,30 @@ export function convertPowerToPoints(
 // 플레이어 베스트11 평균 OVR 실측(아래 리그 스쿼드를 물려받아 누적):
 //   5부 69.8 / 4부 76.9 / 3부 83.9 / 2부 89.1 / 1부 92.3
 // 5부와 4부는 이 계획 전부터 쓰던 기존 값이라 건드리지 않았다.
-// 감독·스태프 요구(LEAGUE_EXPECTED_MANAGER)와 시즌 자금 감액(승격 첫 시즌 70%, 이월 20%,
-// 리그 배수 1.35), 특수 태그 재설계(카드 20%, 역할 칸, 조커 +1)를 넣은 뒤 아래 값을 다시 잡았다.
-// tools/tune-ladder.mjs 500판 실측(기본 봇: 5~3부 택티션 / 2~1부 레전더리, 수석 코치 프로 라이선스):
-//   5부 우승  7.2 / 승격 21.8 / 안전 63.8 / 강등  7.2
-//   4부 우승  9.2 / 승격 18.2 / 안전 64.6 / 강등  8.0
-//   3부 우승  3.6 / 승격 12.2 / 안전 65.6 / 강등 18.6
-//   2부 우승  3.8 / 승격  7.2 / 안전 66.0 / 강등 23.0
-//   1부 우승  3.2 (승격 칸은 없음) / 안전 59.0 / 강등 27.8
-// --rookie(감독·스태프를 안 사는 플레이)는 2부부터 강등 75%로 사실상 못 버틴다 - 의도한 압박이다.
-// 리그가 오를수록 승격 확률이 내려가도록 승격/우승선을 올렸다.
+// 감독·스태프 요구(LEAGUE_EXPECTED_MANAGER), 시즌 자금 대폭 축소(리그별 지급표 330/480/800/1300/2000,
+// 잔류 60%·승격 유지 70%, 이월 10%), 특수 태그 재설계를 넣은 뒤 아래 값을 다시 잡았다.
+// tools/tune-ladder.mjs 1000판 실측(기본 봇: 5~3부 택티션 / 2~1부 레전더리, 수석 코치 프로 라이선스):
+//   5부 우승  9.3 / 승격 20.3 / 안전 64.8 / 강등  5.6
+//   4부 우승  5.8 / 승격 21.3 / 안전 66.5 / 강등  6.4
+//   3부 우승  3.7 / 승격 16.6 / 안전 69.0 / 강등 10.7
+//   2부 우승  4.1 / 승격 11.7 / 안전 63.5 / 강등 20.7
+//   1부 우승  2.8 (승격 칸은 없음) / 안전 69.4 / 강등 18.8
+// 자금이 줄어 봇 전력이 5~8점 낮아져서 상대 평균(averageOVR)을 같은 만큼 내려 균형을 유지했다.
+// 리그가 오를수록 승격 확률이 내려간다.
 const LEAGUE_TIERS = {
   // 2000판 실측: 우승 22.3% / 승격 28.1% / 안전 47.1% / 강등 2.6%
-  tier5: { label: '5부', averageOVR: [48.6, 56.6], safePoints: 38, targetPoints: 68, championPoints: 80 },
+  tier5: { label: '5부', averageOVR: [46.2, 54.2], safePoints: 38, targetPoints: 68, championPoints: 80 },
   // 2000판 실측: 우승 10.8% / 승격 22.7% / 안전 56.5% / 강등 9.9%
-  tier4: { label: '4부', averageOVR: [55.6, 62.6], safePoints: 40, targetPoints: 73, championPoints: 86 },
+  tier4: { label: '4부', averageOVR: [49.9, 56.9], safePoints: 40, targetPoints: 73, championPoints: 86 },
   // 2000판 실측: 우승 8.8% / 승격 17.3% / 안전 54.6% / 강등 19.3%
-  tier3: { label: '3부', averageOVR: [61.3, 68.3], safePoints: 42, targetPoints: 76, championPoints: 89 },
+  tier3: { label: '3부', averageOVR: [52.8, 59.8], safePoints: 42, targetPoints: 76, championPoints: 89 },
   // 2000판 실측: 우승 7.0% / 승격 11.8% / 안전 52.3% / 강등 28.8%
-  tier2: { label: '2부', averageOVR: [69.8, 76.8], safePoints: 44, targetPoints: 79, championPoints: 91 },
+  tier2: { label: '2부', averageOVR: [61, 68], safePoints: 44, targetPoints: 79, championPoints: 91 },
   // 2000판 실측: 우승 4.3% / 승격 12.7% / 안전 49.5% / 강등 33.6%
   // 상위 4개 리그가 4부 우승률 10% 아래 좁은 띠에 몰려 있어서, 우승률 순서를
   // 지키면 1부는 4~5%가 상한이다. championPoints 88~89로는 1부 우승률이 2부와
   // 오차 범위 안에서 겹쳐(6.6% vs 5.9%) 순서가 판마다 뒤집혔다. 91로 벌렸다.
-  tier1: { label: '1부', averageOVR: [71.1, 78.1], safePoints: 46, targetPoints: 82, championPoints: 95 },
+  tier1: { label: '1부', averageOVR: [62.6, 69.6], safePoints: 46, targetPoints: 82, championPoints: 95 },
 };
 
 // 낮은 리그부터. 사다리 순서는 엔진이 소유한다.

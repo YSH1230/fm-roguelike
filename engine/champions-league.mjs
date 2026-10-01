@@ -34,7 +34,7 @@ export const UCL_OPPONENTS = OPPONENT_NAMES.map((name, i) => ({
 export const UCL_RESULT_LABELS = {
   league: '리그 단계 탈락', playoff: '플레이오프 탈락', r16: '16강 탈락', qf: '8강 탈락', sf: '4강 탈락', final: '준우승', champion: '우승',
 };
-export const UCL_REWARDS_FUNDS = { league: 200, playoff: 350, r16: 500, qf: 800, sf: 1100, final: 1500, champion: 2200 };
+export const UCL_REWARDS_FUNDS = { league: 120, playoff: 200, r16: 300, qf: 480, sf: 660, final: 900, champion: 1300 };
 export const UCL_STAGES = ['league', 'playoff', 'r16', 'qf', 'sf', 'final'];
 export const UCL_STAGE_LABELS = { league: '리그 단계', playoff: '플레이오프', r16: '16강', qf: '8강', sf: '4강', final: '결승', done: '종료' };
 export const UCL_LEAGUE_DAYS = 8;
