@@ -771,7 +771,7 @@ function startRun(club) {
     phase: 'summer',
     transactedThisWeek: false,
     shopOffer: [],
-    managerOffer: generateManagerOffer(3),
+    managerOffer: generateManagerOffer(3, Math.random, manager.id),
     staffOffer: generateStaffOffer(),
     firstHalfPoints: null,
     listedForSale: [], // { card, method, resolveWeek }
@@ -785,7 +785,7 @@ function startRun(club) {
     pendingTransferProceeds: 0,
   };
   currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
-  currentState.managerOffer = generateManagerOffer(3);
+  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
   currentState.staffOffer = generateStaffOffer();
   renderCareerIntro();
 }
@@ -997,7 +997,7 @@ function startNewSeason() {
   const agingReport = { changes: aged.changes, retired: aged.retired };
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
   currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
-  currentState.managerOffer = generateManagerOffer(3);
+  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
   currentState.staffOffer = generateStaffOffer();
 
   let banner = `${currentState.club.name}, ${getLeagueTier(currentState.leagueTierId).label} 새 시즌 시작`;
@@ -1221,7 +1221,7 @@ function nextWeek() {
     return;
   }
   currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
-  currentState.managerOffer = generateManagerOffer(3);
+  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
   currentState.staffOffer = generateStaffOffer();
   renderMarket(saleMessage);
 }
@@ -1335,7 +1335,7 @@ function enterWinterMarket() {
   currentState.phase = 'winter';
   currentState.week = WINTER_MARKET_WEEKS[0];
   currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
-  currentState.managerOffer = generateManagerOffer(3);
+  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
   currentState.staffOffer = generateStaffOffer();
 
   // 겨울 지원금: 여름에 쓴 돈이 바닥나도 후반기 보강이 가능하게 시즌 지급액의
