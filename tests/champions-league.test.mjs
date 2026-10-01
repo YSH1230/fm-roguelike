@@ -152,3 +152,16 @@ test('득점 이벤트는 시간순이고 1~90분이며, 토너먼트 무승부�
   }
   assert.equal(buildLeagueSchedule(Array.from({ length: 36 }, (_, i) => `t${i}`)).length, 8);
 });
+
+test('승부차기 연출: 요청한 팀이 이기고, 5번 안에 끝나거나 서든데스까지 가며 점수가 킥과 일치한다', async () => {
+  const { generateShootout } = await import('../engine/champions-league.mjs');
+  for (let i = 0; i < 200; i++) {
+    for (const winner of ['me', 'opp']) {
+      const r = generateShootout(winner);
+      assert.equal(r.me > r.opp ? 'me' : 'opp', winner);
+      assert.equal(r.me, r.kicks.filter((k) => k.side === 'me' && k.scored).length);
+      assert.equal(r.opp, r.kicks.filter((k) => k.side === 'opp' && k.scored).length);
+      assert.ok(r.kicks.length >= 2);
+    }
+  }
+});

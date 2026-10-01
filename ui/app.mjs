@@ -24,7 +24,7 @@ import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
 import { judgeRunOutcome, nextMissedTargetCount, computeReputation } from '../engine/run.mjs';
 import {
-  createUcl, advanceUcl, uclRanking, nameOf, teamOf, tieAggregate,
+  createUcl, advanceUcl, uclRanking, nameOf, teamOf, tieAggregate, generateShootout,
   UCL_RESULT_LABELS, UCL_REWARDS_FUNDS, UCL_STAGE_LABELS, UCL_STYLE_LABELS, UCL_LEAGUE_DAYS, UCL_DIRECT_SPOTS, UCL_PLAYOFF_SPOTS,
 } from '../engine/champions-league.mjs';
 import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardReward } from '../engine/season.mjs';
@@ -543,13 +543,22 @@ function showAchievementToast(list) {
   setTimeout(() => el.remove(), 4800);
 }
 
-// 우승 트로피 연출(전체 화면). kind: 'league' | 'ucl'
-function showTrophy({ kind, title, sub }, onClose = () => {}) {
+// 우승 트로피 연출(전체 화면). kind: 'league' | 'ucl'. lines: 우승까지의 여정(챔스) 같은 보조 문구.
+// 챔피언스리그는 암전 → 불꽃놀이 → 트로피가 올라오는 시상식 순서로 길게 보여준다.
+function showTrophy({ kind, title, sub, lines = [], reward = '' }, onClose = () => {}) {
   const el = document.createElement('div');
   el.className = `trophy trophy--${kind}`;
-  const confetti = Array.from({ length: 28 }, (_, i) => `<i style="--x:${Math.round(Math.random() * 100)}%;--d:${(2.4 + Math.random() * 2.4).toFixed(2)}s;--w:${(Math.random() * 1.8).toFixed(2)}s;--c:${['#dda63a', '#f0ead9', '#4ca86a', '#5b9bd5'][i % 4]}"></i>`).join('');
+  const confetti = Array.from({ length: kind === 'ucl' ? 46 : 28 }, (_, i) => `<i style="--x:${Math.round(Math.random() * 100)}%;--d:${(2.4 + Math.random() * 2.4).toFixed(2)}s;--w:${(Math.random() * 2.2).toFixed(2)}s;--c:${['#dda63a', '#f0ead9', '#4ca86a', '#5b9bd5', '#e2564d'][i % 5]}"></i>`).join('');
+  // 불꽃놀이: 터지는 점마다 14개 불똥이 사방으로 퍼진다(CSS 변수로 방향/거리).
+  const bursts = kind === 'ucl' ? Array.from({ length: 6 }, (_, b) => {
+    const x = 12 + Math.round(Math.random() * 76); const y = 6 + Math.round(Math.random() * 24);
+    const color = ['#f6d77a', '#8fd0ff', '#ff9c8f', '#9af0b5', '#ffffff', '#f6d77a'][b];
+    const sparks = Array.from({ length: 14 }, (_, s) => `<i style="--a:${Math.round((360 / 14) * s)}deg;--r:${46 + Math.round(Math.random() * 26)}px"></i>`).join('');
+    return `<div class="trophy__burst" style="left:${x}%;top:${y}%;--c:${color};--w:${(1.1 + b * 0.55).toFixed(2)}s">${sparks}</div>`;
+  }).join('') : '';
   el.innerHTML = `
     <div class="trophy__rays"></div>
+    <div class="trophy__fireworks">${bursts}</div>
     <div class="trophy__confetti">${confetti}</div>
     <div class="trophy__body">
       <svg class="trophy__cup" viewBox="0 0 100 100" aria-hidden="true">
@@ -560,9 +569,11 @@ function showTrophy({ kind, title, sub }, onClose = () => {}) {
         <rect x="31" y="76" width="38" height="9" rx="2" fill="url(#trophyGold)"/>
         <path d="M40 20 C40 34 42 44 47 52" fill="none" stroke="#fff6cf" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round"/>
       </svg>
-      <div class="trophy__kicker">${kind === 'ucl' ? 'CHAMPIONS' : 'CHAMPION'}</div>
+      <div class="trophy__kicker">${kind === 'ucl' ? 'CHAMPIONS OF EUROPE' : 'CHAMPION'}</div>
       <h2 class="trophy__title">${esc(title)}</h2>
       <p class="trophy__sub">${esc(sub)}</p>
+      ${lines.length ? `<ul class="trophy__journey">${lines.map((l, i) => `<li style="--i:${i}">${esc(l)}</li>`).join('')}</ul>` : ''}
+      ${reward ? `<p class="trophy__reward">${esc(reward)}</p>` : ''}
       <button class="cta" id="trophy-close">계속</button>
     </div>`;
   document.body.appendChild(el);
@@ -1329,75 +1340,204 @@ function myScorerPool() {
   return lineup.flatMap((p) => Array(weight[p.position] ?? 0).fill(p.name));
 }
 
-function playUclMatch(state, onDone) {
+// 챔피언스리그 경기 진행 화면: 입장 연출 → 전반 → 하프타임 → 후반(막판 슬로모션·추가시간) →
+// (승부차기) → 결과 카드. 득점은 "GOAL!" 배너와 화면 섬광, 실점은 붉은 섬광과 흔들림.
+// 화면을 누르면 빨리 감기.
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function playUclMatch(state, prev, onDone) {
   const m = state.last;
   const me = teamOf(state, 'me');
   const opp = teamOf(state, m.oppId);
   const pool = myScorerPool();
-  const scorerOf = (side) => (side === 'me' && pool.length ? pool[Math.floor(Math.random() * pool.length)] : side === 'me' ? '내 팀' : '상대');
+  const scorerOf = (side) => (side === 'me' && pool.length ? pool[Math.floor(Math.random() * pool.length)] : '');
   const events = m.events.map((e) => ({ ...e, who: scorerOf(e.side) }));
+  const knockout = prev.stage !== 'league';
+  const venueText = m.home === null ? '중립 경기' : m.home ? '홈 경기' : '원정 경기';
+  const isFinal = m.label.startsWith('결승');
+
+  // 이 경기의 무게를 한 줄로(입장 연출에 쓴다)
+  const stakes = (() => {
+    if (isFinal) return '우승을 가리는 단판 승부';
+    if (knockout) {
+      const t = prev.ties.find((x) => x.a === 'me' || x.b === 'me');
+      if (t && t.legs.length === 1) {
+        const meIsA = t.a === 'me';
+        const mine = meIsA ? t.legs[0].ga : t.legs[0].gb; const theirs = meIsA ? t.legs[0].gb : t.legs[0].ga;
+        return `2차전 · 1차전 ${mine}:${theirs}${mine > theirs ? ' 리드' : mine < theirs ? ' 열세' : ' 동률'} · 합계로 결정`;
+      }
+      return '1차전 · 합계 스코어로 결정';
+    }
+    return `${UCL_LEAGUE_DAYS}라운드 중 ${prev.day + 1}라운드`;
+  })();
 
   setScreen(`
-    <div class="uclmatch" style="--kit:${me.kit}">
-      <div class="uclmatch__stage">${esc(m.label)} · ${m.home === null ? '중립' : m.home ? '홈' : '원정'}</div>
+    <div class="uclmatch${isFinal ? ' is-final' : ''}" style="--kit:${me.kit}">
+      <div class="uclmatch__intro" id="um-intro">
+        <div class="uclmatch__introstage">${esc(m.label)}</div>
+        <div class="uclmatch__introteams">
+          <div class="is-left">${crestOf(me, 64)}<b>${esc(me.name)}</b></div>
+          <span>VS</span>
+          <div class="is-right">${crestOf(opp, 64)}<b>${esc(opp.name)}</b></div>
+        </div>
+        <div class="uclmatch__introvenue">${venueText} · ${esc(stakes)}</div>
+        ${m.fortress ? '<div class="uclmatch__introfort">⚠ 원정팀의 무덤 — 적응도 절반</div>' : ''}
+      </div>
+      <div class="uclmatch__stage">${esc(m.label)} · ${venueText}</div>
       <div class="uclmatch__board">
         <div class="uclmatch__team">${crestOf(me, 34)}<b>${esc(me.name)}</b></div>
         <div class="uclmatch__score n"><span id="um-me">0</span><i>:</i><span id="um-opp">0</span></div>
         <div class="uclmatch__team">${crestOf(opp, 34)}<b>${esc(opp.name)}</b></div>
       </div>
-      <div class="uclmatch__clock"><span id="um-phase">전반</span><b id="um-min" class="n">0'</b></div>
-      <div class="matchsim__pitch">
+      <div class="uclmatch__clock" id="um-clockwrap"><span id="um-phase">킥오프</span><b id="um-min" class="n">0'</b></div>
+      <div class="matchsim__pitch uclmatch__pitch" id="um-pitch">
         <div class="matchsim__pitchLines"></div>
         <div class="matchsim__ball"></div>
+        <div class="uclmatch__banner" id="um-banner"></div>
+        <div class="uclmatch__flash" id="um-flash"></div>
+        <div class="uclmatch__ht" id="um-ht"></div>
       </div>
-      <ul class="uclmatch__feed" id="um-feed">${m.fortress ? '<li class="is-note">⚠ 원정팀의 무덤 — 적응도 절반</li>' : ''}<li class="is-note">킥오프</li></ul>
+      <div class="uclmatch__shootout" id="um-shootout" hidden></div>
+      <ul class="uclmatch__feed" id="um-feed">${m.fortress ? '<li class="is-note">⚠ 원정팀의 무덤 — 적응도 절반</li>' : ''}</ul>
       <div id="um-end"></div>
       <p class="note" style="text-align:center">화면을 누르면 빨리 감기</p>
     </div>
   `);
 
-  let minute = 0; let myGoals = 0; let oppGoals = 0; let delay = 70;
-  document.querySelector('.uclmatch').onclick = () => { delay = 8; };
+  let fast = false;
+  document.querySelector('.uclmatch').onclick = () => { fast = true; };
+  const wait = (ms) => sleepMs(fast ? Math.min(ms, 30) : ms);
   const feed = (html, cls = '') => {
     const ul = document.getElementById('um-feed');
     if (ul) ul.insertAdjacentHTML('afterbegin', `<li class="${cls}">${html}</li>`);
   };
   const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  const flash = (cls) => {
+    const el = document.getElementById('um-flash');
+    const pitch = document.getElementById('um-pitch');
+    if (!el) return;
+    el.className = `uclmatch__flash ${cls}`;
+    void el.offsetWidth;
+    el.classList.add('is-on');
+    if (cls === 'is-concede') { pitch.classList.remove('is-shake'); void pitch.offsetWidth; pitch.classList.add('is-shake'); }
+  };
+  const banner = (text, sub, cls) => {
+    const el = document.getElementById('um-banner');
+    if (!el) return;
+    el.className = `uclmatch__banner ${cls}`;
+    el.innerHTML = `<b>${esc(text)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}`;
+    void el.offsetWidth;
+    el.classList.add('is-on');
+  };
 
-  const finish = () => {
-    const res = m.me > m.opp ? '승' : m.me < m.opp ? '패' : '무';
-    const pensText = m.pens ? ` · 승부차기 ${m.pens === 'me' ? '승리' : '패배'}` : '';
+  (async () => {
+    // ---- 입장 ----
+    await wait(2000);
+    document.getElementById('um-intro')?.classList.add('is-out');
+    await wait(500);
+    document.getElementById('um-intro')?.remove();
+    feed('킥오프', 'is-note');
+    set('um-phase', '전반');
+
+    let myGoals = 0; let oppGoals = 0;
+    const playMinute = async (minute, label) => {
+      set('um-min', label ?? `${minute}'`);
+      for (const e of events.filter((x) => x.minute === minute)) {
+        if (e.side === 'me') myGoals += 1; else oppGoals += 1;
+        set('um-me', String(myGoals)); set('um-opp', String(oppGoals));
+        const score = document.querySelector('.uclmatch__score');
+        score?.classList.add('is-goal');
+        setTimeout(() => score?.classList.remove('is-goal'), 800);
+        if (e.side === 'me') {
+          flash('is-goal');
+          banner('GOAL!', `${minute}' ${e.who || me.name}`, 'is-goal');
+          feed(`<b class="n">${minute}'</b> ⚽ ${esc(e.who || me.name)}`, 'is-me');
+        } else {
+          flash('is-concede');
+          banner('실점', `${minute}' ${opp.name}`, 'is-concede');
+          feed(`<b class="n">${minute}'</b> ⚽ ${esc(opp.name)} 득점`, 'is-opp');
+        }
+        await wait(1100);
+      }
+    };
+
+    // ---- 전반 ----
+    for (let minute = 1; minute <= 45; minute++) { await playMinute(minute); await wait(62); }
+    // ---- 하프타임 ----
+    set('um-phase', '하프타임');
+    const ht = document.getElementById('um-ht');
+    if (ht) { ht.innerHTML = `<span>HALF TIME</span><b class="n">${myGoals} : ${oppGoals}</b>`; ht.classList.add('is-on'); }
+    feed(`하프타임 ${myGoals} : ${oppGoals}`, 'is-note');
+    await wait(1700);
+    ht?.classList.remove('is-on');
+    set('um-phase', '후반');
+    // ---- 후반 (막판 접전이면 슬로모션) ----
+    const close = () => Math.abs(myGoals - oppGoals) <= 1;
+    for (let minute = 46; minute <= 90; minute++) {
+      const late = minute >= 80 && (close() || knockout);
+      document.getElementById('um-clockwrap')?.classList.toggle('is-late', late);
+      await playMinute(minute);
+      await wait(late ? 190 : 62);
+    }
+    // ---- 추가시간 ----
+    const stoppage = 1 + Math.floor(Math.random() * 4);
+    feed(`추가시간 +${stoppage}분`, 'is-note');
+    for (let s = 1; s <= stoppage; s++) { set('um-min', `90+${s}'`); await wait(520); }
+    document.getElementById('um-clockwrap')?.classList.remove('is-late');
     set('um-phase', '종료');
-    feed(`경기 종료 ${m.me} : ${m.opp}${pensText}`, 'is-note');
+    feed(`경기 종료 ${m.me} : ${m.opp}`, 'is-note');
+
+    // ---- 승부차기 ----
+    if (m.pens) {
+      const box = document.getElementById('um-shootout');
+      const sh = generateShootout(m.pens);
+      box.hidden = false;
+      box.innerHTML = `<div class="uclmatch__shootouttitle">승부차기</div>
+        <div class="uclmatch__kicks"><span>${esc(me.name)}</span><div id="sk-me"></div></div>
+        <div class="uclmatch__kicks"><span>${esc(opp.name)}</span><div id="sk-opp"></div></div>`;
+      await wait(900);
+      for (const k of sh.kicks) {
+        document.getElementById(k.side === 'me' ? 'sk-me' : 'sk-opp')?.insertAdjacentHTML('beforeend', `<i class="${k.scored ? 'is-in' : 'is-out'}">${k.scored ? '●' : '✕'}</i>`);
+        await wait(750);
+      }
+      banner(m.pens === 'me' ? '승부차기 승리!' : '승부차기 패배', `${sh.me} : ${sh.opp}`, m.pens === 'me' ? 'is-goal' : 'is-concede');
+      await wait(1200);
+    }
+
+    // ---- 결과 카드 ----
+    const won = m.pens ? m.pens === 'me' : m.me > m.opp;
+    const draw = !m.pens && m.me === m.opp;
+    const champion = state.stage === 'done' && state.result === 'champion';
+    const out = state.stage === 'done' && !champion;
+    const advanced = !out && !champion && state.stage !== prev.stage;
+    const rank = uclRanking(state).indexOf('me') + 1;
+    let head; let sub; let tone;
+    if (champion) { head = '유럽 정상!'; sub = '챔피언스리그 우승'; tone = 'win'; }
+    else if (out) { head = `${UCL_STAGE_LABELS[prev.stage]}에서 멈췄습니다`; sub = '아쉬운 탈락'; tone = 'lose'; }
+    else if (advanced) { head = `${UCL_STAGE_LABELS[state.stage]} 진출!`; sub = '다음 라운드로'; tone = 'win'; }
+    else if (state.stage === 'league') { head = won ? '승리' : draw ? '무승부' : '패배'; sub = `리그 단계 현재 ${rank}위`; tone = won ? 'win' : draw ? 'draw' : 'lose'; }
+    else { head = won ? '1차전 승리' : draw ? '1차전 무승부' : '1차전 패배'; sub = '2차전에서 합계로 결정됩니다'; tone = won ? 'win' : draw ? 'draw' : 'lose'; }
     const end = document.getElementById('um-end');
     if (end) {
-      end.innerHTML = `<div class="uclmatch__result is-${m.pens ? (m.pens === 'me' ? '승' : '패') : res}">${m.me} : ${m.opp} ${m.pens ? (m.pens === 'me' ? '승부차기 승' : '승부차기 패') : res}</div>
-        <button class="cta" id="um-continue">순위표 보기</button>`;
+      end.innerHTML = `<div class="uclmatch__verdict is-${tone}"><small>${m.me} : ${m.opp}${m.pens ? ' (승부차기)' : ''}</small><b>${esc(head)}</b><em>${esc(sub)}</em></div>
+        <button class="cta" id="um-continue">${champion ? '시상식으로' : '순위표 보기'}</button>`;
+      end.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       document.getElementById('um-continue').onclick = onDone;
     }
-  };
+  })();
+}
 
-  const tick = () => {
-    if (minute >= 90) { setTimeout(finish, 500); return; }
-    minute += 1;
-    set('um-min', `${minute}'`);
-    if (minute === 46) set('um-phase', '후반');
-    for (const e of events.filter((x) => x.minute === minute)) {
-      if (e.side === 'me') myGoals += 1; else oppGoals += 1;
-      set('um-me', String(myGoals)); set('um-opp', String(oppGoals));
-      document.querySelector('.uclmatch__score')?.classList.add('is-goal');
-      setTimeout(() => document.querySelector('.uclmatch__score')?.classList.remove('is-goal'), 600);
-      feed(`<b class="n">${minute}'</b> ⚽ ${e.side === 'me' ? esc(e.who) : `${esc(opp.name)} 득점`}`, e.side === 'me' ? 'is-me' : 'is-opp');
-    }
-    if (minute === 45) {
-      feed(`하프타임 ${myGoals} : ${oppGoals}`, 'is-note');
-      set('um-phase', '하프타임');
-      setTimeout(tick, delay > 20 ? 1300 : 120);
-      return;
-    }
-    setTimeout(tick, delay);
-  };
-  setTimeout(tick, 600);
+// 우승까지의 여정(시상식 화면용): 리그 단계 순위 + 라운드별 상대와 합계 스코어
+function uclJourneyLines(s) {
+  const lines = [`리그 단계 ${s.seeds.indexOf('me') + 1}위 (36팀)`];
+  for (const key of ['playoff', 'r16', 'qf', 'sf', 'final']) {
+    const t = (s.rounds[key] ?? []).find((x) => x.a === 'me' || x.b === 'me');
+    if (!t) continue;
+    const agg = tieAggregate(t);
+    const meIsA = t.a === 'me';
+    lines.push(`${UCL_STAGE_LABELS[key]} vs ${nameOf(s, meIsA ? t.b : t.a)} ${meIsA ? agg.a : agg.b} - ${meIsA ? agg.b : agg.a}${t.pens ? ' (승부차기)' : ''}`);
+  }
+  return lines;
 }
 
 function renderUcl(opts = {}) {
@@ -1530,11 +1670,11 @@ function renderUcl(opts = {}) {
     const next = advanceUcl(s);
     currentState.ucl = next;
     saveRun(currentState, localStorage);
-    playUclMatch(next, () => renderUcl({ fresh: true }));
+    playUclMatch(next, s, () => renderUcl({ fresh: true }));
   });
   if (opts.fresh && s.stage === 'done' && s.result === 'champion' && !currentState.uclTrophyShown) {
     currentState.uclTrophyShown = true;
-    showTrophy({ kind: 'ucl', title: '챔피언스리그 우승', sub: `${currentState.club.name} · 시즌 ${currentState.seasonNumber}` });
+    showTrophy({ kind: 'ucl', title: '챔피언스리그 우승', sub: `${currentState.club.name} · 시즌 ${currentState.seasonNumber}`, lines: uclJourneyLines(s), reward: `우승 상금 +${UCL_REWARDS_FUNDS.champion}G · 명성 대폭 상승` });
   }
   document.getElementById('ucl-next')?.addEventListener('click', () => {
     updateRecords((r) => recordUcl(r, { result: s.result, season: currentState.seasonNumber }));

@@ -289,3 +289,34 @@ export function advanceUcl(prev, rng = Math.random) {
   s.leg = 1;
   return s;
 }
+
+// 승부차기 진행(연출용): winner('me'|'opp')가 이기도록 맞춘 킥 순서. 5번씩 차고 승부가 안 나면 서든데스.
+// 승부가 일찍 결정되면(남은 킥으로 못 따라잡으면) 거기서 끝낸다. 성공률 76%로 굴리다가 승자가 맞는 판을 고른다.
+export function generateShootout(winner, rng = Math.random) {
+  const run = () => {
+    const kicks = []; let me = 0; let opp = 0;
+    const taken = { me: 0, opp: 0 };
+    const kick = (side) => {
+      const scored = rng() < 0.76;
+      kicks.push({ side, scored });
+      taken[side] += 1;
+      if (scored) { if (side === 'me') me += 1; else opp += 1; }
+    };
+    const decided = () => me > opp + (5 - taken.opp) || opp > me + (5 - taken.me);
+    for (let round = 0; round < 5; round++) {
+      for (const side of ['me', 'opp']) {
+        kick(side);
+        if (decided()) return { kicks, me, opp };
+      }
+    }
+    while (me === opp) { kick('me'); kick('opp'); }
+    return { kicks, me, opp };
+  };
+  for (let i = 0; i < 300; i++) {
+    const r = run();
+    if ((r.me > r.opp ? 'me' : 'opp') === winner) return r;
+  }
+  return winner === 'me'
+    ? { kicks: [{ side: 'me', scored: true }, { side: 'opp', scored: false }], me: 1, opp: 0 }
+    : { kicks: [{ side: 'me', scored: false }, { side: 'opp', scored: true }], me: 0, opp: 1 };
+}
