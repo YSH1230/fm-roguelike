@@ -62,7 +62,7 @@ import {
   PROMOTION_CHEMISTRY_BONUS,
   PROMOTION_STAY_FUNDS_RATIO,
   COACH_CHEMISTRY_DECAY_BY_LEVEL,
-  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL,
+  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_TARGET_SLOTS_BY_LEVEL, ADVANCED_TAGS,
   SCOUT_MASTER_REROLL_DISCOUNT,
   PROMOTION_TRANSFER_DEMAND_CHANCE,
   PLAYER_TIERS,
@@ -756,6 +756,7 @@ function startRun(club) {
     manager,
     staff,
     availableGodPlayers: [...GOD_PLAYERS], // 이번 런에서 아직 영입 안 한 GOD 카드
+    scoutTargetTag: null, // 스카우터 목표 태그(보통·어려움 태그 중 하나)
     chemistry,
     funds,
     eventMessage,
@@ -789,7 +790,7 @@ function startRun(club) {
     freshBudget: false,
     pendingTransferProceeds: 0,
   };
-  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
+  currentState.shopOffer = newShopOffer();
   currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
   currentState.staffOffer = generateStaffOffer();
   renderCareerIntro();
@@ -906,6 +907,16 @@ function isStaffFreshThisWeek(role) {
   return currentState.staff[role].hiredWeek === currentState.week;
 }
 
+// 스카우터 목표 태그: 프로 라이선스 이상이고 이번 주 새로 영입한 스카우터가 아니면 매주 그 태그 카드를 보장받는다.
+function scoutTargetSlots() {
+  if (isStaffFreshThisWeek('headScout')) return 0;
+  return SCOUT_TARGET_SLOTS_BY_LEVEL[currentState.staff.headScout.level] ?? 0;
+}
+function newShopOffer() {
+  const slots = scoutTargetSlots();
+  return generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId,
+    slots ? currentState.scoutTargetTag : null, slots);
+}
 function scoutOfferSize() {
   if (isStaffFreshThisWeek('headScout')) return SHOP_OFFER_SIZE;
   return SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[currentState.staff.headScout.level] ?? SHOP_OFFER_SIZE;
@@ -1001,7 +1012,7 @@ function startNewSeason() {
   currentState.squad = aged.squad;
   const agingReport = { changes: aged.changes, retired: aged.retired };
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
-  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
+  currentState.shopOffer = newShopOffer();
   currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
   currentState.staffOffer = generateStaffOffer();
 
@@ -1139,7 +1150,7 @@ function rerollShop() {
   const cost = rerollCost();
   if (currentState.funds < cost) return;
   currentState.funds -= cost;
-  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
+  currentState.shopOffer = newShopOffer();
   renderMarket();
 }
 
@@ -1225,7 +1236,7 @@ function nextWeek() {
     runSecondHalfAndFinish(saleMessage);
     return;
   }
-  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
+  currentState.shopOffer = newShopOffer();
   currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
   currentState.staffOffer = generateStaffOffer();
   renderMarket(saleMessage);
@@ -1338,7 +1349,7 @@ function enterWinterMarket() {
   const { manager } = currentState;
   currentState.phase = 'winter';
   currentState.week = WINTER_MARKET_WEEKS[0];
-  currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
+  currentState.shopOffer = newShopOffer();
   currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
   currentState.staffOffer = generateStaffOffer();
 
@@ -2523,6 +2534,11 @@ function renderMarket(banner = '') {
   }).sort((a, b) => b.n - a.n)
     .map(({ t, n, need }) => `<button class="tagchip tagchip--cont${n >= countEffectiveContinentRequirement(3, lineup, t) ? ' is-on' : ''}${n === 0 ? ' is-zero' : ''}${currentState.offerTag === `continent:${t}` ? ' is-sel' : ''}" data-offer-tag="continent:${t}" title="선발 ${n}명 · 전체 ${heldCont[t]}명">${renderTagIcon(CONTINENT_ICON_PATHS, t)}${CONTINENT_LABELS[t] ?? t}<b class="n">${n}/${need}</b></button>`).join('');
   const traitLines = [...lineup, ...bench].filter((p) => p.specialTrait).map((p) => `<span class="tagchip tagchip--trait" title="${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}${esc(p.name)}<b>${ROLE_LABELS[TRAIT_ROLE[p.specialTrait]]} · ${esc(TRAIT_LABELS[p.specialTrait])}</b></span>`).join('');
+  const targetSlots = scoutTargetSlots();
+  const targetOptions = ADVANCED_TAGS.map((t) => `<option value="${t}"${currentState.scoutTargetTag === t ? ' selected' : ''}>${esc(TAG_LABELS[t] ?? t)} (${PLAYSTYLE_TAGS[t].grade === 'hard' ? '어려움' : '보통'})</option>`).join('');
+  const scoutTargetHtml = targetSlots
+    ? `<label class="scouttarget"><span>스카우터 목표 태그</span><select id="scout-target"><option value="">지정 안 함</option>${targetOptions}</select><i>매주 ${targetSlots}장 보장 · 다음 주(또는 다시 뽑기)부터 적용</i></label>`
+    : '';
   const tagPanelHtml = playChips || contChips ? `<div class="tagpanel${currentState.tagPanelCollapsed ? ' is-collapsed' : ''}" id="tagpanel">
       <button class="tagpanel__head" id="tagpanel-toggle" aria-expanded="${!currentState.tagPanelCollapsed}"><b>내 선수단 태그</b><span>누르면 그 태그 매물만 봅니다 · 숫자는 선발/다음 문턱</span><i class="panel__chev" aria-hidden="true">⌄</i></button>
       <div class="tagpanel__body">
@@ -2588,6 +2604,7 @@ function renderMarket(banner = '') {
           <h2>이번 주 매물</h2>
           <button class="reroll" id="reroll-btn" ${funds >= rerollCost() ? '' : 'disabled'}>다시 뽑기 <b>${rerollCost()}G</b></button>
         </div>
+        ${scoutTargetHtml}
         ${tagPanelHtml}
         ${gapBarHtml}
         <ul class="offers">${offerHtml || `<li class="empty">${currentState.offerFilter ? `이번 주 매물에 ${currentState.offerFilter}가 없습니다. 다시 뽑거나 전체 보기로 돌아가세요.` : '이번 주는 매물이 없습니다. 다시 뽑거나 다음 주로 넘어가세요.'}</li>`}</ul>
@@ -3019,6 +3036,7 @@ function renderMarket(banner = '') {
       renderMarket(banner);
     };
   });
+  document.getElementById('scout-target')?.addEventListener('change', (e) => { currentState.scoutTargetTag = e.target.value || null; });
   document.getElementById('tagpanel-toggle')?.addEventListener('click', () => {
     currentState.tagPanelCollapsed = !currentState.tagPanelCollapsed;
     document.getElementById('tagpanel')?.classList.toggle('is-collapsed', currentState.tagPanelCollapsed);

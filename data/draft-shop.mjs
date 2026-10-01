@@ -1,5 +1,5 @@
 import { generateProceduralPlayer } from './generate-player.mjs';
-import { GOD_PLAYER_SHOP_CHANCE } from '../engine/constants.mjs';
+import { GOD_PLAYER_SHOP_CHANCE, PLAYSTYLE_TAGS } from '../engine/constants.mjs';
 
 // 상점 매물 등급 분포 - 리그별. 자금은 이미 리그가 낮을수록 적게 설계돼
 // 있는데(engine/economy.mjs calculateStartingFunds) 카드 등급은 예전엔
@@ -34,12 +34,26 @@ function tierPool(tierId) {
 // 등장해도 목록에서 빼지 않는다 - 실제로 "영입"할 때만 소모(ui/app.mjs에서 처리).
 // tierId: 지금 뛰는 리그 등급. 안 넘기면 가장 관대한 tier1 분포를 쓴다
 // (구버전 호출부·유닛 테스트 호환용 기본값 - 실제 게임은 항상 넘긴다).
-export function generateShopOffer(size, availableGods = [], rng = Math.random, tierId = 'tier1') {
+// 그 태그를 달 수 있는 등급(engine/constants.mjs PLAYER_TIERS의 advancedSlots 기준): 보통은 빅리거~, 어려움은 월드클래스~.
+const TARGET_ELIGIBLE_TIERS = { mid: ['bigLeaguer', 'topClass', 'worldClass', 'legendary'], hard: ['worldClass', 'legendary'] };
+
+// 스카우터 목표 태그 카드: 이 리그 상점 분포에서 그 태그를 달 수 있는 등급만 가중 추첨한다.
+// 이 리그에 그런 등급이 없으면(5부의 어려운 태그 등) 가장 낮은 가능 등급으로 올려 뽑는다 - 비싸서 못 사는 건 의도.
+function targetedCard(tag, tierId, rng) {
+  const eligible = TARGET_ELIGIBLE_TIERS[PLAYSTYLE_TAGS[tag].grade];
+  const pool = tierPool(tierId).filter((t) => eligible.includes(t));
+  const tier = pool.length ? pool[Math.floor(rng() * pool.length)] : eligible[0];
+  return generateProceduralPlayer(tier, rng, null, tag);
+}
+
+// targetTag/targetSlots: 스카우터가 매주 맨 앞 targetSlots장을 목표 태그 카드로 보장한다.
+export function generateShopOffer(size, availableGods = [], rng = Math.random, tierId = 'tier1', targetTag = null, targetSlots = 0) {
   const pool = tierPool(tierId);
   // GOD 카드는 1부에서만 굴린다 - 예전엔 리그 무관 고정 확률이라 5부 상점에도
   // 똑같이 뜰 수 있었다(local 카드들 사이에 OVR 88+ 카드가 섞이는 위화감).
   const godEligible = tierId === 'tier1' && availableGods.length > 0;
-  return Array.from({ length: size }, () => {
+  return Array.from({ length: size }, (_, i) => {
+    if (targetTag && i < targetSlots && PLAYSTYLE_TAGS[targetTag]?.grade !== 'basic') return targetedCard(targetTag, tierId, rng);
     if (godEligible && rng() < GOD_PLAYER_SHOP_CHANCE) {
       return availableGods[Math.floor(rng() * availableGods.length)];
     }

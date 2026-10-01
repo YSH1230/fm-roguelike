@@ -4,6 +4,7 @@
 //  greedy: OVR 최고 순 자동 선발(태그를 안 보는 방치 플레이)
 //  tags:   시즌 치를 때 태그/역할까지 최적화한 라인업
 //  focus:  tags + 가장 흔한 태그를 노리고 모으는 플레이
+//  smart:  영입 판단부터 태그·역할까지 최적화한 라인업 기준(태그를 아는 플레이어). 느리다.
 // 모델에 없는 것: 이사진 요구/목표 보상, 이벤트, 감독·스태프 구매 비용(리그별 고정 등급으로 가정),
 // 방출 환급, 대륙·특수 태그 성향 노림. 계약은 만료되면 가치 높은 선수만 2년 갱신한다.
 import fs from 'node:fs';
@@ -22,7 +23,8 @@ import { judgeRunOutcome, nextMissedTargetCount } from '../engine/run.mjs';
 import { createUcl, advanceUcl, UCL_REWARDS_FUNDS } from '../engine/champions-league.mjs';
 import {
   CHEMISTRY_START, CHEMISTRY_DECAY_PER_TRANSACTION, WINTER_TAX_RATIO, SHOP_OFFER_SIZE,
-  PROMOTION_STAY_FUNDS_RATIO, SAME_LEAGUE_FUNDS_RATIO, STAGNATION_FUNDS_PENALTY_PER_MISS, PLAYSTYLE_TAGS,
+  PROMOTION_STAY_FUNDS_RATIO, SAME_LEAGUE_FUNDS_RATIO, STAGNATION_FUNDS_PENALTY_PER_MISS, PLAYSTYLE_TAGS, ADVANCED_TAGS,
+  SCOUT_TARGET_SLOTS_BY_LEVEL,
 } from '../engine/constants.mjs';
 
 const argv = process.argv.slice(2);
@@ -32,11 +34,13 @@ const STRATEGY = opt('--strategy', 'greedy');
 const OUT = opt('--out', null);
 const TAGS = STRATEGY !== 'greedy';
 const FOCUS = STRATEGY === 'focus';
+const SMART = STRATEGY === 'smart';
 const MAX_SEASONS = 40;
 const SQUAD_CAP = 26;
 
 const BOT_MANAGER = { tier5: 'tactician', tier4: 'tactician', tier3: 'tactician', tier2: 'legendary', tier1: 'legendary' };
 const BOT_COACH = 'proLicense';
+const BOT_SCOUT = 'proLicense'; // smart 봇만 목표 태그를 쓴다(주 1장 보장)
 const SLOTS = ['GK', 'CB', 'CB', 'WB', 'WB', 'CMF', 'CMF', 'CMF', 'W', 'W', 'ST'];
 
 function pickBestXI(squad) {
@@ -53,6 +57,11 @@ function pickBestXI(squad) {
   return { lineup, bench };
 }
 const toSquad = (c) => ({ ...c, seasonsAtClub: 0, acquiredThisSeason: true, inBench: false, contractYearsLeft: 2 });
+// 태그·역할까지 반영한 최적 라인업의 평균 OVR(smart 영입 판단용)
+function optimalAvg(squad) {
+  const { xi, bench } = optimizeLineup(squad, SLOTS, 5);
+  return computeAverageOVR(xi.filter(Boolean), bench);
+}
 function seasonXI(squad) {
   if (!TAGS) return pickBestXI(squad);
   const { xi, bench } = optimizeLineup(squad, SLOTS, 5);
@@ -69,6 +78,14 @@ function tagStats(lineup) {
   let sum = 0; for (const v of b.values()) sum += v;
   const active = Object.keys(PLAYSTYLE_TAGS).filter((t) => lineup.filter((p) => p.playstyleTags.includes(t)).length >= 3).length;
   return { active, perPlayer: lineup.length ? sum / lineup.length : 0 };
+}
+
+// smart 봇의 스카우터 목표 태그: 지금 선수단에서 그 태그를 받는 포지션 보유자가 가장 많은 고급 태그(없으면 무작위 보통 태그).
+function chooseTarget(squad) {
+  const score = (t) => squad.filter((p) => p.playstyleTags.includes(t) && PLAYSTYLE_TAGS[t].positions.includes(p.position)).length;
+  const best = Math.max(...ADVANCED_TAGS.map(score));
+  const pool = best > 0 ? ADVANCED_TAGS.filter((t) => score(t) === best) : ADVANCED_TAGS.filter((t) => PLAYSTYLE_TAGS[t].grade === 'mid');
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function playUcl(lineup, bench, chem) {
@@ -112,9 +129,28 @@ function playCareer() {
     let chem = CHEMISTRY_START;
     let firstHalf = 0; let buys = 0; let spent = 0;
     const focusTag = FOCUS ? topTag(squad) : null;
+    const targetTag = SMART ? chooseTarget(squad) : null;
     let lineup; let bench; let secondHalf = 0;
     for (const phase of ['summer', 'winter']) {
       for (let w = 0; w < (phase === 'summer' ? 8 : 4); w++) {
+        if (SMART) {
+          // 살 수 있는 매물을 태그 반영 이득이 큰 순서로, 사고 나면 다시 평가한다.
+          let pool = generateShopOffer(SHOP_OFFER_SIZE, [], Math.random, tierId, targetTag, SCOUT_TARGET_SLOTS_BY_LEVEL[BOT_SCOUT])
+            .map((card) => ({ card, price: applyCostModifiers(card.price, phase === 'winter' ? [WINTER_TAX_RATIO] : []) }));
+          for (;;) {
+            const base = optimalAvg(squad);
+            const ranked = pool.filter((o) => funds >= o.price)
+              .map((o) => ({ ...o, gain: optimalAvg([...squad, toSquad(o.card)]) - base }))
+              .sort((x, y) => y.gain - x.gain);
+            if (!ranked.length || ranked[0].gain <= 0.02) break;
+            const best = ranked[0];
+            funds -= best.price; spent += best.price; buys += 1;
+            squad = [...squad, toSquad(best.card)];
+            chem = applyTransactionDecay(chem, 1, CHEMISTRY_DECAY_PER_TRANSACTION);
+            pool = pool.filter((o) => o !== pool.find((p) => p.card === best.card));
+          }
+          continue;
+        }
         const offers = generateShopOffer(SHOP_OFFER_SIZE, [], Math.random, tierId)
           .sort((a, b) => (focusTag ? (b.playstyleTags.includes(focusTag) - a.playstyleTags.includes(focusTag)) : 0) || b.baseOVR - a.baseOVR);
         for (const card of offers) {

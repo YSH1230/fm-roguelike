@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateShopOffer } from '../data/draft-shop.mjs';
-import { PLAYER_TIERS } from '../engine/constants.mjs';
+import { PLAYER_TIERS, PLAYSTYLE_TAGS } from '../engine/constants.mjs';
 
 test('generateShopOffer는 요청한 장수만큼 카드를 만든다', () => {
   const offer = generateShopOffer(3);
@@ -42,4 +42,28 @@ test('GOD 카드는 1부가 아니면 절대 안 뜬다', () => {
   }
   const tier1Offer = generateShopOffer(50, gods, rng, 'tier1');
   assert.ok(tier1Offer.some((c) => c.id === 'god-1'), '1부에서는 GOD 카드가 뜰 수 있어야 한다');
+});
+
+test('스카우터 목표 태그: 맨 앞 N장이 그 태그를 달고, 그 태그를 받는 포지션이다', () => {
+  for (const tag of ['counterAttack', 'tikiTaka']) {
+    for (let i = 0; i < 50; i++) {
+      const offer = generateShopOffer(4, [], Math.random, 'tier3', tag, 2);
+      assert.equal(offer.length, 4);
+      for (const c of offer.slice(0, 2)) {
+        assert.ok(c.playstyleTags.includes(tag));
+        assert.ok(PLAYSTYLE_TAGS[tag].positions.includes(c.position));
+      }
+    }
+  }
+});
+
+test('스카우터 목표 태그: 5부에서 어려운 태그는 월드클래스 이상으로 올려 뽑는다', () => {
+  const [card] = generateShopOffer(3, [], Math.random, 'tier5', 'tikiTaka', 1);
+  assert.ok(card.playstyleTags.includes('tikiTaka'));
+  assert.ok(card.baseOVR >= 81);
+});
+
+test('목표 태그가 기본기면 보장 없이 평소 매물이다', () => {
+  const offer = generateShopOffer(3, [], Math.random, 'tier5', 'pass', 3);
+  assert.equal(offer.length, 3);
 });

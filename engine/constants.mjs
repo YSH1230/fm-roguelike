@@ -187,6 +187,8 @@ export const COACH_POWER_MULTIPLIER = { academy: 1.0, proLicense: 1.01, veteran:
 export const LEAGUE_EXPECTED_MANAGER = { tier5: 1.0, tier4: 1.0, tier3: 1.03, tier2: 1.06, tier1: 1.1 };
 export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 4, veteran: 4, master: 5 };
 export const SCOUT_MASTER_REROLL_DISCOUNT = 0.5;
+// 스카우터가 매주 "목표 태그" 카드를 보장해 주는 장수(보통·어려움 태그만 지정 가능). academy는 지정 불가.
+export const SCOUT_TARGET_SLOTS_BY_LEVEL = { academy: 0, proLicense: 1, veteran: 2, master: 2 };
 
 // GOD 카드(선수)가 상점에 뜰 확률 — 전 세계 2명뿐이라 극희귀. 1부 상점에서만
 // 굴린다(data/draft-shop.mjs) - 하부리그에 최상위 카드가 섞이면 위화감이 크다.
