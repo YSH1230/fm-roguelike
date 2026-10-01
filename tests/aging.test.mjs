@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ageSquad, ovrChangeRange, retireChance, MAX_RENEWALS, FORCED_RETIRE_AGE } from '../engine/aging.mjs';
+import { ageSquad, ovrChangeRange, retireChance, FORCED_RETIRE_AGE } from '../engine/aging.mjs';
 
 const mk = (id, age, baseOVR = 60) => ({ id, name: `P${id}`, age, baseOVR });
 
@@ -39,5 +39,5 @@ test('OVR은 1~99로 제한되고, 변화가 있었던 선수만 changes에 담�
   const { squad, changes } = ageSquad([mk('hi', 19, 98), mk('lo', 34, 2)], () => 0.99);
   assert.ok(squad.every((p) => p.baseOVR >= 1 && p.baseOVR <= 99));
   assert.ok(changes.every((c) => c.delta !== 0));
-  assert.equal(MAX_RENEWALS, 2);
+
 });

@@ -46,7 +46,7 @@ import {
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalLeagueRank, MATCHES_PER_HALF } from '../engine/half-results.mjs';
-import { ageSquad, MAX_RENEWALS } from '../engine/aging.mjs';
+import { ageSquad } from '../engine/aging.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait } from './portrait.mjs';
 import { renderCrest } from './crest.mjs';
@@ -240,7 +240,7 @@ function renewCost(p, years) {
   return Math.round(renewalCost(p.price, years) * (TRAIT_RENEWAL_MULT[p.specialTrait] ?? 1));
 }
 function renewYears(p) {
-  if ((p.renewCount ?? 0) >= MAX_RENEWALS) return []; // 한 선수와 무한 재계약은 안 된다
+
   if (p.specialTrait === 'journeyman') return p.renewedOnce ? [] : [1];
   return [1, 2];
 }
@@ -2705,7 +2705,7 @@ function renderMarket(banner = '') {
             <b class="player__ovr n">${p.baseOVR}</b>
             <div>
               <div class="player__name">${esc(p.name)}</div>
-              <div class="player__meta">${p.position} · ${p.age}세 · 재계약 ${p.renewCount ?? 0}/${MAX_RENEWALS} · ${expired ? '<span class="tag tag--expired">만료</span> 안 정하면 무료로 이탈' : '<span class="tag tag--expiring">계약 1년</span> 미리 연장 가능'}</div>
+              <div class="player__meta">${p.position} · ${p.age}세 · ${expired ? '<span class="tag tag--expired">만료</span> 안 정하면 무료로 이탈' : '<span class="tag tag--expiring">계약 1년</span> 미리 연장 가능'}</div>
             </div>
             <div class="player__actions">
               ${renewYears(p).map((y) => `<button class="renew" data-renew="${p.id}" data-years="${y}" ${funds >= renewCost(p, y) ? '' : 'disabled'}>${y}년 <b>${renewCost(p, y)}G</b></button>`).join('') || '<small class="nore">재계약 불가 · 자유계약으로 떠남</small>'}
@@ -3060,7 +3060,7 @@ function renderMarket(banner = '') {
         // 만료 전 미리 재계약하면 남은 계약에 이어 붙는다(0년 남았으면 그냥 years).
         const total = Math.max(0, player.contractYearsLeft ?? 2) + years;
         currentState.squad = currentState.squad.map((p) => p.id === id
-          ? { ...p, contractYearsLeft: total, renewCount: (p.renewCount ?? 0) + 1, renewedOnce: p.renewedOnce || p.specialTrait === 'journeyman' }
+          ? { ...p, contractYearsLeft: total, renewedOnce: p.renewedOnce || p.specialTrait === 'journeyman' }
           : p);
         renderMarket(`${player.name} 재계약 완료(+${years}년 → 계약 ${total}년, ${cost}G)`);
       };
