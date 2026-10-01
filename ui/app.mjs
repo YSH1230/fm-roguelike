@@ -371,6 +371,15 @@ function playerTagsHtml(p) {
   return chips ? `<div class="tags">${chips}</div>` : '';
 }
 
+// 선수의 태그를 아이콘 한 줄로(플레이스타일 → 대륙 → 특수). active에 든 태그는 초록(지금 보너스 중).
+function tagIconsHtml(p, active = null) {
+  const on = (id) => (active && active.has(id) ? ' is-on' : '');
+  const play = (p.playstyleTags ?? []).map((t) => `<i class="ticon${on(t)}" title="${esc(TAG_LABELS[t] ?? t)}">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}</i>`).join('');
+  const cont = p.continentTag ? `<i class="ticon ticon--cont${on(p.continentTag)}" title="${esc(CONTINENT_LABELS[p.continentTag] ?? '')}">${renderTagIcon(CONTINENT_ICON_PATHS, p.continentTag)}</i>` : '';
+  const trait = p.specialTrait ? `<i class="ticon ticon--trait" title="${esc(TRAIT_LABELS[p.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}</i>` : '';
+  return `<span class="ticons">${play}${cont}${trait}</span>`;
+}
+
 function esc(text) {
   return String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
@@ -2097,12 +2106,12 @@ function renderPromotionTransferDemand(keyPlayer) {
 // interactive면 각 칸이 클릭 가능한 data-slot을 달고 나온다(전술 탭 전용 -
 // 결산 화면 등 읽기 전용 피치에는 안 준다).
 // finalOVR: playerId -> 케미 보너스가 붙은 최종 OVR (전술 탭에서만 넘어온다).
-function renderPitch(slotted, formationId, kit, { interactive = false, selectedSlot = null, finalOVR = null } = {}) {
+function renderPitch(slotted, formationId, kit, { interactive = false, selectedSlot = null, finalOVR = null, activeTags = null } = {}) {
   const { slots, coords } = FORMATIONS[formationId];
   const chips = slots.map((pos, i) => {
     const p = slotted[i];
     const [x, y] = coords[i];
-    const style = `left:${x}%;top:${y}%`;
+    const style = `left:${(8 + x * 0.84).toFixed(1)}%;top:${(7 + y * 0.86).toFixed(1)}%`; // 카드가 커져서 위아래 여백을 남기고 눌러 담는다
     const slotAttr = interactive ? `data-slot="${i}"` : '';
     const selected = interactive && selectedSlot === i ? ' is-selected' : '';
     if (!p) {
@@ -2119,10 +2128,11 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
       ${slotAttr} title="${esc(p.name)} · ${p.position} · OVR ${shown}${boost ? ` (+${boost})` : ''}">
       <div class="slot__card">
         <span class="slot__ovr n">${shown}</span>
-        ${boost > 0 ? `<span class="slot__boost n">+${boost}</span>` : ''}
-        ${renderPortrait(p, { size: 34, kit })}
         <span class="slot__pos">${pos}</span>
+        ${boost > 0 ? `<span class="slot__boost n">+${boost}</span>` : ''}
+        ${renderPortrait(p, { size: 36, kit })}
         <span class="slot__name">${esc(p.name)}</span>
+        ${tagIconsHtml(p, activeTags?.get(p.id))}
       </div>
     </div>`;
   }).join('');
@@ -2372,6 +2382,11 @@ function renderMarket(banner = '') {
   // 스트립은 시너지가 반영된 최종 OVR로 계산한다. 포메이션을 바꿨을 때
   // 숫자가 왜 움직이는지(태그 발동/해제) 읽히게 하려면 baseOVR로는 안 된다.
   const roles = currentRoles(lineup, bench);
+  // 지금 실제로 보너스를 주고 있는 태그(초록 아이콘): 플레이스타일/대륙 시너지가 발동한 것만
+  const activeTags = new Map(lineup.map((p) => [
+    p.id,
+    new Set(computePlayerBonusBreakdown(p, lineup, bench, boostedTagIdFor(manager), roles).filter((x) => x.kind === 'playstyle' || x.kind === 'continent').map((x) => x.id)),
+  ]));
   const finalOVR = new Map(lineup.map((p) => [p.id, computePlayerFinalOVR(p, lineup, bench, boostedTagIdFor(manager), roles)]));
   const groupAvg = (positions) => {
     const members = lineup.filter((p) => positions.includes(p.slotPosition));
@@ -2392,7 +2407,13 @@ function renderMarket(banner = '') {
   const decay = transactionDecayAmount();
   const decayLabel = decay > 0 ? `적응도 -${decay}` : '적응도 유지';
 
-  const offerHtml = shopOffer.filter((c) => !currentState.offerFilter || c.position === currentState.offerFilter).map((c) => {
+  const matchesTag = (c) => {
+    const f = currentState.offerTag;
+    if (!f) return true;
+    const [kind, id] = f.split(':');
+    return kind === 'playstyle' ? c.playstyleTags.includes(id) : c.continentTag === id;
+  };
+  const offerHtml = shopOffer.filter((c) => (!currentState.offerFilter || c.position === currentState.offerFilter) && matchesTag(c)).map((c) => {
     const price = cardPrice(c);
     const affordable = funds >= price;
     const tier = tierOf(c.baseOVR);
@@ -2441,7 +2462,7 @@ function renderMarket(banner = '') {
       const diff = c.baseOVR - sameSlot.baseOVR;
       compareHtml = `<div class="offer__cmp">
         <span>현재 ${c.position}</span>${renderPortrait(sameSlot, { size: 22 })}
-        <b>${esc(sameSlot.name)} <i class="n">${sameSlot.baseOVR}</i></b>
+        <b>${esc(sameSlot.name)} <i class="n">${sameSlot.baseOVR}</i></b>${tagIconsHtml(sameSlot, activeTags)}
         <em class="${diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat'} n">${diff > 0 ? '▲' : diff < 0 ? '▼' : '='}${Math.abs(diff)}</em>
       </div>`;
     }
@@ -2472,9 +2493,38 @@ function renderMarket(banner = '') {
   // 공석(포메이션이 요구하는데 스쿼드에 없는 포지션): 영입 탭 위 띠로 알리고, 누르면 그 포지션 매물만 본다.
   const gapCounts = {};
   for (const pos of missingPositions(squad, formationId)) gapCounts[pos] = (gapCounts[pos] ?? 0) + 1;
-  const gapBarHtml = Object.keys(gapCounts).length || currentState.offerFilter ? `<div class="gapbar">
+  const filterLabel = [
+    currentState.offerFilter,
+    currentState.offerTag ? (({ playstyle: TAG_LABELS, continent: CONTINENT_LABELS })[currentState.offerTag.split(':')[0]][currentState.offerTag.split(':')[1]]) : null,
+  ].filter(Boolean).join(' · ');
+  const gapBarHtml = Object.keys(gapCounts).length || filterLabel ? `<div class="gapbar">
       ${Object.entries(gapCounts).map(([pos, n]) => `<button class="gapchip${currentState.offerFilter === pos ? ' is-on' : ''}" data-gap="${pos}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21 C4 15 8 13 12 13 C16 13 20 15 20 21 Z"/></svg>공석 ${pos}${n > 1 ? ` ×${n}` : ''}</button>`).join('')}
-      ${currentState.offerFilter ? `<button class="gapchip gapchip--clear" data-gap-clear>${currentState.offerFilter}만 보는 중 · 전체 보기</button>` : ''}
+      ${filterLabel ? `<button class="gapchip gapchip--clear" data-gap-clear>${esc(filterLabel)}만 보는 중 · 전체 보기</button>` : ''}
+    </div>` : '';
+
+  // 내 선수단 태그 현황: 가진 태그만 칩으로 보여주고(선발 인원/다음 문턱), 누르면 그 태그 매물만 본다.
+  const heldPlay = {}; const heldCont = {};
+  for (const p of squad) {
+    for (const t of p.playstyleTags ?? []) heldPlay[t] = (heldPlay[t] ?? 0) + 1;
+    if (p.continentTag) heldCont[p.continentTag] = (heldCont[p.continentTag] ?? 0) + 1;
+  }
+  const playChips = Object.keys(heldPlay).map((t) => ({ t, ...playstyleTagProgress(t, lineup, boostedTagIdFor(manager)) }))
+    .sort((a, b) => b.tier - a.tier || b.count - a.count)
+    .map(({ t, count, need, tier }) => `<button class="tagchip${tier ? ' is-on' : ''}${count === 0 ? ' is-zero' : ''}${currentState.offerTag === `playstyle:${t}` ? ' is-sel' : ''}" data-offer-tag="playstyle:${t}" title="선발 ${count}명 · 전체 ${heldPlay[t]}명">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}${TAG_LABELS[t] ?? t}<b class="n">${count}/${need}</b></button>`).join('');
+  const contChips = Object.keys(heldCont).map((t) => {
+    const n = lineup.filter((p) => p.continentTag === t).length;
+    const need = countEffectiveContinentRequirement(n >= countEffectiveContinentRequirement(3, lineup, t) ? 5 : 3, lineup, t);
+    return { t, n, need };
+  }).sort((a, b) => b.n - a.n)
+    .map(({ t, n, need }) => `<button class="tagchip tagchip--cont${n >= countEffectiveContinentRequirement(3, lineup, t) ? ' is-on' : ''}${n === 0 ? ' is-zero' : ''}${currentState.offerTag === `continent:${t}` ? ' is-sel' : ''}" data-offer-tag="continent:${t}" title="선발 ${n}명 · 전체 ${heldCont[t]}명">${renderTagIcon(CONTINENT_ICON_PATHS, t)}${CONTINENT_LABELS[t] ?? t}<b class="n">${n}/${need}</b></button>`).join('');
+  const traitLines = [...lineup, ...bench].filter((p) => p.specialTrait).map((p) => `<span class="tagchip tagchip--trait" title="${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}${esc(p.name)}<b>${ROLE_LABELS[TRAIT_ROLE[p.specialTrait]]} · ${esc(TRAIT_LABELS[p.specialTrait])}</b></span>`).join('');
+  const tagPanelHtml = playChips || contChips ? `<div class="tagpanel${currentState.tagPanelCollapsed ? ' is-collapsed' : ''}" id="tagpanel">
+      <button class="tagpanel__head" id="tagpanel-toggle" aria-expanded="${!currentState.tagPanelCollapsed}"><b>내 선수단 태그</b><span>누르면 그 태그 매물만 봅니다 · 숫자는 선발/다음 문턱</span><i class="panel__chev" aria-hidden="true">⌄</i></button>
+      <div class="tagpanel__body">
+        ${playChips ? `<div class="tagpanel__group"><em>플레이스타일</em><div>${playChips}</div></div>` : ''}
+        ${contChips ? `<div class="tagpanel__group"><em>대륙</em><div>${contChips}</div></div>` : ''}
+        ${traitLines ? `<div class="tagpanel__group"><em>특수</em><div>${traitLines}</div></div>` : ''}
+      </div>
     </div>` : '';
 
   const starPlayer = [...squad].sort((a, b) => b.baseOVR - a.baseOVR)[0] ?? null;
@@ -2533,6 +2583,7 @@ function renderMarket(banner = '') {
           <h2>이번 주 매물</h2>
           <button class="reroll" id="reroll-btn" ${funds >= rerollCost() ? '' : 'disabled'}>다시 뽑기 <b>${rerollCost()}G</b></button>
         </div>
+        ${tagPanelHtml}
         ${gapBarHtml}
         <ul class="offers">${offerHtml || `<li class="empty">${currentState.offerFilter ? `이번 주 매물에 ${currentState.offerFilter}가 없습니다. 다시 뽑거나 전체 보기로 돌아가세요.` : '이번 주는 매물이 없습니다. 다시 뽑거나 다음 주로 넘어가세요.'}</li>`}</ul>
       </section>
@@ -2610,7 +2661,7 @@ function renderMarket(banner = '') {
             <div class="player__meta">${MANAGER_TIER_LABELS[manager.tier] ?? manager.tier}${manager.trait ? ` · ${MANAGER_TRAIT_LABELS[manager.trait] ?? manager.trait}` : ''} · ${TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag}</div>
           </div>
         </div>
-        ${renderPitch(slotted, formationId, club.kit, { interactive: true, selectedSlot: currentState.selectedSlot, finalOVR })}
+        ${renderPitch(slotted, formationId, club.kit, { interactive: true, selectedSlot: currentState.selectedSlot, finalOVR, activeTags })}
         <div class="benchstrip">
           <span class="benchstrip__label">벤치</span>
           ${bench.map((p, i) => `<div class="benchchip${currentState.selectedSlot === `bench-${i}` ? ' is-selected' : ''}" data-bench-slot="${i}" title="${esc(p.name)}">
@@ -2954,7 +3005,18 @@ function renderMarket(banner = '') {
   });
   document.querySelector('[data-gap-clear]')?.addEventListener('click', () => {
     currentState.offerFilter = null;
+    currentState.offerTag = null;
     renderMarket(banner);
+  });
+  document.querySelectorAll('[data-offer-tag]').forEach((el) => {
+    el.onclick = () => {
+      currentState.offerTag = currentState.offerTag === el.dataset.offerTag ? null : el.dataset.offerTag;
+      renderMarket(banner);
+    };
+  });
+  document.getElementById('tagpanel-toggle')?.addEventListener('click', () => {
+    currentState.tagPanelCollapsed = !currentState.tagPanelCollapsed;
+    document.getElementById('tagpanel')?.classList.toggle('is-collapsed', currentState.tagPanelCollapsed);
   });
   document.querySelectorAll('[data-tag-desc]').forEach((el) => {
     el.addEventListener('click', () => {

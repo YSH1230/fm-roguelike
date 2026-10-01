@@ -674,6 +674,50 @@ button:not(:disabled):active { transform: scale(0.98); }
 .slot__ghost { width: 30px; height: 30px; fill: var(--line); display: block; margin: 0 auto; }
 .slot--empty .slot__name { color: var(--gold); }
 
+/* ===== 태그 아이콘 줄 / 내 선수단 태그 현황 ===== */
+.ticons { display: inline-flex; align-items: center; justify-content: center; gap: 2px; flex-wrap: nowrap; }
+.ticon { width: 13px; height: 13px; display: inline-grid; place-items: center; color: var(--muted-dim); opacity: 0.85; }
+.ticon .badgeicon { width: 100%; height: 100%; stroke-width: 2; }
+.ticon.is-on { color: var(--turf); opacity: 1; }
+.ticon--cont { color: #8aa39a; }
+.ticon--cont.is-on { color: var(--turf); }
+.ticon--trait { color: var(--gold); opacity: 1; }
+.offer__cmp .ticons { flex: none; }
+.tagpanel { margin-bottom: var(--s3); background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--r-md); }
+.tagpanel__head { width: 100%; display: flex; align-items: center; gap: var(--s2); padding: 8px var(--s3); background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tagpanel__head b { font-size: var(--fs-body); }
+.tagpanel__head span { flex: 1; min-width: 0; font-size: var(--fs-micro); color: var(--muted); }
+.tagpanel__head .panel__chev { margin-left: auto; }
+.tagpanel.is-collapsed .panel__chev { transform: rotate(-90deg); }
+.tagpanel.is-collapsed .tagpanel__body { display: none; }
+.tagpanel__body { display: grid; gap: var(--s2); padding: 0 var(--s3) var(--s3); }
+.tagpanel__group { display: grid; grid-template-columns: 64px 1fr; gap: var(--s2); align-items: start; }
+.tagpanel__group em { font-style: normal; font-size: var(--fs-micro); color: var(--muted); padding-top: 5px; }
+.tagpanel__group > div { display: flex; flex-wrap: wrap; gap: 4px; }
+.tagchip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 999px; background: var(--night); border: 1px solid var(--line); color: var(--muted); font: 600 var(--fs-micro)/1 var(--ui); cursor: pointer; }
+.tagchip svg { width: 12px; height: 12px; }
+.tagchip b { font-family: var(--num); color: var(--light); }
+.tagchip.is-on { border-color: var(--turf); color: var(--light); }
+.tagchip.is-on svg { color: var(--turf); }
+.tagchip.is-sel { background: var(--turf); border-color: var(--turf); color: var(--night); }
+.tagchip.is-sel b, .tagchip.is-sel svg { color: var(--night); }
+.tagchip--trait { cursor: default; border-color: var(--gold); color: var(--light); }
+.tagchip--trait svg { color: var(--gold); }
+.tagchip--trait b { color: var(--gold); font-family: var(--ui); font-weight: 700; margin-left: 2px; }
+
+/* ===== 전술 탭 선수 카드(트레이딩 카드풍, 태그 아이콘 포함) ===== */
+.pitch { aspect-ratio: 5 / 6; }
+.slot { width: 66px; }
+.slot__card { padding: 5px 4px 3px; border-width: 2px; border-radius: 10px; background: linear-gradient(165deg, color-mix(in srgb, var(--tier, var(--t-local)) 26%, var(--surface-hi)) 0%, var(--surface) 75%); box-shadow: 0 2px 0 rgba(0, 0, 0, 0.35); }
+.slot__card .portrait { width: 70%; }
+.slot .slot__pos { position: absolute; top: 3px; left: 5px; margin: 0; font-size: 9px; color: var(--light); letter-spacing: 0.04em; }
+.slot .slot__ovr { top: 1px; right: 3px; min-width: 0; padding: 0 2px; background: transparent; color: var(--light); font-size: 15px; line-height: 1; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5); }
+.slot .slot__name { margin-top: 1px; }
+.slot .ticons { margin-top: 2px; min-height: 13px; }
+.slot .ticon { width: 12px; height: 12px; }
+.slot .slot__boost { bottom: auto; top: 18px; left: -5px; }
+.slot--empty .slot__card { padding: 12px 3px 6px; }
+
 /* ===== 굵은 CTA: 아래가 두꺼워서 누르면 눌리는 버튼 ===== */
 .buy, .cta, .hire {
   box-shadow: 0 4px 0 color-mix(in srgb, var(--turf) 55%, #000), inset 0 1px 0 rgba(255, 255, 255, 0.28);
@@ -1434,3 +1478,4 @@ button:not(:disabled):active { transform: scale(0.98); }
 @keyframes trophyLift { 0% { opacity: 0; transform: translateY(160px) scale(0.5); } 60% { opacity: 1; transform: translateY(-14px) scale(1.12); } 100% { opacity: 1; transform: translateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .uclmatch__pitch.is-shake, .trophy__burst i, .uclmatch__clock.is-late b { animation: none; } }
 .uclmatch__shootout[hidden] { display: none; }
+.tagchip.is-zero { opacity: 0.55; }
