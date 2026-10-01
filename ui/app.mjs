@@ -1934,7 +1934,7 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
     const selected = interactive && selectedSlot === i ? ' is-selected' : '';
     if (!p) {
       return `<div class="slot slot--empty${selected}" style="${style}" ${slotAttr}>
-        <div class="slot__card"><span class="slot__ovr n">--</span><span class="slot__pos">${pos}</span></div>
+        <div class="slot__card"><svg class="slot__ghost" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21 C4 15 8 13 12 13 C16 13 20 15 20 21 Z"/></svg><span class="slot__pos">${pos}</span><span class="slot__name">공석</span></div>
       </div>`;
     }
     const shown = finalOVR ? Math.round(finalOVR.get(p.id) ?? p.baseOVR) : p.baseOVR;
@@ -2184,6 +2184,43 @@ function showLineupWarning(missing, onProceed, onCancel) {
   document.getElementById('warn-cancel').onclick = () => { root.innerHTML = ''; onCancel(); };
 }
 
+// 첫 런 안내: 손가락이 핵심 버튼(영입 → 다음 주로)을 차례로 가리킨다. 한 번 지나가면 다시 안 나온다.
+const TUTORIAL_KEY = 'fm-roguelike-tutorial';
+function tutorialStep() {
+  try { return Number(localStorage.getItem(TUTORIAL_KEY) ?? 0); } catch { return 0; }
+}
+function setTutorialStep(n) {
+  try { localStorage.setItem(TUTORIAL_KEY, String(n)); } catch { /* 안내는 없어도 된다 */ }
+}
+function showHandHint(target, text, onDone) {
+  document.querySelector('.handhint')?.remove();
+  target.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const r = target.getBoundingClientRect();
+  // 손가락은 버튼 가장자리에서 버튼을 가리키고, 말풍선은 카드 위(없으면 버튼 위)에 띄워서
+  // 카드 정보를 가리지 않는다.
+  const below = r.bottom + 60 < window.innerHeight;
+  const anchor = (target.closest('.offer') ?? target).getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'handhint';
+  el.innerHTML = `<span class="handhint__hand${below ? '' : ' is-up'}" style="left:${Math.round(r.left + r.width / 2)}px;top:${Math.round(below ? r.bottom - 14 : r.top - 44)}px">${below ? '👆' : '👇'}</span>
+    <span class="handhint__bubble" style="left:${Math.round(anchor.left + 8)}px;top:${Math.round(Math.max(8, anchor.top - 8))}px">${esc(text)}<small>탭하면 안내를 끕니다</small></span>`;
+  document.body.appendChild(el);
+  el.querySelector('.handhint__bubble').onclick = () => { setTutorialStep(2); el.remove(); };
+  target.addEventListener('click', () => { onDone(); el.remove(); }, { once: true });
+}
+function maybeShowTutorial(tab) {
+  document.querySelector('.handhint')?.remove();
+  const step = tutorialStep();
+  if (step >= 2 || currentState.seasonNumber !== 1 || currentState.phase !== 'summer') return;
+  if (step === 0 && tab === 'draft' && currentState.week === SUMMER_MARKET_WEEKS[0]) {
+    const btn = document.querySelector('[data-buy]:not(:disabled)');
+    if (btn) showHandHint(btn, '마음에 드는 선수를 영입해 보세요', () => setTutorialStep(1));
+  } else if (step === 1) {
+    const btn = document.getElementById('next-week-btn');
+    if (btn) showHandHint(btn, '다음 주로 넘기면 이적시장이 진행됩니다', () => setTutorialStep(2));
+  }
+}
+
 function renderMarket(banner = '') {
   const { club, manager, staff, squad, funds, chemistry, eventMessage, eventTone, shopOffer, phase, week, listedForSale } = currentState;
   const maxWeek = phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];
@@ -2219,7 +2256,7 @@ function renderMarket(banner = '') {
   const decay = transactionDecayAmount();
   const decayLabel = decay > 0 ? `적응도 -${decay}` : '적응도 유지';
 
-  const offerHtml = shopOffer.map((c) => {
+  const offerHtml = shopOffer.filter((c) => !currentState.offerFilter || c.position === currentState.offerFilter).map((c) => {
     const price = cardPrice(c);
     const affordable = funds >= price;
     const tier = tierOf(c.baseOVR);
@@ -2254,22 +2291,39 @@ function renderMarket(banner = '') {
       }),
       c.specialTrait ? `<button type="button" class="tag tag--trait tag--btn" data-tag-desc="${esc(`${ROLE_LABELS[TRAIT_ROLE[c.specialTrait]]} 칸 · ${TRAIT_LABELS[c.specialTrait]}: ${TRAIT_EFFECT_DESCRIPTIONS[c.specialTrait]}. 대가: ${TRAIT_DOWNSIDE_TEXT[c.specialTrait]}`)}">${ROLE_LABELS[TRAIT_ROLE[c.specialTrait]]} · ${TRAIT_LABELS[c.specialTrait] ?? c.specialTrait}</button>` : '',
     ].join('');
+    // 같은 자리 비교: 이 선수가 들어가면 밀려날 선발(그 포지션 중 가장 약한 선수)과 개인 OVR만 견준다.
+    // 팀 총점 같은 정답은 주지 않는다 - 비교 재료만.
+    const slotCount = FORMATIONS[formationId].slots.filter((s) => s === c.position).length;
+    const sameSlot = lineup.filter((p) => p.position === c.position).sort((a, b) => a.baseOVR - b.baseOVR)[0] ?? null;
+    const lineupCount = lineup.filter((p) => p.position === c.position).length;
+    let compareHtml;
+    if (!slotCount) {
+      compareHtml = `<div class="offer__cmp is-none"><span>${c.position}</span><b>이 포메이션엔 자리가 없습니다</b></div>`;
+    } else if (lineupCount < slotCount || !sameSlot) {
+      compareHtml = `<div class="offer__cmp is-empty"><span>현재 ${c.position}</span><b>공석 — 영입하면 바로 선발</b></div>`;
+    } else {
+      const diff = c.baseOVR - sameSlot.baseOVR;
+      compareHtml = `<div class="offer__cmp">
+        <span>현재 ${c.position}</span>${renderPortrait(sameSlot, { size: 22 })}
+        <b>${esc(sameSlot.name)} <i class="n">${sameSlot.baseOVR}</i></b>
+        <em class="${diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat'} n">${diff > 0 ? '▲' : diff < 0 ? '▼' : '='}${Math.abs(diff)}</em>
+      </div>`;
+    }
+    const contIcon = c.continentTag ? renderTagIcon(CONTINENT_ICON_PATHS, c.continentTag) : '';
     return `<li class="offer" data-row="${c.id}" style="--tier:var(--t-${tier})">
-      <div class="offer__aside">
-        ${renderPortrait(c, { size: 48 })}
+      <div class="pcard">
+        <b class="pcard__pos">${c.position}</b><b class="pcard__ovr n">${c.baseOVR}</b>
+        <div class="pcard__art">${renderPortrait(c, { size: 74 })}</div>
+        <span class="pcard__flag" title="${esc(CONTINENT_LABELS[c.continentTag] ?? '')}">${contIcon}</span>
+        <span class="pcard__tier"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 L21 5 V12 C21 17 17 21 12 22 C7 21 3 17 3 12 V5 Z" fill="currentColor"/></svg>${TIER_LABELS[tier]}</span>
       </div>
       <div class="offer__main">
         <div class="offer__top">
           <span class="offer__name">${esc(c.name)}</span>
-          <span class="offer__pos">${c.position}</span>
-          <span class="offer__tier">${TIER_LABELS[tier]}</span>
           <span class="offer__age">${c.age}세</span>
         </div>
-        <div class="offer__figures">
-          <span class="offer__ovr n">${c.baseOVR}</span>
-          <span class="offer__price n${affordable ? '' : ' is-over'}">${price}<i>G</i></span>
-        </div>
         <div class="tags">${tags}</div>
+        ${compareHtml}
         <p class="offer__hint" hidden></p>
         <button class="buy" data-buy="${c.id}" ${affordable ? '' : 'disabled'}>
           <span>${affordable ? '영입' : '자금 부족'}</span>
@@ -2278,6 +2332,14 @@ function renderMarket(banner = '') {
       </div>
     </li>`;
   }).join('');
+
+  // 공석(포메이션이 요구하는데 스쿼드에 없는 포지션): 영입 탭 위 띠로 알리고, 누르면 그 포지션 매물만 본다.
+  const gapCounts = {};
+  for (const pos of missingPositions(squad, formationId)) gapCounts[pos] = (gapCounts[pos] ?? 0) + 1;
+  const gapBarHtml = Object.keys(gapCounts).length || currentState.offerFilter ? `<div class="gapbar">
+      ${Object.entries(gapCounts).map(([pos, n]) => `<button class="gapchip${currentState.offerFilter === pos ? ' is-on' : ''}" data-gap="${pos}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21 C4 15 8 13 12 13 C16 13 20 15 20 21 Z"/></svg>공석 ${pos}${n > 1 ? ` ×${n}` : ''}</button>`).join('')}
+      ${currentState.offerFilter ? `<button class="gapchip gapchip--clear" data-gap-clear>${currentState.offerFilter}만 보는 중 · 전체 보기</button>` : ''}
+    </div>` : '';
 
   const starPlayer = [...squad].sort((a, b) => b.baseOVR - a.baseOVR)[0] ?? null;
   const expiredPlayers = squad.filter((p) => (p.contractYearsLeft ?? 2) <= 0);
@@ -2308,7 +2370,14 @@ function renderMarket(banner = '') {
   };
   // 포지션별로 묶어서 보여준다 - 뎁스가 어디서 얕은지(예: CB만 8명, ST는 1명)
   // 한눈에 보이게. 순서는 engine/constants.mjs POSITIONS 순서 그대로.
-  const squadHtml = POSITIONS
+  // 선수단 탭: 공석은 실루엣 줄로 맨 위에 보여준다(누르면 영입 탭이 그 포지션으로 필터됨).
+  const gapRows = Object.entries(gapCounts).map(([pos, n]) => `<li class="player player--empty">
+      <span class="silhouette"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21 C4 15 8 13 12 13 C16 13 20 15 20 21 Z"/></svg></span>
+      <b class="player__ovr n">--</b>
+      <div><div class="player__name">공석 ${pos}${n > 1 ? ` ×${n}` : ''}</div><div class="player__meta">시즌 시작 전에 못 채우면 최저 능력치 유스가 들어옵니다</div></div>
+      <button class="gapchip" data-gap="${pos}">영입 보기</button>
+    </li>`).join('');
+  const squadHtml = (gapRows ? `<ul class="squad squad--gaps">${gapRows}</ul>` : '') + POSITIONS
     .map((pos) => {
       const players = squad.filter((p) => p.position === pos).sort((a, b) => b.baseOVR - a.baseOVR);
       if (!players.length) return '';
@@ -2328,7 +2397,8 @@ function renderMarket(banner = '') {
           <h2>이번 주 매물</h2>
           <button class="reroll" id="reroll-btn" ${funds >= rerollCost() ? '' : 'disabled'}>다시 뽑기 <b>${rerollCost()}G</b></button>
         </div>
-        <ul class="offers">${offerHtml || '<li class="empty">이번 주는 매물이 없습니다. 다시 뽑거나 다음 주로 넘어가세요.</li>'}</ul>
+        ${gapBarHtml}
+        <ul class="offers">${offerHtml || `<li class="empty">${currentState.offerFilter ? `이번 주 매물에 ${currentState.offerFilter}가 없습니다. 다시 뽑거나 전체 보기로 돌아가세요.` : '이번 주는 매물이 없습니다. 다시 뽑거나 다음 주로 넘어가세요.'}</li>`}</ul>
       </section>
       <section class="panel tabpanel">
         <div class="panel__head"><h2>감독 시장</h2><span class="panel__count">이번 주 후보</span></div>
@@ -2735,6 +2805,17 @@ function renderMarket(banner = '') {
     const box = document.getElementById('chem-info');
     box.hidden = !box.hidden;
   });
+  document.querySelectorAll('[data-gap]').forEach((el) => {
+    el.onclick = () => {
+      currentState.offerFilter = el.dataset.gap;
+      currentState.tab = 'draft';
+      renderMarket(banner);
+    };
+  });
+  document.querySelector('[data-gap-clear]')?.addEventListener('click', () => {
+    currentState.offerFilter = null;
+    renderMarket(banner);
+  });
   document.querySelectorAll('[data-tag-desc]').forEach((el) => {
     el.addEventListener('click', () => {
       const hint = el.closest('.offer')?.querySelector('.offer__hint');
@@ -2873,6 +2954,7 @@ function renderMarket(banner = '') {
   }
 
   saveRun(currentState, localStorage);
+  maybeShowTutorial(tab);
 }
 
 if (UCL_DEMO) {

@@ -624,6 +624,65 @@ button:not(:disabled):active { transform: scale(0.98); }
 .benchchip__pos { color: var(--muted-dim); }
 .benchchip__ovr { font-size: var(--fs-label); color: var(--light); }
 
+/* ===== 선수 카드(트레이딩 카드풍) / 같은 자리 비교 / 공석 ===== */
+.offer { grid-template-columns: 96px 1fr; gap: 12px; }
+.pcard {
+  position: relative; width: 96px; aspect-ratio: 3 / 4.2; border-radius: 12px; overflow: hidden;
+  background: linear-gradient(165deg, color-mix(in srgb, var(--tier) 38%, var(--surface-hi)) 0%, var(--surface) 70%);
+  border: 2px solid var(--tier); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 3px 0 rgba(0, 0, 0, 0.35);
+  display: grid; grid-template-rows: auto 1fr auto; padding: 5px 6px 4px;
+}
+.pcard__pos { font: 800 12px/1 var(--num); letter-spacing: 0.04em; color: var(--light); z-index: 1; }
+.pcard__ovr { position: absolute; top: 3px; right: 7px; font-size: 24px; line-height: 1; color: var(--light); text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45); z-index: 1; }
+.pcard__art { display: grid; place-items: end center; margin-top: -4px; }
+.pcard__art .portrait { width: 74px; height: 74px; }
+.pcard__flag { position: absolute; left: 6px; bottom: 21px; width: 20px; height: 20px; border-radius: 50%; background: var(--night); border: 1px solid var(--line); color: var(--muted); display: grid; place-items: center; }
+.pcard__flag .badgeicon { width: 14px; height: 14px; }
+.pcard__tier { display: flex; align-items: center; justify-content: center; gap: 4px; font: 800 10px/1 var(--ui); color: var(--tier); background: rgba(0, 0, 0, 0.35); border-radius: 4px; padding: 3px 2px; }
+.pcard__tier svg { width: 11px; height: 11px; }
+.offer__cmp { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--fs-label); color: var(--muted); background: var(--night); border: 1px solid var(--line-soft); border-radius: var(--r-md); padding: 4px 8px; }
+.offer__cmp > span { flex: none; font-size: var(--fs-micro); }
+.offer__cmp .portrait { flex: none; border-radius: 50%; }
+.offer__cmp b { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--light); font-weight: 600; }
+.offer__cmp b i { font-style: normal; color: var(--muted); margin-left: 2px; }
+.offer__cmp em { font-style: normal; font-weight: 800; flex: none; }
+.offer__cmp em.up { color: var(--turf); }
+.offer__cmp em.down { color: var(--debit); }
+.offer__cmp em.flat { color: var(--muted); }
+.offer__cmp.is-empty { border-style: dashed; border-color: var(--gold); }
+.offer__cmp.is-empty b { color: var(--gold); }
+.gapbar { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s3); }
+.gapchip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(221, 166, 58, 0.12); border: 1px dashed var(--gold); color: var(--gold); font: 700 var(--fs-label)/1 var(--ui); cursor: pointer; }
+.gapchip svg { width: 14px; height: 14px; fill: currentColor; }
+.gapchip.is-on { background: var(--gold); color: var(--night); border-style: solid; }
+.gapchip--clear { background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+.player--empty { border-left-color: var(--gold) !important; border-style: dashed; background: transparent; }
+.player--empty .silhouette { width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--surface); display: grid; place-items: center; color: var(--line); }
+.player--empty .silhouette svg { width: 24px; height: 24px; fill: currentColor; }
+.squad--gaps { margin-bottom: var(--s3); }
+.slot__ghost { width: 30px; height: 30px; fill: var(--line); display: block; margin: 0 auto; }
+.slot--empty .slot__name { color: var(--gold); }
+
+/* ===== 굵은 CTA: 아래가 두꺼워서 누르면 눌리는 버튼 ===== */
+.buy, .cta, .hire {
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--turf) 55%, #000), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transition: transform 90ms var(--ease), box-shadow 90ms var(--ease), filter 140ms var(--ease);
+}
+.buy:active:not(:disabled), .cta:active:not(:disabled), .hire:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 color-mix(in srgb, var(--turf) 55%, #000), inset 0 1px 0 rgba(255, 255, 255, 0.28); }
+.buy:disabled, .hire:disabled { box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35); }
+.cta--ghost, .cta--danger { box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35); }
+.buy { padding: 10px var(--s3); font-size: var(--fs-m); }
+
+/* ===== 첫 런 손가락 안내 ===== */
+.handhint { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+.handhint__hand { position: fixed; translate: -50% 0; font-size: 40px; line-height: 1; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5)); animation: handTap 900ms ease-in-out infinite; }
+.handhint__hand.is-up { animation-name: handTapUp; }
+.handhint__bubble { position: fixed; translate: 0 -100%; pointer-events: auto; width: max-content; max-width: 240px; padding: 8px 12px; border-radius: 12px; background: var(--gold); color: #1d1405; font: 800 var(--fs-label)/1.35 var(--ui); text-align: center; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); display: grid; gap: 2px; }
+.handhint__bubble small { font-weight: 600; opacity: 0.7; font-size: 10px; }
+@keyframes handTap { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+@keyframes handTapUp { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(9px); } }
+@media (prefers-reduced-motion: reduce) { .handhint__hand { animation: none; } }
+
 /* 이중 비용을 버튼 안에 같이 박는다. 이 게임의 긴장이 여기 있다 */
 .buy {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s2);
