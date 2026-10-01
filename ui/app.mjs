@@ -45,6 +45,7 @@ import {
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalLeagueRank, MATCHES_PER_HALF } from '../engine/half-results.mjs';
+import { ageSquad, MAX_RENEWALS } from '../engine/aging.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait } from './portrait.mjs';
 import { renderCrest } from './crest.mjs';
@@ -237,6 +238,7 @@ function renewCost(p, years) {
   return Math.round(renewalCost(p.price, years) * (TRAIT_RENEWAL_MULT[p.specialTrait] ?? 1));
 }
 function renewYears(p) {
+  if ((p.renewCount ?? 0) >= MAX_RENEWALS) return []; // 한 선수와 무한 재계약은 안 된다
   if (p.specialTrait === 'journeyman') return p.renewedOnce ? [] : [1];
   return [1, 2];
 }
@@ -972,6 +974,10 @@ function startNewSeason() {
     seasonsAtClub: (p.seasonsAtClub ?? 0) + 1,
     contractYearsLeft: Math.max(0, (p.contractYearsLeft ?? 2) - 1),
   }));
+  // 나이 한 살: 어린 선수는 크고 서른 줄부터 떨어지며, 은퇴할 선수는 떠난다. 변화는 브리핑 팝업에서 알린다.
+  const aged = ageSquad(currentState.squad);
+  currentState.squad = aged.squad;
+  const agingReport = { changes: aged.changes, retired: aged.retired };
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
   currentState.shopOffer = generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId);
   currentState.managerOffer = generateManagerOffer(3);
@@ -993,7 +999,7 @@ function startNewSeason() {
   }
   const transferDemand = currentState.pendingTransferDemand ?? null;
   currentState.pendingTransferDemand = null;
-  currentState.seasonBriefing = { transferDemand, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}, currentState.leagueTierId).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
+  currentState.seasonBriefing = { transferDemand, aging: agingReport, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}, currentState.leagueTierId).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
   renderMarket(banner);
 }
 
@@ -2639,7 +2645,7 @@ function renderMarket(banner = '') {
             <b class="player__ovr n">${p.baseOVR}</b>
             <div>
               <div class="player__name">${esc(p.name)}</div>
-              <div class="player__meta">${p.position} · ${p.age}세 · ${expired ? '<span class="tag tag--expired">만료</span> 안 정하면 무료로 이탈' : '<span class="tag tag--expiring">계약 1년</span> 미리 연장 가능'}</div>
+              <div class="player__meta">${p.position} · ${p.age}세 · 재계약 ${p.renewCount ?? 0}/${MAX_RENEWALS} · ${expired ? '<span class="tag tag--expired">만료</span> 안 정하면 무료로 이탈' : '<span class="tag tag--expiring">계약 1년</span> 미리 연장 가능'}</div>
             </div>
             <div class="player__actions">
               ${renewYears(p).map((y) => `<button class="renew" data-renew="${p.id}" data-years="${y}" ${funds >= renewCost(p, y) ? '' : 'disabled'}>${y}년 <b>${renewCost(p, y)}G</b></button>`).join('') || '<small class="nore">재계약 불가 · 자유계약으로 떠남</small>'}
@@ -2983,7 +2989,7 @@ function renderMarket(banner = '') {
         // 만료 전 미리 재계약하면 남은 계약에 이어 붙는다(0년 남았으면 그냥 years).
         const total = Math.max(0, player.contractYearsLeft ?? 2) + years;
         currentState.squad = currentState.squad.map((p) => p.id === id
-          ? { ...p, contractYearsLeft: total, renewedOnce: p.renewedOnce || p.specialTrait === 'journeyman' }
+          ? { ...p, contractYearsLeft: total, renewCount: (p.renewCount ?? 0) + 1, renewedOnce: p.renewedOnce || p.specialTrait === 'journeyman' }
           : p);
         renderMarket(`${player.name} 재계약 완료(+${years}년 → 계약 ${total}년, ${cost}G)`);
       };
@@ -3008,6 +3014,17 @@ function renderMarket(banner = '') {
   if (briefing) {
     const { review, goal, tierLabel, seasonNumber, demandOffer } = briefing;
     const tier = effectiveTier(currentState.leagueTierId);
+    const ag = briefing.aging ?? { changes: [], retired: [] };
+    const ups = [...ag.changes].filter((c) => c.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 4);
+    const downs = [...ag.changes].filter((c) => c.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 4);
+    const agingHtml = ups.length || downs.length || ag.retired.length ? `<div class="agingbox">
+        <b>선수단 변화 (한 살)</b>
+        <ul>
+          ${ups.map((c) => `<li class="is-up">▲ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (+${c.delta})</span></li>`).join('')}
+          ${downs.map((c) => `<li class="is-down">▼ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (${c.delta})</span></li>`).join('')}
+          ${ag.retired.map((r) => `<li class="is-retire">은퇴 ${esc(r.name)} <span>${r.age}세</span></li>`).join('')}
+        </ul>
+      </div>` : '';
     const td = briefing.transferDemand;
     const transferHtml = td ? `<div class="transferdemand">
         <p class="eventmodal__detail"><b>${esc(td.name)}</b>(성골 유스)에게 빅클럽의 이적 요구가 왔습니다.</p>
@@ -3030,6 +3047,7 @@ function renderMarket(banner = '') {
           ${reviewHtml}
           ${demandReviewHtml}
           ${transferHtml}
+          ${agingHtml}
           <p class="eventmodal__detail">안전선 ${tier.safePoints}점 · 승격선 ${tier.targetPoints}점. ${BOARD_RULE_TEXT}</p>
           <div class="demandcards demandcards--modal">${(demandOffer ?? []).map((id) => demandCardHtml(getDemand(id), 'data-pick-demand')).join('')}</div>
           <p class="eventmodal__detail">위 카드에서 이번 시즌 이사진 요구를 고르면 달성 시 보너스가 붙습니다(안 골라도 됩니다).</p>

@@ -1302,6 +1302,14 @@ button:not(:disabled):active { transform: scale(0.98); }
 .squad .player.player--contract { cursor: default; }
 .tab__count--warn { background: var(--gold); color: var(--night); }
 .nore { color: var(--muted); font-size: var(--fs-micro); }
+.agingbox { margin: var(--s3) 0; padding: var(--s3); background: var(--night); border-radius: var(--r-md); text-align: left; }
+.agingbox > b { display: block; font-size: var(--fs-label); color: var(--muted); margin-bottom: var(--s2); }
+.agingbox ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: var(--fs-label); }
+.agingbox li { display: flex; justify-content: space-between; gap: var(--s2); }
+.agingbox li span { color: var(--muted); font-size: var(--fs-micro); }
+.agingbox .is-up { color: var(--turf); }
+.agingbox .is-down { color: var(--debit); }
+.agingbox .is-retire { color: var(--gold); }
 .transferdemand { margin: var(--s3) 0; }
 .transferdemand__btns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
 .transferdemand__btns .reroll { display: grid; gap: 2px; text-align: center; }
