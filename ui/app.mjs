@@ -1,3 +1,12 @@
+// 확인용 미리보기(#uclDemo=win): 저장소를 메모리로 갈아끼워서 저장/기록이 절대 남지 않는다.
+const UCL_DEMO = new URLSearchParams(location.hash.slice(1)).get('uclDemo');
+if (UCL_DEMO) {
+  const mem = new Map();
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k), clear: () => mem.clear() },
+  });
+}
 import { buildStartClubOffers, buildTierClubOffers, buildLeagueRivals } from '../data/clubs.mjs';
 import { saveRun, loadRun, clearRun, withRunDefaults } from '../data/local-save.mjs';
 import {
@@ -2866,4 +2875,14 @@ function renderMarket(banner = '') {
   saveRun(currentState, localStorage);
 }
 
-renderStoryIntro();
+if (UCL_DEMO) {
+  // 1부 챔피언스리그 진행 화면을 바로 띄운다. win이면 압도적 전력이라 우승까지 간다.
+  startRun(buildStartClubOffers()[0]);
+  currentState.leagueTierId = 'tier1';
+  currentState.ucl = createUcl(UCL_DEMO === 'win' ? 999 : Number(UCL_DEMO) || 92);
+  currentState.ucl.teams[0].name = currentState.club.name;
+  currentState.ucl.teams[0].kit = currentState.club.kit;
+  renderUcl();
+} else {
+  renderStoryIntro();
+}
