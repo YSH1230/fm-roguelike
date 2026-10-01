@@ -3,7 +3,7 @@
 // - 보통/어려움: 중상급 이상 선수만 가진다. 어려울수록 선수가 드물고 보너스가 크다.
 // 문턱은 전 태그 공통 3/6/9명. values[i]가 TAG_THRESHOLDS[i]명일 때의 보너스다.
 export const TAG_THRESHOLDS = [3, 6, 9];
-const GRADE_VALUES = { basic: [1, 2, 3], mid: [3, 6, 10], hard: [5, 10, 15] };
+const GRADE_VALUES = { basic: [1, 2, 3], mid: [4, 8, 12], hard: [5, 10, 15] };
 const withValues = (defs) => Object.fromEntries(
   Object.entries(defs).map(([id, d]) => [id, { ...d, values: GRADE_VALUES[d.grade] }])
 );
@@ -70,10 +70,10 @@ export const BASE_POINTS_AT_LEAGUE_AVERAGE = 18;
 export const POWER_VARIANCE_RATIO = 0.20;
 
 // 스펙 5.1절 "6등급" — OVR 범위와 등급별 전술 태그 칸(기본기 1개는 모두 공통).
-// advancedSlots의 각 칸은 'mid'/'hard'/'any'(보통+어려움)에서 하나를 뽑는다.
+// advancedSlots의 각 칸은 'mid'/'hard'/'any'(보통+어려움)에서 하나를 뽑는다. 끝에 '?'가 붙으면 45% 확률로만 채운다.
 export const PLAYER_TIERS = {
   local: { minOVR: 50, maxOVR: 62, advancedSlots: [] },
-  bigLeaguer: { minOVR: 63, maxOVR: 72, advancedSlots: [] },
+  bigLeaguer: { minOVR: 63, maxOVR: 72, advancedSlots: ['mid?'] },
   topClass: { minOVR: 73, maxOVR: 80, advancedSlots: ['mid'] },
   worldClass: { minOVR: 81, maxOVR: 87, advancedSlots: ['any'] },
   legendary: { minOVR: 88, maxOVR: 94, advancedSlots: ['hard', 'any'] },

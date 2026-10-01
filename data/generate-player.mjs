@@ -42,12 +42,16 @@ function randomInt(min, max, rng) {
 
 let nextId = 1;
 
+const ADVANCED_MAYBE_CHANCE = 0.45;
+
 // 기본기 1개(그 포지션이 보너스 대상인 것 중) + 등급이 허락하는 전술 태그.
 function pickPlaystyleTags(tier, position, rng) {
   const tags = [pick(BASIC_TAGS.filter((t) => PLAYSTYLE_TAGS[t].positions.includes(position)), rng)];
   // 그 포지션이 보너스를 받는 태그를 우선 뽑는다(받을 수 없는 태그는 인원만 채우는 함정). 없으면 등급 → 전체 순으로 완화.
   const usable = (t) => !tags.includes(t) && PLAYSTYLE_TAGS[t].positions.includes(position);
-  for (const slot of tier.advancedSlots) {
+  for (const rawSlot of tier.advancedSlots) {
+    if (rawSlot.endsWith('?') && rng() >= ADVANCED_MAYBE_CHANCE) continue;
+    const slot = rawSlot.replace('?', '');
     const gradeOk = (t) => slot === 'any' || PLAYSTYLE_TAGS[t].grade === slot;
     const pool = [ADVANCED_TAGS.filter((t) => usable(t) && gradeOk(t)), ADVANCED_TAGS.filter(usable), ADVANCED_TAGS.filter((t) => !tags.includes(t))]
       .find((p) => p.length);
