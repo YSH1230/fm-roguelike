@@ -580,6 +580,24 @@ function showTrophy({ kind, title, sub, lines = [], reward = '' }, onClose = () 
   el.querySelector('#trophy-close').onclick = () => { el.remove(); onClose(); };
 }
 
+// 선수 등급 팝업: 어떤 등급이 있는지만 낮은 순서대로 보여주고, 누른 카드의 등급을 강조한다.
+function showTierInfo(current) {
+  const ids = [...Object.keys(PLAYER_TIERS), 'god'];
+  const rows = ids.map((id, i) => `<li class="tiermodal__row${id === current ? ' is-now' : ''}" style="--tier:var(--t-${id})"><i class="n">${i + 1}</i><b>${TIER_LABELS[id]}</b>${id === current ? '<span>이 선수</span>' : ''}</li>`).join('');
+  const el = document.createElement('div');
+  el.className = 'tiermodal';
+  el.innerHTML = `<div class="tiermodal__card">
+      <h2>선수 등급</h2>
+      <ul class="tiermodal__list">${rows}</ul>
+      <p class="note">아래로 갈수록 높은 등급입니다.</p>
+      <button class="cta" id="tiermodal-close">닫기</button>
+    </div>`;
+  document.body.appendChild(el);
+  const close = () => el.remove();
+  el.querySelector('#tiermodal-close').onclick = close;
+  el.onclick = (e) => { if (e.target === el) close(); };
+}
+
 const LEAGUE_NAMES = { tier5: '5부', tier4: '4부', tier3: '3부', tier2: '2부', tier1: '1부' };
 const UCL_RESULT_SHORT = { league: '리그 단계', playoff: '플레이오프', r16: '16강', qf: '8강', sf: '4강', final: '준우승', champion: '우승' };
 
@@ -2418,7 +2436,7 @@ function renderMarket(banner = '') {
         <b class="pcard__pos">${c.position}</b><b class="pcard__ovr n">${c.baseOVR}</b>
         <div class="pcard__art">${renderPortrait(c, { size: 74 })}</div>
         <span class="pcard__flag" title="${esc(CONTINENT_LABELS[c.continentTag] ?? '')}">${contIcon}</span>
-        <span class="pcard__tier"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 L21 5 V12 C21 17 17 21 12 22 C7 21 3 17 3 12 V5 Z" fill="currentColor"/></svg>${TIER_LABELS[tier]}</span>
+        <button type="button" class="pcard__tier" data-tier-info="${tier}" aria-label="${TIER_LABELS[tier]} 등급 설명"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 L21 5 V12 C21 17 17 21 12 22 C7 21 3 17 3 12 V5 Z" fill="currentColor"/></svg>${TIER_LABELS[tier]}<i>ⓘ</i></button>
       </div>
       <div class="offer__main">
         <div class="offer__top">
@@ -2907,6 +2925,9 @@ function renderMarket(banner = '') {
   document.getElementById('chem-info-btn')?.addEventListener('click', () => {
     const box = document.getElementById('chem-info');
     box.hidden = !box.hidden;
+  });
+  document.querySelectorAll('[data-tier-info]').forEach((el) => {
+    el.onclick = () => showTierInfo(el.dataset.tierInfo);
   });
   document.querySelectorAll('[data-gap]').forEach((el) => {
     el.onclick = () => {

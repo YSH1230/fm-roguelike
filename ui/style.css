@@ -640,6 +640,17 @@ button:not(:disabled):active { transform: scale(0.98); }
 .pcard__flag .badgeicon { width: 14px; height: 14px; }
 .pcard__tier { display: flex; align-items: center; justify-content: center; gap: 4px; font: 800 10px/1 var(--ui); color: var(--tier); background: rgba(0, 0, 0, 0.35); border-radius: 4px; padding: 3px 2px; }
 .pcard__tier svg { width: 11px; height: 11px; }
+.pcard__tier { cursor: pointer; border: 0; width: 100%; }
+.pcard__tier i { font-style: normal; opacity: 0.7; font-size: 9px; }
+.tiermodal { position: fixed; inset: 0; z-index: 85; display: grid; place-items: center; padding: var(--s4); background: rgba(8, 15, 13, 0.82); backdrop-filter: blur(3px); animation: eventFadeIn 200ms var(--ease) both; }
+.tiermodal__card { width: 100%; max-width: 380px; max-height: 88vh; overflow: auto; padding: var(--s4); border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); display: grid; gap: var(--s3); animation: eventPop 260ms var(--ease) both; }
+.tiermodal__card h2 { margin: 0; font-size: var(--fs-l); }
+.tiermodal__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.tiermodal__row { display: flex; align-items: center; gap: var(--s3); padding: 10px var(--s3); background: var(--surface-hi); border-left: 4px solid var(--tier); border-radius: var(--r-sm); font-size: var(--fs-body); }
+.tiermodal__row i { font-style: normal; color: var(--muted); width: 14px; }
+.tiermodal__row b { color: var(--tier); }
+.tiermodal__row span { margin-left: auto; font-size: var(--fs-micro); color: var(--light); background: var(--tier); color: var(--night); padding: 2px 8px; border-radius: 999px; font-weight: 800; }
+.tiermodal__row.is-now { outline: 1px solid var(--tier); background: color-mix(in srgb, var(--tier) 14%, var(--surface-hi)); }
 .offer__cmp { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--fs-label); color: var(--muted); background: var(--night); border: 1px solid var(--line-soft); border-radius: var(--r-md); padding: 4px 8px; }
 .offer__cmp > span { flex: none; font-size: var(--fs-micro); }
 .offer__cmp .portrait { flex: none; border-radius: 50%; }
