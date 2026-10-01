@@ -2772,6 +2772,7 @@ function renderMarket(banner = '') {
   if (tab === 'draft') {
     for (const card of shopOffer) {
       const btn = document.querySelector(`[data-buy="${card.id}"]`);
+      if (!btn) continue; // 공석 필터로 가려진 카드는 화면에 없다
       btn.onclick = () => buyCard(card, document.querySelector(`[data-row="${card.id}"]`));
     }
     document.getElementById('reroll-btn').onclick = rerollShop;
