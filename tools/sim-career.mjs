@@ -8,6 +8,7 @@
 // 모델에 없는 것: 이사진 요구/목표 보상, 이벤트, 감독·스태프 구매 비용(리그별 고정 등급으로 가정),
 // 방출 환급, 대륙·특수 태그 성향 노림. 계약은 만료되면 가치 높은 선수만 2년 갱신한다.
 import fs from 'node:fs';
+import { FORMATIONS } from '../ui/formations.mjs';
 import { generateStartingSquad } from '../data/generate-player.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
 import { runHalfSeason, judgeSeasonResult } from '../engine/season.mjs';
@@ -41,7 +42,12 @@ const SQUAD_CAP = 26;
 const BOT_MANAGER = { tier5: 'tactician', tier4: 'tactician', tier3: 'tactician', tier2: 'legendary', tier1: 'legendary' };
 const BOT_COACH = 'proLicense';
 const BOT_SCOUT = 'proLicense'; // smart 봇만 목표 태그를 쓴다(주 1장 보장)
-const SLOTS = ['GK', 'CB', 'CB', 'WB', 'WB', 'CMF', 'CMF', 'CMF', 'W', 'W', 'ST'];
+const BASE_SLOTS = FORMATIONS['4-3-3'].slots;
+let SLOTS = BASE_SLOTS; // smart 봇은 목표 태그 수혜 슬롯이 가장 많은 포메이션을 시즌마다 고른다
+function bestFormationFor(tag) {
+  const count = (slots) => slots.filter((p) => PLAYSTYLE_TAGS[tag].positions.includes(p)).length;
+  return Object.values(FORMATIONS).map((f) => f.slots).sort((a, b) => count(b) - count(a))[0];
+}
 
 function pickBestXI(squad) {
   const used = new Set();
@@ -88,6 +94,19 @@ function chooseTarget(squad) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
+// 앞내다보기: 목표 태그 카드는 "다음 문턱을 채울 때의 총 이득"을 남은 인원으로 나눈 만큼(평균 OVR 단위) 가치를 더 쳐준다.
+// 문턱 사이(예: 3→5명)의 4번째 보유자는 당장 이득이 0이라 탐욕 평가로는 영영 못 산다 - 사람은 계획해서 산다.
+function progressCredit(squad, card, tag) {
+  if (!tag || !card.playstyleTags.includes(tag) || !PLAYSTYLE_TAGS[tag].positions.includes(card.position)) return 0;
+  const def = PLAYSTYLE_TAGS[tag];
+  const holders = squad.filter((p) => p.playstyleTags.includes(tag) && def.positions.includes(p.position)).length;
+  const curTier = def.thresholds.filter((n) => holders >= n).length;
+  if (curTier >= def.thresholds.length) return 0;
+  const need = def.thresholds[curTier];
+  const curTotal = (curTier ? def.values[curTier - 1] : 0) * holders;
+  return Math.max(0, (def.values[curTier] * need - curTotal) / (need - holders) / 11);
+}
+
 function playUcl(lineup, bench, chem) {
   const extras = { leagueTierId: 'tier1', coachLevel: BOT_COACH };
   const power = computeTeamPower(lineup, bench, BOT_MANAGER.tier1, chem, null, extras);
@@ -130,6 +149,7 @@ function playCareer() {
     let firstHalf = 0; let buys = 0; let spent = 0;
     const focusTag = FOCUS ? topTag(squad) : null;
     const targetTag = SMART ? chooseTarget(squad) : null;
+    SLOTS = targetTag ? bestFormationFor(targetTag) : BASE_SLOTS;
     let lineup; let bench; let secondHalf = 0;
     for (const phase of ['summer', 'winter']) {
       for (let w = 0; w < (phase === 'summer' ? 8 : 4); w++) {
@@ -140,7 +160,7 @@ function playCareer() {
           for (;;) {
             const base = optimalAvg(squad);
             const ranked = pool.filter((o) => funds >= o.price)
-              .map((o) => ({ ...o, gain: optimalAvg([...squad, toSquad(o.card)]) - base }))
+              .map((o) => ({ ...o, gain: optimalAvg([...squad, toSquad(o.card)]) - base + progressCredit(squad, o.card, targetTag) }))
               .sort((x, y) => y.gain - x.gain);
             if (!ranked.length || ranked[0].gain <= 0.02) break;
             const best = ranked[0];

@@ -1,24 +1,26 @@
 // 플레이스타일 태그 11종: 기본기(basic) 3 + 보통(mid) 4 + 어려움(hard) 4.
 // - 기본기: 모든 선수가 포지션에 맞는 것 1개를 가진다. 흔한 만큼 보너스는 작다("개인 능력" 느낌).
 // - 보통/어려움: 중상급 이상 선수만 가진다. 어려울수록 선수가 드물고 보너스가 크다.
-// 문턱은 전 태그 공통 3/6/9명. values[i]가 TAG_THRESHOLDS[i]명일 때의 보너스다.
-export const TAG_THRESHOLDS = [3, 6, 9];
-const GRADE_VALUES = { basic: [1, 2, 3], mid: [4, 8, 12], hard: [5, 10, 15] };
+// 보너스는 그 태그의 수혜 포지션에 서 있는 보유자만 받고, 문턱도 그런 보유자만 센다(센 사람 = 받는 사람).
+// 포지션은 현실 근거(어떤 역할이 그 전술의 주인공인가)와 8개 포메이션에서의 공평성(태그마다 4~5슬롯 안팎)으로 정했다.
+// 문턱은 기본기 3/6/9명, 보통·어려움 3/4/5명. 값은 문턱 순서대로 values[i].
+const GRADE_THRESHOLDS = { basic: [3, 6, 9], mid: [3, 4, 5], hard: [3, 4, 5] };
+const GRADE_VALUES = { basic: [1, 2, 3], mid: [2, 4, 7], hard: [3, 7, 12] };
 const withValues = (defs) => Object.fromEntries(
-  Object.entries(defs).map(([id, d]) => [id, { ...d, values: GRADE_VALUES[d.grade] }])
+  Object.entries(defs).map(([id, d]) => [id, { ...d, thresholds: GRADE_THRESHOLDS[d.grade], values: GRADE_VALUES[d.grade] }])
 );
 export const PLAYSTYLE_TAGS = withValues({
-  pass: { grade: 'basic', positions: ['GK', 'CB', 'CMF', 'AMF'] }, // 패스 선호
+  pass: { grade: 'basic', positions: ['GK', 'CB', 'DMF', 'CMF', 'AMF'] }, // 패스 선호
   dribble: { grade: 'basic', positions: ['WB', 'W', 'AMF', 'ST'] }, // 개인기 선호
-  physical: { grade: 'basic', positions: ['GK', 'CB', 'CMF', 'ST'] }, // 피지컬(몸싸움·제공권)
-  longBallKickAndRush: { grade: 'mid', positions: ['ST', 'AMF'] },
+  physical: { grade: 'basic', positions: ['GK', 'CB', 'DMF', 'ST'] }, // 피지컬(몸싸움·제공권)
+  longBallKickAndRush: { grade: 'mid', positions: ['ST', 'CB', 'GK'] }, // 골킥·후방 롱패스와 타깃 ST
   falseFullBack: { grade: 'mid', positions: ['WB', 'CB'] }, // 변형 3백
-  buildUpFromBack: { grade: 'mid', positions: ['CB', 'GK'] }, // 후방 빌드업
-  counterAttack: { grade: 'mid', positions: ['W', 'ST'] }, // 선수비 후역습
-  gegenpressing: { grade: 'hard', positions: ['ST', 'CMF'] },
-  falseNine: { grade: 'hard', positions: ['W', 'AMF'] },
-  tikiTaka: { grade: 'hard', positions: ['CMF', 'AMF'] },
-  totalFootball: { grade: 'hard', positions: ['WB', 'CMF'] },
+  buildUpFromBack: { grade: 'mid', positions: ['GK', 'CB', 'DMF'] }, // 후방 빌드업
+  counterAttack: { grade: 'mid', positions: ['W', 'ST', 'WB'] }, // 선수비 후역습
+  gegenpressing: { grade: 'hard', positions: ['ST', 'W', 'CMF', 'DMF'] }, // 전방 압박 + 볼 회수
+  falseNine: { grade: 'hard', positions: ['ST', 'AMF', 'CMF', 'W'] }, // 가짜 9번과 침투 자원
+  tikiTaka: { grade: 'hard', positions: ['CMF', 'AMF', 'DMF', 'W'] },
+  totalFootball: { grade: 'hard', positions: ['WB', 'CMF', 'DMF'] },
 });
 export const BASIC_TAGS = Object.keys(PLAYSTYLE_TAGS).filter((t) => PLAYSTYLE_TAGS[t].grade === 'basic');
 export const ADVANCED_TAGS = Object.keys(PLAYSTYLE_TAGS).filter((t) => PLAYSTYLE_TAGS[t].grade !== 'basic');
@@ -80,7 +82,7 @@ export const PLAYER_TIERS = {
   // god는 전 세계 2명, 개별 수작업 카드 — data/god-players.mjs 참고, 여기서 생성 안 함
 };
 
-export const POSITIONS = ['GK', 'CB', 'WB', 'CMF', 'AMF', 'W', 'ST'];
+export const POSITIONS = ['GK', 'CB', 'WB', 'DMF', 'CMF', 'AMF', 'W', 'ST'];
 
 // 특수 성향은 역할 슬롯(주장/에이스/조커)에 배정돼야 효과가 난다. 슬롯은 각각 1명.
 // (docs/superpowers/specs/2026-09-30-player-roles-design.md)

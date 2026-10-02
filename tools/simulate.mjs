@@ -2,7 +2,7 @@
 import { computeTeamPower, applyVariance } from '../engine/team-power.mjs';
 import { convertPowerToPoints, getLeagueTier } from '../engine/league.mjs';
 
-const POSITIONS_11 = ['GK', 'CB', 'CB', 'WB', 'WB', 'CMF', 'CMF', 'AMF', 'W', 'W', 'ST'];
+const POSITIONS_11 = ['GK', 'CB', 'CB', 'WB', 'WB', 'DMF', 'DMF', 'AMF', 'W', 'W', 'ST'];
 
 function randomInRange([min, max]) {
   return min + Math.random() * (max - min);

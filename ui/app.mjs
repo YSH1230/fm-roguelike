@@ -69,7 +69,6 @@ import {
   MISSED_TARGET_LIMIT,
   STAGNATION_FUNDS_PENALTY_PER_MISS,
   SAME_LEAGUE_FUNDS_RATIO,
-  TAG_THRESHOLDS,
   ROLE_SLOTS,
   TRAIT_ROLE,
   TRAIT_RENEWAL_MULT,
@@ -1247,12 +1246,13 @@ function boostedTagIdFor(manager) {
   return null;
 }
 
-// 플레이스타일 태그 진행도(문턱 3/6/9명).
+// 플레이스타일 태그 진행도(문턱은 태그 등급별, engine/constants.mjs).
 // 상점 카드와 전술 탭 팀 케미 패널이 똑같은 계산을 쓴다.
 // tier = 넘은 문턱 수(0~5), need = 다음에 채워야 할 인원(다 넘었으면 마지막 문턱).
 function playstyleTagProgress(tagId, lineup, boostedTagId) {
-  const count = lineup.filter((p) => p.playstyleTags.includes(tagId)).length;
-  const req = TAG_THRESHOLDS;
+  // 센 사람 = 보너스 받는 사람: 수혜 포지션에 서 있는 보유자만 센다.
+  const count = lineup.filter((p) => p.playstyleTags.includes(tagId) && PLAYSTYLE_TAGS[tagId].positions.includes(p.position)).length;
+  const req = PLAYSTYLE_TAGS[tagId].thresholds;
   const tier = req.filter((n) => count >= n).length;
   const need = req[Math.min(tier, req.length - 1)];
   return { count, need, tier, req, values: PLAYSTYLE_TAGS[tagId].values };
@@ -1393,7 +1393,7 @@ const crestOf = (t, size = 22) => renderCrest({ name: t.name, kit: t.kit }, { si
 // 내 팀 득점자 이름(라인업 공격/미드 선수, 포지션 가중). 상대 득점은 이름 없이 표시한다.
 function myScorerPool() {
   const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
-  const weight = { ST: 4, W: 3, AMF: 3, CMF: 2, WB: 1 };
+  const weight = { ST: 4, W: 3, AMF: 3, CMF: 2, DMF: 1, WB: 1 };
   return lineup.flatMap((p) => Array(weight[p.position] ?? 0).fill(p.name));
 }
 
@@ -2261,12 +2261,11 @@ function renderChemistryPanel(lineup, bench, roles) {
       const bonus = values[Math.max(0, tier - 1)];
       const caption = `${count}/${need} · +${bonus}`;
       const positions = def.positions.join('·');
-      // 보유자 수는 라인업 전체로 세지만, 보너스는 그중 해당 포지션에 실제로
-      // 있는 선수에게만 간다 - 그래서 "누가 받는지"를 따로 보여줘야 한다.
+      // 문턱도 보너스도 그 포지션에 서 있는 보유자만 센다 - "누가 받는지"를 따로 보여준다.
       const beneficiaries = tier
         ? lineup.filter((p) => p.playstyleTags.includes(tagId) && def.positions.includes(p.position))
         : [];
-      const desc = `${positions} 포지션에 있는 보유자만 보너스를 받습니다`
+      const desc = `${positions} 포지션에 선 보유자만 인원에 세고 보너스를 받습니다`
         + `. 단계: ${tagLadderText(req, values)}`
         + (beneficiaries.length ? `. 지금 받는 선수: ${beneficiaries.map((p) => p.name).join(', ')}` : '');
       // 다음 단계까지 몇 명 더 필요하고, 그때 지금 라인업 중 몇 명이 받는지(계획용).
@@ -2456,10 +2455,10 @@ function renderMarket(banner = '') {
         const { count, need, req, values } = playstyleTagProgress(t, lineup, boostedTagId);
         const def = PLAYSTYLE_TAGS[t];
         const receives = def.positions.includes(c.position);
-        const reach = req.indexOf(count + 1);
-        const desc = `${TAG_LABELS[t] ?? t}: 지금 라인업 ${count}명. ${tagLadderText(req, values)}(${def.positions.join('·')} 포지션만 받음).`
+        const reach = receives ? req.indexOf(count + 1) : -1;
+        const desc = `${TAG_LABELS[t] ?? t}: 지금 라인업 ${count}명. ${tagLadderText(req, values)}(${def.positions.join('·')} 포지션에 선 보유자만 셈).`
           + (reach === 0 ? ' 영입하면 발동!' : reach > 0 ? ' 영입하면 강화!' : '')
-          + (receives ? '' : ` 단 ${c.position}은(는) 보너스 대상 포지션이 아니라 이 선수 본인은 못 받습니다.`);
+          + (receives ? '' : ` 단 ${c.position}은(는) 이 태그의 대상 포지션이 아니라 인원에 안 세고 보너스도 못 받습니다.`);
         return chip(TAG_LABELS[t] ?? t, count, need, reach, desc, !receives);
       }),
       c.specialTrait ? `<button type="button" class="tag tag--trait tag--btn" data-tag-desc="${esc(`${ROLE_LABELS[TRAIT_ROLE[c.specialTrait]]} 칸 · ${TRAIT_LABELS[c.specialTrait]}: ${TRAIT_EFFECT_DESCRIPTIONS[c.specialTrait]}. 대가: ${TRAIT_DOWNSIDE_TEXT[c.specialTrait]}`)}">${ROLE_LABELS[TRAIT_ROLE[c.specialTrait]]} · ${TRAIT_LABELS[c.specialTrait] ?? c.specialTrait}</button>` : '',

@@ -123,10 +123,10 @@ export function generateEmergencyYouth(position, rng = Math.random) {
 
 // 시작 스쿼드 20명의 포지션 최소치. 4개 포메이션(ui/formations.mjs) 중
 // 어느 걸 골라도 그 포메이션이 요구하는 최대치를 항상 채우게 잡은 바닥값
-// (GK1·CB3·WB2·CMF3·AMF1·W2·ST2, 합 14) - 이 이하로는 강제 오프포지션이
+// (GK1·CB3·WB2·DMF2·CMF2·AMF2·W2·ST2, 합 16) - 이 이하로는 강제 오프포지션이
 // 생긴다. 나머지 6자리는 포지션 무관 무작위라 게임마다 스쿼드 색깔이 달라진다.
 const STARTING_SQUAD_SIZE = 20;
-const POSITION_FLOOR = { GK: 1, CB: 3, WB: 2, CMF: 3, AMF: 1, W: 2, ST: 2 };
+const POSITION_FLOOR = { GK: 1, CB: 3, WB: 2, DMF: 2, CMF: 2, AMF: 2, W: 2, ST: 2 };
 
 function buildStartingPositionPlan(rng) {
   const positions = Object.entries(POSITION_FLOOR).flatMap(([pos, n]) => Array(n).fill(pos));

@@ -1,4 +1,4 @@
-import { PLAYSTYLE_TAGS, CONTINENT_TAGS, TAG_THRESHOLDS, TRAIT_ROLE, ROLE_SLOTS } from './constants.mjs';
+import { PLAYSTYLE_TAGS, CONTINENT_TAGS, TRAIT_ROLE, ROLE_SLOTS } from './constants.mjs';
 
 // roles = { captain, ace, joker }(선수 id 또는 null). 특수 성향은 자기 역할 슬롯에
 // 배정된 선수에게서만 효과가 난다. roles가 null이면 슬롯 제한 없이 전부 발동(옛 동작,
@@ -49,9 +49,9 @@ export function computeTeamTraitBonuses(lineup, bench, roles = null) {
 }
 
 // --- 계단식 인원수 판정 (문턱 사이 인원은 아래 문턱 값: 4명은 3명 값, 6명은 5명 값) ---
-function tieredValue(count, values) {
-  for (let i = TAG_THRESHOLDS.length - 1; i >= 0; i--) {
-    if (count >= TAG_THRESHOLDS[i]) return values[i];
+function tieredValue(count, thresholds, values) {
+  for (let i = thresholds.length - 1; i >= 0; i--) {
+    if (count >= thresholds[i]) return values[i];
   }
   return 0;
 }
@@ -63,11 +63,10 @@ export function computePlaystyleSynergyBonus(lineup, boostedTagId = null, onlyTa
   const bonuses = new Map();
   for (const [tagId, tagDef] of Object.entries(PLAYSTYLE_TAGS)) {
     if (onlyTagId && tagId !== onlyTagId) continue;
-    const holders = lineup.filter((p) => p.playstyleTags.includes(tagId));
-    if (holders.length < TAG_THRESHOLDS[0]) continue;
-    const holdersInPosition = holders.filter((p) => tagDef.positions.includes(p.position));
-    const value = tieredValue(holders.length, tagDef.values);
-    for (const p of holdersInPosition) {
+    const holders = lineup.filter((p) => p.playstyleTags.includes(tagId) && tagDef.positions.includes(p.position));
+    if (holders.length < tagDef.thresholds[0]) continue;
+    const value = tieredValue(holders.length, tagDef.thresholds, tagDef.values);
+    for (const p of holders) {
       bonuses.set(p.id, (bonuses.get(p.id) ?? 0) + value);
     }
   }

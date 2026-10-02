@@ -21,7 +21,8 @@ const BOT_MANAGER = ROOKIE
   : { tier5: 'tactician', tier4: 'tactician', tier3: 'tactician', tier2: 'legendary', tier1: 'legendary' };
 const BOT_COACH = ROOKIE ? 'academy' : 'proLicense';
 
-const SLOTS = ['GK', 'CB', 'CB', 'WB', 'WB', 'CMF', 'CMF', 'CMF', 'W', 'W', 'ST'];
+import { FORMATIONS } from '../ui/formations.mjs';
+const SLOTS = FORMATIONS['4-3-3'].slots;
 
 function pickBestXI(squad) {
   const used = new Set();

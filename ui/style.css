@@ -342,7 +342,7 @@ button:not(:disabled):active { transform: scale(0.98); }
 
 /* ============ 전술 / 피치 ============ */
 
-.formations { display: flex; gap: var(--s1); }
+.formations { display: flex; flex-wrap: wrap; gap: var(--s1); }
 .formations button {
   font-family: var(--num);
   font-weight: 700;
