@@ -83,13 +83,13 @@ test('슈퍼 서브는 벤치 1명당 선발 전원 +2, 여러 명이어도 최�
   assert.equal(computeTeamTraitBonuses([starter], [sub1, sub2, sub3]).get('starter'), 4);
 });
 
-test('플레이스타일 시너지: 문턱 3/4/5명에서 어려움 태그는 +3/+7/+12, 5명 넘어도 최대값', () => {
+test('플레이스타일 시너지: 문턱 3/4/5명에서 어려움 태그는 +4/+9/+15, 5명 넘어도 최대값', () => {
   const make = (n) => Array.from({ length: n }, (_, i) => makePlayer({ id: `p${i}`, position: 'ST', playstyleTags: ['gegenpressing'] }));
   assert.equal(computePlaystyleSynergyBonus(make(2)).get('p0') ?? 0, 0);
-  assert.equal(computePlaystyleSynergyBonus(make(3)).get('p0'), 3);
-  assert.equal(computePlaystyleSynergyBonus(make(4)).get('p0'), 7);
-  assert.equal(computePlaystyleSynergyBonus(make(5)).get('p0'), 12);
-  assert.equal(computePlaystyleSynergyBonus(make(7)).get('p0'), 12);
+  assert.equal(computePlaystyleSynergyBonus(make(3)).get('p0'), 4);
+  assert.equal(computePlaystyleSynergyBonus(make(4)).get('p0'), 9);
+  assert.equal(computePlaystyleSynergyBonus(make(5)).get('p0'), 15);
+  assert.equal(computePlaystyleSynergyBonus(make(7)).get('p0'), 15);
 });
 
 test('기본기 태그는 약하다(+1/+2/+3)', () => {
@@ -106,9 +106,9 @@ test('플레이스타일 시너지: 3명이면 첫 값, 대상 포지션 보유�
     makePlayer({ id: 'd', position: 'GK', playstyleTags: [] }),
   ];
   const bonuses = computePlaystyleSynergyBonus(lineup);
-  assert.equal(bonuses.get('a'), 3);
-  assert.equal(bonuses.get('b'), 3);
-  assert.equal(bonuses.get('c'), 3);
+  assert.equal(bonuses.get('a'), 4);
+  assert.equal(bonuses.get('b'), 4);
+  assert.equal(bonuses.get('c'), 4);
   assert.equal(bonuses.get('d') ?? 0, 0);
 });
 
@@ -150,8 +150,8 @@ test('computePlayerFinalOVR은 baseOVR에 모든 가산을 합산한다', () => 
   const teammate1 = makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] });
   const teammate2 = makePlayer({ id: 'c', position: 'CMF', playstyleTags: ['gegenpressing'] });
   const lineup = [player, teammate1, teammate2];
-  // 70 (base) + 8 (저니맨, 에이스 슬롯 자동 배정) + 3 (게겐프레싱 3명 시너지) = 81
-  assert.equal(computePlayerFinalOVR(player, lineup, []), 81);
+  // 70 (base) + 8 (저니맨, 에이스 슬롯 자동 배정) + 4 (게겐프레싱 3명 시너지) = 82
+  assert.equal(computePlayerFinalOVR(player, lineup, []), 82);
 });
 
 test('같은 태그 보유자가 3명 미만이면 보너스가 없다', () => {

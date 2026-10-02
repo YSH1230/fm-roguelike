@@ -5,7 +5,7 @@
 // 포지션은 현실 근거(어떤 역할이 그 전술의 주인공인가)와 8개 포메이션에서의 공평성(태그마다 4~5슬롯 안팎)으로 정했다.
 // 문턱은 기본기 3/6/9명, 보통·어려움 3/4/5명. 값은 문턱 순서대로 values[i].
 const GRADE_THRESHOLDS = { basic: [3, 6, 9], mid: [3, 4, 5], hard: [3, 4, 5] };
-const GRADE_VALUES = { basic: [1, 2, 3], mid: [2, 4, 7], hard: [3, 7, 12] };
+const GRADE_VALUES = { basic: [1, 2, 3], mid: [2, 4, 7], hard: [4, 9, 15] };
 const withValues = (defs) => Object.fromEntries(
   Object.entries(defs).map(([id, d]) => [id, { ...d, thresholds: GRADE_THRESHOLDS[d.grade], values: GRADE_VALUES[d.grade] }])
 );

@@ -28,7 +28,7 @@ test('getLeagueTier는 5부와 4부의 체급 정보를 반환한다', () => {
   assert.equal(tier5.championPoints, 80);
 
   const tier4 = getLeagueTier('tier4');
-  assert.deepEqual(tier4.averageOVR, [49.9, 56.9]);
+  assert.deepEqual(tier4.averageOVR, [50.4, 57.4]);
   assert.equal(tier4.safePoints, 40);
   assert.equal(tier4.targetPoints, 73);
   assert.equal(tier4.championPoints, 86);
