@@ -302,7 +302,7 @@ const STAFF_LEVEL_COLOR = { academy: 't-local', proLicense: 't-bigLeaguer', vete
 const STAFF_ROLE_LABELS = { headCoach: '수석 코치', headScout: '스카우터' };
 const MANAGER_TRAIT_LABELS = {
   hairdryer: '헤어드라이어', boardTrust: '보드진의 신임', silverTongue: '화술의 달인',
-  youthCallUp: '유스 콜업', reboundArchitect: '리빌딩 장인', firefighter: '소방수',
+  reboundArchitect: '리빌딩 장인', firefighter: '소방수',
   crisisManager: '위기 관리형', longTermReign: '장기 집권형', tacticalPurist: '전술 원리주의자',
 };
 // 감독·스태프 칸(사단 꾸리기)에서 "이 성향이 뭘 하는지" 보여주는 설명.
@@ -310,7 +310,6 @@ const MANAGER_TRAIT_DESCRIPTIONS = {
   hairdryer: '영입 즉시 적응도 +20',
   boardTrust: '강등을 1회 면제',
   silverTongue: '같은 대륙·전술 태그 선수 영입비 -30%',
-  youthCallUp: '유스 매물이 더 자주 나옴',
   reboundArchitect: '거래당 적응도 하락 절반',
   firefighter: '위기 페이스로 겨울 진입 시 적응도 +30',
   crisisManager: '위기 이벤트 무효화',
@@ -341,8 +340,8 @@ function managerChipsHtml(m) {
   </div>`;
 }
 function managerTraitHtml(m) {
-  return m.trait
-    ? `<p class="traitline"><b>${MANAGER_TRAIT_LABELS[m.trait] ?? m.trait}</b> ${MANAGER_TRAIT_DESCRIPTIONS[m.trait] ?? ''}</p>`
+  return m.trait && MANAGER_TRAIT_LABELS[m.trait]
+    ? `<p class="traitline"><b>${MANAGER_TRAIT_LABELS[m.trait]}</b> ${MANAGER_TRAIT_DESCRIPTIONS[m.trait] ?? ''}</p>`
     : '<p class="traitline traitline--none">세부 성향 없음</p>';
 }
 
@@ -1160,12 +1159,20 @@ function rerollShop() {
   renderMarket();
 }
 
+// GOD 카드는 전 세계 2명이라, 방출·판매·이적으로 선수단을 떠나면(계약 만료와 같게) 다시 상점에 나온다.
+function returnGodToPool(card) {
+  if (!card?.id?.startsWith('god-') || currentState.availableGodPlayers.some((g) => g.id === card.id)) return;
+  const god = GOD_PLAYERS.find((g) => g.id === card.id);
+  if (god) currentState.availableGodPlayers = [...currentState.availableGodPlayers, god];
+}
+
 // 방출 3단계 (스펙 7절): 즉시(0%) / 이적 명단(1주 소모, 여름·겨울 범위 회수율) / Week12 데드라인(40%, 소모 없음)
 function releaseImmediate(card) {
   if (card.boughtThisSeason) return;
   hometownExitPenalty(card);
   if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
+  returnGodToPool(card);
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
   currentState.transactedThisWeek = true;
   renderMarket();
@@ -1189,6 +1196,7 @@ function releaseDeadline(card) {
   if (card.boughtThisSeason) return;
   hometownExitPenalty(card);
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
+  returnGodToPool(card);
   const proceeds = computeReleaseProceeds(card.price, 'deadline');
   currentState.funds += proceeds;
   currentState.seasonTrack.income += proceeds;
@@ -1199,6 +1207,7 @@ function resolveListedSales() {
   const due = currentState.listedForSale.filter((l) => l.resolveWeek === currentState.week);
   currentState.listedForSale = currentState.listedForSale.filter((l) => l.resolveWeek !== currentState.week);
   const messages = due.map((l) => {
+    returnGodToPool(l.card); // 정산이 끝나면 선수단 밖으로 완전히 나간 것
     const proceeds = computeReleaseProceeds(l.card.price, l.method);
     currentState.funds += proceeds;
     currentState.seasonTrack.income += proceeds;
@@ -2129,6 +2138,7 @@ function renderPromotionTransferDemand(keyPlayer) {
   `);
   document.getElementById('accept-transfer-btn').onclick = () => {
     currentState.squad = currentState.squad.filter((p) => p.id !== keyPlayer.id);
+    returnGodToPool(keyPlayer);
     // 지급 후에 더해야 이월 상한에 깎이지 않는다(grantSeasonFunds 주석 참고).
     currentState.pendingTransferProceeds = acceptProceeds;
     startNewSeason();
@@ -3199,6 +3209,7 @@ function renderMarket(banner = '') {
       };
     });
     const resolveTransfer = (leave) => {
+      if (leave) returnGodToPool(currentState.squad.find((p) => p.id === td.id));
       currentState.squad = leave
         ? currentState.squad.filter((p) => p.id !== td.id)
         : currentState.squad.map((p) => (p.id === td.id ? { ...p, baseOVR: Math.max(1, p.baseOVR - SEONGGOL_REJECT_OVR_PENALTY) } : p));

@@ -110,13 +110,12 @@ export const SPECIAL_TRAITS = [
   'journeyman',
 ];
 
-// 스펙 5.2절 "감독 세부 성향 9종" — GOD은 전 세계 2명, 개별 수작업(data/god-managers.mjs)
+// 스펙 5.2절 "감독 세부 성향 8종" — GOD은 전 세계 2명, 개별 수작업(data/god-managers.mjs)
 export const MANAGER_TIERS = ['rookie', 'tactician', 'legendary'];
 export const MANAGER_TRAITS = [
   'hairdryer', // 헤어드라이어 — 루키/택티션 한정 (아래 참고)
   'boardTrust', // 보드진의 신임
   'silverTongue', // 화술의 달인
-  'youthCallUp', // 유스 콜업
   'reboundArchitect', // 리빌딩 장인
   'firefighter', // 소방수
   'crisisManager', // 위기 관리형
