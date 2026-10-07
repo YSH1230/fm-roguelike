@@ -237,6 +237,10 @@ const TRAIT_EFFECT_DESCRIPTIONS = {
   journeyman: '이번 시즌 영입이면 본인 OVR +8',
 };
 // 재계약비(태그 대가 배수 포함)와 재계약 가능 연수(저니맨은 딱 한 번, 1년만).
+// 평균 나이(소수 첫째 자리). 노화·은퇴로 선수단이 갈리는 흐름을 한눈에 보게 한다.
+function avgAge(players) {
+  return players.length ? (players.reduce((sum, p) => sum + p.age, 0) / players.length).toFixed(1) : '-';
+}
 function renewCost(p, years) {
   // 무료로 들어온 선수(price 0)도 재계약비가 0원이 되지 않게 등급 기준가로 계산한다.
   const basis = p.price || calculatePlayerPrice(tierOf(p.baseOVR), p.baseOVR);
@@ -357,6 +361,24 @@ const MANAGER_HARMONY_BONUS = 10;
 function makeTempManager() {
   const m = generateProceduralManager('rookie');
   return { ...m, name: `${m.name}(임시)`, price: 0, trait: null, temp: true };
+}
+// 시뮬레이션 직전에 감독 평가(전술 완성/불화/면제) 결과를 팝업으로 확실히 보여 준다.
+// 예전에는 결과 문구가 후반기엔 시즌 결산 배너에만 떠서 놓치기 쉬웠다.
+function showHarmonyNotice(message, onContinue) {
+  const bad = message.startsWith('감독과의 불화:');
+  const [title, ...rest] = message.split(': ');
+  const root = document.getElementById('eventmodal-root');
+  if (!root) { onContinue(); return; }
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--${bad ? 'bad' : 'good'}">
+        <div class="eventmodal__kicker">감독 평가 · 시즌 시뮬레이션 직전</div>
+        <div class="eventmodal__title">${esc(bad ? '감독과의 불화' : title)}</div>
+        <div class="eventmodal__detail">${esc(bad ? rest.join(': ') : (rest.join(': ') || ''))}</div>
+        <button class="cta" id="harmony-continue">시뮬레이션 시작</button>
+      </div>
+    </div>`;
+  document.getElementById('harmony-continue').onclick = () => { root.innerHTML = ''; onContinue(); };
 }
 function applyManagerTacticalHarmony(lineup) {
   const { manager } = currentState;
@@ -1377,9 +1399,9 @@ function runFirstHalf(saleMessage = '') {
   currentState.firstHalfBase = Object.fromEntries(table.map((t) => [t.id, t.cumulative.at(-1)]));
 
   const tierLabel = getLeagueTier(currentState.leagueTierId).label;
-  renderSimulating(currentState.club.name, tierLabel, '전반기', currentState.club.kit, currentState.firstHalfPoints, () => {
+  showHarmonyNotice(harmonyMsg, () => renderSimulating(currentState.club.name, tierLabel, '전반기', currentState.club.kit, currentState.firstHalfPoints, () => {
     renderHalfTimeVerdict(saleMessage, lineup, slotted, bench);
-  }, { table, rivals });
+  }, { table, rivals }));
 }
 
 // 여름시장 다음에 바로 겨울시장 화면이 뜨면 시즌을 건너뛴 것처럼 보인다.
@@ -1900,9 +1922,9 @@ function runSecondHalfAndFinish(saleMessage = '') {
   });
   const canPromote = outcome.canPromote;
 
-  renderSimulating(currentState.club.name, tier.label, '후반기', currentState.club.kit, secondHalf, () => {
+  showHarmonyNotice(harmonyMsg, () => renderSimulating(currentState.club.name, tier.label, '후반기', currentState.club.kit, secondHalf, () => {
     finishSeasonRender();
-  }, { table: seasonTable, rivals, second: true });
+  }, { table: seasonTable, rivals, second: true }));
 
   function finishSeasonRender() {
   if (outcome.ended) {
@@ -2798,7 +2820,7 @@ function renderMarket(banner = '') {
         <ul class="squad">${[...expiredPlayers, ...expiringPlayers].map((p) => {
           const expired = (p.contractYearsLeft ?? 2) <= 0;
           return `
-          <li class="player player--contract" style="--tier:var(--t-${tierOf(p.baseOVR)})">
+          <li class="player player--contract" data-row="contract-${p.id}" style="--tier:var(--t-${tierOf(p.baseOVR)})">
             ${renderPortrait(p, { size: 36, kit: club.kit })}
             <b class="player__ovr n">${p.baseOVR}</b>
             <div>
@@ -2806,6 +2828,7 @@ function renderMarket(banner = '') {
               <div class="player__meta">${p.position} · ${p.age}세 · ${expired ? '<span class="tag tag--expired">만료</span> 안 정하면 무료로 이탈' : '<span class="tag tag--expiring">계약 1년</span> 미리 연장 가능'}</div>
             </div>
             <div class="player__actions">
+              ${p.boughtThisSeason ? '' : `<button class="release" data-contract-sell="${p.id}" title="1주 뒤 정산">판매 등록</button>`}
               ${renewYears(p).map((y) => `<button class="renew" data-renew="${p.id}" data-years="${y}" ${funds >= renewCost(p, y) ? '' : 'disabled'}>${y}년 <b>${renewCost(p, y)}G</b></button>`).join('') || '<small class="nore">재계약 불가 · 자유계약으로 떠남</small>'}
             </div>
           </li>`;
@@ -2813,7 +2836,7 @@ function renderMarket(banner = '') {
       </section>` : ''}
       <section class="panel tabpanel">
         ${listedHtml ? `<div class="panel__head"><h2>이적 명단</h2></div><ul class="listed">${listedHtml}</ul><div style="height:var(--s4)"></div>` : ''}
-        <div class="panel__head"><h2>보유 선수</h2></div>
+        <div class="panel__head"><h2>보유 선수 <span class="panel__count">${squad.length}명 · 평균 나이 ${avgAge(squad)}세${lineup.length ? ` (선발 ${avgAge(lineup)}세)` : ''}</span></h2></div>
         ${squadHtml}
       </section>`,
     staff: `
@@ -2881,6 +2904,11 @@ function renderMarket(banner = '') {
           <span class="res__val n">${chemistry.toFixed(1)}</span>
           <div class="chembar${chemistry < 40 ? ' is-low' : ''}"><i style="width:${Math.min(100, chemistry)}%"></i></div>
         </div>
+      </div>
+      <div class="goalstrip" id="goal-strip">
+        <span>이사진 목표 <b>${currentBoardGoal()}점</b></span>
+        <span>안전 ${effectiveTier(currentState.leagueTierId).safePoints} · 승격 ${effectiveTier(currentState.leagueTierId).targetPoints}</span>
+        ${phase === 'winter' && currentState.firstHalfPoints != null ? `<span>전반기 <b>${currentState.firstHalfPoints}점</b></span>` : ''}
       </div>
       <p class="note chem-info" id="funds-info" hidden>
         <b>이번 시즌 자금 흐름</b><br>
@@ -3139,6 +3167,13 @@ function renderMarket(banner = '') {
         };
       }
     }
+    // 계약 관리 패널의 판매 등록(같은 판매 등록 규칙).
+    document.querySelectorAll('[data-contract-sell]').forEach((btn) => {
+      btn.onclick = () => {
+        const p = currentState.squad.find((x) => x.id === btn.dataset.contractSell);
+        if (p) confirmRelease(`contract-${p.id}`, `${p.name} 이적 명단에 올리시겠습니까?`, () => listForSale(p), banner);
+      };
+    });
     // 선수 행을 누르면 관리 버튼(재계약/판매 등록/방출)이 펼쳐진다.
     document.querySelectorAll('.squad .player[data-row]').forEach((row) => {
       row.addEventListener('click', (e) => {
