@@ -345,7 +345,7 @@ function staffBenefit(role, level) {
   const boost = SCOUT_QUALITY_BOOST_BY_LEVEL[level];
   const disc = SCOUT_REROLL_DISCOUNT_BY_LEVEL[level];
   const t = SCOUT_TARGETS_BY_LEVEL[level];
-  const target = !t.tag ? '' : t.exclusive ? ' · 목표 태그 또는 목표 포지션 1장 보장' : t.position ? ' · 목표 태그 1장 + 목표 포지션 1장 보장' : ' · 목표 태그 1장 보장';
+  const target = !t.tag ? '' : t.exclusive ? ' · 목표 태그 또는 목표 포지션 1장 보장' : t.combined ? ' · 목표 태그와 목표 포지션을 동시에 만족하는 선수 1장 보장' : ' · 목표 태그 1장 보장';
   return `매물 ${n}장${boost ? ` · 톱클래스 이상 카드 +${Math.round(boost * 100)}%` : ''}${disc ? ` · 다시 뽑기 −${Math.round(disc * 100)}%` : ''}${target}`;
 }
 const MANAGER_TIER_MULTIPLIER_TEXT = {
@@ -992,7 +992,7 @@ function newShopOffer() {
   const position = scoutCaps().position ? currentState.scoutTargetPos ?? null : null;
   const boost = isStaffFreshThisWeek('headScout') ? 0 : SCOUT_QUALITY_BOOST_BY_LEVEL[currentState.staff.headScout.level] ?? 0;
   return generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId,
-    slots ? currentState.scoutTargetTag : null, slots, position, boost);
+    slots ? currentState.scoutTargetTag : null, slots, position, boost, scoutCaps().combined);
 }
 function scoutOfferSize() {
   if (isStaffFreshThisWeek('headScout')) return SHOP_OFFER_SIZE;
@@ -2683,7 +2683,7 @@ function renderMarket(banner = '') {
     ? `<div class="scouttarget"><span>스카우터 목표</span>
         <label>태그 <select id="scout-target"><option value="">지정 안 함</option>${targetOptions}</select></label>
         ${caps.position ? `<label>포지션 <select id="scout-target-pos"><option value="">지정 안 함</option>${posOptions}</select></label>` : ''}
-        <i>${caps.exclusive ? '태그와 포지션 중 하나만 · ' : ''}매주 각 1장 보장 · 다음 주(또는 다시 뽑기)부터 적용</i></div>`
+        <i>${caps.exclusive ? '태그와 포지션 중 하나만 · 매주 1장 보장' : caps.combined ? '둘을 모두 정하면 태그와 포지션을 동시에 만족하는 선수 1장을 매주 보장' : '매주 1장 보장'} · 다음 주(또는 다시 뽑기)부터 적용</i></div>`
     : '';
   const tagPanelHtml = playChips || contChips ? `<div class="tagpanel${currentState.tagPanelCollapsed ? ' is-collapsed' : ''}" id="tagpanel">
       <button class="tagpanel__head" id="tagpanel-toggle" aria-expanded="${!currentState.tagPanelCollapsed}"><b>내 선수단 태그</b><span>누르면 그 태그 매물만 봅니다 · 숫자는 선발/다음 문턱</span><i class="panel__chev" aria-hidden="true">⌄</i></button>

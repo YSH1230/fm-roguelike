@@ -217,12 +217,12 @@ export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 4, veter
 export const SCOUT_QUALITY_BOOST_BY_LEVEL = { academy: 0, proLicense: 0.25, veteran: 0.5, master: 0.9 };
 export const SCOUT_REROLL_DISCOUNT_BY_LEVEL = { academy: 0, proLicense: 0.2, veteran: 0.35, master: 0.5 };
 // 목표 지정: tag = 목표 태그 카드(보통·어려움 태그) 1장, position = 목표 포지션 선수 1장을 매주 보장한다.
-// exclusive면 둘 중 하나만 고른다(베테랑), 아니면 동시에 설정한다(마스터).
+// exclusive면 둘 중 하나만 고른다(베테랑). combined(마스터)면 둘을 동시에 설정하고, 둘을 함께 만족하는 카드 1장을 보장한다.
 export const SCOUT_TARGETS_BY_LEVEL = {
-  academy: { tag: false, position: false, exclusive: false },
-  proLicense: { tag: true, position: false, exclusive: false },
-  veteran: { tag: true, position: true, exclusive: true },
-  master: { tag: true, position: true, exclusive: false },
+  academy: { tag: false, position: false, exclusive: false, combined: false },
+  proLicense: { tag: true, position: false, exclusive: false, combined: false },
+  veteran: { tag: true, position: true, exclusive: true, combined: false },
+  master: { tag: true, position: true, exclusive: false, combined: true },
 };
 
 // GOD 카드(선수)가 상점에 뜰 확률 — 전 세계 2명뿐이라 극희귀. 1부 상점에서만

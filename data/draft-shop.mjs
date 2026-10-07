@@ -41,24 +41,25 @@ const TARGET_ELIGIBLE_TIERS = { mid: ['bigLeaguer', 'topClass', 'worldClass', 'l
 
 // 스카우터 목표 태그 카드: 이 리그 상점 분포에서 그 태그를 달 수 있는 등급만 가중 추첨한다.
 // 이 리그에 그런 등급이 없으면(5부의 어려운 태그 등) 가장 낮은 가능 등급으로 올려 뽑는다 - 비싸서 못 사는 건 의도.
-function targetedCard(tag, tierId, rng) {
+function targetedCard(tag, tierId, rng, position = null) {
   const eligible = TARGET_ELIGIBLE_TIERS[PLAYSTYLE_TAGS[tag].grade];
   const pool = tierPool(tierId).filter((t) => eligible.includes(t));
   const tier = pool.length ? pool[Math.floor(rng() * pool.length)] : eligible[0];
-  return generateProceduralPlayer(tier, rng, null, tag);
+  return generateProceduralPlayer(tier, rng, position, tag);
 }
 
 // targetTag/targetSlots: 스카우터가 매주 맨 앞 targetSlots장을 목표 태그 카드로 보장한다.
 // targetPosition: 태그 보장 카드 다음 한 장을 그 포지션 선수로 보장한다(베테랑 이상 스카우터).
 // qualityBoost: 스카우터가 올려 주는 상위 등급 확률.
-export function generateShopOffer(size, availableGods = [], rng = Math.random, tierId = 'tier1', targetTag = null, targetSlots = 0, targetPosition = null, qualityBoost = 0) {
+// combined: 태그와 포지션을 동시에 만족하는 카드 1장(마스터). 한쪽만 정했으면 그쪽 카드 1장.
+export function generateShopOffer(size, availableGods = [], rng = Math.random, tierId = 'tier1', targetTag = null, targetSlots = 0, targetPosition = null, qualityBoost = 0, combined = false) {
   const pool = tierPool(tierId, qualityBoost);
   // GOD 카드는 1부에서만 굴린다 - 예전엔 리그 무관 고정 확률이라 5부 상점에도
   // 똑같이 뜰 수 있었다(local 카드들 사이에 OVR 88+ 카드가 섞이는 위화감).
   const godEligible = tierId === 'tier1' && availableGods.length > 0;
   return Array.from({ length: size }, (_, i) => {
-    if (targetTag && i < targetSlots && PLAYSTYLE_TAGS[targetTag]?.grade !== 'basic') return targetedCard(targetTag, tierId, rng);
-    if (targetPosition && i === (targetTag ? targetSlots : 0)) {
+    if (targetTag && i < targetSlots && PLAYSTYLE_TAGS[targetTag]?.grade !== 'basic') return targetedCard(targetTag, tierId, rng, combined ? targetPosition : null);
+    if (targetPosition && !(combined && targetTag && targetSlots) && i === (targetTag ? targetSlots : 0)) {
       return generateProceduralPlayer(pool[Math.floor(rng() * pool.length)], rng, targetPosition);
     }
     if (godEligible && rng() < GOD_PLAYER_SHOP_CHANCE) {

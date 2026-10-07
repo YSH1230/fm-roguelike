@@ -87,3 +87,12 @@ test('스카우터 상위 등급 확률: 값이 클수록 톱클래스 이상 �
   const base = topShare(0);
   assert.ok(topShare(0.9) > base * 1.4, '마스터 스카우터는 상위 카드가 눈에 띄게 많아야 한다');
 });
+
+test('마스터 스카우터: 태그와 포지션을 동시에 만족하는 카드 1장이 맨 앞에 나온다', () => {
+  for (let i = 0; i < 50; i++) {
+    const offer = generateShopOffer(4, [], Math.random, 'tier3', 'tikiTaka', 1, 'AMF', 0, true);
+    assert.ok(offer[0].playstyleTags.includes('tikiTaka'));
+    assert.equal(offer[0].position, 'AMF');
+    assert.equal(offer.length, 4);
+  }
+});
