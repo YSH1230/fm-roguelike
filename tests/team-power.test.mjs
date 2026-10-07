@@ -33,10 +33,9 @@ test('computeAverageOVR은 11명의 최종 OVR 평균을 낸다(태그 없는 �
 });
 
 test('computeTeamMultiplier는 감독 배율 × 적응도 배율이고 캡을 넘지 않는다', () => {
-  // god(1.20) × 적응도 100(1.08) = 1.296 - 곡선을 완만하게 바꾼 뒤엔 캡(1.30) 바로 아래다
+  // god(1.26) × 적응도 100(1.08) = 1.361 이지만 캡(1.30)에서 잘린다
   const top = computeTeamMultiplier('god', 100);
-  assert.ok(Math.abs(top - 1.296) < 1e-9);
-  assert.ok(top <= 1.30);
+  assert.ok(Math.abs(top - 1.30) < 1e-9);
 
   // rookie(1.00) × 적응도 60(1.015)
   const plain = computeTeamMultiplier('rookie', 60);
@@ -78,7 +77,7 @@ test('applyVariance는 randomFn 결과에 따라 ±ratio 범위로 조정한다'
 test('리그가 기대하는 감독 대비 배율: 1부에서 루키는 손해, 레전더리는 이득이다', () => {
   const rookie = computeTeamMultiplier('rookie', 60, { leagueTierId: 'tier1' });
   const legendary = computeTeamMultiplier('legendary', 60, { leagueTierId: 'tier1' });
-  assert.ok(Math.abs(rookie - (1.0 / 1.1) * 1.015) < 1e-9);
+  assert.ok(Math.abs(rookie - (1.0 / 1.14) * 1.015) < 1e-9);
   assert.ok(legendary > 1.015);
   assert.equal(computeTeamMultiplier('rookie', 60, { leagueTierId: 'tier5' }), computeTeamMultiplier('rookie', 60));
 });

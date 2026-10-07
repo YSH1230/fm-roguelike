@@ -36,9 +36,9 @@ test('대륙 태그 5종은 모두 같은 수치를 쓴다(포지션 무관)', (
 
 test('감독 등급 배율이 스펙과 일치한다', () => {
   assert.equal(MANAGER_TIER_MULTIPLIER.rookie, 1.00);
-  assert.equal(MANAGER_TIER_MULTIPLIER.tactician, 1.05);
-  assert.equal(MANAGER_TIER_MULTIPLIER.legendary, 1.12);
-  assert.equal(MANAGER_TIER_MULTIPLIER.god, 1.20);
+  assert.equal(MANAGER_TIER_MULTIPLIER.tactician, 1.07);
+  assert.equal(MANAGER_TIER_MULTIPLIER.legendary, 1.16);
+  assert.equal(MANAGER_TIER_MULTIPLIER.god, 1.26);
 });
 
 test('적응도 기본 상수가 스펙과 일치한다', () => {

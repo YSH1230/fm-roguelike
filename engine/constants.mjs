@@ -38,9 +38,9 @@ export const CONTINENT_TAGS = {
 // 스펙 5.2절 "배율" — 루키/택티션/레전더리/GOD
 export const MANAGER_TIER_MULTIPLIER = {
   rookie: 1.00,
-  tactician: 1.05,
-  legendary: 1.12,
-  god: 1.20,
+  tactician: 1.07,
+  legendary: 1.16,
+  god: 1.26,
 };
 
 // 스펙 6절 "적응도(팀 조직력)"
@@ -210,7 +210,7 @@ export const MANAGER_OFFER_WEIGHTS_BY_TIER = {
 };
 // 리그가 "이 정도 감독은 있어야 한다"고 기대하는 감독 배율. 감독 배율을 이 값으로
 // 나눈 값이 실제로 곱해진다 - 상위 리그에서 루키 감독을 유지하면 그만큼 손해.
-export const LEAGUE_EXPECTED_MANAGER = { tier5: 1.0, tier4: 1.0, tier3: 1.03, tier2: 1.06, tier1: 1.1 };
+export const LEAGUE_EXPECTED_MANAGER = { tier5: 1.0, tier4: 1.02, tier3: 1.05, tier2: 1.09, tier1: 1.14 };
 // 스카우터 능력 4가지: 매물 장수 / 상위 등급 카드 확률 / 다시 뽑기 할인 / 목표 지정(매주 보장 카드).
 export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 4, veteran: 4, master: 4 };
 // 톱클래스 이상 카드가 나올 가중치 배율 증가분(리그에 없는 등급은 그대로 0).
