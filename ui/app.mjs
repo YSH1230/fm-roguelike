@@ -36,6 +36,7 @@ import {
   applyCostModifiers,
   computeReleaseProceeds,
   renewalCost,
+  calculatePlayerPrice,
 } from '../engine/economy.mjs';
 import { applyTransactionDecay, chemistryMultiplier } from '../engine/chemistry.mjs';
 import { computePlayerFinalOVR, computePlayerBonusBreakdown, countEffectiveContinentRequirement, resolveRoles } from '../engine/ovr.mjs';
@@ -237,10 +238,12 @@ const TRAIT_EFFECT_DESCRIPTIONS = {
 };
 // 재계약비(태그 대가 배수 포함)와 재계약 가능 연수(저니맨은 딱 한 번, 1년만).
 function renewCost(p, years) {
-  return Math.round(renewalCost(p.price, years) * (TRAIT_RENEWAL_MULT[p.specialTrait] ?? 1));
+  // 무료로 들어온 선수(price 0)도 재계약비가 0원이 되지 않게 등급 기준가로 계산한다.
+  const basis = p.price || calculatePlayerPrice(tierOf(p.baseOVR), p.baseOVR);
+  return Math.round(renewalCost(basis, years) * (TRAIT_RENEWAL_MULT[p.specialTrait] ?? 1));
 }
 function renewYears(p) {
-
+  if (p.noRenewal) return []; // 은퇴 앞둔 레전드: 재계약 불가
   if (p.specialTrait === 'journeyman') return p.renewedOnce ? [] : [1];
   return [1, 2];
 }
@@ -495,7 +498,7 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     if (clock) clock.textContent = `${round}/${N}`;
     const phrase = document.getElementById('sim-phrase');
     const myPts = pointsOf.get('me')[round - 1];
-    if (phrase) phrase.textContent = `${second ? '후반 ' : ''}${round}라운드 · ${second ? '시즌 ' : ''}${rank}위 · 승점 ${myPts}${round > 1 && move ? (move > 0 ? ` ▲${move}` : ` ▼${-move}`) : ''}`;
+    if (phrase) phrase.textContent = `${second ? '후반 ' : ''}${round}라운드 · ${second ? '시즌 ' : ''}${rank}위 · 승점 ${myPts}`;
     updateStandings(round);
     setTimeout(step, delay);
   };
@@ -1012,10 +1015,13 @@ function startNewSeason() {
     seasonsAtClub: (p.seasonsAtClub ?? 0) + 1,
     contractYearsLeft: Math.max(0, (p.contractYearsLeft ?? 2) - 1),
   }));
+  // 포지션 공백 때우려고 콜업한 긴급 유스는 한 시즌만 뛰고 계약이 끝난다.
+  const youthLeft = currentState.squad.filter((p) => p.emergencyYouth);
+  currentState.squad = currentState.squad.filter((p) => !p.emergencyYouth);
   // 나이 한 살: 어린 선수는 크고 서른 줄부터 떨어지며, 은퇴할 선수는 떠난다. 변화는 브리핑 팝업에서 알린다.
   const aged = ageSquad(currentState.squad);
   currentState.squad = aged.squad;
-  const agingReport = { changes: aged.changes, retired: aged.retired };
+  const agingReport = { changes: aged.changes, retired: aged.retired, youthLeft: youthLeft.map((p) => ({ name: p.name, position: p.position })) };
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
   currentState.shopOffer = newShopOffer();
   currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
@@ -1167,23 +1173,11 @@ function returnGodToPool(card) {
 }
 
 // 방출 3단계 (스펙 7절): 즉시(0%) / 이적 명단(1주 소모, 여름·겨울 범위 회수율) / Week12 데드라인(40%, 소모 없음)
-function releaseImmediate(card) {
-  if (card.boughtThisSeason) return;
-  hometownExitPenalty(card);
-  if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
-  currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
-  returnGodToPool(card);
-  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
-  currentState.transactedThisWeek = true;
-  renderMarket();
-}
-
 function listForSale(card) {
   if (card.boughtThisSeason) return;
   hometownExitPenalty(card);
   const method = currentState.phase === 'summer' ? 'listedSummer' : 'listedWinter';
   // 겨울 이적명단은 당해 영입 선수를 받지 않는다 (스펙 7절)
-  if (method === 'listedWinter' && card.acquiredThisSeason) return;
   if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
   currentState.listedForSale.push({ card, method, resolveWeek: currentState.week + 1 });
@@ -2599,7 +2593,6 @@ function renderMarket(banner = '') {
       </div>
       <div class="player__actions" data-actions="${p.id}">
         ${yearsLeft <= 1 ? `<span class="player__renew"><em>재계약</em>${renewYears(p).map((y) => `<button class="renew" data-renew="${p.id}" data-years="${y}" ${funds >= renewCost(p, y) ? '' : 'disabled'}>${y}년 <b>${renewCost(p, y)}G</b></button>`).join('') || '<small class="nore">재계약 불가</small>'}</span>` : ''}
-        <button class="release" data-release-immediate="${p.id}" ${locked ? `disabled ${lockTitle}` : `title="회수 0%, ${decayLabel}"`}>즉시 방출</button>
         <button class="release" data-release-listed="${p.id}" ${locked ? `disabled ${lockTitle}` : 'title="1주 뒤 정산"'}>판매 등록</button>
         ${isDeadlineWeek ? `<button class="release release--deadline" data-release-deadline="${p.id}" ${locked ? `disabled ${lockTitle}` : 'title="원가의 40% 회수"'}>데드라인 방출</button>` : ''}
       </div>
@@ -3081,9 +3074,6 @@ function renderMarket(banner = '') {
   });
   if (tab === 'squad') {
     for (const p of squad) {
-      document.querySelector(`[data-release-immediate="${p.id}"]`).onclick = () => {
-        confirmRelease(p.id, `${p.name} 즉시 방출하시겠습니까? (회수 없음)`, () => releaseImmediate(p), banner);
-      };
       document.querySelector(`[data-release-listed="${p.id}"]`).onclick = () => {
         confirmRelease(p.id, `${p.name} 이적 명단에 올리시겠습니까?`, () => listForSale(p), banner);
       };
@@ -3147,15 +3137,16 @@ function renderMarket(banner = '') {
           ${fr.items.map((x) => `<li class="is-down">회수 · ${esc(x.label)} <span class="n">−${x.amount.toLocaleString('ko-KR')}G</span></li>`).join('')}
         </ul>
       </div>` : '';
-    const ag = briefing.aging ?? { changes: [], retired: [] };
+    const ag = { youthLeft: [], ...(briefing.aging ?? { changes: [], retired: [] }) };
     const ups = [...ag.changes].filter((c) => c.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 4);
     const downs = [...ag.changes].filter((c) => c.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 4);
-    const agingHtml = ups.length || downs.length || ag.retired.length ? `<div class="agingbox">
-        <b>선수단 변화 (한 살)</b>
+    const agingHtml = ups.length || downs.length || ag.retired.length || ag.youthLeft.length ? `<div class="agingbox">
+        <b>선수단 오버롤 변화</b>
         <ul>
           ${ups.map((c) => `<li class="is-up">▲ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (+${c.delta})</span></li>`).join('')}
           ${downs.map((c) => `<li class="is-down">▼ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (${c.delta})</span></li>`).join('')}
           ${ag.retired.map((r) => `<li class="is-retire">은퇴 ${esc(r.name)} <span>${r.age}세</span></li>`).join('')}
+          ${ag.youthLeft.map((y) => `<li class="is-retire">유스 계약 종료 ${esc(y.name)} <span>${y.position}</span></li>`).join('')}
         </ul>
       </div>` : '';
     const td = briefing.transferDemand;

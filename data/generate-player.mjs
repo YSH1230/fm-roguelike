@@ -42,6 +42,9 @@ function randomInt(min, max, rng) {
 
 let nextId = 1;
 
+// 특수 성향은 희귀해야 역할 칸(주장/에이스/조커)을 놓고 고민이 생긴다.
+const SPECIAL_TRAIT_CHANCE = 0.06;
+
 // 첫 전술 태그 칸을 목표 태그로 바꾼다(전술 칸이 없으면 덧붙인다).
 function withForcedTag(tags, forceTag) {
   if (!forceTag || tags.includes(forceTag)) return tags;
@@ -84,7 +87,7 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
   // forceTag(스카우터 목표 태그)를 주면 그 태그를 보너스로 받는 포지션으로 뽑고 태그를 반드시 단다.
   const pos = position ?? pick(forceTag ? PLAYSTYLE_TAGS[forceTag].positions : POSITIONS, rng);
   const eligibleTraits = age >= 33 ? SPECIAL_TRAITS : SPECIAL_TRAITS.filter((t) => t !== 'veteranLeader');
-  const specialTrait = rng() < 0.2 ? pick(eligibleTraits, rng) : null;
+  const specialTrait = rng() < SPECIAL_TRAIT_CHANCE ? pick(eligibleTraits, rng) : null;
 
   return {
     id: `p${String(nextId++).padStart(4, '0')}`,
@@ -118,6 +121,7 @@ export function generateEmergencyYouth(position, rng = Math.random) {
     continentTag: null,
     specialTrait: null,
     isDraftedYouth: true,
+    emergencyYouth: true, // 포지션 공백 때우기용 - 다음 시즌이 시작되면 계약이 끝난다
   };
 }
 

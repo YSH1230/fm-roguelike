@@ -47,8 +47,8 @@ const EVENTS = [
   {
     id: 'retiringLegend', name: '은퇴 앞둔 레전드', tone: 'good',
     apply: ({ squad }, rng) => {
-      const legend = { ...generateProceduralPlayer('bigLeaguer', rng), age: 35, price: 0, specialTrait: 'veteranLeader', contractYearsLeft: 1 };
-      return { squad: [...squad, legend], message: `은퇴 앞둔 레전드: ${legend.name}이(가) 마지막 시즌을 함께합니다(무료 영입)` };
+      const legend = { ...generateProceduralPlayer('bigLeaguer', rng), age: 35, price: 0, specialTrait: 'veteranLeader', contractYearsLeft: 1, noRenewal: true };
+      return { squad: [...squad, legend], message: `은퇴 앞둔 레전드: ${legend.name}이(가) 마지막 시즌을 함께합니다(무료 영입, 재계약 불가)` };
     },
   },
   {
