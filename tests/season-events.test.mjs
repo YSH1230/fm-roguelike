@@ -77,3 +77,47 @@ test('은퇴 앞둔 레전드는 재계약 불가 표시가 붙는다(무료 영
   const legend = r.squad.at(-1);
   assert.equal(legend.noRenewal, true);
 });
+
+test('이벤트 풀은 18종이고, 선택형 4종이 섞여 있다', async () => {
+  const { EVENT_IDS } = await import('../data/season-events.mjs');
+  assert.equal(EVENT_IDS.length, 18);
+  assert.equal(new Set(EVENT_IDS).size, 18);
+});
+
+test('최근에 나온 이벤트는 가중치가 낮아져 거의 반복되지 않는다', async () => {
+  const { EVENT_IDS } = await import('../data/season-events.mjs');
+  const recent = EVENT_IDS.filter((id) => id !== 'pressPraise'); // 하나만 빼고 전부 최근 이벤트
+  let praise = 0;
+  for (let i = 0; i < 400; i++) {
+    const r = rollSeasonEvent(ctx({ recent }), 'summer', (() => { let k = 0; return () => (k++ === 0 ? 0 : Math.random()); })());
+    if (r.id === 'pressPraise') praise++;
+  }
+  assert.ok(praise > 100, `최근이 아닌 이벤트가 압도적으로 나와야 한다 (${praise}/400)`);
+});
+
+test('선택형 이벤트: 스폰서 일시금은 지금 자금, 장기 계약은 다음 시즌 가산', async () => {
+  const { resolveChoice, describeChoice } = await import('../data/season-events.mjs');
+  const c = { id: 'sponsorOffer', payload: {} };
+  const base = ctx();
+  assert.equal(describeChoice(c, base).options.length, 2);
+  assert.equal(resolveChoice(c, 0, base).funds, 1000 + 120);
+  const long = resolveChoice(c, 1, base);
+  assert.equal(long.funds, 1000);
+  assert.equal(long.state.nextGrantBonus, 0.22);
+});
+
+test('선택형 이벤트: 빅클럽 제안 - 보내면 이적료를 받고 떠나고, 붙잡으면 계약이 늘어난다', async () => {
+  const { resolveChoice } = await import('../data/season-events.mjs');
+  const c = { id: 'bigClubOffer', payload: { playerId: 'b' } };
+  const base = ctx();
+  const sold = resolveChoice(c, 0, base);
+  assert.equal(sold.squad.some((p) => p.id === 'b'), false);
+  assert.equal(sold.funds, 1000 + Math.round(10 * 0.85));
+  const kept = resolveChoice(c, 1, base);
+  assert.equal(kept.squad.find((p) => p.id === 'b').contractYearsLeft, 3);
+});
+
+test('전술 분석관 합류: 불화 면제 플래그를 건다', () => {
+  const r = rollSeasonEvent(ctx(), 'summer', seq(0, 0.5), { analystJoins: 1000 });
+  assert.equal(r.state.harmonyShield, true);
+});

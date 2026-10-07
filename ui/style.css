@@ -1500,3 +1500,14 @@ button:not(:disabled):active { transform: scale(0.98); }
 .scouttarget { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 10px; padding: 8px 10px; border: 1px solid var(--line, #2a3a30); border-radius: 10px; font-size: 13px; }
 .scouttarget select { background: transparent; color: inherit; border: 1px solid var(--line, #2a3a30); border-radius: 8px; padding: 4px 6px; font: inherit; }
 .scouttarget i { font-style: normal; opacity: .65; font-size: 12px; flex-basis: 100%; }
+
+/* 감독 사임·선택형 이벤트의 선택 버튼 */
+.resignpick {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px var(--s2); width: 100%; margin-top: var(--s2); padding: var(--s3);
+  text-align: left; background: var(--night); border: 1px solid var(--line); border-radius: var(--r-md); color: var(--light);
+}
+.resignpick:hover:not(:disabled) { border-color: var(--turf); }
+.resignpick:disabled { opacity: 0.45; }
+.resignpick__name { font-weight: 700; }
+.resignpick__meta { grid-column: 1; font-size: var(--fs-label); color: var(--muted); }
+.resignpick__cost { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--gold); }

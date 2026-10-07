@@ -18,7 +18,7 @@ import { generateProceduralManager } from '../data/generate-manager.mjs';
 import { assignRandomStaff, generateStaffOffer, generateStaffCandidate } from '../data/staff.mjs';
 import { generateManagerOffer } from '../data/manager-shop.mjs';
 import { GOD_PLAYERS } from '../data/god-players.mjs';
-import { rollSeasonEvent } from '../data/season-events.mjs';
+import { rollSeasonEvent, describeChoice, resolveChoice } from '../data/season-events.mjs';
 import { drawDemandOffer, getDemand, evaluateDemand, DIFFICULTY_LABELS } from '../data/board-demands.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
@@ -312,7 +312,7 @@ const MANAGER_TRAIT_LABELS = {
 const MANAGER_TRAIT_DESCRIPTIONS = {
   hairdryer: '영입 즉시 적응도 +20',
   boardTrust: '강등을 1회 면제',
-  silverTongue: '같은 대륙·전술 태그 선수 영입비 -30%',
+  silverTongue: '감독 선호 전술 태그 선수 영입비 -30%',
   reboundArchitect: '거래당 적응도 하락 절반',
   firefighter: '위기 페이스로 겨울 진입 시 적응도 +30',
   crisisManager: '위기 이벤트 무효화',
@@ -339,7 +339,6 @@ function managerChipsHtml(m) {
   return `<div class="chips">
     <span class="tag tag--tier">${MANAGER_TIER_LABELS[m.tier] ?? m.tier} ${MANAGER_TIER_MULTIPLIER_TEXT[m.tier]?.replace('팀 전력 배율 ', '') ?? ''}</span>
     <span class="tag">${TAG_LABELS[m.tacticalTag] ?? m.tacticalTag}</span>
-    <span class="tag">${CONTINENT_LABELS[m.continentTag] ?? m.continentTag}</span>
   </div>`;
 }
 function managerTraitHtml(m) {
@@ -354,14 +353,30 @@ function managerTraitHtml(m) {
 // 없이 이미 있는 적응도(케미스트리)를 그대로 밀고 올린다.
 const MANAGER_HARMONY_PENALTY = 15;
 const MANAGER_HARMONY_BONUS = 10;
+// 사임 때 자금이 모자라도 판이 막히지 않게 늘 고를 수 있는 임시 감독(무료·루키·세부 성향 없음, 위약금도 없음).
+function makeTempManager() {
+  const m = generateProceduralManager('rookie');
+  return { ...m, name: `${m.name}(임시)`, price: 0, trait: null, temp: true };
+}
 function applyManagerTacticalHarmony(lineup) {
   const { manager } = currentState;
   const { tier } = playstyleTagProgress(manager.tacticalTag, lineup, boostedTagIdFor(manager));
   const tagLabel = TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag;
   if (tier === 0) {
+    if (currentState.harmonyShield) {
+      currentState.harmonyShield = false;
+      return `감독과의 불화 면제: 전술 분석관이 ${manager.name} 감독과의 갈등을 막아 줬습니다`;
+    }
     currentState.chemistry = Math.max(0, currentState.chemistry - MANAGER_HARMONY_PENALTY);
-    return `감독과의 불화: ${manager.name} 감독이 선호하는 전술(${tagLabel})에 맞는 선수단을 못 꾸렸습니다. 적응도 -${MANAGER_HARMONY_PENALTY}`;
+    currentState.harmonyStreak = (currentState.harmonyStreak ?? 0) + 1;
+    const base = `감독과의 불화: ${manager.name} 감독이 선호하는 전술(${tagLabel})에 맞는 선수단을 못 꾸렸습니다. 적응도 -${MANAGER_HARMONY_PENALTY}`;
+    if (currentState.harmonyStreak >= 2) {
+      currentState.pendingResignation = { temp: makeTempManager() };
+      return `${base}. 불화가 2번 이어져 ${manager.name} 감독이 사임을 통보했습니다`;
+    }
+    return `${base} (한 번 더 이어지면 감독이 사임합니다)`;
   }
+  currentState.harmonyStreak = 0;
   const bonus = manager.trait === 'tacticalPurist' ? MANAGER_HARMONY_BONUS * 2 : MANAGER_HARMONY_BONUS;
   currentState.chemistry = Math.min(100, currentState.chemistry + bonus);
   return `전술 완성: ${manager.name} 감독이 선호하는 전술(${tagLabel})이 라인업에서 발동했습니다. 적응도 +${bonus}`;
@@ -750,7 +765,7 @@ function startRun(club) {
   // 헤어드라이어: 영입 즉시 적응도 +20
   const startChemistry = manager.trait === 'hairdryer' ? Math.min(100, CHEMISTRY_START + 20) : CHEMISTRY_START;
   const rolled = rollSeasonEvent(
-    { squad: rawSquad, funds: baseFunds, chemistry: startChemistry, baseFunds, crisisImmune: manager.trait === 'crisisManager' },
+    { squad: rawSquad, funds: baseFunds, chemistry: startChemistry, baseFunds, crisisImmune: manager.trait === 'crisisManager', manager, recent: [] },
     'summer'
   );
   const { funds, squad, chemistry, message: eventMessage } = rolled;
@@ -765,6 +780,12 @@ function startRun(club) {
     staff,
     availableGodPlayers: [...GOD_PLAYERS], // 이번 런에서 아직 영입 안 한 GOD 카드
     scoutTargetTag: null, // 스카우터 목표 태그(보통·어려움 태그 중 하나)
+    eventChoice: rolled.choice ?? null, // 선택형 이벤트(고르기 전까지 저장)
+    eventHistory: rolled.id ? [rolled.id] : [], // 최근 이벤트(같은 게 반복되지 않게 가중치를 낮춘다)
+    harmonyStreak: 0, // 감독 불화 연속 횟수(2번이면 감독 사임)
+    harmonyShield: !!rolled.state?.harmonyShield, // 전술 분석관: 다음 불화 1회 면제
+    nextGrantBonus: 0, // 스폰서 장기 계약: 다음 시즌 지급액 가산 비율
+    pendingResignation: null, // 감독 자진 사임: 새 감독을 선임해야 한다
     chemistry,
     funds,
     eventMessage,
@@ -956,7 +977,8 @@ function grantSeasonFunds() {
   // 승격 못 하고 같은 리그에 눌러앉을수록(목표 미달 누적) 이사진이 지갑을
   // 닫는다. 승격하면 missedTargetCount가 0으로 리셋되니 이 페널티도 같이 풀린다.
   const stagnationPenalty = Math.max(0, 1 - currentState.missedTargetCount * STAGNATION_FUNDS_PENALTY_PER_MISS);
-  const grant = Math.round(promoted * stagnationPenalty);
+  const grant = Math.round(promoted * stagnationPenalty * (1 + (currentState.nextGrantBonus ?? 0)));
+  currentState.nextGrantBonus = 0;
   currentState.promotionFundsBonusPending = false;
   // 이월은 "구단 잔류 시"만, 그것도 작게. 남은 돈 중 상한을 넘는 몫은 구단이 운영 명분으로 회수한다.
   // 구단을 옮기면 남은 돈은 따라오지 않는다.
@@ -978,6 +1000,7 @@ function applySeasonEvent(phase) {
     {
       squad: currentState.squad, funds: currentState.funds, chemistry: currentState.chemistry,
       baseFunds: seasonBaseGrant(), crisisImmune: currentState.manager.trait === 'crisisManager',
+      manager: currentState.manager, recent: currentState.eventHistory ?? [],
     },
     phase,
     Math.random,
@@ -988,6 +1011,26 @@ function applySeasonEvent(phase) {
   currentState.chemistry = r.chemistry;
   currentState.eventMessage = r.message;
   currentState.eventTone = r.tone;
+  currentState.eventChoice = r.choice;
+  Object.assign(currentState, r.state);
+  if (r.id) currentState.eventHistory = [...(currentState.eventHistory ?? []), r.id].slice(-4);
+}
+
+// 선택형 이벤트: 선택지 계산에 쓰는 현재 상태
+const eventCtx = () => ({
+  squad: currentState.squad, funds: currentState.funds, chemistry: currentState.chemistry,
+  baseFunds: seasonBaseGrant(), manager: currentState.manager,
+});
+function resolveEventChoice(optionIndex) {
+  const r = resolveChoice(currentState.eventChoice, optionIndex, eventCtx());
+  currentState.squad = r.squad;
+  currentState.funds = r.funds;
+  currentState.chemistry = r.chemistry;
+  Object.assign(currentState, r.state);
+  if (r.leaving) returnGodToPool(r.leaving);
+  currentState.eventChoice = null;
+  currentState.eventTone = null;
+  renderMarket(r.message);
 }
 
 // 승격/잔류 후 같은 구단으로 새 시즌 시작 — 스펙 4절: 선수단 유지, 시장 상태만 초기화
@@ -1051,12 +1094,9 @@ function startNewSeason() {
 function cardPrice(card) {
   const modifiers = [];
   if (currentState.phase === 'winter') modifiers.push(WINTER_TAX_RATIO);
-  // 화술의 달인: 감독과 같은 대륙/전술 태그의 카드는 영입비 -30%
+  // 화술의 달인: 감독 선호 전술 태그 카드는 영입비 -30%
   const { manager } = currentState;
-  if (
-    manager.trait === 'silverTongue' &&
-    (card.continentTag === manager.continentTag || card.playstyleTags.includes(manager.tacticalTag))
-  ) {
+  if (manager.trait === 'silverTongue' && card.playstyleTags.includes(manager.tacticalTag)) {
     modifiers.push(-0.3);
   }
   return applyCostModifiers(card.price, modifiers);
@@ -1116,6 +1156,7 @@ function buyCard(card, rowEl = null) {
 // 감독 교체: 선수 영입과 동일하게 아무 때나, 영입가 그대로(위약금 없음).
 // 새 감독 영입가 + 지금 감독 위약금(현 감독 영입가의 50%, 계약 해지금).
 function managerHireCost(candidate) {
+  if (candidate.temp) return { price: 0, severance: 0, total: 0 };
   const severance = Math.round((currentState.manager?.price ?? 0) * 0.5);
   return { price: candidate.price, severance, total: candidate.price + severance };
 }
@@ -1135,6 +1176,18 @@ function hireManager(candidate, rowEl = null) {
   // 선수 카드처럼 - 데려온 후보는 그 자리에 다시 안 뜬다.
   currentState.managerOffer = currentState.managerOffer.filter((m) => m.id !== candidate.id);
   renderMarket(`${candidate.name} 감독 영입 완료(${candidate.price}G + 위약금 ${severance}G)`);
+}
+
+// 감독 자진 사임 후 새 감독 선임: 영입비 + 위약금(현 감독 영입가의 50%)을 낸다. 임시 감독만 무료.
+function hireReplacement(candidate) {
+  const { total, severance } = managerHireCost(candidate);
+  if (currentState.funds < total) return;
+  currentState.funds -= total;
+  currentState.manager = candidate;
+  currentState.managerOffer = currentState.managerOffer.filter((m) => m.id !== candidate.id);
+  currentState.pendingResignation = null;
+  currentState.harmonyStreak = 0;
+  renderMarket(`${candidate.name} 감독 선임 완료(영입비 ${candidate.price}G${severance ? ` + 위약금 ${severance}G` : ''})`);
 }
 
 // 스태프 교체: 위약금 없이 즉시, 다만 이번 주는 효과 미발동(hiredWeek로 표시).
@@ -2785,7 +2838,7 @@ function renderMarket(banner = '') {
             <div class="player__name">${esc(manager.name)}</div>
             ${managerChipsHtml(manager)}
             ${managerTraitHtml(manager)}
-            <p class="traitline traitline--none">전술 태그: 여름·겨울 시장이 끝날 때마다 라인업에서 발동하면 적응도 +${MANAGER_HARMONY_BONUS}, 못 켜면 −${MANAGER_HARMONY_PENALTY}</p>
+            <p class="traitline traitline--none">전술 태그: 여름·겨울 시장이 끝날 때마다 라인업에서 발동하면 적응도 +${MANAGER_HARMONY_BONUS}, 못 켜면 −${MANAGER_HARMONY_PENALTY}, 2번 연속 못 켜면 감독이 사임합니다</p>
           </div>
         </div>
       </section>
@@ -3214,6 +3267,47 @@ function renderMarket(banner = '') {
       currentState.seasonBriefing = null;
       renderMarket(banner); // 이벤트가 있으면 이어서 이벤트 팝업이 뜬다
     };
+  } else if (currentState.pendingResignation) {
+    const { temp } = currentState.pendingResignation;
+    const list = [...currentState.managerOffer, temp];
+    eventRoot.innerHTML = `
+      <div class="eventmodal-backdrop">
+        <div class="eventmodal eventmodal--bad">
+          <div class="eventmodal__kicker">감독 자진 사임</div>
+          <div class="eventmodal__title">${esc(manager.name)} 감독이 떠납니다</div>
+          <p class="eventmodal__detail">선호 전술(${esc(TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag)})에 맞는 선수단을 두 번 연속 못 꾸려 감독이 팀을 떠납니다. 새 감독을 선임해야 하고, 위약금이 영입비에 더해집니다.</p>
+          <div class="eventpane">${list.map((m) => {
+            const { total, severance } = managerHireCost(m);
+            return `<button class="resignpick" data-resign-hire="${m.id}" ${funds >= total ? '' : 'disabled'}>
+              <span class="resignpick__name">${esc(m.name)}</span>
+              <span class="resignpick__meta">${MANAGER_TIER_LABELS[m.tier] ?? m.tier} · ${esc(TAG_LABELS[m.tacticalTag] ?? m.tacticalTag)}${m.trait ? ` · ${esc(MANAGER_TRAIT_LABELS[m.trait] ?? '')}` : ''}</span>
+              <b class="resignpick__cost n">${m.temp ? '무료(임시)' : `${total}G`}</b>
+            </button>`;
+          }).join('')}</div>
+        </div>
+      </div>`;
+    eventRoot.querySelectorAll('[data-resign-hire]').forEach((btn) => {
+      btn.onclick = () => {
+        const candidate = list.find((m) => m.id === btn.dataset.resignHire);
+        if (candidate) hireReplacement(candidate);
+      };
+    });
+  } else if (showEvent && currentState.eventChoice) {
+    const d = describeChoice(currentState.eventChoice, eventCtx());
+    eventRoot.innerHTML = `
+      <div class="eventmodal-backdrop">
+        <div class="eventmodal eventmodal--goal">
+          <div class="eventmodal__kicker">선택 이벤트</div>
+          <div class="eventmodal__title">${esc(d?.name ?? '')}</div>
+          <div class="eventpane">
+            <p class="eventmodal__detail">${esc(d?.detail ?? '')}</p>
+            ${(d?.options ?? []).map((o, i) => `<button class="resignpick" data-event-opt="${i}"><span class="resignpick__name">${esc(o.label)}</span><span class="resignpick__meta">${esc(o.hint)}</span></button>`).join('')}
+          </div>
+        </div>
+      </div>`;
+    eventRoot.querySelectorAll('[data-event-opt]').forEach((btn) => {
+      btn.onclick = () => resolveEventChoice(Number(btn.dataset.eventOpt));
+    });
   } else if (showEvent) {
     const [title, ...rest] = eventMessage.split(': ');
     const detail = rest.join(': ');

@@ -13,8 +13,8 @@ test('FFP 긴급 감사 비용은 탑클래스 중간 OVR 가격이다', () => {
 });
 
 test('승격 전용 재계약 인상은 기본 재계약비의 130%다', () => {
-  // 1000원 카드, 1년 연장(30%) → 300, 여기에 +30% → 390
-  assert.equal(resolvePromotionRenewalHike(1000, 1), 390);
+  // 1000원 카드, 1년 연장(24%) → 240, 여기에 +30% → 312
+  assert.equal(resolvePromotionRenewalHike(1000, 1), 312);
 });
 
 test('승격 전용 이적 요구: 수락 시 40% 회수, 거부 시 OVR 페널티', () => {

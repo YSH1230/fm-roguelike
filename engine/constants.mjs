@@ -156,7 +156,7 @@ export const WINTER_TAX_RATIO = 0.2; // 겨울 시장 영입비 +20%
 export const WINTER_FUNDS_RATIO = 0.3; // 겨울 시장 진입 시 그 리그 시즌 지급액의 30%를 추가 지급
 
 // 재계약 연장 연수 → 원가 비율. 2년은 1년 2번(60%)보다 싸게 - 오래 묶이는 리스크(하락/노쇠)를 보상한다.
-export const CONTRACT_RENEWAL_RATIO = { 1: 0.3, 2: 0.5 };
+export const CONTRACT_RENEWAL_RATIO = { 1: 0.24, 2: 0.4 }; // 갱신비가 지급액의 약 45%를 먹어서 20% 낮췄다(이전 0.3 / 0.5)
 
 // 방출 회수율: 즉시 0%, 이적명단(여름/겨울 범위), Week12 데드라인 40%
 export const RELEASE_RECOVERY_IMMEDIATE = 0;
