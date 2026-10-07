@@ -45,7 +45,7 @@ import {
 } from '../engine/constants.mjs';
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
-import { simulateLeagueTable, rankingAt, finalLeagueRank, MATCHES_PER_HALF } from '../engine/half-results.mjs';
+import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
 import { ageSquad } from '../engine/aging.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait } from './portrait.mjs';
@@ -365,12 +365,14 @@ function applyManagerTacticalHarmony(lineup) {
   return `전술 완성: ${manager.name} 감독이 선호하는 전술(${tagLabel})이 라인업에서 발동했습니다. 적응도 +${bonus}`;
 }
 
-// 선수단/전술 탭에서 선수 태그(플레이스타일·대륙)를 한눈에 보여준다.
+// 선수단/전술 탭에서 선수 태그를 전부(플레이스타일·대륙·특수 성향) 한눈에 보여준다.
 // 팀 케미 패널은 라인업 전체 집계라 개인이 무슨 태그인지는 안 보였다.
+// 플레이스타일은 등급(기본기/보통/어려움)을 색 농도로 구분한다. 어려울수록 진하다.
 function playerTagsHtml(p) {
   const chips = [
-    ...(p.playstyleTags ?? []).map((t) => `<span class="tag">${TAG_LABELS[t] ?? t}</span>`),
+    ...(p.playstyleTags ?? []).map((t) => `<span class="tag tag--${PLAYSTYLE_TAGS[t]?.grade ?? 'basic'}" title="${esc((PLAYSTYLE_TAGS[t]?.positions ?? []).join('·'))}">${TAG_LABELS[t] ?? t}</span>`),
     p.continentTag ? `<span class="tag tag--continent">${CONTINENT_LABELS[p.continentTag] ?? p.continentTag}</span>` : '',
+    p.specialTrait ? `<span class="tag tag--trait" title="${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}">${ROLE_LABELS[TRAIT_ROLE[p.specialTrait]] ?? ''} · ${TRAIT_LABELS[p.specialTrait] ?? p.specialTrait}</span>` : '',
   ].join('');
   return chips ? `<div class="tags">${chips}</div>` : '';
 }
@@ -400,13 +402,17 @@ function setScreen(html, dock = '') {
 // 실제 승점 기반이다. 내 승점은 이미 계산된 시즌 결과이고, 다른 19팀은 리그 기준선에 맞춰
 // 깔린 승점(engine/half-results.mjs)이라 라운드마다 순위가 진짜로 바뀐다.
 // 화면을 누르면 빨리 감기.
-function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints, onDone) {
+// ctx.table/rivals: 미리 만든 순위표와 상대 구단(후반기는 전반기 것을 이어받아 시즌 누적으로 보여 준다).
+// ctx.second: 후반기 여부(라벨만 바뀐다 - 승점은 이미 전반기 누적이 반영돼 있다).
+function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints, onDone, ctx = {}) {
   const N = MATCHES_PER_HALF;
   const tier = effectiveTier(currentState.leagueTierId);
-  const table = simulateLeagueTable(finalPoints, tier);
-  const rivals = buildLeagueRivals(currentState.leagueTierId, N).map((c) => ({ name: c.name, kit: c.kit }));
+  const second = !!ctx.second;
+  const table = ctx.table ?? simulateLeagueTable(finalPoints, tier);
+  const rivals = ctx.rivals ?? buildLeagueRivals(currentState.leagueTierId, N).map((c) => ({ name: c.name, kit: c.kit }));
   const info = new Map(table.map((t, i) => [t.id, t.id === 'me' ? { name: clubName, kit: kitColor } : rivals[i - 1] ?? { name: `상대 ${i}`, kit: '#4a5a52' }]));
   const pointsOf = new Map(table.map((t) => [t.id, t.cumulative]));
+  const baseOf = new Map(table.map((t) => [t.id, t.base ?? 0]));
   const SHOWN = 6; // 상위 6팀 + 내가 그 밖이면 내 순위 한 줄
 
   // 순위가 바뀌는 게 실제로 눈에 보이게: 이전 라운드 대비 오른 승점은 잠깐 초록으로
@@ -418,8 +424,8 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     let ids = order.slice(0, SHOWN);
     if (!ids.includes('me')) ids = [...ids.slice(0, SHOWN - 1), 'me'];
     return ids.map((id) => {
-      const pts = round ? pointsOf.get(id)[round - 1] : 0;
-      const isUp = pts > (prevPoints.get(id) ?? 0);
+      const pts = round ? pointsOf.get(id)[round - 1] : baseOf.get(id);
+      const isUp = pts > (prevPoints.get(id) ?? baseOf.get(id));
       prevPoints.set(id, pts);
       const { name, kit } = info.get(id);
       return `<li class="${id === 'me' ? 'is-mine' : ''}" data-key="${id}">
@@ -468,7 +474,7 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
         <span id="sim-phrase">킥오프</span>
       </div>
       <div class="panel">
-        <div class="panel__head"><h2>실시간 순위</h2><span class="panel__count">승점</span></div>
+        <div class="panel__head"><h2>${second ? '시즌 누적 순위' : '실시간 순위'}</h2><span class="panel__count">${second ? '전반기 승점 포함' : '승점'}</span></div>
         <ul class="standings" id="sim-standings">${buildStandingsHtml(0)}</ul>
       </div>
       <p class="note" style="text-align:center">화면을 누르면 빨리 감기</p>
@@ -477,7 +483,7 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
 
   let round = 0;
   let delay = 430;
-  let prevRank = table.length;
+  let prevRank = rankingAt(table, 0).indexOf('me') + 1;
   document.querySelector('.matchsim').onclick = () => { delay = 40; };
 
   const step = () => {
@@ -489,7 +495,8 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     const clock = document.getElementById('sim-clock');
     if (clock) clock.textContent = `${round}/${N}`;
     const phrase = document.getElementById('sim-phrase');
-    if (phrase) phrase.textContent = `${round}라운드 · ${rank}위${round > 1 && move ? (move > 0 ? ` ▲${move}` : ` ▼${-move}`) : ''}`;
+    const myPts = pointsOf.get('me')[round - 1];
+    if (phrase) phrase.textContent = `${second ? '후반 ' : ''}${round}라운드 · ${second ? '시즌 ' : ''}${rank}위 · 승점 ${myPts}${round > 1 && move ? (move > 0 ? ` ▲${move}` : ` ▼${-move}`) : ''}`;
     updateStandings(round);
     setTimeout(step, delay);
   };
@@ -1260,6 +1267,9 @@ function playstyleTagProgress(tagId, lineup, boostedTagId) {
 // "3명 +6 · 5명 +10 · ..." 형태의 단계표 문구
 const tagLadderText = (req, values) => req.map((n, i) => `${n}명 +${values[i]}`).join(' · ');
 
+// 19경기로 만들 수 없는 56점과 57점 이상은 55점으로 맞춘다(승 18·무 1이 최대).
+const roundHalfPoints = (p) => Math.min(55, Math.round(p));
+
 function runFirstHalf(saleMessage = '') {
   const { manager } = currentState;
 
@@ -1288,7 +1298,8 @@ function runFirstHalf(saleMessage = '') {
   const harmonyMsg = applyManagerTacticalHarmony(lineup);
   saleMessage = saleMessage ? `${saleMessage} / ${harmonyMsg}` : harmonyMsg;
 
-  currentState.firstHalfPoints = runHalfSeason(
+  // 승점은 정수로 쓴다: 화면에 보이는 승점과 승/강등 판정에 쓰는 승점이 같아야 한다.
+  currentState.firstHalfPoints = roundHalfPoints(runHalfSeason(
     lineup,
     bench,
     manager.tier,
@@ -1298,12 +1309,18 @@ function runFirstHalf(saleMessage = '') {
     boostedTagIdFor(manager),
     currentState.staff.headCoach.level,
     currentRoles(lineup, bench)
-  );
+  ));
+
+  // 이 시즌의 순위표를 전반기에 만들어 두고, 후반기는 그 위에 이어서 쌓는다(상대 구단도 그대로).
+  const table = simulateLeagueTable(currentState.firstHalfPoints, effectiveTier(currentState.leagueTierId));
+  const rivals = buildLeagueRivals(currentState.leagueTierId, MATCHES_PER_HALF).map((c) => ({ name: c.name, kit: c.kit }));
+  currentState.seasonRivals = rivals;
+  currentState.firstHalfBase = Object.fromEntries(table.map((t) => [t.id, t.cumulative.at(-1)]));
 
   const tierLabel = getLeagueTier(currentState.leagueTierId).label;
   renderSimulating(currentState.club.name, tierLabel, '전반기', currentState.club.kit, currentState.firstHalfPoints, () => {
     renderHalfTimeVerdict(saleMessage, lineup, slotted, bench);
-  });
+  }, { table, rivals });
 }
 
 // 여름시장 다음에 바로 겨울시장 화면이 뜨면 시즌을 건너뛴 것처럼 보인다.
@@ -1775,7 +1792,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   // 겨울 마감 시점에도 여름과 똑같이 한 번 체크(겨울에 선수단을 갈아엎은 걸 반영)
   const harmonyMsg = applyManagerTacticalHarmony(lineup);
   saleMessage = saleMessage ? `${saleMessage} / ${harmonyMsg}` : harmonyMsg;
-  const secondHalf = runHalfSeason(
+  const secondHalf = roundHalfPoints(runHalfSeason(
     lineup,
     bench,
     manager.tier,
@@ -1785,8 +1802,9 @@ function runSecondHalfAndFinish(saleMessage = '') {
     boostedTagIdFor(manager),
     currentState.staff.headCoach.level,
     currentRoles(lineup, bench)
-  );
-  const totalPoints = currentState.firstHalfPoints + secondHalf;
+  ));
+  const firstHalf = roundHalfPoints(currentState.firstHalfPoints ?? 0); // 옛 저장(소수점)도 같은 규칙으로
+  const totalPoints = firstHalf + secondHalf;
   let result = judgeSeasonResult(totalPoints, currentState.leagueTierId, currentState.expectationModifier ?? 0);
   const tier = effectiveTier(currentState.leagueTierId);
 
@@ -1804,7 +1822,10 @@ function runSecondHalfAndFinish(saleMessage = '') {
 
   // 최종 순위(1~20). 1부는 4위 이내면 챔피언스리그에 나간다(리그가 끝난 뒤 별도 진행).
   const isTop = currentState.leagueTierId === 'tier1';
-  const finalRank = finalLeagueRank(totalPoints, tier, result, Math.random, isTop ? 4 : 3);
+  // 후반기 순위표는 전반기 승점 위에 쌓은 시즌 누적표 - 화면 마지막 라운드의 내 순위가 곧 최종 순위다.
+  const rivals = currentState.seasonRivals ?? buildLeagueRivals(currentState.leagueTierId, MATCHES_PER_HALF).map((c) => ({ name: c.name, kit: c.kit }));
+  const seasonTable = simulateLeagueTable(secondHalf, tier, Math.random, 19, { ...(currentState.firstHalfBase ?? {}), me: firstHalf });
+  const finalRank = finalRankFromTable(seasonTable, result, isTop ? 4 : 3);
   const uclQualified = isTop && finalRank <= 4;
   const uclPowerAway = uclQualified
     ? computeTeamPower(lineup, bench, manager.tier, currentState.chemistry / 2, boostedTagIdFor(manager), powerExtras(currentRoles(lineup, bench)))
@@ -1823,7 +1844,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
 
   renderSimulating(currentState.club.name, tier.label, '후반기', currentState.club.kit, secondHalf, () => {
     finishSeasonRender();
-  });
+  }, { table: seasonTable, rivals, second: true });
 
   function finishSeasonRender() {
   if (outcome.ended) {
@@ -1895,8 +1916,8 @@ function runSecondHalfAndFinish(saleMessage = '') {
       <div class="scoreline"><b>${totalPoints.toFixed(0)}</b><span>승점</span></div>
       <div class="finalrank">최종 순위 <b>${finalRank}위</b> / 20팀</div>
       <div class="halves">
-        <span>전반기 <b>${currentState.firstHalfPoints.toFixed(1)}</b></span>
-        <span>후반기 <b>${secondHalf.toFixed(1)}</b></span>
+        <span>전반기 <b>${firstHalf}</b></span>
+        <span>후반기 <b>${secondHalf}</b></span>
       </div>
       <div class="pointbar">
         <div class="pointbar__fill" style="width:${at(totalPoints)}"></div>
@@ -3141,22 +3162,35 @@ function renderMarket(banner = '') {
     const reviewHtml = !review ? '' : review.surplus > 0
       ? `<p class="eventmodal__detail"><b>지난 시즌 목표 ${review.goal}점 → ${review.points}점, ${review.surplus}점 초과 달성!</b><br>보상: 자금 +${review.funds.toLocaleString('ko-KR')}G, 적응도 +${review.chemistry}</p>`
       : `<p class="eventmodal__detail">지난 시즌 목표 ${review.goal}점 → ${review.points}점 (${review.surplus === 0 ? '초과 달성은 못 했습니다' : `${-review.surplus}점 부족`}). 보상 없음.</p>`;
+    // 한 화면에 다 넣으면 길어서 잘렸다 - 브리핑(목표·요구)과 결산(자금·선수단 변화)을 탭으로 나눈다.
+    const hasSettle = !!(fundsHtml || agingHtml);
     eventRoot.innerHTML = `
       <div class="eventmodal-backdrop">
         <div class="eventmodal eventmodal--${review && review.surplus > 0 ? 'good' : 'goal'}">
           <div class="eventmodal__kicker">시즌 ${seasonNumber} · 이사진 브리핑</div>
           <div class="eventmodal__title">${tierLabel} 목표 승점 ${goal}점</div>
-          ${reviewHtml}
-          ${demandReviewHtml}
-          ${transferHtml}
-          ${fundsHtml}
-          ${agingHtml}
-          <p class="eventmodal__detail">안전선 ${tier.safePoints}점 · 승격선 ${tier.targetPoints}점. ${BOARD_RULE_TEXT}</p>
-          <div class="demandcards demandcards--modal">${(demandOffer ?? []).map((id) => demandCardHtml(getDemand(id), 'data-pick-demand')).join('')}</div>
-          <p class="eventmodal__detail">위 카드에서 이번 시즌 이사진 요구를 고르면 달성 시 보너스가 붙습니다(안 골라도 됩니다).</p>
+          ${hasSettle ? `<div class="eventtabs" role="tablist">
+            <button type="button" role="tab" data-etab="brief" aria-selected="true">브리핑</button>
+            <button type="button" role="tab" data-etab="settle" aria-selected="false">자금 결산</button>
+          </div>` : ''}
+          <div class="eventpane" data-epane="brief">
+            ${reviewHtml}
+            ${demandReviewHtml}
+            ${transferHtml}
+            <p class="eventmodal__detail">안전선 ${tier.safePoints}점 · 승격선 ${tier.targetPoints}점. ${BOARD_RULE_TEXT}</p>
+            <div class="demandcards demandcards--modal">${(demandOffer ?? []).map((id) => demandCardHtml(getDemand(id), 'data-pick-demand')).join('')}</div>
+            <p class="eventmodal__detail">위 카드에서 이번 시즌 이사진 요구를 고르면 달성 시 보너스가 붙습니다(안 골라도 됩니다).</p>
+          </div>
+          ${hasSettle ? `<div class="eventpane" data-epane="settle" hidden>${fundsHtml}${agingHtml}</div>` : ''}
           <button class="cta" id="eventmodal-dismiss">목표 확인</button>
         </div>
       </div>`;
+    eventRoot.querySelectorAll('[data-etab]').forEach((tabBtn) => {
+      tabBtn.onclick = () => {
+        eventRoot.querySelectorAll('[data-etab]').forEach((b) => b.setAttribute('aria-selected', String(b === tabBtn)));
+        eventRoot.querySelectorAll('[data-epane]').forEach((p) => { p.hidden = p.dataset.epane !== tabBtn.dataset.etab; });
+      };
+    });
     eventRoot.querySelectorAll('[data-pick-demand]').forEach((el) => {
       el.onclick = () => {
         const card = getDemand(el.dataset.pickDemand);

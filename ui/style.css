@@ -318,7 +318,20 @@ button:not(:disabled):active { transform: scale(0.98); }
   text-align: center;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   animation: eventPop 260ms var(--ease) both;
+  /* 내용이 길어도 화면 밖으로 안 잘리게: 제목·탭·버튼은 고정, 본문(.eventpane)만 스크롤 */
+  max-height: calc(100dvh - 2 * var(--s4));
+  display: flex;
+  flex-direction: column;
 }
+.eventpane { overflow-y: auto; min-height: 0; flex: 1 1 auto; -webkit-overflow-scrolling: touch; }
+.eventpane[hidden] { display: none; }
+.eventtabs { display: flex; gap: var(--s1); margin: var(--s3) 0; }
+.eventtabs button {
+  flex: 1; padding: 7px var(--s2); border-radius: 999px; font-weight: 700; font-size: var(--fs-label);
+  background: var(--surface); border: 1px solid var(--line); color: var(--muted);
+}
+.eventtabs button[aria-selected='true'] { background: var(--turf); border-color: var(--turf); color: var(--night); }
+.eventmodal .cta { flex: none; margin-top: var(--s3); }
 @keyframes eventPop { from { opacity: 0; transform: translateY(8px) scale(0.97); } }
 .eventmodal--bad { border-top-color: var(--debit); }
 .eventmodal__kicker {
@@ -532,6 +545,9 @@ button:not(:disabled):active { transform: scale(0.98); }
   color: var(--muted);
 }
 .tag--trait { color: var(--gold); background: #dda63a1a; }
+/* 플레이스타일 등급: 기본기는 은은하게, 보통은 연한 초록, 어려움은 진한 초록 */
+.tag--mid { color: var(--turf); background: #4aa36a1f; }
+.tag--hard { color: var(--night); background: var(--turf); font-weight: 700; }
 .tag__progress { font-style: normal; margin-left: 3px; opacity: 0.75; }
 .tag--new {
   display: inline-block;

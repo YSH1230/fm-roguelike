@@ -63,3 +63,28 @@ test('최종 순위: 판정 구간(우승=1, 승격=2~3, 강등=18~20)을 벗어
   const cl = finalLeagueRank(76, tier, 'promotion', Math.random, 4);
   assert.ok(cl >= 2 && cl <= 4);
 });
+
+test('후반기 순위표는 전반기 승점 위에 쌓인다(시즌 누적)', async () => {
+  const { simulateLeagueTable, rankingAt, finalRankFromTable } = await import('../engine/half-results.mjs');
+  const tier = { championPoints: 80, targetPoints: 68, safePoints: 38 };
+  const first = simulateLeagueTable(36, tier);
+  const base = Object.fromEntries(first.map((t) => [t.id, t.cumulative.at(-1)]));
+  assert.equal(base.me, 36);
+  const season = simulateLeagueTable(30, tier, Math.random, 19, base);
+  const me = season.find((t) => t.id === 'me');
+  assert.equal(me.base, 36);
+  assert.equal(me.cumulative.at(-1), 66); // 36 + 30, 화면 승점 = 판정 승점
+  for (const t of season) assert.equal(t.cumulative.at(-1) - t.base, t.cumulative.at(-1) - base[t.id]);
+  // 0라운드 순위는 전반기 누적 순서다
+  const order0 = rankingAt(season, 0);
+  assert.equal(order0.length, 20);
+  for (let i = 1; i < order0.length; i++) {
+    const a = season.find((t) => t.id === order0[i - 1]).base;
+    const b = season.find((t) => t.id === order0[i]).base;
+    assert.ok(a >= b);
+  }
+  // 최종 순위는 화면 마지막 라운드 순위를 판정 구간으로 맞춘 값이다
+  assert.equal(finalRankFromTable(season, 'champion', 3), 1);
+  const rank = finalRankFromTable(season, 'safe', 3);
+  assert.ok(rank >= 4 && rank <= 17);
+});

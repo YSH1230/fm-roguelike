@@ -47,7 +47,8 @@ export function generateHalfResults(points, rng = Math.random) {
 // 나머지 19팀 승점은 리그 기준선(우승/승격/잔류선의 반)에 맞춰 순위별로 깔아서
 // 내 승점이 "우승 페이스면 1~2위, 승격 페이스면 3위 근처, 잔류선이면 16위 근처"로
 // 자연스럽게 자리 잡게 한다. 팀마다 라운드별 누적 승점 배열을 만들어 매 라운드 순위가 바뀐다.
-export function simulateLeagueTable(myPoints, tier, rng = Math.random, rivalCount = 19) {
+// base: { id: 이전까지의 승점 } - 후반기는 전반기 승점 위에 쌓아서 "시즌 누적" 순위표가 되게 한다.
+export function simulateLeagueTable(myPoints, tier, rng = Math.random, rivalCount = 19, base = null) {
   const champ = tier.championPoints / 2;
   const target = tier.targetPoints / 2;
   const safe = tier.safePoints / 2;
@@ -64,18 +65,31 @@ export function simulateLeagueTable(myPoints, tier, rng = Math.random, rivalCoun
   for (let i = 1; i <= rivalCount; i++) {
     teams.push({ id: `r${i}`, target: Math.max(0, Math.round(pointsAtRank(i) + (rng() - 0.5) * 3)) });
   }
-  return teams.map((t) => ({
-    ...t,
-    cumulative: generateHalfResults(t.target, rng).map((m) => m.points),
-    tie: rng(), // 승점이 같을 때 순서를 고정해서 순위가 깜빡이지 않게 한다
-  }));
+  return teams.map((t) => {
+    const start = base?.[t.id] ?? 0;
+    return {
+      ...t,
+      base: start,
+      cumulative: generateHalfResults(t.target, rng).map((m) => start + m.points),
+      tie: rng(), // 승점이 같을 때 순서를 고정해서 순위가 깜빡이지 않게 한다
+    };
+  });
 }
 
-// round(1~19) 시점의 순위(id 배열, 1위부터)
+// round(0~19) 시점의 순위(id 배열, 1위부터). 0라운드는 시작 승점(후반기면 전반기 누적)
+const pointsAt = (t, round) => (round ? t.cumulative[round - 1] : t.base);
 export function rankingAt(table, round) {
   return [...table]
-    .sort((a, b) => b.cumulative[round - 1] - a.cumulative[round - 1] || a.tie - b.tie)
+    .sort((a, b) => pointsAt(b, round) - pointsAt(a, round) || a.tie - b.tie)
     .map((t) => t.id);
+}
+
+// 화면에서 보여 준 마지막 라운드 순위표에서 내 최종 순위를 읽는다. 판정(우승/승격/잔류/강등)이 말하는
+// 구간으로 맞추는 건 finalLeagueRank와 같다 - 그래서 화면 순위 = 결산 순위, 승점 -> 판정 -> 순위가 어긋나지 않는다.
+export function finalRankFromTable(table, result, promoSpots = 3, round = MATCHES_PER_HALF) {
+  const rank = rankingAt(table, round).indexOf('me') + 1;
+  const range = { champion: [1, 1], promotion: [2, promoSpots], safe: [promoSpots + 1, 17], relegation: [18, 20] }[result] ?? [1, 20];
+  return Math.min(range[1], Math.max(range[0], rank));
 }
 
 // 시즌 최종 순위(1~20). 내 승점(전 시즌)과 리그 기준선으로 나머지 19팀 승점을 순위별로 깔아
