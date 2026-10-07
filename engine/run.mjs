@@ -1,5 +1,8 @@
 import { getLadderIndex, getNextTier } from './league.mjs';
-import { MISSED_TARGET_LIMIT, REPUTATION_PER_TIER, REPUTATION_PER_TITLE, REPUTATION_PER_UCL_TITLE } from './constants.mjs';
+import {
+  MISSED_TARGET_LIMIT, REPUTATION_PER_TIER, REPUTATION_PER_SEASON, REPUTATION_TITLE_BY_TIER,
+  REPUTATION_UCL_BY_RESULT, REPUTATION_DOUBLE,
+} from './constants.mjs';
 
 // 시즌 하나가 끝났을 때 런이 계속되는지 판정한다.
 // season.mjs와 가른 이유: 이 판정은 시즌 여러 개에 걸친 상태(누적 미달 횟수,
@@ -9,9 +12,7 @@ export function judgeRunOutcome({ seasonResult, leagueTierId, missedTargetCount 
     return { ended: true, reason: 'relegation', canPromote: false };
   }
   const atTop = getNextTier(leagueTierId) === null;
-  if (seasonResult === 'champion' && atTop) {
-    return { ended: true, reason: 'victory', canPromote: false };
-  }
+  // 1부 우승은 런을 끝내지 않는다 - 계속 도전하거나 플레이어가 직접 은퇴한다(ui renderRunEnd 'victory').
   if (missedTargetCount >= MISSED_TARGET_LIMIT) {
     return { ended: true, reason: 'missedTargets', canPromote: false };
   }
@@ -26,9 +27,20 @@ export function nextMissedTargetCount(seasonResult, current) {
   return current + 1;
 }
 
-// 스펙 10절. 도달 리그 단계는 사다리 인덱스+1로 센다(5부 도달 = 1단계).
-export function computeReputation({ highestTierId, titles, uclTitles = 0 }) {
-  return (getLadderIndex(highestTierId) + 1) * REPUTATION_PER_TIER
-    + titles * REPUTATION_PER_TITLE
-    + uclTitles * REPUTATION_PER_UCL_TITLE;
+// 명예 점수 내역. stats = { highestTierId, seasons, titlesByTier, streakPoints, uclResults, doubles }.
+// 도달 리그 단계는 사다리 인덱스+1로 센다(5부 도달 = 1단계).
+export function reputationBreakdown({ highestTierId, seasons = 0, titlesByTier = {}, streakPoints = 0, uclResults = {}, doubles = 0 }) {
+  const rows = [
+    { id: 'tier', label: '도달 리그', value: (getLadderIndex(highestTierId) + 1) * REPUTATION_PER_TIER },
+    { id: 'seasons', label: '버틴 시즌', value: seasons * REPUTATION_PER_SEASON },
+    { id: 'titles', label: '리그 우승', value: Object.entries(titlesByTier).reduce((sum, [tier, n]) => sum + n * (REPUTATION_TITLE_BY_TIER[tier] ?? 0), 0) },
+    { id: 'streak', label: '연속 우승 보너스', value: streakPoints },
+    { id: 'ucl', label: '챔피언스리그', value: Object.entries(uclResults).reduce((sum, [result, n]) => sum + n * (REPUTATION_UCL_BY_RESULT[result] ?? 0), 0) },
+    { id: 'double', label: '더블', value: doubles * REPUTATION_DOUBLE },
+  ];
+  return rows;
+}
+
+export function computeReputation(stats) {
+  return reputationBreakdown(stats).reduce((sum, row) => sum + row.value, 0);
 }

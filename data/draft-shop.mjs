@@ -24,9 +24,11 @@ export const SHOP_TIER_WEIGHTS_BY_TIER = {
   tier1: { local: 5, bigLeaguer: 10, topClass: 20, worldClass: 40, legendary: 25 },
 };
 
-function tierPool(tierId) {
+// boost: 스카우터가 톱클래스 이상 카드가 나올 가중치를 올리는 비율(0이면 리그 기본 분포).
+const TOP_TIERS = ['topClass', 'worldClass', 'legendary'];
+function tierPool(tierId, boost = 0) {
   const weights = SHOP_TIER_WEIGHTS_BY_TIER[tierId] ?? SHOP_TIER_WEIGHTS_BY_TIER.tier1;
-  return Object.entries(weights).flatMap(([tier, count]) => Array(count).fill(tier));
+  return Object.entries(weights).flatMap(([tier, count]) => Array(Math.round(count * 10 * (TOP_TIERS.includes(tier) ? 1 + boost : 1))).fill(tier));
 }
 
 // 상점형 드래프트: N장 전부 살 수 있다(자금이 제약). 스펙 7절.
@@ -47,13 +49,18 @@ function targetedCard(tag, tierId, rng) {
 }
 
 // targetTag/targetSlots: 스카우터가 매주 맨 앞 targetSlots장을 목표 태그 카드로 보장한다.
-export function generateShopOffer(size, availableGods = [], rng = Math.random, tierId = 'tier1', targetTag = null, targetSlots = 0) {
-  const pool = tierPool(tierId);
+// targetPosition: 태그 보장 카드 다음 한 장을 그 포지션 선수로 보장한다(베테랑 이상 스카우터).
+// qualityBoost: 스카우터가 올려 주는 상위 등급 확률.
+export function generateShopOffer(size, availableGods = [], rng = Math.random, tierId = 'tier1', targetTag = null, targetSlots = 0, targetPosition = null, qualityBoost = 0) {
+  const pool = tierPool(tierId, qualityBoost);
   // GOD 카드는 1부에서만 굴린다 - 예전엔 리그 무관 고정 확률이라 5부 상점에도
   // 똑같이 뜰 수 있었다(local 카드들 사이에 OVR 88+ 카드가 섞이는 위화감).
   const godEligible = tierId === 'tier1' && availableGods.length > 0;
   return Array.from({ length: size }, (_, i) => {
     if (targetTag && i < targetSlots && PLAYSTYLE_TAGS[targetTag]?.grade !== 'basic') return targetedCard(targetTag, tierId, rng);
+    if (targetPosition && i === (targetTag ? targetSlots : 0)) {
+      return generateProceduralPlayer(pool[Math.floor(rng() * pool.length)], rng, targetPosition);
+    }
     if (godEligible && rng() < GOD_PLAYER_SHOP_CHANCE) {
       return availableGods[Math.floor(rng() * availableGods.length)];
     }

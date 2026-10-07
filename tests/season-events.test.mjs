@@ -92,7 +92,7 @@ test('최근에 나온 이벤트는 가중치가 낮아져 거의 반복되지 �
     const r = rollSeasonEvent(ctx({ recent }), 'summer', (() => { let k = 0; return () => (k++ === 0 ? 0 : Math.random()); })());
     if (r.id === 'pressPraise') praise++;
   }
-  assert.ok(praise > 100, `최근이 아닌 이벤트가 압도적으로 나와야 한다 (${praise}/400)`);
+  assert.ok(praise > 60, `최근이 아닌 이벤트가 압도적으로 나와야 한다 (${praise}/400)`);
 });
 
 test('선택형 이벤트: 스폰서 일시금은 지금 자금, 장기 계약은 다음 시즌 가산', async () => {

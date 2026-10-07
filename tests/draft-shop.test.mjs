@@ -67,3 +67,23 @@ test('목표 태그가 기본기면 보장 없이 평소 매물이다', () => {
   const offer = generateShopOffer(3, [], Math.random, 'tier5', 'pass', 3);
   assert.equal(offer.length, 3);
 });
+
+test('스카우터 목표 포지션: 태그 보장 카드 다음 한 장이 그 포지션 선수다', () => {
+  for (let i = 0; i < 50; i++) {
+    const offer = generateShopOffer(4, [], Math.random, 'tier3', 'tikiTaka', 1, 'GK');
+    assert.ok(offer[0].playstyleTags.includes('tikiTaka'));
+    assert.equal(offer[1].position, 'GK');
+  }
+  // 태그 없이 포지션만: 첫 장이 그 포지션
+  assert.equal(generateShopOffer(3, [], Math.random, 'tier4', null, 0, 'ST')[0].position, 'ST');
+});
+
+test('스카우터 상위 등급 확률: 값이 클수록 톱클래스 이상 카드가 더 자주 나온다', () => {
+  const topShare = (boost) => {
+    let top = 0; let n = 0;
+    for (let i = 0; i < 4000; i++) for (const c of generateShopOffer(3, [], Math.random, 'tier4', null, 0, null, boost)) { n++; if (c.baseOVR >= 73) top++; }
+    return top / n;
+  };
+  const base = topShare(0);
+  assert.ok(topShare(0.9) > base * 1.4, '마스터 스카우터는 상위 카드가 눈에 띄게 많아야 한다');
+});

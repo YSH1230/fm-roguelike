@@ -211,10 +211,19 @@ export const MANAGER_OFFER_WEIGHTS_BY_TIER = {
 // 리그가 "이 정도 감독은 있어야 한다"고 기대하는 감독 배율. 감독 배율을 이 값으로
 // 나눈 값이 실제로 곱해진다 - 상위 리그에서 루키 감독을 유지하면 그만큼 손해.
 export const LEAGUE_EXPECTED_MANAGER = { tier5: 1.0, tier4: 1.0, tier3: 1.03, tier2: 1.06, tier1: 1.1 };
-export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 4, veteran: 4, master: 5 };
-export const SCOUT_MASTER_REROLL_DISCOUNT = 0.5;
-// 스카우터가 매주 "목표 태그" 카드를 보장해 주는 장수(보통·어려움 태그만 지정 가능). academy는 지정 불가.
-export const SCOUT_TARGET_SLOTS_BY_LEVEL = { academy: 0, proLicense: 1, veteran: 2, master: 2 };
+// 스카우터 능력 4가지: 매물 장수 / 상위 등급 카드 확률 / 다시 뽑기 할인 / 목표 지정(매주 보장 카드).
+export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 4, veteran: 4, master: 4 };
+// 톱클래스 이상 카드가 나올 가중치 배율 증가분(리그에 없는 등급은 그대로 0).
+export const SCOUT_QUALITY_BOOST_BY_LEVEL = { academy: 0, proLicense: 0.25, veteran: 0.5, master: 0.9 };
+export const SCOUT_REROLL_DISCOUNT_BY_LEVEL = { academy: 0, proLicense: 0.2, veteran: 0.35, master: 0.5 };
+// 목표 지정: tag = 목표 태그 카드(보통·어려움 태그) 1장, position = 목표 포지션 선수 1장을 매주 보장한다.
+// exclusive면 둘 중 하나만 고른다(베테랑), 아니면 동시에 설정한다(마스터).
+export const SCOUT_TARGETS_BY_LEVEL = {
+  academy: { tag: false, position: false, exclusive: false },
+  proLicense: { tag: true, position: false, exclusive: false },
+  veteran: { tag: true, position: true, exclusive: true },
+  master: { tag: true, position: true, exclusive: false },
+};
 
 // GOD 카드(선수)가 상점에 뜰 확률 — 전 세계 2명뿐이라 극희귀. 1부 상점에서만
 // 굴린다(data/draft-shop.mjs) - 하부리그에 최상위 카드가 섞이면 위화감이 크다.
@@ -247,10 +256,14 @@ export const MISSED_TARGET_LIMIT = 3;
 // 같이 풀린다). MISSED_TARGET_LIMIT(3) 전까지만 쌓이므로 최대 -30%.
 export const STAGNATION_FUNDS_PENALTY_PER_MISS = 0.15;
 
-// 스펙 10절 명성 점수 계산안. 도달 리그 단계 x 10 + 우승 횟수 x 50.
-export const REPUTATION_PER_TIER = 10;
-export const REPUTATION_PER_TITLE = 50;
-export const REPUTATION_PER_UCL_TITLE = 80; // 대륙 대회 우승은 리그 우승보다 희소해서 더 쳐준다
+// 명예 점수(명성): 한 런에서 쌓은 업적의 합. 도달 리그, 버틴 시즌, 리그별 우승(위로 갈수록 크게),
+// 연속 우승 보너스, 챔피언스리그 성적(결과별), 더블.
+export const REPUTATION_PER_TIER = 10; // 도달한 리그 단계마다
+export const REPUTATION_PER_SEASON = 3; // 버틴 시즌마다
+export const REPUTATION_TITLE_BY_TIER = { tier5: 20, tier4: 30, tier3: 40, tier2: 50, tier1: 70 };
+export const REPUTATION_STREAK_BONUS = 25; // 2연속 우승부터 그 우승마다 추가
+export const REPUTATION_UCL_BY_RESULT = { league: 15, playoff: 20, r16: 30, qf: 45, sf: 65, final: 95, champion: 170 };
+export const REPUTATION_DOUBLE = 100; // 같은 시즌 1부 우승 + 챔피언스리그 우승
 
 // 이사진 시즌 목표(승점) - 안전선과 승격선 사이 어디쯤에 둘지(0=안전선, 1=승격선).
 // 초과 달성한 승점 1점당 다음 시즌 지급액의 1.5%(상한 30%)를 보너스로 주고,

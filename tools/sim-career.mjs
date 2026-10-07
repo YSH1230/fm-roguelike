@@ -25,7 +25,7 @@ import { createUcl, advanceUcl, UCL_REWARDS_FUNDS } from '../engine/champions-le
 import {
   CHEMISTRY_START, CHEMISTRY_DECAY_PER_TRANSACTION, WINTER_TAX_RATIO, SHOP_OFFER_SIZE,
   PROMOTION_STAY_FUNDS_RATIO, SAME_LEAGUE_FUNDS_RATIO, STAGNATION_FUNDS_PENALTY_PER_MISS, PLAYSTYLE_TAGS, ADVANCED_TAGS,
-  SCOUT_TARGET_SLOTS_BY_LEVEL, COACH_UNITS,
+  COACH_UNITS,
 } from '../engine/constants.mjs';
 
 const argv = process.argv.slice(2);
@@ -162,7 +162,7 @@ function playCareer() {
       for (let w = 0; w < (phase === 'summer' ? 8 : 4); w++) {
         if (SMART) {
           // 살 수 있는 매물을 태그 반영 이득이 큰 순서로, 사고 나면 다시 평가한다.
-          let pool = generateShopOffer(SHOP_OFFER_SIZE, [], Math.random, tierId, targetTag, SCOUT_TARGET_SLOTS_BY_LEVEL[BOT_SCOUT])
+          let pool = generateShopOffer(SHOP_OFFER_SIZE, [], Math.random, tierId, targetTag, 1)
             .map((card) => ({ card, price: applyCostModifiers(card.price, phase === 'winter' ? [WINTER_TAX_RATIO] : []) }));
           for (;;) {
             const base = optimalAvg(squad);

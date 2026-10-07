@@ -10,7 +10,7 @@ if (UCL_DEMO) {
 import { buildStartClubOffers, buildTierClubOffers, buildLeagueRivals } from '../data/clubs.mjs';
 import { saveRun, loadRun, clearRun, withRunDefaults } from '../data/local-save.mjs';
 import {
-  loadRecords, saveRecords, recordRunStart, recordPromotion, recordSeason, recordUcl,
+  loadRecords, saveRecords, recordRunStart, recordPromotion, recordSeason, recordUcl, recordRunEnd,
   uclReached, ACHIEVEMENTS, unlockedIds, newlyUnlocked,
 } from '../data/records.mjs';
 import { generateSquadPool, generateStartingSquad, generateEmergencyYouth, MOVE_SQUAD_WEIGHTS_BY_TIER } from '../data/generate-player.mjs';
@@ -22,7 +22,7 @@ import { rollSeasonEvent, describeChoice, resolveChoice } from '../data/season-e
 import { drawDemandOffer, getDemand, evaluateDemand, DIFFICULTY_LABELS } from '../data/board-demands.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
-import { judgeRunOutcome, nextMissedTargetCount, computeReputation } from '../engine/run.mjs';
+import { judgeRunOutcome, nextMissedTargetCount, computeReputation, reputationBreakdown } from '../engine/run.mjs';
 import {
   createUcl, advanceUcl, uclRanking, nameOf, teamOf, tieAggregate, generateShootout,
   UCL_RESULT_LABELS, UCL_REWARDS_FUNDS, UCL_STAGE_LABELS, UCL_STYLE_LABELS, UCL_LEAGUE_DAYS, UCL_DIRECT_SPOTS, UCL_PLAYOFF_SPOTS,
@@ -59,12 +59,13 @@ import {
   SUMMER_MARKET_WEEKS,
   WINTER_MARKET_WEEKS,
   WINTER_TAX_RATIO,
+  TRAIT_PRICE_MULT, PLAYER_PRICE_TABLE,
   WINTER_FUNDS_RATIO,
   PROMOTION_CHEMISTRY_BONUS,
   PROMOTION_STAY_FUNDS_RATIO,
+  REPUTATION_STREAK_BONUS,
   COACH_CHEMISTRY_DECAY_BY_LEVEL,
-  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_TARGET_SLOTS_BY_LEVEL, ADVANCED_TAGS,
-  SCOUT_MASTER_REROLL_DISCOUNT,
+  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_TARGETS_BY_LEVEL, SCOUT_QUALITY_BOOST_BY_LEVEL, SCOUT_REROLL_DISCOUNT_BY_LEVEL, ADVANCED_TAGS,
   PROMOTION_TRANSFER_DEMAND_CHANCE,
   PLAYER_TIERS,
   MISSED_TARGET_LIMIT,
@@ -241,6 +242,15 @@ const TRAIT_EFFECT_DESCRIPTIONS = {
 function avgAge(players) {
   return players.length ? (players.reduce((sum, p) => sum + p.age, 0) / players.length).toFixed(1) : '-';
 }
+// 시즌 시작 몸값 재계산: 성장한 선수는 비싸지고(갱신비 상승) 노쇠한 선수는 싸진다. GOD 카드와 무료 영입(0G)은 그대로.
+function repricePlayer(p) {
+  if (!p.price || p.id.startsWith('god-')) return p;
+  const tier = tierOf(p.baseOVR);
+  const range = PLAYER_PRICE_TABLE[tier];
+  if (!range) return p;
+  const base = Math.min(range[1], Math.max(range[0], calculatePlayerPrice(tier, p.baseOVR)));
+  return { ...p, price: Math.round(base * (TRAIT_PRICE_MULT[p.specialTrait] ?? 1)) };
+}
 function renewCost(p, years) {
   // 무료로 들어온 선수(price 0)도 재계약비가 0원이 되지 않게 등급 기준가로 계산한다.
   const basis = p.price || calculatePlayerPrice(tierOf(p.baseOVR), p.baseOVR);
@@ -332,7 +342,11 @@ function staffBenefit(role, level) {
       + (units.length ? ` · 유닛 보너스 ${units.map((b, i) => `${['주력', '2순위', '3순위'][i]} +${b}`).join(' · ')}` : '');
   }
   const n = SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[level];
-  return `매주 매물 ${n}장${level === 'master' ? ' · 다시 뽑기 절반' : ''}`;
+  const boost = SCOUT_QUALITY_BOOST_BY_LEVEL[level];
+  const disc = SCOUT_REROLL_DISCOUNT_BY_LEVEL[level];
+  const t = SCOUT_TARGETS_BY_LEVEL[level];
+  const target = !t.tag ? '' : t.exclusive ? ' · 목표 태그 또는 목표 포지션 1장 보장' : t.position ? ' · 목표 태그 1장 + 목표 포지션 1장 보장' : ' · 목표 태그 1장 보장';
+  return `매물 ${n}장${boost ? ` · 톱클래스 이상 카드 +${Math.round(boost * 100)}%` : ''}${disc ? ` · 다시 뽑기 −${Math.round(disc * 100)}%` : ''}${target}`;
 }
 const MANAGER_TIER_MULTIPLIER_TEXT = {
   rookie: '팀 전력 배율 ×1.00', tactician: '팀 전력 배율 ×1.05',
@@ -668,7 +682,7 @@ function renderRecords() {
   const r = loadRecords(localStorage);
   const have = new Set(unlockedIds(r));
   const stat = (label, value) => `<div class="recstat"><span>${label}</span><b class="n">${value}</b></div>`;
-  const groups = ['커리어', '리그', '챔피언스리그'];
+  const groups = ['커리어', '리그', '챔피언스리그', '명예'];
   const achHtml = groups.map((g) => `
     <h3 class="chemgroup__title">${g}</h3>
     <ul class="ach">
@@ -695,6 +709,7 @@ function renderRecords() {
         <div class="panel__head"><h2>역대 기록</h2></div>
         <div class="recstats">
           ${stat('시작한 런', r.runs)}${stat('치른 시즌', r.seasons)}${stat('승격', r.promotions)}${stat('최고 리그', LEAGUE_NAMES[r.highestTier])}
+          ${stat('최고 명예 점수', r.bestReputation ?? 0)}${stat('최장 런(시즌)', r.longestRun ?? 0)}${stat('최장 연속 우승', r.bestStreak ?? 0)}${stat('최다 승점', r.maxPoints ?? 0)}
         </div>
       </div>
       <div class="panel">
@@ -802,6 +817,7 @@ function startRun(club) {
     staff,
     availableGodPlayers: [...GOD_PLAYERS], // 이번 런에서 아직 영입 안 한 GOD 카드
     scoutTargetTag: null, // 스카우터 목표 태그(보통·어려움 태그 중 하나)
+    scoutTargetPos: null, // 스카우터 목표 포지션(베테랑 이상)
     eventChoice: rolled.choice ?? null, // 선택형 이벤트(고르기 전까지 저장)
     eventHistory: rolled.id ? [rolled.id] : [], // 최근 이벤트(같은 게 반복되지 않게 가중치를 낮춘다)
     harmonyStreak: 0, // 감독 불화 연속 횟수(2번이면 감독 사임)
@@ -817,6 +833,11 @@ function startRun(club) {
     highestTierId: 'tier5', // 이번 런에서 도달한 최고 리그 (명성 점수용)
     titles: 0, // 우승 횟수
     uclTitles: 0, // 챔피언스리그 우승 횟수 (1부에서만 발생)
+    titlesByTier: {}, // 리그별 우승 횟수(명예 점수)
+    titleStreak: 0, // 지금 연속 리그 우승 횟수
+    streakPoints: 0, // 연속 우승 보너스 누적(명예 점수)
+    uclResults: {}, // 챔피언스리그 결과별 횟수(명예 점수)
+    doubles: 0, // 더블 횟수
     missedTargetCount: 0, // 기대 목표 미달 누적 (스펙 2절: 3회면 해임)
     seasonNumber: 1,
     formation: DEFAULT_FORMATION,
@@ -958,27 +979,30 @@ function isStaffFreshThisWeek(role) {
   return currentState.staff[role].hiredWeek === currentState.week;
 }
 
-// 스카우터 목표 태그: 프로 라이선스 이상이고 이번 주 새로 영입한 스카우터가 아니면 매주 그 태그 카드를 보장받는다.
+// 스카우터 목표(태그/포지션): 이번 주 새로 영입한 스카우터가 아니면 등급이 허락하는 목표를 매주 1장씩 보장받는다.
+function scoutCaps() {
+  if (isStaffFreshThisWeek('headScout')) return SCOUT_TARGETS_BY_LEVEL.academy;
+  return SCOUT_TARGETS_BY_LEVEL[currentState.staff.headScout.level] ?? SCOUT_TARGETS_BY_LEVEL.academy;
+}
 function scoutTargetSlots() {
-  if (isStaffFreshThisWeek('headScout')) return 0;
-  return SCOUT_TARGET_SLOTS_BY_LEVEL[currentState.staff.headScout.level] ?? 0;
+  return scoutCaps().tag && currentState.scoutTargetTag ? 1 : 0;
 }
 function newShopOffer() {
   const slots = scoutTargetSlots();
+  const position = scoutCaps().position ? currentState.scoutTargetPos ?? null : null;
+  const boost = isStaffFreshThisWeek('headScout') ? 0 : SCOUT_QUALITY_BOOST_BY_LEVEL[currentState.staff.headScout.level] ?? 0;
   return generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId,
-    slots ? currentState.scoutTargetTag : null, slots);
+    slots ? currentState.scoutTargetTag : null, slots, position, boost);
 }
 function scoutOfferSize() {
   if (isStaffFreshThisWeek('headScout')) return SHOP_OFFER_SIZE;
   return SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[currentState.staff.headScout.level] ?? SHOP_OFFER_SIZE;
 }
 
-// 마스터 스카우터는 리롤 비용 절반
+// 스카우터 등급이 높을수록 다시 뽑기 비용이 싸진다
 function rerollCost() {
   if (isStaffFreshThisWeek('headScout')) return SHOP_REROLL_COST;
-  return currentState.staff.headScout.level === 'master'
-    ? Math.round(SHOP_REROLL_COST * (1 - SCOUT_MASTER_REROLL_DISCOUNT))
-    : SHOP_REROLL_COST;
+  return Math.round(SHOP_REROLL_COST * (1 - (SCOUT_REROLL_DISCOUNT_BY_LEVEL[currentState.staff.headScout.level] ?? 0)));
 }
 
 // 스펙 2절: 시즌마다 자금을 지급하고, 남은 돈은 그 위에 이월한다(상한 30%).
@@ -1083,9 +1107,10 @@ function startNewSeason() {
   // 포지션 공백 때우려고 콜업한 긴급 유스는 한 시즌만 뛰고 계약이 끝난다.
   const youthLeft = currentState.squad.filter((p) => p.emergencyYouth);
   currentState.squad = currentState.squad.filter((p) => !p.emergencyYouth);
+  // 가격 재계산은 나이를 먹은 뒤(아래 aged) 한 번에 한다.
   // 나이 한 살: 어린 선수는 크고 서른 줄부터 떨어지며, 은퇴할 선수는 떠난다. 변화는 브리핑 팝업에서 알린다.
   const aged = ageSquad(currentState.squad);
-  currentState.squad = aged.squad;
+  currentState.squad = aged.squad.map(repricePlayer); // OVR이 바뀌었으니 몸값(재계약비·판매가)도 현재 OVR 기준으로 다시 매긴다
   const agingReport = { changes: aged.changes, retired: aged.retired, youthLeft: youthLeft.map((p) => ({ name: p.name, position: p.position })) };
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
   currentState.shopOffer = newShopOffer();
@@ -1842,7 +1867,11 @@ function renderUcl(opts = {}) {
     }
     currentState.uclTrophyShown = false;
     currentState.funds += UCL_REWARDS_FUNDS[s.result];
-    if (s.result === 'champion') currentState.uclTitles += 1;
+    if (s.result === 'champion') {
+      currentState.uclTitles += 1;
+      if (currentState.leagueResultThisSeason === 'champion') currentState.doubles = (currentState.doubles ?? 0) + 1;
+    }
+    currentState.uclResults = { ...(currentState.uclResults ?? {}), [s.result]: ((currentState.uclResults ?? {})[s.result] ?? 0) + 1 };
     currentState.ucl = null;
     startNewSeason();
   });
@@ -1850,8 +1879,19 @@ function renderUcl(opts = {}) {
 
 // 시즌 결과를 역대 기록에 남기고, 리그 우승이면 트로피 연출을 띄운다.
 function recordSeasonEnd(result, points, rank = null) {
+  // 이번 런의 명예 점수 재료(리그별 우승, 연속 우승)
+  if (result === 'champion') {
+    const t = currentState.leagueTierId;
+    currentState.titlesByTier = { ...(currentState.titlesByTier ?? {}), [t]: ((currentState.titlesByTier ?? {})[t] ?? 0) + 1 };
+    currentState.titleStreak = (currentState.titleStreak ?? 0) + 1;
+    if (currentState.titleStreak >= 2) currentState.streakPoints = (currentState.streakPoints ?? 0) + REPUTATION_STREAK_BONUS;
+  } else {
+    currentState.titleStreak = 0;
+  }
+  currentState.leagueResultThisSeason = result;
   updateRecords((r) => recordSeason(r, {
     season: currentState.seasonNumber, club: currentState.club.name, tierId: currentState.leagueTierId, result, rank, points: Math.round(points),
+    streak: currentState.titleStreak,
   }));
   if (result === 'champion') {
     showTrophy({
@@ -1978,7 +2018,8 @@ function runSecondHalfAndFinish(saleMessage = '') {
     // 1부는 더 올라갈 데가 없어서 목표를 달성해도 승격 버튼이 안 나온다.
     // 아무 설명이 없으면 왜 제자리인지 알 수 없다.
     if (getNextTier(currentState.leagueTierId) === null) {
-      closingHtml += '<p class="note">1부가 마지막 리그입니다. 우승해야 커리어가 완결되고, 목표 달성은 자리를 지켜줄 뿐입니다.</p>';
+      closingHtml += '<p class="note">1부가 마지막 리그입니다. 우승해도 커리어는 이어지고, 해임될 때까지 계속 도전할 수 있습니다. 정상에서 내려오고 싶으면 아래에서 은퇴하세요.</p>';
+      if ((currentState.titles ?? 0) > 0) closingHtml += '<button class="reroll" id="retire-btn">은퇴하고 커리어 완결</button>';
     }
     dockHtml = uclQualified
       ? '<button class="cta" id="ucl-btn">챔피언스리그 진출</button>'
@@ -2031,6 +2072,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   `, dockHtml);
 
   recordSeasonEnd(result, totalPoints, finalRank);
+  document.getElementById('retire-btn')?.addEventListener('click', () => renderRunEnd('victory', totalPoints, '', null));
   document.getElementById('promote-btn')?.addEventListener('click', () => {
     updateRecords(recordPromotion);
     const nextTier = getNextTier(currentState.leagueTierId);
@@ -2129,9 +2171,9 @@ function renderDestinationChoice(seasonResult, nextTierId) {
 
 const RUN_END = {
   victory: {
-    kicker: '커리어 종료',
-    title: '1부 우승',
-    body: '5부에서 시작해 1부 정상까지 올라갔습니다. 이 런은 여기서 완결됩니다.',
+    kicker: '커리어 완결',
+    title: '정상에서 은퇴',
+    body: '5부에서 시작해 1부 정상까지 올라, 박수 칠 때 떠났습니다. 이 런은 여기서 완결됩니다.',
   },
   relegation: {
     kicker: '커리어 종료',
@@ -2147,26 +2189,27 @@ const RUN_END = {
 
 function renderRunEnd(reason, finalPoints, boardTrustMessage = '', uclResultId = null) {
   const copy = RUN_END[reason];
-  const reputation = computeReputation({
-    highestTierId: currentState.highestTierId,
-    titles: currentState.titles,
-    uclTitles: currentState.uclTitles,
-  });
-  const highest = getLeagueTier(currentState.highestTierId);
+  const repStats = {
+    highestTierId: currentState.highestTierId, seasons: currentState.seasonNumber, titlesByTier: currentState.titlesByTier ?? {},
+    streakPoints: currentState.streakPoints ?? 0, uclResults: currentState.uclResults ?? {}, doubles: currentState.doubles ?? 0,
+  };
+  const reputation = computeReputation(repStats);
+  const repRows = reputationBreakdown(repStats).filter((x) => x.value > 0);
+  const prevBest = loadRecords(localStorage).bestReputation ?? 0;
+  updateRecords((r) => recordRunEnd(r, { reputation, seasons: currentState.seasonNumber, retired: reason === 'victory' }));
 
   setScreen(`
     <div class="verdict verdict--${reason === 'victory' ? 'champion' : 'relegation'}">
       <div class="verdict__label">${copy.kicker}</div>
       <div class="verdict__result">${copy.title}</div>
-      <div class="scoreline"><b>${reputation}</b><span>명성</span></div>
+      <div class="scoreline"><b>${reputation}</b><span>명예 점수${reputation > prevBest ? ' · 최고 기록!' : ` · 최고 ${prevBest}`}</span></div>
     </div>
     ${boardTrustMessage}
     ${uclResultId ? `<div class="banner banner--ucl">챔피언스리그 ${UCL_RESULT_LABELS[uclResultId]}</div>` : ''}
     <div class="panel">
       <p class="note">${copy.body}</p>
       <ul class="summary">
-        <li><span>버틴 시즌</span><b>${currentState.seasonNumber}</b></li>
-        <li><span>도달 리그</span><b>${highest.label}</b></li>
+        ${repRows.map((x) => `<li><span>${esc(x.label)}</span><b>+${x.value}</b></li>`).join('')}
         <li><span>우승</span><b>${currentState.titles}</b></li>
         <li><span>챔피언스리그 우승</span><b>${currentState.uclTitles}</b></li>
         <li><span>마지막 시즌 승점</span><b>${finalPoints.toFixed(0)}</b></li>
@@ -2633,10 +2676,14 @@ function renderMarket(banner = '') {
   }).sort((a, b) => b.n - a.n)
     .map(({ t, n, need }) => `<button class="tagchip tagchip--cont${n >= countEffectiveContinentRequirement(3, lineup, t) ? ' is-on' : ''}${n === 0 ? ' is-zero' : ''}${currentState.offerTag === `continent:${t}` ? ' is-sel' : ''}" data-offer-tag="continent:${t}" title="선발 ${n}명 · 전체 ${heldCont[t]}명">${renderTagIcon(CONTINENT_ICON_PATHS, t)}${CONTINENT_LABELS[t] ?? t}<b class="n">${n}/${need}</b></button>`).join('');
   const traitLines = [...lineup, ...bench].filter((p) => p.specialTrait).map((p) => `<span class="tagchip tagchip--trait" title="${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}${esc(p.name)}<b>${ROLE_LABELS[TRAIT_ROLE[p.specialTrait]]} · ${esc(TRAIT_LABELS[p.specialTrait])}</b></span>`).join('');
-  const targetSlots = scoutTargetSlots();
+  const caps = scoutCaps();
   const targetOptions = ADVANCED_TAGS.map((t) => `<option value="${t}"${currentState.scoutTargetTag === t ? ' selected' : ''}>${esc(TAG_LABELS[t] ?? t)} (${PLAYSTYLE_TAGS[t].grade === 'hard' ? '어려움' : '보통'})</option>`).join('');
-  const scoutTargetHtml = targetSlots
-    ? `<label class="scouttarget"><span>스카우터 목표 태그</span><select id="scout-target"><option value="">지정 안 함</option>${targetOptions}</select><i>매주 ${targetSlots}장 보장 · 다음 주(또는 다시 뽑기)부터 적용</i></label>`
+  const posOptions = POSITIONS.map((p) => `<option value="${p}"${currentState.scoutTargetPos === p ? ' selected' : ''}>${p}</option>`).join('');
+  const scoutTargetHtml = caps.tag
+    ? `<div class="scouttarget"><span>스카우터 목표</span>
+        <label>태그 <select id="scout-target"><option value="">지정 안 함</option>${targetOptions}</select></label>
+        ${caps.position ? `<label>포지션 <select id="scout-target-pos"><option value="">지정 안 함</option>${posOptions}</select></label>` : ''}
+        <i>${caps.exclusive ? '태그와 포지션 중 하나만 · ' : ''}매주 각 1장 보장 · 다음 주(또는 다시 뽑기)부터 적용</i></div>`
     : '';
   const tagPanelHtml = playChips || contChips ? `<div class="tagpanel${currentState.tagPanelCollapsed ? ' is-collapsed' : ''}" id="tagpanel">
       <button class="tagpanel__head" id="tagpanel-toggle" aria-expanded="${!currentState.tagPanelCollapsed}"><b>내 선수단 태그</b><span>누르면 그 태그 매물만 봅니다 · 숫자는 선발/다음 문턱</span><i class="panel__chev" aria-hidden="true">⌄</i></button>
@@ -2836,7 +2883,7 @@ function renderMarket(banner = '') {
       </section>` : ''}
       <section class="panel tabpanel">
         ${listedHtml ? `<div class="panel__head"><h2>이적 명단</h2></div><ul class="listed">${listedHtml}</ul><div style="height:var(--s4)"></div>` : ''}
-        <div class="panel__head"><h2>보유 선수 <span class="panel__count">${squad.length}명 · 평균 나이 ${avgAge(squad)}세${lineup.length ? ` (선발 ${avgAge(lineup)}세)` : ''}</span></h2></div>
+        <div class="panel__head"><h2>보유 선수 <span class="panel__count">${squad.length}명 · 평균 나이 ${avgAge(squad)}세${lineup.length ? ` (선발 ${avgAge(lineup)}세)` : ''} · 유스 ${squad.filter((p) => p.isDraftedYouth).length}명${lineup.length ? ` (선발 ${lineup.filter((p) => p.isDraftedYouth).length}명)` : ''}</span></h2></div>
         ${squadHtml}
       </section>`,
     staff: `
@@ -3143,7 +3190,14 @@ function renderMarket(banner = '') {
   document.querySelectorAll('[data-coach-focus]').forEach((btn) => {
     btn.onclick = () => { currentState.staff.headCoach.focus = btn.dataset.coachFocus; renderMarket(); };
   });
-  document.getElementById('scout-target')?.addEventListener('change', (e) => { currentState.scoutTargetTag = e.target.value || null; });
+  document.getElementById('scout-target')?.addEventListener('change', (e) => {
+    currentState.scoutTargetTag = e.target.value || null;
+    if (scoutCaps().exclusive && currentState.scoutTargetTag) { currentState.scoutTargetPos = null; renderMarket(); }
+  });
+  document.getElementById('scout-target-pos')?.addEventListener('change', (e) => {
+    currentState.scoutTargetPos = e.target.value || null;
+    if (scoutCaps().exclusive && currentState.scoutTargetPos) { currentState.scoutTargetTag = null; renderMarket(); }
+  });
   document.getElementById('tagpanel-toggle')?.addEventListener('click', () => {
     currentState.tagPanelCollapsed = !currentState.tagPanelCollapsed;
     document.getElementById('tagpanel')?.classList.toggle('is-collapsed', currentState.tagPanelCollapsed);

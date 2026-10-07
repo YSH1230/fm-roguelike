@@ -57,3 +57,26 @@ test('업적: 조건을 채우면 풀리고, newlyUnlocked는 이번에 새로 �
   assert.equal(newlyUnlocked(after, again).length, 0);
   assert.ok(ACHIEVEMENTS.every((a) => a.id && a.label && a.desc && typeof a.check === 'function'));
 });
+
+test('런 종료 기록: 최고 명예 점수·최장 런·은퇴 횟수가 쌓이고, 연속 우승/최다 승점도 시즌 기록에서 갱신된다', async () => {
+  const { recordRunEnd } = await import('../data/records.mjs');
+  let r = emptyRecords();
+  r = recordSeason(r, { season: 1, club: 'A', tierId: 'tier1', result: 'champion', rank: 1, points: 97, streak: 3 });
+  r = recordSeason(r, { season: 2, club: 'A', tierId: 'tier1', result: 'safe', rank: 8, points: 60, streak: 0 });
+  assert.equal(r.bestStreak, 3);
+  assert.equal(r.maxPoints, 97);
+  r = recordRunEnd(r, { reputation: 420, seasons: 16, retired: true });
+  r = recordRunEnd(r, { reputation: 100, seasons: 5, retired: false });
+  assert.equal(r.bestReputation, 420);
+  assert.equal(r.longestRun, 16);
+  assert.equal(r.retired, 1);
+  assert.equal(r.runsEnded, 2);
+  const ids = unlockedIds(r);
+  for (const id of ['streak3', 'points90', 'longrun15', 'retire', 'rep400']) assert.ok(ids.includes(id), id);
+  assert.ok(!ids.includes('streak5'));
+});
+
+test('업적은 40개 이상이고 id가 겹치지 않는다', () => {
+  assert.ok(ACHIEVEMENTS.length >= 40);
+  assert.equal(new Set(ACHIEVEMENTS.map((a) => a.id)).size, ACHIEVEMENTS.length);
+});
