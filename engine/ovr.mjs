@@ -1,4 +1,4 @@
-import { PLAYSTYLE_TAGS, CONTINENT_TAGS, TRAIT_ROLE, ROLE_SLOTS } from './constants.mjs';
+import { PLAYSTYLE_TAGS, CONTINENT_TAGS, TRAIT_ROLE, ROLE_SLOTS, COACH_UNITS, COACH_FOCUS_ORDER, COACH_UNIT_BONUS_BY_LEVEL } from './constants.mjs';
 
 // roles = { captain, ace, joker }(선수 id 또는 null). 특수 성향은 자기 역할 슬롯에
 // 배정된 선수에게서만 효과가 난다. roles가 null이면 슬롯 제한 없이 전부 발동(옛 동작,
@@ -58,8 +58,16 @@ function tieredValue(count, thresholds, values) {
 
 // 시너지 발동 인원수는 포지션과 무관하게 라인업(베스트11) 전체의 태그 보유자 수로 센다.
 // 버프 지급은 그중 대상 포지션에 있는 보유자에게만 한다 (스펙 5.1 "베스트11 배치자만 카운트").
-// boostedTagId: 예전 전술 원리주의자 감면용 자리 - 지금은 안 쓴다(인자 정리는 별도).
-export function computePlaystyleSynergyBonus(lineup, boostedTagId = null, onlyTagId = null) {
+// 수석 코치 보너스: coach = { level, focus }. 주력 유닛부터 차례로(등급이 높을수록 더 많은 유닛에) 그 유닛 포지션 선수에게 OVR을 더한다.
+export function coachBonusFor(coach, position) {
+  if (!coach) return 0;
+  const bonuses = COACH_UNIT_BONUS_BY_LEVEL[coach.level] ?? [];
+  const order = COACH_FOCUS_ORDER[coach.focus] ?? COACH_FOCUS_ORDER.midfield;
+  const i = order.findIndex((unit) => COACH_UNITS[unit].includes(position));
+  return i >= 0 ? bonuses[i] ?? 0 : 0;
+}
+
+export function computePlaystyleSynergyBonus(lineup, onlyTagId = null) {
   const bonuses = new Map();
   for (const [tagId, tagDef] of Object.entries(PLAYSTYLE_TAGS)) {
     if (onlyTagId && tagId !== onlyTagId) continue;
@@ -108,11 +116,11 @@ export function computeContinentSynergyBonus(lineup, onlyTagId = null, roles = n
 
 // roles 생략(undefined)이면 autoRoles로 자동 배정한 결과를 쓴다. 여러 선수를 반복 계산할
 // 때는 호출부가 roles를 한 번만 구해서 넘겨야 빠르다(computeAverageOVR이 그렇게 한다).
-export function computePlayerFinalOVR(player, lineup, bench, boostedTagId = null, roles = undefined) {
-  const r = roles === undefined ? autoRoles(lineup, bench, boostedTagId) : roles;
+export function computePlayerFinalOVR(player, lineup, bench, coach = null, roles = undefined) {
+  const r = roles === undefined ? autoRoles(lineup, bench, coach) : roles;
   const selfBonus = computeSelfTraitBonus(player, r);
   const teamBonuses = computeTeamTraitBonuses(lineup, bench, r);
-  const playstyleBonuses = computePlaystyleSynergyBonus(lineup, boostedTagId);
+  const playstyleBonuses = computePlaystyleSynergyBonus(lineup);
   const continentBonuses = computeContinentSynergyBonus(lineup, null, r);
 
   return (
@@ -120,23 +128,24 @@ export function computePlayerFinalOVR(player, lineup, bench, boostedTagId = null
     selfBonus +
     (teamBonuses.get(player.id) ?? 0) +
     (playstyleBonuses.get(player.id) ?? 0) +
-    (continentBonuses.get(player.id) ?? 0)
+    (continentBonuses.get(player.id) ?? 0) +
+    coachBonusFor(coach, player.position)
   );
 }
 
-const totalWith = (lineup, bench, boostedTagId, roles) =>
-  lineup.reduce((sum, p) => sum + computePlayerFinalOVR(p, lineup, bench, boostedTagId, roles), 0);
+const totalWith = (lineup, bench, coach, roles) =>
+  lineup.reduce((sum, p) => sum + computePlayerFinalOVR(p, lineup, bench, coach, roles), 0);
 
 // 슬롯 후보(그 슬롯 태그를 가진 선수) 중 배정했을 때 라인업 최종 OVR 합이 가장 큰 선수를 고른다.
 // 배정해도 안 늘면(예: 폴리글롯이 오히려 손해) 슬롯을 비워 둔다. 조커 후보는 벤치, 나머지는 선발.
-export function autoRoles(lineup, bench, boostedTagId = null) {
+export function autoRoles(lineup, bench, coach = null) {
   const roles = { captain: null, ace: null, joker: null };
   for (const slot of ROLE_SLOTS) {
     const pool = slot === 'joker' ? bench : lineup;
     let best = null;
-    let bestScore = totalWith(lineup, bench, boostedTagId, roles);
+    let bestScore = totalWith(lineup, bench, coach, roles);
     for (const cand of pool.filter((p) => TRAIT_ROLE[p.specialTrait] === slot)) {
-      const score = totalWith(lineup, bench, boostedTagId, { ...roles, [slot]: cand.id });
+      const score = totalWith(lineup, bench, coach, { ...roles, [slot]: cand.id });
       if (score > bestScore + 1e-9) { best = cand.id; bestScore = score; }
     }
     roles[slot] = best;
@@ -146,8 +155,8 @@ export function autoRoles(lineup, bench, boostedTagId = null) {
 
 // 자동 배정 위에 유저가 고른 배정(overrides[slot] = 선수 id 또는 'none')을 얹는다.
 // 자격이 없는 선수(그 슬롯 태그가 없거나 라인업/벤치에 없음)를 가리키면 무시하고 자동값을 쓴다.
-export function resolveRoles(overrides, lineup, bench, boostedTagId = null) {
-  const roles = autoRoles(lineup, bench, boostedTagId);
+export function resolveRoles(overrides, lineup, bench, coach = null) {
+  const roles = autoRoles(lineup, bench, coach);
   for (const slot of ROLE_SLOTS) {
     const want = overrides?.[slot];
     if (!want) continue;
@@ -162,8 +171,8 @@ export function resolveRoles(overrides, lineup, bench, boostedTagId = null) {
 // 몇 점" 표시용). 위 계산 함수를 그대로 재사용하니 합계는 항상
 // computePlayerFinalOVR - baseOVR과 같다.
 // kind: 'self' | 'team' | 'playstyle' | 'continent', id: 태그/특수성향 id.
-export function computePlayerBonusBreakdown(player, lineup, bench, boostedTagId = null, roles = undefined) {
-  const r = roles === undefined ? autoRoles(lineup, bench, boostedTagId) : roles;
+export function computePlayerBonusBreakdown(player, lineup, bench, coach = null, roles = undefined) {
+  const r = roles === undefined ? autoRoles(lineup, bench, coach) : roles;
   const parts = [];
   const self = computeSelfTraitBonus(player, r);
   if (self) parts.push({ kind: 'self', id: player.specialTrait, value: self });
@@ -177,12 +186,14 @@ export function computePlayerBonusBreakdown(player, lineup, bench, boostedTagId 
   }
 
   for (const tagId of Object.keys(PLAYSTYLE_TAGS)) {
-    const value = computePlaystyleSynergyBonus(lineup, boostedTagId, tagId).get(player.id);
+    const value = computePlaystyleSynergyBonus(lineup, tagId).get(player.id);
     if (value) parts.push({ kind: 'playstyle', id: tagId, value });
   }
   for (const tagId of Object.keys(CONTINENT_TAGS)) {
     const value = computeContinentSynergyBonus(lineup, tagId, r).get(player.id);
     if (value) parts.push({ kind: 'continent', id: tagId, value });
   }
+  const coachValue = coachBonusFor(coach, player.position);
+  if (coachValue) parts.push({ kind: 'coach', id: 'headCoach', value: coachValue });
   return parts;
 }

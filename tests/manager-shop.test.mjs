@@ -32,3 +32,12 @@ test('GOD 감독은 드물게 끼고, 지금 우리 감독이면 안 나온다',
   const [mine] = offer;
   assert.ok(!generateManagerOffer(3, always, mine.id).some((m) => m.id === mine.id));
 });
+
+test('낮은 리그일수록 높은 등급 감독이 안 나온다(5부는 레전더리·GOD 없음)', () => {
+  for (let i = 0; i < 400; i++) {
+    const offer = generateManagerOffer(3, Math.random, null, 'tier5');
+    assert.ok(offer.every((m) => m.tier === 'rookie' || m.tier === 'tactician'));
+  }
+  const top = Array.from({ length: 400 }, () => generateManagerOffer(3, Math.random, null, 'tier1')).flat();
+  assert.ok(top.some((m) => m.tier === 'legendary'));
+});

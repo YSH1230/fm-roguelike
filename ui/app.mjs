@@ -78,7 +78,7 @@ import {
   SEONGGOL_REJECT_OVR_PENALTY,
   MANAGER_TIER_MULTIPLIER,
   LEAGUE_EXPECTED_MANAGER,
-  COACH_POWER_MULTIPLIER,
+  COACH_UNIT_BONUS_BY_LEVEL, COACH_UNIT_LABELS, COACH_FOCUS_ORDER,
   BOARD_REWARD_FUNDS_PER_POINT,
   BOARD_REWARD_FUNDS_CAP,
   BOARD_REWARD_CHEMISTRY,
@@ -187,11 +187,11 @@ function currentFormation() {
 // 정해지니 따로 저장하지 않고 필요할 때 계산한다.
 // 팀 전력 계산에 들어가는 리그/스태프 요소(감독 리그 적합도, 수석 코치 직접 효과)
 function powerExtras(roles) {
-  return { leagueTierId: currentState.leagueTierId, coachLevel: currentState.staff.headCoach.level, roles };
+  return { leagueTierId: currentState.leagueTierId, roles };
 }
 // 유저가 고른 역할 배정 위에 자동 배정을 얹은 최종 역할(주장/에이스/조커).
 function currentRoles(lineup, bench) {
-  return resolveRoles(currentState.roleOverrides, lineup, bench, boostedTagIdFor(currentState.manager));
+  return resolveRoles(currentState.roleOverrides, lineup, bench, coachFor());
 }
 function currentBoardGoal() {
   return boardGoalPoints(effectiveTier(currentState.leagueTierId));
@@ -323,9 +323,9 @@ const MANAGER_TRAIT_DESCRIPTIONS = {
 function staffBenefit(role, level) {
   if (role === 'headCoach') {
     const v = COACH_CHEMISTRY_DECAY_BY_LEVEL[level];
-    const power = COACH_POWER_MULTIPLIER[level];
+    const units = COACH_UNIT_BONUS_BY_LEVEL[level] ?? [];
     return (v === 0 ? '거래해도 적응도 유지' : `거래당 적응도 −${v}`)
-      + (power > 1 ? ` · 팀 전력 +${((power - 1) * 100).toFixed(1)}%` : '');
+      + (units.length ? ` · 유닛 보너스 ${units.map((b, i) => `${['주력', '2순위', '3순위'][i]} +${b}`).join(' · ')}` : '');
   }
   const n = SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[level];
   return `매주 매물 ${n}장${level === 'master' ? ' · 다시 뽑기 절반' : ''}`;
@@ -360,7 +360,7 @@ function makeTempManager() {
 }
 function applyManagerTacticalHarmony(lineup) {
   const { manager } = currentState;
-  const { tier } = playstyleTagProgress(manager.tacticalTag, lineup, boostedTagIdFor(manager));
+  const { tier } = playstyleTagProgress(manager.tacticalTag, lineup);
   const tagLabel = TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag;
   if (tier === 0) {
     if (currentState.harmonyShield) {
@@ -806,8 +806,8 @@ function startRun(club) {
     phase: 'summer',
     transactedThisWeek: false,
     shopOffer: [],
-    managerOffer: generateManagerOffer(3, Math.random, manager.id),
-    staffOffer: generateStaffOffer(),
+    managerOffer: generateManagerOffer(3, Math.random, manager.id, 'tier5'),
+    staffOffer: generateStaffOffer(Math.random, 'tier5'),
     firstHalfPoints: null,
     listedForSale: [], // { card, method, resolveWeek }
     roleOverrides: {}, // 역할 칸 수동 배정 { captain?, ace?, joker? } (선수 id 또는 'none')
@@ -820,8 +820,8 @@ function startRun(club) {
     pendingTransferProceeds: 0,
   };
   currentState.shopOffer = newShopOffer();
-  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
-  currentState.staffOffer = generateStaffOffer();
+  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id, currentState.leagueTierId);
+  currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
   renderCareerIntro();
 }
 
@@ -1067,8 +1067,8 @@ function startNewSeason() {
   const agingReport = { changes: aged.changes, retired: aged.retired, youthLeft: youthLeft.map((p) => ({ name: p.name, position: p.position })) };
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
   currentState.shopOffer = newShopOffer();
-  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
-  currentState.staffOffer = generateStaffOffer();
+  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id, currentState.leagueTierId);
+  currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
 
   let banner = `${currentState.club.name}, ${getLeagueTier(currentState.leagueTierId).label} 새 시즌 시작`;
   if (currentState.missedTargetCount > 0) {
@@ -1203,7 +1203,10 @@ function hireStaff(role, level, rowEl = null) {
   }
   const candidate = currentState.staffOffer[`${role}:${level}`];
   currentState.funds -= cost;
-  currentState.staff = { ...currentState.staff, [role]: { ...candidate, hiredWeek: currentState.week } };
+  currentState.staff = {
+    ...currentState.staff,
+    [role]: { ...candidate, hiredWeek: currentState.week, ...(role === 'headCoach' ? { focus: currentState.staff.headCoach.focus ?? 'midfield' } : {}) },
+  };
   // 등급 칸은 고정이라 후보 자체를 뺄 수 없다 - 방금 데려온 사람 대신 그 칸에
   // 새 후보를 뽑아, 이미 영입한 사람이 매물로 다시 뜨지 않게 한다.
   currentState.staffOffer = { ...currentState.staffOffer, [`${role}:${level}`]: generateStaffCandidate(role, level) };
@@ -1299,20 +1302,21 @@ function nextWeek() {
     return;
   }
   currentState.shopOffer = newShopOffer();
-  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
-  currentState.staffOffer = generateStaffOffer();
+  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id, currentState.leagueTierId);
+  currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
   renderMarket(saleMessage);
 }
 
-// 예전 원리주의자 문턱 감면은 없앴다. 엔진 인자 정리 전까지 늘 null.
-function boostedTagIdFor(manager) {
-  return null;
+// 수석 코치 효과(등급 + 주력 유닛). 엔진의 coach 인자로 들어가 선수 OVR에 유닛 보너스로 더해진다.
+function coachFor() {
+  const c = currentState.staff.headCoach;
+  return { level: c.level, focus: c.focus ?? 'midfield' };
 }
 
 // 플레이스타일 태그 진행도(문턱은 태그 등급별, engine/constants.mjs).
 // 상점 카드와 전술 탭 팀 케미 패널이 똑같은 계산을 쓴다.
 // tier = 넘은 문턱 수(0~5), need = 다음에 채워야 할 인원(다 넘었으면 마지막 문턱).
-function playstyleTagProgress(tagId, lineup, boostedTagId) {
+function playstyleTagProgress(tagId, lineup) {
   // 센 사람 = 보너스 받는 사람: 수혜 포지션에 서 있는 보유자만 센다.
   const count = lineup.filter((p) => p.playstyleTags.includes(tagId) && PLAYSTYLE_TAGS[tagId].positions.includes(p.position)).length;
   const req = PLAYSTYLE_TAGS[tagId].thresholds;
@@ -1362,8 +1366,7 @@ function runFirstHalf(saleMessage = '') {
     currentState.chemistry,
     currentState.leagueTierId,
     Math.random,
-    boostedTagIdFor(manager),
-    currentState.staff.headCoach.level,
+    coachFor(),
     currentRoles(lineup, bench)
   ));
 
@@ -1423,8 +1426,8 @@ function enterWinterMarket() {
   currentState.phase = 'winter';
   currentState.week = WINTER_MARKET_WEEKS[0];
   currentState.shopOffer = newShopOffer();
-  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id);
-  currentState.staffOffer = generateStaffOffer();
+  currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id, currentState.leagueTierId);
+  currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
 
   // 겨울 지원금: 여름에 쓴 돈이 바닥나도 후반기 보강이 가능하게 시즌 지급액의
   // 일부를 얹는다(이월 상한과 무관한 별도 지급).
@@ -1855,8 +1858,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
     currentState.chemistry,
     currentState.leagueTierId,
     Math.random,
-    boostedTagIdFor(manager),
-    currentState.staff.headCoach.level,
+    coachFor(),
     currentRoles(lineup, bench)
   ));
   const firstHalf = roundHalfPoints(currentState.firstHalfPoints ?? 0); // 옛 저장(소수점)도 같은 규칙으로
@@ -1884,10 +1886,10 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const finalRank = finalRankFromTable(seasonTable, result, isTop ? 4 : 3);
   const uclQualified = isTop && finalRank <= 4;
   const uclPowerAway = uclQualified
-    ? computeTeamPower(lineup, bench, manager.tier, currentState.chemistry / 2, boostedTagIdFor(manager), powerExtras(currentRoles(lineup, bench)))
+    ? computeTeamPower(lineup, bench, manager.tier, currentState.chemistry / 2, coachFor(), powerExtras(currentRoles(lineup, bench)))
     : 0;
   const uclPower = uclQualified
-    ? computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, boostedTagIdFor(manager), powerExtras(currentRoles(lineup, bench)))
+    ? computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, coachFor(), powerExtras(currentRoles(lineup, bench)))
     : 0;
   const uclResultId = null;
 
@@ -1992,7 +1994,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
     ${uclQualified ? '<div class="banner banner--ucl">리그 4위 이내로 마쳐 챔피언스리그에 진출했습니다. 시즌 결산 후 챔피언스리그가 이어집니다.</div>' : ''}
     <div class="panel">
       <ul class="summary">
-        <li><span>최종 팀 전력</span><b>${computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, boostedTagIdFor(manager), powerExtras(currentRoles(lineup, bench))).toFixed(1)}</b></li>
+        <li><span>최종 팀 전력</span><b>${computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, coachFor(), powerExtras(currentRoles(lineup, bench))).toFixed(1)}</b></li>
         <li><span>최종 적응도</span><b>${currentState.chemistry.toFixed(1)}</b></li>
         <li><span>${goalLine}</span></li>
         ${demandLine ? `<li><span>${demandLine}</span></li>` : ''}
@@ -2275,10 +2277,10 @@ function renderRoleChips(roles, lineup, bench) {
     <p class="note rolenote">특수 태그는 자기 역할 칸에 서야 효과가 납니다. 칸은 비워 둬도 됩니다.</p>${picker}`;
 }
 
-function renderBonusDetail(player, lineup, bench, boostedTagId, roles) {
+function renderBonusDetail(player, lineup, bench, coach, roles) {
   if (!player) return '';
-  const labelOf = { playstyle: TAG_LABELS, continent: CONTINENT_LABELS, self: TRAIT_LABELS, team: TRAIT_LABELS };
-  const parts = computePlayerBonusBreakdown(player, lineup, bench, boostedTagId, roles);
+  const labelOf = { playstyle: TAG_LABELS, continent: CONTINENT_LABELS, self: TRAIT_LABELS, team: TRAIT_LABELS, coach: { headCoach: '수석 코치' } };
+  const parts = computePlayerBonusBreakdown(player, lineup, bench, coach, roles);
   const total = parts.reduce((s, x) => s + x.value, 0);
   const rows = parts.length
     ? parts.map((x) => `<div class="bonusdetail__row"><span>${esc(labelOf[x.kind][x.id] ?? x.id)}</span><b>+${x.value}</b></div>`).join('')
@@ -2331,11 +2333,10 @@ function renderSlotPicker(squad, formationId, selectedSlot, inXI, benchIds) {
 // 보너스 값이다(engine/ovr.mjs) - 배지 설명에 필요 인원과 보너스를 분리해서 쓴다.
 function renderChemistryPanel(lineup, bench, roles) {
   const { manager } = currentState;
-  const boostedTagId = boostedTagIdFor(manager);
 
   const playstyleRows = Object.entries(PLAYSTYLE_TAGS)
     .map(([tagId, def]) => {
-      const { count, need, tier, req, values } = playstyleTagProgress(tagId, lineup, boostedTagId);
+      const { count, need, tier, req, values } = playstyleTagProgress(tagId, lineup);
       const bonus = values[Math.max(0, tier - 1)];
       const caption = `${count}/${need} · +${bonus}`;
       const positions = def.positions.join('·');
@@ -2478,15 +2479,15 @@ function renderMarket(banner = '') {
   // 지금 실제로 보너스를 주고 있는 태그(초록 아이콘): 플레이스타일/대륙 시너지가 발동한 것만
   const activeTags = new Map(lineup.map((p) => [
     p.id,
-    new Set(computePlayerBonusBreakdown(p, lineup, bench, boostedTagIdFor(manager), roles).filter((x) => x.kind === 'playstyle' || x.kind === 'continent').map((x) => x.id)),
+    new Set(computePlayerBonusBreakdown(p, lineup, bench, coachFor(), roles).filter((x) => x.kind === 'playstyle' || x.kind === 'continent').map((x) => x.id)),
   ]));
-  const finalOVR = new Map(lineup.map((p) => [p.id, computePlayerFinalOVR(p, lineup, bench, boostedTagIdFor(manager), roles)]));
+  const finalOVR = new Map(lineup.map((p) => [p.id, computePlayerFinalOVR(p, lineup, bench, coachFor(), roles)]));
   const groupAvg = (positions) => {
     const members = lineup.filter((p) => positions.includes(p.slotPosition));
     if (!members.length) return null;
     return members.reduce((sum, p) => sum + finalOVR.get(p.id), 0) / members.length;
   };
-  const teamPower = computeTeamPower(lineup, bench, manager.tier, chemistry, boostedTagIdFor(manager), powerExtras(roles));
+  const teamPower = computeTeamPower(lineup, bench, manager.tier, chemistry, coachFor(), powerExtras(roles));
 
   const weekStart = phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0];
   const dots = Array.from({ length: maxWeek - weekStart + 1 }, (_, i) => {
@@ -2512,8 +2513,7 @@ function renderMarket(banner = '') {
     const tier = tierOf(c.baseOVR);
     // 정답(팀 +X.X 델타)은 안 주고 재료만 준다 - 태그 옆에 지금 라인업이
     // 몇 명째인지만 보여주고, "그래서 사야 하는지"는 유저가 판단한다.
-    const boostedTagId = boostedTagIdFor(manager);
-    // 칩에는 "라벨 n/m"만 - 영입 시 발동(▲ 초록)/강화(▲ 금색)는 색으로, 보너스
+      // 칩에는 "라벨 n/m"만 - 영입 시 발동(▲ 초록)/강화(▲ 금색)는 색으로, 보너스
     // 포지션이 아니면 흐리게. 자세한 문장은 칩을 눌렀을 때 카드 아래에 뜬다.
     // reach: 영입하면 넘는 문턱의 순번(0 = 첫 문턱 발동, 1 이상 = 강화), 없으면 -1
     const chip = (label, count, need, reach, desc, dim = false) => {
@@ -2530,7 +2530,7 @@ function renderMarket(banner = '') {
         return chip(label, n, n >= r3 ? r5 : r3, [r3, r5].indexOf(n + 1), desc);
       })(),
       ...c.playstyleTags.map((t) => {
-        const { count, need, req, values } = playstyleTagProgress(t, lineup, boostedTagId);
+        const { count, need, req, values } = playstyleTagProgress(t, lineup);
         const def = PLAYSTYLE_TAGS[t];
         const receives = def.positions.includes(c.position);
         const reach = receives ? req.indexOf(count + 1) : -1;
@@ -2601,7 +2601,7 @@ function renderMarket(banner = '') {
     for (const t of p.playstyleTags ?? []) heldPlay[t] = (heldPlay[t] ?? 0) + 1;
     if (p.continentTag) heldCont[p.continentTag] = (heldCont[p.continentTag] ?? 0) + 1;
   }
-  const playChips = Object.keys(heldPlay).map((t) => ({ t, ...playstyleTagProgress(t, lineup, boostedTagIdFor(manager)) }))
+  const playChips = Object.keys(heldPlay).map((t) => ({ t, ...playstyleTagProgress(t, lineup) }))
     .sort((a, b) => b.tier - a.tier || b.count - a.count)
     .map(({ t, count, need, tier }) => `<button class="tagchip${tier ? ' is-on' : ''}${count === 0 ? ' is-zero' : ''}${currentState.offerTag === `playstyle:${t}` ? ' is-sel' : ''}" data-offer-tag="playstyle:${t}" title="선발 ${count}명 · 전체 ${heldPlay[t]}명">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}${TAG_LABELS[t] ?? t}<b class="n">${count}/${need}</b></button>`).join('');
   const contChips = Object.keys(heldCont).map((t) => {
@@ -2714,7 +2714,7 @@ function renderMarket(banner = '') {
         ${['headCoach', 'headScout'].map((role) => `
           <h3 class="staffgroup__title">${STAFF_ROLE_LABELS[role]}</h3>
           <ul class="mgroffers">
-            ${STAFF_LEVELS.map((level) => {
+            ${STAFF_LEVELS.filter((level) => currentState.staffOffer[`${role}:${level}`]).map((level) => {
               const [min, max] = STAFF_PRICE_TABLE[level];
               const cost = Math.round((min + max) / 2);
               const isCurrent = currentState.staff[role].level === level;
@@ -2769,7 +2769,7 @@ function renderMarket(banner = '') {
           </div>`).join('')}
         </div>
         ${renderRoleChips(roles, lineup, bench)}
-        ${renderBonusDetail(slotted[currentState.selectedSlot], lineup, bench, boostedTagIdFor(manager), roles)}
+        ${renderBonusDetail(slotted[currentState.selectedSlot], lineup, bench, coachFor(), roles)}
         ${renderSlotPicker(squad, formationId, currentState.selectedSlot, inXI, new Set(bench.map((p) => p.id)))}
         <p class="note">칸을 눌러 넣을 선수를 고르세요(선발 자리엔 그 포지션 선수만 설 수 있습니다). 포메이션을 바꾸면 슬롯 구성이 바뀌어 플레이스타일 시너지 발동 조건이 달라집니다.</p>
       </section>
@@ -2823,11 +2823,10 @@ function renderMarket(banner = '') {
           const expected = LEAGUE_EXPECTED_MANAGER[currentState.leagueTierId] ?? 1;
           const mgr = MANAGER_TIER_MULTIPLIER[manager.tier];
           const fit = mgr / expected;
-          const coach = COACH_POWER_MULTIPLIER[staff.headCoach.level] ?? 1;
           const tone = fit < 1 ? 'var(--debit)' : 'var(--turf)';
           return `<p class="note">${getLeagueTier(currentState.leagueTierId).label}는 감독 배율 <b>×${expected.toFixed(2)}</b>를 기대합니다.
             지금 감독 ×${mgr.toFixed(2)} → 팀 전력 <b style="color:${tone}">×${fit.toFixed(3)}</b>${fit < 1 ? ' (기대에 못 미쳐 손해)' : ''}.
-            수석 코치(${STAFF_LEVEL_LABELS[staff.headCoach.level]}) 직접 효과 <b>×${coach.toFixed(3)}</b>.</p>`;
+            수석 코치(${STAFF_LEVEL_LABELS[staff.headCoach.level]})는 ${(COACH_UNIT_BONUS_BY_LEVEL[staff.headCoach.level] ?? []).length ? '아래에서 고른 주력 유닛 선수들의 OVR을 올려 줍니다.' : '유닛 보너스가 없습니다(아카데미).'}</p>`;
         })()}
       </section>
       <section class="panel tabpanel">
@@ -2851,6 +2850,7 @@ function renderMarket(banner = '') {
               <div style="grid-column:2 / -1">
                 <div class="player__name">${esc(staff[role].name ?? '무명')}</div>
                 <div class="player__meta">${STAFF_ROLE_LABELS[role]} · <b class="staff__level">${STAFF_LEVEL_LABELS[staff[role].level] ?? staff[role].level}</b> · ${staffBenefit(role, staff[role].level)}</div>
+                ${role === 'headCoach' && (COACH_UNIT_BONUS_BY_LEVEL[staff.headCoach.level] ?? []).length ? `<div class="coachfocus"><em>주력 유닛(자유롭게 변경)</em>${Object.keys(COACH_UNIT_LABELS).map((u) => `<button type="button" data-coach-focus="${u}" aria-pressed="${(staff.headCoach.focus ?? 'midfield') === u}">${COACH_UNIT_LABELS[u]}</button>`).join('')}<small>${COACH_FOCUS_ORDER[staff.headCoach.focus ?? 'midfield'].map((u, i) => (COACH_UNIT_BONUS_BY_LEVEL[staff.headCoach.level][i] ? `${COACH_UNIT_LABELS[u]} +${COACH_UNIT_BONUS_BY_LEVEL[staff.headCoach.level][i]}` : null)).filter(Boolean).join(' · ')}</small></div>` : ''}
               </div>
             </li>`).join('')}
         </ul>
@@ -2888,7 +2888,7 @@ function renderMarket(banner = '') {
         선수 영입 <b>−${track.spent.toLocaleString('ko-KR')}G</b> ·
         방출/판매 수입 <b>+${track.income.toLocaleString('ko-KR')}G</b> ·
         그 밖(겨울 지원금·이벤트 등) <b>${otherFlow >= 0 ? '+' : '−'}${Math.abs(otherFlow).toLocaleString('ko-KR')}G</b><br>
-        <b>이적 손익 ${net >= 0 ? '+' : '−'}${Math.abs(net).toLocaleString('ko-KR')}G</b> (수입 − 영입 지출). 즉시 방출은 회수 0%, 이적 명단은 1주 뒤 일부, 12주 데드라인 방출은 원가의 40%를 돌려받습니다.
+        <b>이적 손익 ${net >= 0 ? '+' : '−'}${Math.abs(net).toLocaleString('ko-KR')}G</b> (수입 − 영입 지출). 이적 명단은 1주 뒤 일부, 12주 데드라인 방출은 원가의 40%를 돌려받습니다.
       </p>
       <p class="note chem-info" id="chem-info" hidden>
         <b>적응도 = 팀 조직력.</b> 높을수록 팀 전력이 오르고, 낮을수록 깎입니다
@@ -3033,7 +3033,7 @@ function renderMarket(banner = '') {
     // 케미(태그/대륙/특수 성향)까지 반영한 평균 최종 OVR이 가장 높은 조합을
     // 찾아 슬롯에 고정한다(포지션은 항상 지킨다).
     document.getElementById('auto-lineup-btn')?.addEventListener('click', () => {
-      const boosted = boostedTagIdFor(manager);
+      const boosted = coachFor();
       const before = computeAverageOVR(lineup, bench, boosted);
       const { xi, bench: nextBench } = optimizeLineup(squad, FORMATIONS[formationId].slots, BENCH_SIZE, boosted);
       const nextManual = {};
@@ -3111,6 +3111,9 @@ function renderMarket(banner = '') {
       currentState.offerTag = currentState.offerTag === el.dataset.offerTag ? null : el.dataset.offerTag;
       renderMarket(banner);
     };
+  });
+  document.querySelectorAll('[data-coach-focus]').forEach((btn) => {
+    btn.onclick = () => { currentState.staff.headCoach.focus = btn.dataset.coachFocus; renderMarket(); };
   });
   document.getElementById('scout-target')?.addEventListener('change', (e) => { currentState.scoutTargetTag = e.target.value || null; });
   document.getElementById('tagpanel-toggle')?.addEventListener('click', () => {

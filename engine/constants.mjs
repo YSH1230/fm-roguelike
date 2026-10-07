@@ -181,8 +181,33 @@ export const SHOP_REROLL_COST = 50;
 
 // 스펙 5.3절 "스태프" 효과표
 export const COACH_CHEMISTRY_DECAY_BY_LEVEL = { academy: 1.5, proLicense: 1, veteran: 0.5, master: 0 };
-// 수석 코치 등급이 팀 전력에 직접 곱해지는 배율(적응도 하락 완화와 별개).
-export const COACH_POWER_MULTIPLIER = { academy: 1.0, proLicense: 1.01, veteran: 1.025, master: 1.04 };
+// 수석 코치의 유닛 보너스(적응도 하락 완화와 별개): 코치가 고른 "주력 유닛"부터 차례로 그 유닛 선수에게 OVR을 더한다.
+// 등급이 높을수록 더 많은 유닛에 더 크게. 예전 전력 배율(×1.01/1.025/1.04)과 비슷한 크기로 맞췄다.
+// 순서: COACH_FOCUS_ORDER[주력] = [주력, 2순위, 3순위]. 유닛 크기가 달라(4-3-3 수비 5 / 중원 3 / 공격 3) 포메이션에 따라 유불리가 생긴다.
+export const COACH_UNITS = { defense: ['GK', 'CB', 'WB'], midfield: ['DMF', 'CMF', 'AMF'], attack: ['W', 'ST'] };
+export const COACH_UNIT_LABELS = { defense: '수비', midfield: '중원', attack: '공격' };
+export const COACH_FOCUS_ORDER = {
+  defense: ['defense', 'midfield', 'attack'],
+  midfield: ['midfield', 'defense', 'attack'],
+  attack: ['attack', 'midfield', 'defense'],
+};
+export const COACH_UNIT_BONUS_BY_LEVEL = { academy: [], proLicense: [2], veteran: [3, 1], master: [4, 2, 1] };
+
+// 리그별 스태프·감독 시장에 나오는 등급. 5부에 마스터 코치나 레전더리 감독이 있는 건 비현실적이다.
+export const STAFF_LEVELS_BY_TIER = {
+  tier5: ['academy', 'proLicense'],
+  tier4: ['academy', 'proLicense', 'veteran'],
+  tier3: ['academy', 'proLicense', 'veteran', 'master'],
+  tier2: ['academy', 'proLicense', 'veteran', 'master'],
+  tier1: ['academy', 'proLicense', 'veteran', 'master'],
+};
+export const MANAGER_OFFER_WEIGHTS_BY_TIER = {
+  tier5: { rookie: 85, tactician: 15, legendary: 0 },
+  tier4: { rookie: 65, tactician: 30, legendary: 5 },
+  tier3: { rookie: 45, tactician: 40, legendary: 15 },
+  tier2: { rookie: 25, tactician: 45, legendary: 30 },
+  tier1: { rookie: 10, tactician: 40, legendary: 50 },
+};
 // 리그가 "이 정도 감독은 있어야 한다"고 기대하는 감독 배율. 감독 배율을 이 값으로
 // 나눈 값이 실제로 곱해진다 - 상위 리그에서 루키 감독을 유지하면 그만큼 손해.
 export const LEAGUE_EXPECTED_MANAGER = { tier5: 1.0, tier4: 1.0, tier3: 1.03, tier2: 1.06, tier1: 1.1 };

@@ -83,8 +83,24 @@ test('리그가 기대하는 감독 대비 배율: 1부에서 루키는 손해, 
   assert.equal(computeTeamMultiplier('rookie', 60, { leagueTierId: 'tier5' }), computeTeamMultiplier('rookie', 60));
 });
 
-test('수석 코치 등급이 팀 전력에 직접 곱해진다', () => {
-  const none = computeTeamMultiplier('rookie', 60, { coachLevel: 'academy' });
-  const master = computeTeamMultiplier('rookie', 60, { coachLevel: 'master' });
-  assert.ok(Math.abs(master / none - 1.04) < 1e-9);
+test('수석 코치는 주력 유닛 선수의 OVR을 올린다: 등급이 높을수록 더 많은 유닛에 더 크게', async () => {
+  const { computePlayerFinalOVR, coachBonusFor } = await import('../engine/ovr.mjs');
+  const mk = (id, position) => ({ id, name: id, baseOVR: 60, age: 25, position, playstyleTags: [], continentTag: null, specialTrait: null });
+  const lineup = [mk('gk', 'GK'), mk('cb', 'CB'), mk('cm', 'CMF'), mk('st', 'ST')];
+  const ovr = (p, coach) => computePlayerFinalOVR(p, lineup, [], coach, { captain: null, ace: null, joker: null });
+  const [gk, cb, cm, st] = lineup;
+  // 아카데미: 보너스 없음
+  assert.equal(ovr(cb, { level: 'academy', focus: 'defense' }), 60);
+  // 프로 라이선스: 주력 유닛만 +2
+  assert.equal(ovr(cb, { level: 'proLicense', focus: 'defense' }), 62);
+  assert.equal(ovr(cm, { level: 'proLicense', focus: 'defense' }), 60);
+  // 베테랑 수비 주력: 수비 +3, 중원 +1, 공격 0
+  const vet = { level: 'veteran', focus: 'defense' };
+  assert.deepEqual([gk, cm, st].map((p) => ovr(p, vet)), [63, 61, 60]);
+  // 마스터 공격 주력: 공격 +4, 중원 +2, 수비 +1
+  const master = { level: 'master', focus: 'attack' };
+  assert.deepEqual([st, cm, cb].map((p) => ovr(p, master)), [64, 62, 61]);
+  // 코치가 없으면 0, 모르는 포지션도 0
+  assert.equal(coachBonusFor(null, 'ST'), 0);
+  assert.equal(coachBonusFor(master, 'XX'), 0);
 });

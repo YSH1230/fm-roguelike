@@ -7,7 +7,7 @@ import { computeAverageOVR } from './team-power.mjs';
 // 더 좋아지는 동안 반복한다. 태그 시너지는 3명 문턱이라 1개 교체만으로는
 // 못 넘는 경우가 있어 2개 동시 교체까지 본다.
 // ponytail: 3개 이상 동시 교체는 안 본다 - 5명 문턱 시너지를 통째로 못 찾을 수 있다.
-export function optimizeLineup(squad, slots, benchSize, boostedTagId = null) {
+export function optimizeLineup(squad, slots, benchSize, coach = null) {
   const byOvr = (a, b) => b.baseOVR - a.baseOVR;
   const xi = new Array(slots.length).fill(null);
   const used = new Set();
@@ -22,7 +22,7 @@ export function optimizeLineup(squad, slots, benchSize, boostedTagId = null) {
   };
   const score = (lineup) => {
     const players = lineup.filter(Boolean);
-    return players.length ? computeAverageOVR(players, benchOf(lineup), boostedTagId) : 0;
+    return players.length ? computeAverageOVR(players, benchOf(lineup), coach) : 0;
   };
   // 슬롯 i에 넣을 수 있는 후보: 그 자리 포지션의 선발 밖 선수
   const candidates = (lineup, i) => {

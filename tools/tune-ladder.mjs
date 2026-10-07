@@ -19,7 +19,8 @@ const ROOKIE = process.argv.includes('--rookie');
 const BOT_MANAGER = ROOKIE
   ? { tier5: 'rookie', tier4: 'rookie', tier3: 'rookie', tier2: 'rookie', tier1: 'rookie' }
   : { tier5: 'tactician', tier4: 'tactician', tier3: 'tactician', tier2: 'legendary', tier1: 'legendary' };
-const BOT_COACH = ROOKIE ? 'academy' : 'proLicense';
+// 코치는 가장 큰 유닛(4-3-3 수비 5명)을 주력으로 둔다.
+const BOT_COACH = { level: ROOKIE ? 'academy' : 'proLicense', focus: 'defense' };
 
 import { FORMATIONS } from '../ui/formations.mjs';
 const SLOTS = FORMATIONS['4-3-3'].slots;
@@ -89,7 +90,7 @@ function playSeason(tierId, carried) {
       }
     }
     const { lineup, bench } = seasonXI(squad);
-    const pts = runHalfSeason(lineup, bench, BOT_MANAGER[tierId], chem, tierId, Math.random, null, BOT_COACH);
+    const pts = runHalfSeason(lineup, bench, BOT_MANAGER[tierId], chem, tierId, Math.random, BOT_COACH);
     if (phase === 'summer') firstHalf = pts;
     else return { points: firstHalf + pts, squad, funds };
   }

@@ -25,7 +25,7 @@ import { createUcl, advanceUcl, UCL_REWARDS_FUNDS } from '../engine/champions-le
 import {
   CHEMISTRY_START, CHEMISTRY_DECAY_PER_TRANSACTION, WINTER_TAX_RATIO, SHOP_OFFER_SIZE,
   PROMOTION_STAY_FUNDS_RATIO, SAME_LEAGUE_FUNDS_RATIO, STAGNATION_FUNDS_PENALTY_PER_MISS, PLAYSTYLE_TAGS, ADVANCED_TAGS,
-  SCOUT_TARGET_SLOTS_BY_LEVEL,
+  SCOUT_TARGET_SLOTS_BY_LEVEL, COACH_UNITS,
 } from '../engine/constants.mjs';
 
 const argv = process.argv.slice(2);
@@ -41,6 +41,12 @@ const SQUAD_CAP = 26;
 
 const BOT_MANAGER = { tier5: 'tactician', tier4: 'tactician', tier3: 'tactician', tier2: 'legendary', tier1: 'legendary' };
 const BOT_COACH = 'proLicense';
+// 코치 주력 유닛은 시즌마다 그 포메이션에서 슬롯이 가장 많은 유닛으로 바꾼다(사람도 포메이션에 맞춰 바꾼다).
+const COACH = { level: BOT_COACH, focus: 'defense' };
+function bestCoachFocus(slots) {
+  const size = (u) => slots.filter((p) => COACH_UNITS[u].includes(p)).length;
+  return Object.keys(COACH_UNITS).sort((a, b) => size(b) - size(a))[0];
+}
 const BOT_SCOUT = 'proLicense'; // smart 봇만 목표 태그를 쓴다(주 1장 보장)
 const BASE_SLOTS = FORMATIONS['4-3-3'].slots;
 let SLOTS = BASE_SLOTS; // smart 봇은 목표 태그 수혜 슬롯이 가장 많은 포메이션을 시즌마다 고른다
@@ -108,9 +114,9 @@ function progressCredit(squad, card, tag) {
 }
 
 function playUcl(lineup, bench, chem) {
-  const extras = { leagueTierId: 'tier1', coachLevel: BOT_COACH };
-  const power = computeTeamPower(lineup, bench, BOT_MANAGER.tier1, chem, null, extras);
-  const away = computeTeamPower(lineup, bench, BOT_MANAGER.tier1, chem / 2, null, extras);
+  const extras = { leagueTierId: 'tier1' };
+  const power = computeTeamPower(lineup, bench, BOT_MANAGER.tier1, chem, COACH, extras);
+  const away = computeTeamPower(lineup, bench, BOT_MANAGER.tier1, chem / 2, COACH, extras);
   let s = createUcl(power, Math.random, { myPowerAway: away });
   for (let i = 0; i < 40 && s.stage !== 'done'; i++) s = advanceUcl(s, Math.random);
   return s.result;
@@ -150,6 +156,7 @@ function playCareer() {
     const focusTag = FOCUS ? topTag(squad) : null;
     const targetTag = SMART ? chooseTarget(squad) : null;
     SLOTS = targetTag ? bestFormationFor(targetTag) : BASE_SLOTS;
+    COACH.focus = bestCoachFocus(SLOTS);
     let lineup; let bench; let secondHalf = 0;
     for (const phase of ['summer', 'winter']) {
       for (let w = 0; w < (phase === 'summer' ? 8 : 4); w++) {
@@ -189,7 +196,7 @@ function playCareer() {
       // 선수단이 불어나면 느려지니 하위권은 정리(방출 환급은 모델 안 함)
       if (squad.length > SQUAD_CAP) squad = [...squad].sort((a, b) => b.baseOVR - a.baseOVR).slice(0, SQUAD_CAP);
       ({ lineup, bench } = seasonXI(squad));
-      const pts = runHalfSeason(lineup, bench, BOT_MANAGER[tierId], chem, tierId, Math.random, null, BOT_COACH);
+      const pts = runHalfSeason(lineup, bench, BOT_MANAGER[tierId], chem, tierId, Math.random, COACH);
       if (phase === 'summer') firstHalf = pts; else secondHalf = pts;
     }
 
