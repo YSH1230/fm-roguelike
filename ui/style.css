@@ -1,3 +1,5 @@
+@font-face { font-family: 'FM Square'; src: url('fonts/FMSquare-400.woff2') format('woff2'); font-weight: 300 500; font-display: swap; }
+@font-face { font-family: 'FM Square'; src: url('fonts/FMSquare-700.woff2') format('woff2'); font-weight: 600 900; font-display: swap; }
 @font-face { font-family: 'SeoulRo'; src: url('fonts/SeoulRo.ttf') format('truetype'); font-weight: 400 900; font-display: swap; }
 @font-face { font-family: 'Anton'; src: url('fonts/Anton-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
 * { font-synthesis: none; }
@@ -32,7 +34,7 @@
   --t-god: #e2564d;
 
   --num: 'Anton', 'Pretendard Variable', Pretendard, system-ui, sans-serif;
-  --ui: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
+  --ui: 'FM Square', 'Pretendard Variable', Pretendard, system-ui, sans-serif;
 
   /* 타입 스케일. 위계는 크기보다 무게와 색으로 만든다 */
   --fs-display: 42px;
@@ -1759,3 +1761,74 @@ h1, h2, h3, .topbar__club, .club__name, .tab, .buy, .deal__buy span, .reroll, .f
   font-weight: 400;
   letter-spacing: 0.01em;
 }
+.deal__name, .slot .slot__name, .player__name { font-family: var(--display); font-weight: 400; letter-spacing: 0.02em; }
+
+/* ===== v4: 중계 스코어보드 구조. 헤더를 압축하고 팀 전력을 주인공으로 ===== */
+.topbar { padding: 12px var(--s4) 8px; }
+.topbar__club { font-size: 22px; line-height: 1.05; letter-spacing: 0.02em; }
+.topbar__phase { font-size: var(--fs-micro); color: var(--muted); }
+.topbar__week b { font-size: 26px; }
+.weekdots { margin-top: 8px; }
+.res { gap: var(--s6); margin-top: 8px; }
+.res__item { display: flex; align-items: baseline; gap: 8px; }
+.res__label { font-size: var(--fs-micro); }
+.res__val { font-size: 20px; line-height: 1; }
+.res__item .chembar { display: none; }
+.goalstrip { background: none; border: 0; border-top: 1px solid var(--line-soft); border-radius: 0; margin-top: 8px; padding: 7px 0 0; }
+.goalstrip b { font-size: var(--fs-label); font-weight: 700; }
+
+.powerstrip { display: grid; grid-template-columns: 1.7fr repeat(4, 1fr); align-items: stretch; background: var(--night); gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.pw { background: none; padding: 8px 2px; border: 0; border-left: 1px solid var(--line-soft); display: flex; flex-direction: column; justify-content: center; }
+.pw--total { order: -1; border-left: 0; border-top: 0; padding: 8px var(--s4); text-align: left; background: color-mix(in srgb, var(--kit, var(--turf)) 22%, var(--night)); }
+.pw--total .pw__label { font-size: var(--fs-micro); }
+.pw--total .pw__val { font-size: 44px; line-height: 1; letter-spacing: 0.01em; }
+.pw__val { font-size: 20px; line-height: 1.1; }
+
+.tabs { padding: 4px var(--s4) 0; }
+.tab { font-size: 17px; padding: 12px 0 10px; border-bottom-width: 3px; }
+.tab[aria-selected='true'] { border-bottom-color: color-mix(in srgb, var(--kit, var(--turf)) 60%, #fff); }
+
+/* 영입 카드: 선수 정보가 먼저, 버튼은 작고 선명하게 */
+.offer.deal { padding: 10px; gap: var(--s3); }
+.deal .pcard__ovr { font-size: 24px; }
+.deal__name { font-size: 16px; padding: 3px 9px; background: rgba(0, 0, 0, 0.6); }
+.deal__buy { align-self: center; min-width: 62px; padding: 10px 8px; border-radius: 10px; }
+.deal__buy span { font-size: var(--fs-micro); letter-spacing: 0.04em; }
+.deal__buy b { font-size: 20px; }
+.cta { font-family: var(--display); font-weight: 400; font-size: 19px; letter-spacing: 0.06em; }
+
+/* 헤더는 스크롤과 함께 올라가고, 탭만 위에 남긴다 */
+.topbar { position: static; backdrop-filter: none; }
+.tabs { position: sticky; top: 0; z-index: 20; background: var(--night); border-bottom: 1px solid var(--line-soft); }
+.tab { font-size: 15px; letter-spacing: 0; white-space: nowrap; padding: 12px 0 9px; }
+.tab__count { font-size: var(--fs-micro); margin-left: 4px; }
+
+/* 선수단 행: 이름은 영입 카드와 같은 서체, OVR을 키워 훑어보기 쉽게 */
+.srow { grid-template-columns: 36px 40px minmax(0, 1fr) auto; }
+.srow__pos { font-size: 12px; }
+.srow__ovr { font-size: 24px; line-height: 1; }
+.srow__name { font-family: var(--display); font-weight: 400; font-size: 16px; letter-spacing: 0.02em; }
+.srow__name small { font-family: var(--ui); letter-spacing: 0; }
+.srow--xi { border-left-color: var(--turf); }
+
+/* 전술 탭 보조 버튼 */
+.tactics__acts .reroll { font-family: var(--display); font-weight: 400; font-size: 15px; letter-spacing: 0.04em; color: var(--light); }
+.tactics__acts .reroll:disabled { opacity: 1; color: var(--muted); border-style: dashed; }
+.formations button { font-size: 13px; font-family: var(--display); font-weight: 400; letter-spacing: 0.04em; padding: 6px 12px; }
+
+/* 이사진 요구 카드: 난이도 띠 + 큰 보상 숫자 */
+.demandcards { gap: var(--s3); margin-top: var(--s6); }
+.demandcard {
+  display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'level reward' 'text reward'; align-items: center; column-gap: var(--s4); row-gap: 6px;
+  padding: var(--s4); text-align: left; border-left: 5px solid var(--turf);
+}
+.demandcard--normal { border-left-color: var(--gold); }
+.demandcard--hard { border-left-color: var(--debit); }
+.demandcard__level { grid-area: level; font-family: var(--display); font-weight: 400; font-size: var(--fs-body); letter-spacing: 0.06em; color: var(--turf); }
+.demandcard__text { grid-area: text; font-size: var(--fs-m); line-height: 1.35; }
+.demandcard__reward { grid-area: reward; font-family: var(--display); font-size: 30px; line-height: 1; letter-spacing: 0.02em; color: var(--light); text-align: right; }
+.demandcard__reward small { display: block; margin-top: 4px; font-family: var(--ui); font-size: 10px; letter-spacing: 0; color: var(--muted); }
+
+/* 구단 선택 카드 */
+.club__name { font-size: 22px; line-height: 1.1; letter-spacing: 0.02em; margin-bottom: var(--s2); }
+.club__line > :first-child { white-space: nowrap; flex: none; min-width: 3.4em; }

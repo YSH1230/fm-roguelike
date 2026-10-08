@@ -948,7 +948,7 @@ function demandCardHtml(card, attr) {
   return `<button class="demandcard demandcard--${card.difficulty}" ${attr}="${card.id}">
     <span class="demandcard__level">${DIFFICULTY_LABELS[card.difficulty]}</span>
     <span class="demandcard__text">${esc(card.text)}</span>
-    <b class="demandcard__reward">달성 시 다음 시즌 자금 +${reward}%</b>
+    <b class="demandcard__reward">+${reward}%<small>달성 시 다음 시즌 자금</small></b>
   </button>`;
 }
 
