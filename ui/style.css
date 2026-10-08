@@ -1528,3 +1528,158 @@ button:not(:disabled):active { transform: scale(0.98); }
   font-size: var(--fs-micro); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm);
 }
 .goalstrip b { color: var(--gold); }
+
+/* =====================================================================
+   UI v2 — 간결화(영입 탭): 설명 문장을 줄이고 아이콘·숫자·칩으로 말한다
+   ===================================================================== */
+.goalstrip { display: flex; align-items: center; gap: var(--s2); flex-wrap: nowrap; margin-top: var(--s2); padding: 6px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); }
+.goalstrip span { flex: none; font-size: var(--fs-micro); color: var(--muted); }
+.goalstrip b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-label); font-weight: 700; color: var(--gold); }
+.goalstrip b.is-none { color: var(--muted-dim); font-weight: 500; }
+.goalstrip em { margin-left: auto; flex: none; font: 800 var(--fs-label)/1 var(--num); font-style: normal; color: var(--turf); }
+
+.subtabs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0 0 var(--s3); }
+.subtabs > button[role='tab'] { padding: 7px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font: 700 var(--fs-label)/1 var(--ui); cursor: pointer; }
+.subtabs > button[aria-selected='true'] { background: var(--turf); border-color: var(--turf); color: var(--night); }
+.subtabs > button i { font-style: normal; font-family: var(--num); opacity: 0.7; margin-left: 3px; }
+.subtabs .reroll { margin-left: auto; }
+
+.scoutbar { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--s3); }
+.scoutbar__label { display: inline-flex; align-items: center; gap: 4px; flex: none; font: 700 var(--fs-label)/1 var(--ui); color: var(--gold); }
+.scoutbar__label .badgeicon { width: 16px; height: 16px; }
+.scoutbar select { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 999px; background: var(--surface); color: var(--light); border: 1px solid var(--line); font: 600 var(--fs-label)/1 var(--ui); }
+
+.tagpanel__head b { font-size: var(--fs-label); }
+.tagpanel__head .tagpanel__sum { font-size: var(--fs-micro); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 칩: 아이콘 + 숫자. 이름·규칙은 눌렀을 때 */
+.chip { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px 3px 5px; border-radius: 999px; background: var(--night); border: 1px solid var(--line); color: var(--muted); font: 700 var(--fs-micro)/1 var(--num); cursor: pointer; }
+.chip .badgeicon { width: 15px; height: 15px; flex: none; }
+.chip b { color: var(--light); font-weight: 800; }
+.chip--up1 { border-color: var(--turf); }
+.chip--up1 .badgeicon { color: var(--turf); }
+.chip--up2 { border-color: var(--gold); background: rgba(221, 166, 58, 0.1); }
+.chip--up2 .badgeicon { color: var(--gold); }
+.chip--dim { opacity: 0.42; }
+.chip--trait { border-color: var(--gold); color: var(--gold); }
+.chip--trait b { color: var(--gold); font-family: var(--ui); }
+.chip--plain { cursor: default; padding: 3px 8px; font-family: var(--ui); font-weight: 600; }
+
+/* 영입 카드: 한 장 약 100px(예전 230px) */
+.offer.deal { grid-template-columns: 62px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; }
+.deal .pcard { width: 62px; aspect-ratio: 3 / 4.1; border-radius: 10px; padding: 4px 5px 3px; }
+.deal .pcard__pos { font-size: var(--fs-micro); }
+.deal .pcard__ovr { top: 2px; right: 5px; font-size: 18px; }
+.deal .pcard__art { margin-top: 0; }
+.deal .pcard__art .portrait { width: 46px; height: 46px; }
+.deal .pcard__tier { font-size: 9px; padding: 2px 0; }
+.deal__body { min-width: 0; display: grid; gap: 6px; }
+.deal__top { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.deal__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-m); font-weight: 700; }
+.deal__age { flex: none; font-size: var(--fs-micro); color: var(--muted-dim); }
+.deal__tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.deal__cmp { display: flex; align-items: center; gap: var(--s2); font-size: var(--fs-label); color: var(--muted); }
+.deal__cmp b { color: var(--light); }
+.deal__cmp em { font-style: normal; font-weight: 800; }
+.deal__cmp em.up { color: var(--turf); }
+.deal__cmp em.down { color: var(--debit); }
+.deal__cmp.is-empty { color: var(--gold); font-weight: 700; }
+.deal__cmp.is-none { color: var(--muted-dim); }
+.deal__buy { flex-direction: column; justify-content: center; gap: 1px; align-self: stretch; min-width: 62px; padding: var(--s2) var(--s3); }
+.deal__buy span { font-size: var(--fs-label); }
+.deal__buy b { font: 800 var(--fs-body)/1.1 var(--num); }
+.offer.deal .offer__hint { grid-column: 1 / -1; margin: 0; padding-top: 6px; border-top: 1px solid var(--line-soft); }
+
+/* 감독·스태프 시장 행: 사진 | 이름+칩 | 영입 */
+.mgroffer { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: var(--s3); }
+.mgroffer__body { min-width: 0; display: grid; gap: 4px; }
+.mgroffer__body .chips { margin: 0; }
+.mgroffer .hire b { font: 800 var(--fs-body)/1.1 var(--num); }
+
+/* ===== 선수단 탭: 선발 / 벤치 / 예비 ===== */
+.sqsum { display: flex; flex-wrap: wrap; gap: var(--s2); margin: 0 0 var(--s3); }
+.sqsum span { padding: 5px 10px; border-radius: 999px; background: var(--night); border: 1px solid var(--line-soft); font-size: var(--fs-label); color: var(--muted); }
+.sqsum b { color: var(--light); font-weight: 800; }
+
+.sqsec { display: flex; align-items: center; gap: var(--s2); margin: var(--s4) 0 var(--s2); font-size: var(--fs-label); }
+.sqsec b { display: inline-flex; align-items: center; gap: 6px; color: var(--light); font-size: var(--fs-body); }
+.sqsec b::before { content: ''; width: 8px; height: 8px; border-radius: 2px; background: var(--muted-dim); }
+.sqsec--xi b::before { background: var(--turf); }
+.sqsec--bench b::before { background: var(--gold); }
+.sqsec i { font-style: normal; color: var(--muted); }
+
+.squad--v2 { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.srow {
+  display: grid; grid-template-columns: 34px 30px minmax(0, 1fr) auto; align-items: center; gap: var(--s2);
+  padding: 7px 10px; background: var(--surface); border: 1px solid var(--line-soft); border-left: 3px solid var(--tier, var(--line-soft)); border-radius: var(--r-md); cursor: pointer;
+}
+.srow--xi { background: color-mix(in srgb, var(--turf) 6%, var(--surface)); }
+.srow--reserve { opacity: 0.85; }
+.srow--gap { border-style: dashed; border-color: var(--gold); border-left-color: var(--gold); background: transparent; cursor: default; grid-template-columns: 34px 30px minmax(0, 1fr) auto; }
+.srow__pos { font: 800 var(--fs-micro)/1 var(--num); color: var(--muted); text-align: center; }
+.srow__ovr { font-size: var(--fs-m); color: var(--tier, var(--light)); text-align: center; }
+.srow__main { min-width: 0; display: grid; gap: 3px; }
+.srow__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: var(--fs-body); }
+.srow__name small { margin-left: 6px; font-weight: 500; font-size: var(--fs-micro); color: var(--muted-dim); }
+.srow__main .ticons { justify-content: flex-start; }
+.srow__side { display: flex; align-items: center; gap: 6px; }
+.srow__chev { font-style: normal; color: var(--muted-dim); transition: transform 140ms var(--ease); }
+.srow.is-open .srow__chev { transform: rotate(180deg); }
+.srow__acts { display: none; grid-column: 1 / -1; flex-wrap: wrap; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--line-soft); }
+.srow.is-open .srow__acts { display: flex; }
+.rowtag { display: inline-block; padding: 2px 7px; border-radius: 999px; font: 700 var(--fs-micro)/1.3 var(--ui); background: var(--surface-hi); color: var(--muted); }
+.rowtag--bad { background: rgba(226, 86, 77, 0.16); color: var(--debit); }
+.rowtag--warn { background: rgba(221, 166, 58, 0.16); color: var(--gold); }
+
+.act { padding: 6px 11px; border-radius: 999px; background: var(--night); border: 1px solid var(--line); color: var(--light); font: 700 var(--fs-micro)/1.2 var(--ui); cursor: pointer; }
+.act b { font-family: var(--num); color: var(--gold); margin-left: 2px; }
+.act--main { background: var(--turf); border-color: var(--turf); color: var(--night); }
+.act--main b { color: var(--night); }
+.act--warn { border-color: var(--debit); color: var(--debit); }
+.act:disabled { opacity: 0.4; cursor: default; }
+
+/* 계약: 한 줄 행, 많으면 기본 접힘 */
+.contractbox { margin: 0 0 var(--s3); border: 1px solid var(--gold); border-radius: var(--r-md); background: rgba(221, 166, 58, 0.05); overflow: hidden; }
+.contractbox__head { width: 100%; display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: none; border: 0; color: var(--light); font: inherit; cursor: pointer; }
+.contractbox__head b { font-size: var(--fs-body); margin-right: auto; }
+.contractbox.is-collapsed .panel__chev { transform: rotate(-90deg); }
+.contractbox.is-collapsed .contractbox__list { display: none; }
+.contractbox__list { list-style: none; margin: 0; padding: 0 6px 6px; display: grid; gap: 2px; max-height: 260px; overflow-y: auto; }
+.crow { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: var(--s2); padding: 6px 8px; border-radius: var(--r-sm); background: var(--surface); border-left: 3px solid var(--tier, var(--line)); }
+.crow__ovr { font-size: var(--fs-body); color: var(--tier, var(--light)); text-align: center; }
+.crow__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-label); font-weight: 700; }
+.crow__name small { margin-left: 6px; font-weight: 500; font-size: var(--fs-micro); color: var(--muted-dim); }
+.crow__btns { display: flex; align-items: center; gap: 4px; }
+.crow .act { padding: 5px 9px; }
+.crow .nore { color: var(--muted-dim); font-size: var(--fs-micro); }
+.listed { list-style: none; margin: 0 0 var(--s3); padding: 0; display: grid; gap: 3px; font-size: var(--fs-label); color: var(--muted); }
+.listed li { display: flex; justify-content: space-between; padding: 4px 8px; }
+
+/* ===== 전술 탭: 피치를 세로로 늘리고 카드를 조금 줄여 DMF·CB·AMF 겹침을 없앤다 ===== */
+.pitch { aspect-ratio: 5 / 7; }
+.slot { width: 60px; }
+.tactics__acts { display: flex; gap: var(--s2); margin: 0 0 var(--s3); }
+.tactics__acts .reroll { flex: 1; }
+#chem-desc:empty { display: none; }
+
+/* ===== 감독·스태프 탭 ===== */
+.fitbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--s3); margin: 0 0 var(--s3); padding: 8px 10px; background: var(--night); border: 1px solid var(--line-soft); border-radius: var(--r-md); font-size: var(--fs-label); color: var(--muted); }
+.fitbar b { color: var(--light); }
+.fitbar em { margin-left: auto; font-style: normal; font-weight: 800; }
+.fitbar em.up { color: var(--turf); }
+.fitbar em.down { color: var(--debit); }
+.crew { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.crewcard { display: grid; grid-template-columns: 48px 1fr; gap: var(--s3); align-items: start; padding: 10px; background: var(--surface); border: 1px solid var(--line-soft); border-left: 3px solid var(--tier, var(--line)); border-radius: var(--r-md); }
+.crewcard__body { min-width: 0; display: grid; gap: 4px; }
+.crewcard__role { color: var(--muted); font-size: var(--fs-micro); }
+.crewcard__role .staff__level { color: var(--tier, var(--light)); }
+.crewcard .chips { margin: 0; }
+.chip--tier { color: var(--tier, var(--light)); border-color: var(--tier, var(--line)); font-weight: 800; }
+.chip--plain .badgeicon { width: 13px; height: 13px; }
+.focus { display: inline-flex; gap: 4px; margin-top: 2px; }
+.focus button { padding: 5px 14px; border-radius: 999px; background: var(--night); border: 1px solid var(--line); color: var(--muted); font: 700 var(--fs-label)/1 var(--ui); cursor: pointer; }
+.focus button[aria-pressed='true'] { background: var(--turf); border-color: var(--turf); color: var(--night); }
+
+/* 판매 확인(행이 확인 바로 바뀔 때) */
+.srow.player--confirm, .crow.player--confirm { display: flex; align-items: center; gap: var(--s2); cursor: default; }
+.srow.player--confirm .confirm__q, .crow.player--confirm .confirm__q { font-size: var(--fs-label); }
