@@ -91,7 +91,7 @@ export function pixelPitchSvg() {
   for (let i = 0; i < 8; i++) r += `<rect x="${i * 16}" y="0" width="16" height="${H}" fill="${i % 2 ? B : A}"/>`;
   // 잔디 질감(고정 시드)
   let s = 7;
-  for (let i = 0; i < 260; i++) {
+  for (let i = 0; i < 70; i++) {
     s = (s * 1103515245 + 12345) & 0x7fffffff;
     const x = s % W; s = (s * 1103515245 + 12345) & 0x7fffffff; const y = s % H;
     const stripe = Math.floor(x / 16) % 2;
@@ -107,17 +107,23 @@ export function pixelPitchSvg() {
   return `<svg class="pxpitch__bg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
 }
 
-// 양 팀 11명씩. home은 오른쪽으로 공격.
-const HOME = [[6, 50, 'gk'], [20, 18], [18, 40], [18, 60], [20, 82], [36, 22], [34, 42], [34, 62], [36, 80], [50, 38], [50, 62]];
+// 전술 탭 좌표(위가 공격, 아래가 골문)를 가로 경기장(오른쪽 공격)으로 옮긴다.
+const toSim = (x, y) => ({ sx: 7 + Math.max(0, Math.min(1, (91 - y) / 82)) * 38, sy: 14 + x * 0.72 });
 const SKINS = ['#f1c9a5', '#d6a275', '#b8825a', '#8d5a3b', '#e4b48d'];
 const HAIRS = ['#201814', '#3a2618', '#5a3720', '#c18a3f', '#c9c4bb'];
-export function pixelMatchHtml(kit) {
+const DEFAULT_433 = [[50, 90], [37, 70], [63, 70], [11, 63], [89, 63], [50, 52], [27, 42], [73, 42], [15, 20], [85, 20], [50, 9]];
+
+// home: [{ coord:[x,y], slot, skin?, hair? }] (내 포메이션·내 선수). away: 같은 형식(없으면 기본 배치).
+export function pixelMatchHtml(kit, { home = null, away = null } = {}) {
   const lum = (h) => { const n = parseInt(h.slice(1), 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)); };
-  const away = lum(kit) > 150 ? '#2a3a6a' : '#e8e8e8';
-  const mk = (list, mirror, shirt, shorts, gk) => list.map(([x, y, tag], i) => {
-    const sh = tag === 'gk' ? gk : shirt;
-    const svg = pixelPlayerSvg({ shirt: sh, shorts, skin: SKINS[(i * 3 + (mirror ? 2 : 0)) % SKINS.length], hair: HAIRS[(i * 2 + (mirror ? 1 : 0)) % HAIRS.length] });
-    return `<span class="pxp" style="left:${mirror ? 100 - x : x}%;top:${y}%;--d:${((i * 137) % 700) / 1000}s">${svg}</span>`;
+  const awayShirt = lum(kit) > 150 ? '#2a3a6a' : '#e8e8e8';
+  const base = (list) => (list ?? DEFAULT_433.map((coord, i) => ({ coord, slot: i === 0 ? 'GK' : '' })));
+  const mk = (list, mirror, shirt, shorts, gk) => base(list).map((p, i) => {
+    const { sx, sy } = toSim(p.coord[0], p.coord[1]);
+    const x = mirror ? 100 - sx : sx;
+    const y = mirror ? 100 - sy + (i % 2 ? 3 : -3) : sy;
+    const svg = pixelPlayerSvg({ shirt: p.slot === 'GK' ? gk : shirt, shorts, skin: p.skin ?? SKINS[(i * 3 + (mirror ? 2 : 0)) % SKINS.length], hair: p.hair ?? HAIRS[(i * 2 + (mirror ? 1 : 0)) % HAIRS.length] });
+    return `<span class="pxp" style="left:${x.toFixed(1)}%;top:${Math.max(8, Math.min(92, y)).toFixed(1)}%;--d:${((i * 137) % 700) / 1000}s">${svg}</span>`;
   }).join('');
-  return `${pixelPitchSvg()}${mk(HOME, false, kit, '#f2f2f2', '#f2d24a')}${mk(HOME.map(([x, y, t], i) => [x, 100 - y + (i % 2 ? 3 : -3), t]), true, away, '#23262c', '#5fb4e8')}<div class="matchsim__ball">${pixelBallSvg()}</div>`;
+  return `${pixelPitchSvg()}${mk(home, false, kit, '#f2f2f2', '#f2d24a')}${mk(away, true, awayShirt, '#23262c', '#5fb4e8')}<div class="matchsim__ball">${pixelBallSvg()}</div>`;
 }

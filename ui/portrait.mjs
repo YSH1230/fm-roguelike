@@ -32,6 +32,12 @@ const HAIR = {
   bald: [],
 };
 
+// 시뮬레이션의 작은 선수도 같은 사람이면 같은 피부색·머리색이 되도록 같은 규칙으로 뽑는다.
+export function appearanceOf(card) {
+  const seed = hash(card.id ?? card.name ?? 'x');
+  return { skin: at(seed, 3, SKIN[card.continentTag] ?? SKIN.europe), hair: at(seed, 14, HAIR_COLORS) };
+}
+
 const cache = new Map();
 
 // kit: 유니폼 색. role: 'player' | 'manager' | 'coach' | 'scout' (없으면 카드 모양으로 추정).
@@ -104,8 +110,8 @@ function drawPortrait(card, kit, kind) {
   }
 
   outline(g);
+  // 배경은 카드 등급 색(--tier)을 따라간다. 등급이 없는 곳에서는 유니폼 색을 쓴다.
   const bg = mixHex(kit, '#0c0b10', 0.55);
-  // 배경: 어두운 바탕 + 아래쪽 땅 줄
-  return `<rect width="16" height="16" fill="${bg}"/><rect y="15" width="16" height="1" fill="${mixHex(bg, '#000000', 0.35)}"/>${gridToRects(g)}`;
+  return `<rect width="16" height="16" style="fill:color-mix(in srgb,var(--tier,${bg}) 70%,#0c0b10)"/><rect y="15" width="16" height="1" style="fill:color-mix(in srgb,var(--tier,${bg}) 70%,#000)" opacity=".55"/>${gridToRects(g)}`;
 }
 const OUTC = '#1b1311';

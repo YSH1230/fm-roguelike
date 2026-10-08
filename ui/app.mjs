@@ -49,7 +49,7 @@ import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
 import { ageSquad } from '../engine/aging.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
-import { renderPortrait } from './portrait.mjs';
+import { renderPortrait, appearanceOf } from './portrait.mjs';
 import { pixelMatchHtml } from './pixel.mjs';
 import { renderCrest } from './crest.mjs';
 import {
@@ -532,6 +532,18 @@ function setScreen(html, dock = '') {
 // 화면을 누르면 빨리 감기.
 // ctx.table/rivals: 미리 만든 순위표와 상대 구단(후반기는 전반기 것을 이어받아 시즌 누적으로 보여 준다).
 // ctx.second: 후반기 여부(라벨만 바뀐다 - 승점은 이미 전반기 누적이 반영돼 있다).
+// 시뮬레이션 화면에서 내 포메이션과 내 선발 11명을 그대로 보여주기 위한 배치.
+function myPixelLineup() {
+  try {
+    const fid = currentFormation();
+    const f = FORMATIONS[fid];
+    const { slotted } = pickBestXI(currentState.squad, fid, currentState.manualOverrides, currentState.benchOverrides);
+    return f.coords.map((coord, i) => ({ coord, slot: f.slots[i], ...(slotted[i] ? appearanceOf(slotted[i]) : {}) }));
+  } catch (e) {
+    return null; // 배치를 못 읽으면 기본 배치로
+  }
+}
+
 function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints, onDone, ctx = {}) {
   const N = MATCHES_PER_HALF;
   const tier = effectiveTier(currentState.leagueTierId);
@@ -594,7 +606,7 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
         <span class="matchsim__clock" id="sim-clock">0/${N}</span>
       </div>
       <div class="matchsim__pitch pxpitch" id="sim-pitch">
-        ${pixelMatchHtml(kitColor)}
+        ${pixelMatchHtml(kitColor, { home: myPixelLineup() })}
       </div>
       <div class="matchsim__ticker">
         <span class="matchsim__dot"></span>
