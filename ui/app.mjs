@@ -22,7 +22,7 @@ import { rollSeasonEvent, describeChoice, resolveChoice } from '../data/season-e
 import { drawDemandOffer, getDemand, evaluateDemand, DIFFICULTY_LABELS } from '../data/board-demands.mjs';
 import { generateShopOffer } from '../data/draft-shop.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
-import { judgeRunOutcome, nextMissedTargetCount, computeReputation, reputationBreakdown } from '../engine/run.mjs';
+import { judgeRunOutcome, nextMissedTargetCount, seasonPrestige, demandPrestige, uclPrestige, retirePrestige, gradeOf, titleProgress } from '../engine/run.mjs';
 import {
   createUcl, advanceUcl, uclRanking, nameOf, teamOf, tieAggregate, generateShootout,
   UCL_RESULT_LABELS, UCL_REWARDS_FUNDS, UCL_STAGE_LABELS, UCL_STYLE_LABELS, UCL_LEAGUE_DAYS, UCL_DIRECT_SPOTS, UCL_PLAYOFF_SPOTS,
@@ -708,6 +708,35 @@ function showAchievementToast(list) {
   setTimeout(() => el.remove(), 4800);
 }
 
+// ---------- 명성 점수 ----------
+// 시즌이 끝날 때마다 점수가 쌓이고(engine/run.mjs), 런 중에도 헤더에 보인다.
+// 런 종료 때 등급·내 기록 순위·칭호가 붙는다.
+const PRESTIGE_LABELS = {
+  league: '리그 성적', surplus: '안전 승점 초과', combo: '연속 승격·우승', streak: '연속 우승 보너스',
+  demand: '이사진 요구 달성', ucl: '챔피언스리그', double: '더블', retire: '커리어 완결',
+};
+const PRESTIGE_ROW_ORDER = ['league', 'surplus', 'combo', 'streak', 'demand', 'ucl', 'double', 'retire'];
+function prestigeState() {
+  return (currentState.prestige ??= { total: 0, rows: {}, combo: 0, titleStreak: 0, beat: false });
+}
+// 점수를 더한다. 이번 런이 내 최고 기록을 처음 넘기는 순간 알려 준다.
+function awardPrestige(rows) {
+  const p = prestigeState();
+  const best = loadRecords(localStorage).bestScore ?? 0;
+  let sum = 0;
+  for (const r of rows) { p.rows[r.id] = (p.rows[r.id] ?? 0) + r.value; p.total += r.value; sum += r.value; }
+  if (best > 0 && !p.beat && p.total > best) {
+    p.beat = true;
+    const el = document.createElement('div');
+    el.className = 'achtoast';
+    el.innerHTML = `<div class="achtoast__item"><span>★ 내 최고 기록 경신</span><b>명성 ${p.total}점</b><small>이전 최고 ${best}점을 넘었습니다</small></div>`;
+    document.body.appendChild(el);
+    setTimeout(() => el.classList.add('is-out'), 4200);
+    setTimeout(() => el.remove(), 4800);
+  }
+  return sum;
+}
+
 // 우승 트로피 연출(전체 화면). kind: 'league' | 'ucl'. lines: 우승까지의 여정(챔스) 같은 보조 문구.
 // 챔피언스리그는 암전 → 불꽃놀이 → 트로피가 올라오는 시상식 순서로 길게 보여준다.
 function showTrophy({ kind, title, sub, lines = [], reward = '' }, onClose = () => {}) {
@@ -797,8 +826,12 @@ function renderRecords() {
         <div class="panel__head"><h2>역대 기록</h2></div>
         <div class="recstats">
           ${stat('시작한 런', r.runs)}${stat('치른 시즌', r.seasons)}${stat('승격', r.promotions)}${stat('최고 리그', LEAGUE_NAMES[r.highestTier])}
-          ${stat('최고 명예 점수', r.bestReputation ?? 0)}${stat('최장 런(시즌)', r.longestRun ?? 0)}${stat('최장 연속 우승', r.bestStreak ?? 0)}${stat('최다 승점', r.maxPoints ?? 0)}
+          ${stat('최고 명성 점수', r.bestScore ?? 0)}${stat('칭호', titleProgress(r.careerScore ?? 0).title)}${stat('최장 런(시즌)', r.longestRun ?? 0)}${stat('최장 연속 우승', r.bestStreak ?? 0)}${stat('최다 승점', r.maxPoints ?? 0)}
         </div>
+      </div>
+      <div class="panel">
+        <div class="panel__head"><h2>내 기록 TOP 10</h2><span class="panel__count">누적 <b class="n">${r.careerScore ?? 0}</b>점</span></div>
+        ${(r.topRuns ?? []).length ? `<ol class="toprun">${r.topRuns.map((x, i) => `<li><span class="n">${i + 1}</span><b>${x.score}</b><i class="grade-chip grade--${gradeOf(x.score)}">${gradeOf(x.score)}</i><span>${esc(x.club)} · ${LEAGUE_NAMES[x.tierId] ?? ''} · ${x.seasons}시즌</span></li>`).join('')}</ol>` : '<p class="note">아직 끝낸 런이 없습니다.</p>'}
       </div>
       <div class="panel">
         <div class="panel__head"><h2>리그 우승</h2></div>
@@ -841,6 +874,16 @@ function renderClubButtons() {
     <div class="start">
       <h1 class="start__title">FM<br>ROGUELIKE</h1>
       <p class="start__sub">5부 리그 감독으로 시작합니다. 12주 동안 선수를 사고 팔아 한 시즌을 버티세요.</p>
+${(() => {
+        const rec = loadRecords(localStorage);
+        const tp = titleProgress(rec.careerScore ?? 0);
+        const bg = rec.bestScore ? gradeOf(rec.bestScore) : null;
+        return `<div class="rankcard">
+          <div class="rankcard__top"><b>${esc(tp.title)}</b><span>${bg ? `최고 ${rec.bestScore}점 <i class="grade-chip grade--${bg}">${bg}</i>` : '첫 런을 시작해 보세요'}</span></div>
+          <div class="rankbar"><i style="width:${Math.round(tp.progress * 100)}%"></i></div>
+          <small>${tp.next ? `다음 칭호 ${esc(tp.next)}까지 ${tp.remaining}점` : '최고 칭호'}</small>
+        </div>`;
+      })()}
       <button class="reroll start__records" id="records-btn">🏆 기록 · 업적</button>
       ${telemetryConfigured() ? `<p class="note start__telemetry">플레이 통계가 익명으로 수집됩니다(이름 등 개인정보 없음). <button type="button" class="linkbtn" id="telemetry-toggle">${telemetryOn() ? '끄기' : '켜기'}</button></p>` : ''}
       <div class="clubs">
@@ -860,6 +903,7 @@ function renderClubButtons() {
           </button>`;
         }).join('')}
       </div>
+      <p class="start__copy">© 2026 유시헌 · 모든 권리 보유</p>
     </div>
   `);
 
@@ -931,6 +975,7 @@ function startRun(club) {
     streakPoints: 0, // 연속 우승 보너스 누적(명예 점수)
     uclResults: {}, // 챔피언스리그 결과별 횟수(명예 점수)
     doubles: 0, // 더블 횟수
+    prestige: { total: 0, rows: {}, combo: 0, titleStreak: 0, beat: false }, // 명성 점수(이번 런)
     missedTargetCount: 0, // 기대 목표 미달 누적 (스펙 2절: 3회면 해임)
     seasonNumber: 1,
     formation: DEFAULT_FORMATION,
@@ -1988,8 +2033,10 @@ function renderUcl(opts = {}) {
       dm.achieved = evaluateDemand(dm.cardId, { uclQualified: true, uclResult: s.result });
       dm.funds = dm.achieved ? Math.round(seasonBaseGrant() * BOARD_DEMAND_REWARD[dm.difficulty]) : 0;
       dm.deferred = false;
+      if (dm.achieved) awardPrestige(demandPrestige(dm.difficulty));
     }
     currentState.uclTrophyShown = false;
+    awardPrestige(uclPrestige(s.result, { alsoLeagueChampion: currentState.leagueResultThisSeason === 'champion' }));
     currentState.funds += UCL_REWARDS_FUNDS[s.result];
     if (s.result === 'champion') {
       currentState.uclTitles += 1;
@@ -2014,6 +2061,7 @@ function telemetrySnapshot() {
       avg: Math.round(lineup.reduce((x, p) => x + p.baseOVR, 0) / Math.max(1, lineup.length) * 10) / 10,
       chem: Math.round(currentState.chemistry), funds: currentState.funds, squad: currentState.squad.length,
       dem: currentState.boardDemand?.cardId ?? null,
+      score: currentState.prestige?.total ?? 0,
     };
   } catch (e) {
     return { run: currentState?.telemetryRun, s: currentState?.seasonNumber, tier: currentState?.leagueTierId };
@@ -2112,6 +2160,13 @@ function runSecondHalfAndFinish(saleMessage = '') {
   }, { table: seasonTable, rivals, second: true }));
 
   function finishSeasonRender() {
+  // 명성 점수: 이번 시즌 성적을 점수로 바꿔 더한다(요구 달성은 아래에서 판정되면 이어서 더한다)
+  const pst = prestigeState();
+  const seasonPts = seasonPrestige({ tierId: currentState.leagueTierId, result, points: totalPoints, safePoints: tier.safePoints, combo: pst.combo, titleStreak: pst.titleStreak });
+  pst.combo = seasonPts.combo;
+  pst.titleStreak = seasonPts.titleStreak;
+  const seasonRows = [...seasonPts.rows];
+  awardPrestige(seasonPts.rows);
   if (outcome.ended) {
     // 같은 클릭에서 보드진의 신임이 발동하고도 목표 미달로 경질될 수 있다.
     // 그 경우에도 성향이 발동했다는 사실은 알려야 한다.
@@ -2139,6 +2194,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
     uclQualified, uclResult: null,
   }) : false;
   const demandFunds = demandAchieved ? Math.round(seasonBaseGrant() * BOARD_DEMAND_REWARD[chosen.difficulty]) : 0;
+  if (demandAchieved) { const dr = demandPrestige(chosen.difficulty); awardPrestige(dr); seasonRows.push(...dr); }
   currentState.pendingBoardReview = {
     goal, points: Math.round(totalPoints), ...reward,
     demand: demandCard ? { cardId: demandCard.id, text: demandCard.text, difficulty: chosen.difficulty, achieved: demandAchieved, funds: demandFunds, deferred: demandDeferred } : null,
@@ -2196,6 +2252,13 @@ function runSecondHalfAndFinish(saleMessage = '') {
         <span style="left:${at(tier.targetPoints)}">승격 ${tier.targetPoints}</span>
         <span style="left:${at(tier.championPoints)}">우승 ${tier.championPoints}</span>
       </div>
+    </div>
+    <div class="panel prestige">
+      <div class="panel__head"><h2>명성 점수</h2><span class="panel__count">이번 시즌 <b class="n">+${seasonRows.reduce((s, x) => s + x.value, 0)}</b></span></div>
+      <ul class="summary">
+        ${seasonRows.map((x) => `<li><span>${esc(x.label)}</span><b>+${x.value}</b></li>`).join('') || '<li><span>이번 시즌은 점수가 없습니다</span><b>0</b></li>'}
+        <li class="summary__total"><span>누적</span><b>${pst.total}</b></li>
+      </ul>
     </div>
     ${boardTrustMessage}
     ${saleMessage ? `<div class="banner">${esc(saleMessage)}</div>` : ''}
@@ -2334,28 +2397,55 @@ const RUN_END = {
 
 function renderRunEnd(reason, finalPoints, boardTrustMessage = '', uclResultId = null) {
   const copy = RUN_END[reason];
-  const repStats = {
-    highestTierId: currentState.highestTierId, seasons: currentState.seasonNumber, titlesByTier: currentState.titlesByTier ?? {},
-    streakPoints: currentState.streakPoints ?? 0, uclResults: currentState.uclResults ?? {}, doubles: currentState.doubles ?? 0,
-  };
-  const reputation = computeReputation(repStats);
-  const repRows = reputationBreakdown(repStats).filter((x) => x.value > 0);
-  const prevBest = loadRecords(localStorage).bestReputation ?? 0;
-  updateRecords((r) => recordRunEnd(r, { reputation, seasons: currentState.seasonNumber, retired: reason === 'victory' }));
-  track('run_end', { run: currentState.telemetryRun, reason, seasons: currentState.seasonNumber, rep: reputation, best: currentState.highestTierId, club: currentState.club?.name });
+  const p = prestigeState();
+  if (reason === 'victory' && !p.retired) { p.retired = true; awardPrestige(retirePrestige()); }
+  const score = p.total;
+  const before = loadRecords(localStorage);
+  const entryT = Date.now();
+  const after = updateRecords((r) => recordRunEnd(r, {
+    reputation: 0, seasons: currentState.seasonNumber, retired: reason === 'victory', score,
+    entry: { t: entryT, club: currentState.club.name, seasons: currentState.seasonNumber, tierId: currentState.highestTierId, reason },
+  }));
+  const rank = after.topRuns.findIndex((x) => x.t === entryT) + 1; // 0이면 TOP 10 밖
+  const grade = gradeOf(score);
+  const prevBest = before.bestScore ?? 0;
+  const isBest = score > prevBest;
+  const t0 = titleProgress(before.careerScore ?? 0);
+  const t1 = titleProgress(after.careerScore ?? 0);
+  track('run_end', { run: currentState.telemetryRun, reason, seasons: currentState.seasonNumber, score, grade, best: currentState.highestTierId, club: currentState.club?.name });
+
+  // "다음 목표": 바로 위 순위(없으면 TOP 10 문턱)까지 몇 점 남았는지
+  let rankLine;
+  if (rank === 1) rankLine = isBest ? '내 기록 1위 · 새 최고 기록!' : '내 기록 1위';
+  else if (rank > 1) rankLine = `내 기록 ${rank}위 · ${rank - 1}위까지 ${after.topRuns[rank - 2].score - score + 1}점`;
+  else rankLine = after.topRuns.length >= 10 ? `TOP 10까지 ${after.topRuns[after.topRuns.length - 1].score - score + 1}점` : '내 기록 TOP 10 밖';
+  const rows = PRESTIGE_ROW_ORDER.filter((id) => (p.rows[id] ?? 0) > 0)
+    .map((id) => `<li><span>${PRESTIGE_LABELS[id]}</span><b>+${p.rows[id]}</b></li>`).join('');
+  const titleUp = t1.index > t0.index;
 
   setScreen(`
     <div class="verdict verdict--${reason === 'victory' ? 'champion' : 'relegation'}">
       <div class="verdict__label">${copy.kicker}</div>
       <div class="verdict__result">${copy.title}</div>
-      <div class="scoreline"><b>${reputation}</b><span>명예 점수${reputation > prevBest ? ' · 최고 기록!' : ` · 최고 ${prevBest}`}</span></div>
+      <div class="gradebox grade--${grade}">
+        <b class="gradebox__grade">${grade}</b>
+        <div class="gradebox__score"><b class="n">${score}</b><span>명성 점수</span></div>
+      </div>
+      <p class="rankline${isBest ? ' is-best' : ''}">${rankLine}${isBest ? '' : prevBest ? ` · 최고 ${prevBest}` : ''}</p>
     </div>
     ${boardTrustMessage}
     ${uclResultId ? `<div class="banner banner--ucl">챔피언스리그 ${UCL_RESULT_LABELS[uclResultId]}</div>` : ''}
+    <div class="panel titlecard">
+      <div class="panel__head"><h2>${titleUp ? `칭호 승급 · ${esc(t1.title)}` : esc(t1.title)}</h2><span class="panel__count">누적 <b class="n">${after.careerScore}</b>점</span></div>
+      ${titleUp ? `<p class="note"><b>${esc(t0.title)}</b> → <b>${esc(t1.title)}</b></p>` : ''}
+      <div class="rankbar"><i style="width:${Math.round(t1.progress * 100)}%"></i></div>
+      <p class="note">${t1.next ? `다음 칭호 <b>${esc(t1.next)}</b>까지 ${t1.remaining}점` : '최고 칭호입니다'}</p>
+    </div>
     <div class="panel">
       <p class="note">${copy.body}</p>
       <ul class="summary">
-        ${repRows.map((x) => `<li><span>${esc(x.label)}</span><b>+${x.value}</b></li>`).join('')}
+        ${rows}
+        <li class="summary__total"><span>합계</span><b>${score}</b></li>
         <li><span>우승</span><b>${currentState.titles}</b></li>
         <li><span>챔피언스리그 우승</span><b>${currentState.uclTitles}</b></li>
         <li><span>마지막 시즌 승점</span><b>${finalPoints.toFixed(0)}</b></li>
@@ -3041,6 +3131,11 @@ function renderMarket(banner = '') {
           <span class="res__label">적응도 <i class="res__hint">ⓘ</i></span>
           <span class="res__val n">${chemistry.toFixed(1)}</span>
           <div class="chembar${chemistry < 40 ? ' is-low' : ''}"><i style="width:${Math.min(100, chemistry)}%"></i></div>
+        </div>
+        <div class="res__item res__item--score" title="이번 런의 명성 점수">
+          <span class="res__label">명성</span>
+          <span class="res__val n">${prestigeState().total}</span>
+          ${(loadRecords(localStorage).bestScore ?? 0) > 0 ? `<i class="res__best">최고 ${loadRecords(localStorage).bestScore}</i>` : ''}
         </div>
       </div>
       <div class="goalstrip" id="goal-strip" title="이사진 목표 ${currentBoardGoal()}점 (안전 ${effectiveTier(currentState.leagueTierId).safePoints} · 승격 ${effectiveTier(currentState.leagueTierId).targetPoints})">

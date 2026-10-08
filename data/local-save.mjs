@@ -43,6 +43,7 @@ export function withRunDefaults(state, defaultFormation) {
   state.manualOverrides ??= {};
   state.benchOverrides ??= {};
   state.boardDemand ??= null;
+  state.prestige ??= { total: 0, rows: {}, combo: 0, titleStreak: 0, beat: false };
   state.roleOverrides ??= {};
   state.rolePicker = null;
   state.seasonTrack ??= { spent: 0, winterTransactions: 0 };

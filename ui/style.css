@@ -1982,3 +1982,41 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .chip[class*='chip--g-'] svg { color: var(--g); }
 .chip.chip--up1[class*='chip--g-'], .chip.chip--up2[class*='chip--g-'] { border-color: var(--g); }
 .tag--basic, .tag--mid, .tag--hard { color: var(--g); background: color-mix(in srgb, var(--g) 14%, transparent); border: 1px solid color-mix(in srgb, var(--g) 50%, transparent); font-weight: 700; }
+
+/* ===== 명성 점수 ===== */
+.res__item--score { margin-left: auto; }
+.res__item--score .res__val { color: var(--turf); }
+.prestige .summary__total, .summary__total { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 6px; font-weight: 800; }
+.summary__total b { color: var(--turf); }
+
+/* 런 종료: 등급 */
+.gradebox { display: flex; align-items: center; justify-content: center; gap: var(--s4); margin: var(--s3) 0 var(--s2); }
+.gradebox__grade { font-family: var(--num); font-size: 88px; line-height: 0.9; letter-spacing: 0.02em; color: var(--g, var(--light)); text-shadow: 0 0 24px color-mix(in srgb, var(--g, #fff) 30%, transparent); }
+.gradebox__score { text-align: left; }
+.gradebox__score b { display: block; font-size: 44px; line-height: 1; }
+.gradebox__score span { font-size: var(--fs-label); color: var(--muted); }
+.grade--SS { --g: #e0607a; } .grade--S { --g: #ef9a4a; } .grade--A { --g: #e3d041; } .grade--B { --g: #4fb08a; } .grade--C { --g: #6fb1e0; } .grade--D { --g: #8a8a8a; }
+.rankline { margin: 0; text-align: center; font-size: var(--fs-body); color: var(--muted); }
+.rankline.is-best { color: var(--turf); font-weight: 800; }
+
+/* 칭호 진행도 */
+.rankbar { height: 8px; background: var(--surface-hi); border: 1px solid var(--line); border-radius: 2px; overflow: hidden; margin: var(--s2) 0; }
+.rankbar i { display: block; height: 100%; background: var(--turf); }
+.rankcard { margin: var(--s3) 0 var(--s2); padding: var(--s3); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--turf); border-radius: 6px; }
+.rankcard__top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s2); }
+.rankcard__top b { font-family: var(--display); font-weight: 400; font-size: 20px; letter-spacing: 0.02em; }
+.rankcard__top span { font-size: var(--fs-label); color: var(--muted); }
+.rankcard small { color: var(--muted-dim); font-size: var(--fs-micro); }
+.grade-chip { display: inline-block; min-width: 22px; padding: 1px 6px; text-align: center; font: 400 12px/1.4 var(--display); border: 1px solid var(--g); color: var(--g); border-radius: 2px; font-style: normal; }
+.titlecard .panel__head h2 { color: var(--turf); }
+
+/* 내 기록 TOP 10 */
+.toprun { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.toprun li { display: grid; grid-template-columns: 22px 54px auto 1fr; align-items: center; gap: var(--s2); padding: 6px 8px; background: var(--surface); border-left: 3px solid var(--line); font-size: var(--fs-label); }
+.toprun li:first-child { border-left-color: var(--turf); }
+.toprun li b { font-family: var(--num); font-size: 18px; }
+.toprun li span:last-child { color: var(--muted); }
+
+.res__best { font-style: normal; font-size: var(--fs-micro); color: var(--muted-dim); }
+
+.start__copy { margin: var(--s6) 0 var(--s4); text-align: center; font-size: var(--fs-micro); color: var(--muted-dim); }

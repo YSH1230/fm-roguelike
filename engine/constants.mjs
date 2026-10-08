@@ -279,3 +279,29 @@ export const EVENT_CHANCE_WINTER = 0.7;
 
 // 이사진 요구 카드 달성 보상 - 다음 시즌 지급액 대비 비율(난이도별).
 export const BOARD_DEMAND_REWARD = { easy: 0.05, normal: 0.10, hard: 0.20 };
+
+// ---------- 명성 점수(Prestige) ----------
+// 시즌이 끝날 때마다 쌓이는 점수. 런 중에도 보이고, 런이 끝나면 등급과 기록 순위가 붙는다.
+// 리그가 높을수록 같은 성적의 값이 커지고(5부 우승 50 → 1부 우승 400), 오래 버티는 것보다
+// 올라가고 우승하는 쪽이 훨씬 크게 쳐준다.
+export const PRESTIGE_TIER_BASE = { tier5: 10, tier4: 20, tier3: 35, tier2: 55, tier1: 80 };
+export const PRESTIGE_RESULT_MULT = { safe: 1, promotion: 3, champion: 5 }; // 잔류 / 승격 / 우승
+export const PRESTIGE_SURPLUS_RATE = 0.5; // 안전 승점을 넘은 승점 1점당
+export const PRESTIGE_DEMAND = { easy: 5, normal: 10, hard: 15 }; // 이사진 요구 달성
+export const PRESTIGE_COMBO_STEP = 10; // 연속 승격·우승: 2번째부터 (n-1)*10, 최대 60
+export const PRESTIGE_COMBO_MAX = 60;
+export const PRESTIGE_TITLE_STREAK = 30; // 연속 리그 우승: 2번째 우승부터 우승마다
+export const PRESTIGE_UCL = { league: 20, playoff: 30, r16: 50, qf: 80, sf: 120, final: 180, champion: 300 };
+export const PRESTIGE_DOUBLE = 150; // 같은 시즌 리그 우승 + 챔피언스리그 우승
+export const PRESTIGE_RETIRE = 200; // 1부 우승 후 은퇴로 커리어를 완결
+
+// 런 점수 등급(런 하나의 점수 기준). 피라미드: 사람처럼 플레이하는 봇 80개 런 기준으로
+// D 29% · C 26% · B 19% · A 14% · S 9% · SS 4%가 되도록 잡았다(위로 갈수록 확실히 드물다).
+export const PRESTIGE_GRADES = [
+  { id: 'SS', min: 7000 }, { id: 'S', min: 1400 }, { id: 'A', min: 800 }, { id: 'B', min: 450 }, { id: 'C', min: 180 }, { id: 'D', min: 0 },
+];
+// 칭호(커리어 누적 점수 기준). 올라가기만 한다.
+export const PRESTIGE_TITLES = [
+  { min: 0, label: '무명 감독' }, { min: 150, label: '동네 감독' }, { min: 400, label: '지역 명장' }, { min: 900, label: '프로 감독' },
+  { min: 1800, label: '이름난 전술가' }, { min: 3500, label: '명장' }, { min: 7000, label: '리그의 전설' }, { min: 14000, label: '전설의 감독' },
+];

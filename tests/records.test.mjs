@@ -65,9 +65,12 @@ test('런 종료 기록: 최고 명예 점수·최장 런·은퇴 횟수가 쌓�
   r = recordSeason(r, { season: 2, club: 'A', tierId: 'tier1', result: 'safe', rank: 8, points: 60, streak: 0 });
   assert.equal(r.bestStreak, 3);
   assert.equal(r.maxPoints, 97);
-  r = recordRunEnd(r, { reputation: 420, seasons: 16, retired: true });
-  r = recordRunEnd(r, { reputation: 100, seasons: 5, retired: false });
+  r = recordRunEnd(r, { reputation: 420, seasons: 16, retired: true, score: 950, entry: { club: 'A', t: 1, seasons: 16 } });
+  r = recordRunEnd(r, { reputation: 100, seasons: 5, retired: false, score: 120, entry: { club: 'B', t: 2, seasons: 5 } });
   assert.equal(r.bestReputation, 420);
+  assert.equal(r.bestScore, 950);
+  assert.equal(r.careerScore, 950 + 120);
+  assert.deepEqual(r.topRuns.map((x) => x.score), [950, 120]); // 점수 높은 순
   assert.equal(r.longestRun, 16);
   assert.equal(r.retired, 1);
   assert.equal(r.runsEnded, 2);
