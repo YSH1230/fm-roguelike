@@ -1,90 +1,111 @@
-// 선수 초상화. 선수 카드는 전부 절차적 생성이라 사진을 쓸 수 없고 이미지 생성
-// 도구도 없다 — 그래서 id로 시드한 결정론적 SVG를 그린다. 같은 선수는 언제
-// 어디서 렌더해도 같은 얼굴이 나온다(피치·상점·선수단·결산 전부 동일).
+// 선수·감독·스태프 초상화. 카드는 전부 절차적 생성이라 사진을 쓸 수 없어서, id로 시드한
+// 결정론적 16x16 픽셀 캐릭터를 그린다. 같은 사람은 언제 어디서 그려도 같은 얼굴이 나온다.
+import { grid, put, rows, outline, gridToRects, shade, light, mixHex } from './pixel.mjs';
 
-// 대륙 태그별 피부톤. 이름 풀(data/name-pools.mjs)이 이미 대륙을 따라가므로
-// 얼굴도 따라가야 이름과 초상화가 따로 놀지 않는다.
+// 대륙 태그별 피부톤. 이름 풀이 대륙을 따라가므로 얼굴도 따라가야 이름과 그림이 따로 놀지 않는다.
 const SKIN = {
-  africa: ['#7d5138', '#684129', '#8d6244'],
-  southAmerica: ['#b07a52', '#96613e', '#c68f63'],
-  asiaOceania: ['#d9a877', '#c79463', '#e3b98c'],
-  europe: ['#e8be9a', '#d9a87f', '#f0cbaa'],
-  northCentralAmerica: ['#c68f63', '#a9714a', '#d9a87f'],
+  africa: ['#8d5a3b', '#7a4a2e', '#9d6b49'],
+  southAmerica: ['#c08a5c', '#a9724a', '#d09b6d'],
+  asiaOceania: ['#e8b98a', '#d6a275', '#f0c79c'],
+  europe: ['#f1c9a5', '#e4b48d', '#f8d6b7'],
+  northCentralAmerica: ['#d09b6d', '#b8825a', '#e0ac80'],
 };
-const HAIR_COLORS = ['#191310', '#2b1d14', '#43291a', '#6f482a', '#a8793f', '#b8b3ab'];
-// bald가 하나뿐인 건 의도적이다. 7분의 1이면 가끔 보여서 눈에 띄고,
-// 더 늘리면 "머리 없는 달걀"이 늘어나 얼굴들이 서로 구분되지 않는다.
+const HAIR_COLORS = ['#201814', '#3a2618', '#5a3720', '#8a5a2e', '#c18a3f', '#c9c4bb'];
 const STYLES = ['crop', 'fade', 'afro', 'curls', 'long', 'topknot', 'bald'];
 
 // FNV-1a. 카드 id 문자열 하나에서 필요한 만큼 안정적인 수를 뽑는다.
 function hash(text) {
   let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 0x01000193); }
   return h >>> 0;
 }
-// >>> 를 써야 한다. seed는 2^31을 넘길 수 있는데 부호 있는 >> 는 그걸 음수
-// int32로 바꿔버리고, 음수 % length 는 음수라 list[-2] === undefined 가 된다.
 const at = (seed, shift, list) => list[(seed >>> shift) % list.length];
 
-// 머리통(피부)은 cx32 cy27 rx13 ry14.5, 즉 y 12.5~41.5 / x 19~45 를 차지한다.
-// 머리 모양은 그 뒤에 깔 덩어리(back)와 앞에 덮을 부분(front)으로 나눈다.
-// 뒤/앞을 안 나누면 긴 머리가 얼굴을 덮어버린다. 작은 크기(36~54px)에서
-// 서로 구분되려면 실루엣이 머리통 밖으로 튀어나와야 한다 — 머리통 안에만
-// 있는 얇은 테두리는 전부 같은 얼굴로 보인다.
-function hairShapes(style, color) {
-  const back = {
-    afro: `<circle cx="32" cy="22" r="16.5" fill="${color}"/>`,
-    curls: `<circle cx="32" cy="21" r="14.5" fill="${color}"/>`,
-    long: `<rect x="17" y="14" width="30" height="31" rx="13" fill="${color}"/>`,
-  }[style] ?? '';
+// 머리 모양. [y, x1, x2] 행 목록. 머리통(피부)은 x4~11, y3~10을 차지한다.
+const HAIR = {
+  crop: [[2, 5, 10], [3, 4, 11], [4, 4, 11]],
+  fade: [[2, 5, 10], [3, 5, 10]],
+  afro: [[0, 5, 10], [1, 4, 11], [2, 3, 12], [3, 3, 12], [4, 3, 12], [5, 3, 3], [5, 12, 12], [6, 3, 3], [6, 12, 12]],
+  curls: [[1, 5, 6], [1, 9, 10], [2, 4, 11], [3, 4, 11], [4, 4, 5], [4, 10, 11]],
+  long: [[2, 5, 10], [3, 4, 11], [4, 4, 5], [4, 10, 11], [5, 3, 4], [5, 11, 12], [6, 3, 4], [6, 11, 12], [7, 3, 4], [7, 11, 12], [8, 3, 4], [8, 11, 12], [9, 3, 4], [9, 11, 12], [10, 3, 4], [10, 11, 12]],
+  topknot: [[0, 7, 8], [1, 7, 8], [2, 5, 10], [3, 4, 11], [4, 4, 11]],
+  bald: [],
+};
 
-  const front = {
-    crop: `<ellipse cx="32" cy="18.5" rx="13.4" ry="7.6" fill="${color}"/>`,
-    fade: `<ellipse cx="32" cy="17" rx="11.6" ry="6.2" fill="${color}"/>`,
-    afro: `<ellipse cx="32" cy="18" rx="13.2" ry="7" fill="${color}"/>`,
-    curls: `<g fill="${color}"><circle cx="23" cy="18" r="6"/><circle cx="32" cy="15.5" r="6.4"/><circle cx="41" cy="18" r="6"/></g>`,
-    long: `<ellipse cx="32" cy="18" rx="13.4" ry="7.4" fill="${color}"/>`,
-    topknot: `<ellipse cx="32" cy="18.5" rx="13.2" ry="7" fill="${color}"/><circle cx="32" cy="8.5" r="4.6" fill="${color}"/>`,
-    bald: '',
-  }[style] ?? '';
+const cache = new Map();
 
-  return { back, front };
+// kit: 유니폼 색. role: 'player' | 'manager' | 'coach' | 'scout' (없으면 카드 모양으로 추정).
+export function renderPortrait(card, { size = 44, kit = '#2c4239', role } = {}) {
+  const kind = role ?? (card.tacticalTag !== undefined ? 'manager' : (card.baseOVR === undefined && card.level !== undefined ? 'coach' : 'player'));
+  const key = `${card.id ?? card.name}|${kind}|${kit}|${card.continentTag}|${card.age >= 33}`;
+  let body = cache.get(key);
+  if (!body) { body = drawPortrait(card, kit, kind); cache.set(key, body); }
+  return `<svg class="portrait portrait--px" width="${size}" height="${size}" viewBox="0 0 16 16" shape-rendering="crispEdges"
+    role="img" aria-label="${(card.name ?? '').replace(/"/g, '')} 초상" focusable="false">${body}</svg>`;
 }
 
-// kit: 유니폼 색. 보유 선수는 구단 색, 상점 매물은 아직 우리 팀이 아니므로 중립색.
-export function renderPortrait(card, { size = 44, kit = '#2c4239' } = {}) {
+function drawPortrait(card, kit, kind) {
   const seed = hash(card.id ?? card.name ?? 'x');
   const skin = at(seed, 3, SKIN[card.continentTag] ?? SKIN.europe);
+  const skinShade = shade(skin, 0.16);
   const style = at(seed, 9, STYLES);
   const hairColor = at(seed, 14, HAIR_COLORS);
-  const { back, front } = hairShapes(style, hairColor);
-  // 눈 간격과 눈썹 높이를 아주 조금 흔든다. 전부 같은 자리면 머리만 다른
-  // 같은 얼굴 60장이 되고, 크게 흔들면 만화가 된다.
-  const spread = ((seed >>> 24) % 3) * 0.7;
-  const brow = ((seed >>> 27) % 3) * 0.8;
-  // 33세 이상만 수염을 붙인다 — 나이가 얼굴에서 읽히면 베테랑 리더 같은
-  // 나이 조건부 성향이 카드만 봐도 짐작된다.
-  const beard = card.age >= 33 && (seed >>> 20) % 2
-    ? `<path d="M21 30c0 8 5 13 11 13s11-5 11-13c-2 6-6 9-11 9s-9-3-11-9z" fill="${hairColor}" opacity=".9"/>`
-    : '';
+  const hairLight = light(hairColor, 0.3);
+  const g = grid();
 
-  return `<svg class="portrait" width="${size}" height="${size}" viewBox="0 0 64 64"
-    role="img" aria-label="${(card.name ?? '').replace(/"/g, '')} 초상" focusable="false">
-    <rect width="64" height="64" rx="10" fill="${kit}" opacity=".3"/>
-    <path d="M4 64c0-12 9-18 19-20h18c10 2 19 8 19 20z" fill="${kit}"/>
-    <rect x="27.5" y="35" width="9" height="9" rx="4" fill="${skin}"/>
-    ${back}
-    <ellipse cx="32" cy="27" rx="13" ry="14.5" fill="${skin}"/>
-    ${beard}
-    ${front}
-    <g fill="${hairColor}" opacity=".7">
-      <rect x="${25.2 - spread}" y="${21.6 + brow}" width="5.2" height="1.5" rx=".75"/>
-      <rect x="${33.6 + spread}" y="${21.6 + brow}" width="5.2" height="1.5" rx=".75"/>
-    </g>
-    <rect x="${25.5 - spread}" y="26" width="4.6" height="2.6" rx="1.3" fill="#1a1512" opacity=".82"/>
-    <rect x="${33.9 + spread}" y="26" width="4.6" height="2.6" rx="1.3" fill="#1a1512" opacity=".82"/>
-  </svg>`;
+  // 몸통
+  const shirt = kind === 'manager' ? '#2a2f3d' : kind === 'scout' ? '#3f5f46' : kit;
+  rows(g, [[11, 4, 11], [12, 2, 13], [13, 2, 13], [14, 2, 13], [15, 2, 13]], shirt);
+  rows(g, [[14, 2, 13], [15, 2, 13]], shade(shirt, 0.18));
+  put(g, 7, 11, skinShade); put(g, 8, 11, skinShade); // 목
+  if (kind === 'player') {
+    rows(g, [[12, 7, 8], [13, 7, 8]], light(shirt, 0.28)); // 가운데 줄무늬
+    rows(g, [[11, 6, 9]], light(shirt, 0.18));
+  } else if (kind === 'manager') {
+    rows(g, [[11, 6, 9], [12, 7, 8]], '#f4f1ea');
+    rows(g, [[12, 7, 8], [13, 7, 8], [14, 7, 8]], '#b8323a'); // 넥타이
+    put(g, 7, 12, '#f4f1ea'); put(g, 8, 12, '#f4f1ea');
+  } else if (kind === 'coach') {
+    rows(g, [[12, 2, 2], [13, 2, 2], [14, 2, 2], [15, 2, 2], [12, 13, 13], [13, 13, 13], [14, 13, 13], [15, 13, 13]], '#f2f2f2'); // 트레이닝복 소매 줄
+    put(g, 8, 12, '#f2d24a'); put(g, 8, 13, '#f2d24a'); put(g, 9, 13, '#f2d24a'); // 호루라기
+  } else if (kind === 'scout') {
+    rows(g, [[12, 5, 6], [13, 5, 6], [12, 9, 10], [13, 9, 10]], '#23262c'); // 쌍안경
+    rows(g, [[12, 7, 8]], '#23262c');
+    put(g, 5, 13, '#5fb4e8'); put(g, 10, 13, '#5fb4e8');
+  }
+
+  // 머리통
+  rows(g, [[3, 5, 10], [4, 4, 11], [5, 4, 11], [6, 4, 11], [7, 4, 11], [8, 4, 11], [9, 4, 11], [10, 5, 10]], skin);
+  rows(g, [[10, 5, 10]], skinShade);
+  rows(g, [[7, 11, 11], [8, 11, 11], [9, 11, 11]], skinShade);
+
+  // 머리카락(모자를 쓰는 스카우트는 모자가 대신한다)
+  if (kind === 'scout') {
+    rows(g, [[2, 5, 10], [3, 4, 11]], '#2f5f8a');
+    rows(g, [[4, 3, 9]], '#1f4263');
+    put(g, 6, 2, light('#2f5f8a', 0.3));
+  } else {
+    rows(g, HAIR[style] ?? [], hairColor);
+    if (style !== 'bald') { put(g, 6, 2, hairLight); if (style === 'afro') put(g, 6, 1, hairLight); } else { put(g, 6, 3, light(skin, 0.3)); put(g, 7, 3, light(skin, 0.3)); }
+  }
+
+  // 얼굴
+  const browY = 6;
+  const brow = ((seed >>> 27) % 3) === 0 ? mixHex(hairColor, '#000000', 0.2) : hairColor;
+  if (style !== 'afro' || kind === 'scout') { rows(g, [[browY, 5, 6], [browY, 9, 10]], brow); }
+  put(g, 6, 7, OUTC); put(g, 6, 8, OUTC); put(g, 9, 7, OUTC); put(g, 9, 8, OUTC);
+  put(g, 5, 9, mixHex(skin, '#e0605a', 0.35)); put(g, 10, 9, mixHex(skin, '#e0605a', 0.35)); // 볼
+  put(g, 7, 9, '#7a3b32'); put(g, 8, 9, '#7a3b32'); // 입
+  if (kind !== 'manager' && card.age >= 33 && (seed >>> 20) % 2) { rows(g, [[9, 4, 4], [9, 11, 11], [10, 5, 10]], hairColor); put(g, 7, 9, '#7a3b32'); put(g, 8, 9, '#7a3b32'); }
+  if (kind === 'manager') { // 안경: 은색 얇은 테. 눈은 그대로 보이게 한다
+    const f = '#c9ced6';
+    rows(g, [[6, 5, 10], [8, 5, 5], [8, 7, 8], [8, 10, 10]], f);
+    put(g, 5, 7, f); put(g, 7, 7, f); put(g, 8, 7, f); put(g, 10, 7, f);
+  }
+
+  outline(g);
+  const bg = mixHex(kit, '#0c0b10', 0.55);
+  // 배경: 어두운 바탕 + 아래쪽 땅 줄
+  return `<rect width="16" height="16" fill="${bg}"/><rect y="15" width="16" height="1" fill="${mixHex(bg, '#000000', 0.35)}"/>${gridToRects(g)}`;
 }
+const OUTC = '#1b1311';

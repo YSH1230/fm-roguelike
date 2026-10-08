@@ -50,6 +50,7 @@ import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } 
 import { ageSquad } from '../engine/aging.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait } from './portrait.mjs';
+import { pixelMatchHtml } from './pixel.mjs';
 import { renderCrest } from './crest.mjs';
 import {
   CHEMISTRY_START,
@@ -381,7 +382,7 @@ function draftStaffHtml(funds) {
       const isCurrent = currentState.staff[role].level === level;
       const candidate = currentState.staffOffer[`${role}:${level}`];
       return `<li class="mgroffer${isCurrent ? ' is-current' : ''}" data-row="staff-${role}-${level}" style="--tier:var(--${STAFF_LEVEL_COLOR[level] ?? 't-local'})">
-        ${renderPortrait(candidate, { size: 40 })}
+        ${renderPortrait(candidate, { size: 40, role: role === 'headScout' ? 'scout' : 'coach' })}
         <div class="mgroffer__body">
           <div class="player__name">${esc(candidate.name)} <small class="staff__level">${STAFF_LEVEL_LABELS[level]}${isCurrent ? ' · 현재' : ''}</small></div>
           <div class="chips">${staffChips(role, level)}</div>
@@ -490,11 +491,26 @@ function playerTagsHtml(p) {
 }
 
 // 선수의 태그를 아이콘 한 줄로(플레이스타일 → 대륙 → 특수). active에 든 태그는 초록(지금 보너스 중).
+function tagInfoText(kind, id) {
+  if (kind === 'play') {
+    const def = PLAYSTYLE_TAGS[id];
+    const { req, values } = playstyleTagProgress(id, []);
+    return `${TAG_LABELS[id] ?? id}: ${tagLadderText(req, values)} (${def.positions.join('·')} 포지션만 셈)`;
+  }
+  if (kind === 'cont') {
+    const t = CONTINENT_TAGS[id];
+    return `${CONTINENT_LABELS[id] ?? id}: 같은 대륙 ${countEffectiveContinentRequirement(3, [], id)}명이면 +${t.tier3}, ${countEffectiveContinentRequirement(5, [], id)}명이면 +${t.tier5} (포지션 무관)`;
+  }
+  return `${ROLE_LABELS[TRAIT_ROLE[id]] ?? ''} 칸 · ${TRAIT_LABELS[id] ?? id}: ${TRAIT_EFFECT_DESCRIPTIONS[id] ?? ''}. 대가: ${TRAIT_DOWNSIDE_TEXT[id] ?? ''}`;
+}
+// 선수의 태그를 아이콘 한 줄로(플레이스타일 → 대륙 → 특수). active에 든 태그는 초록(지금 보너스 중).
+// 눌러서 설명을 볼 수 있게 data-tag-info에 문장을 싣는다(선수단 탭에서 처리).
 function tagIconsHtml(p, active = null) {
   const on = (id) => (active && active.has(id) ? ' is-on' : '');
-  const play = (p.playstyleTags ?? []).map((t) => `<i class="ticon${on(t)}" title="${esc(TAG_LABELS[t] ?? t)}">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}</i>`).join('');
-  const cont = p.continentTag ? `<i class="ticon ticon--cont${on(p.continentTag)}" title="${esc(CONTINENT_LABELS[p.continentTag] ?? '')}">${renderTagIcon(CONTINENT_ICON_PATHS, p.continentTag)}</i>` : '';
-  const trait = p.specialTrait ? `<i class="ticon ticon--trait" title="${esc(TRAIT_LABELS[p.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}</i>` : '';
+  const btn = (kind, id) => `data-tag-info="${esc(tagInfoText(kind, id))}" role="button" tabindex="0"`;
+  const play = (p.playstyleTags ?? []).map((t) => `<i class="ticon${on(t)}" title="${esc(TAG_LABELS[t] ?? t)}" ${btn('play', t)}>${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}</i>`).join('');
+  const cont = p.continentTag ? `<i class="ticon ticon--cont${on(p.continentTag)}" title="${esc(CONTINENT_LABELS[p.continentTag] ?? '')}" ${btn('cont', p.continentTag)}>${renderTagIcon(CONTINENT_ICON_PATHS, p.continentTag)}</i>` : '';
+  const trait = p.specialTrait ? `<i class="ticon ticon--trait" title="${esc(TRAIT_LABELS[p.specialTrait] ?? '')}" ${btn('trait', p.specialTrait)}>${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}</i>` : '';
   return `<span class="ticons">${play}${cont}${trait}</span>`;
 }
 
@@ -577,9 +593,8 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
         <span class="matchsim__club">${esc(clubName)} · ${esc(tierLabel)} · ${esc(phaseLabel)}</span>
         <span class="matchsim__clock" id="sim-clock">0/${N}</span>
       </div>
-      <div class="matchsim__pitch">
-        <div class="matchsim__pitchLines"></div>
-        <div class="matchsim__ball"></div>
+      <div class="matchsim__pitch pxpitch" id="sim-pitch">
+        ${pixelMatchHtml(kitColor)}
       </div>
       <div class="matchsim__ticker">
         <span class="matchsim__dot"></span>
@@ -610,6 +625,7 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     const myPts = pointsOf.get('me')[round - 1];
     if (phrase) phrase.textContent = `${second ? '후반 ' : ''}${round}라운드 · ${second ? '시즌 ' : ''}${rank}위 · 승점 ${myPts}`;
     updateStandings(round);
+    if (move > 0) { const pitch = document.getElementById('sim-pitch'); pitch?.classList.add('is-up'); setTimeout(() => pitch?.classList.remove('is-up'), 700); }
     setTimeout(step, delay);
   };
   setTimeout(step, 500);
@@ -2402,12 +2418,10 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
 // 칸은 비워 둬도 된다 - 비우면 그 칸 태그의 효과만 빠진다.
 function renderRoleChips(roles, lineup, bench) {
   const all = [...lineup, ...bench];
-  if (!all.some((p) => p.specialTrait) && !currentState.rolePicker) return ''; // 특수 성향 선수가 없으면 칸을 숨긴다
   const candidatesOf = (slot) => (slot === 'joker' ? bench : lineup).filter((p) => TRAIT_ROLE[p.specialTrait] === slot);
   const chips = ROLE_SLOTS.map((slot) => {
     const p = roles[slot] ? all.find((x) => x.id === roles[slot]) : null;
     const n = candidatesOf(slot).length;
-    if (!p && !n) return '';
     return `<button class="rolechip${p ? ' is-on' : ''}${currentState.rolePicker === slot ? ' is-open' : ''}" data-role="${slot}">
       <span class="rolechip__slot">${ROLE_LABELS[slot]} <i>${ROLE_WHERE[slot]}</i></span>
       <b class="rolechip__who">${p ? esc(p.name) : n ? '비어 있음' : '후보 없음'}</b>
@@ -2430,7 +2444,7 @@ function renderRoleChips(roles, lineup, bench) {
       </li>
     </ul>
   </div>` : '';
-  return chips.replace(/<[^>]+>/g, '').trim() || picker ? `<div class="rolechips">${chips}</div>${picker}` : '';
+  return `<div class="rolechips">${chips}</div>${picker}`;
 }
 
 function renderBonusDetail(player, lineup, bench, coach, roles) {
@@ -2891,8 +2905,15 @@ function renderMarket(banner = '') {
         <div class="sqsum">
           <span><b class="n">${squad.length}</b>명</span>
           <span>평균 <b class="n">${avgAge(squad)}</b>세${lineup.length ? ` · 선발 <b class="n">${avgAge(lineup)}</b>세` : ''}</span>
-          <span title="이사진 요구 '유스 출신 선발'에 쓰이는 선수">유스 <b class="n">${squad.filter((p) => p.isDraftedYouth).length}</b>${lineup.length ? ` · 선발 <b class="n">${lineup.filter((p) => p.isDraftedYouth).length}</b>` : ''}</span>
+          ${(() => {
+            const yi = (ps) => ps.filter((p) => p.isDraftedYouth);
+            const grp = [['선발', yi(slotted.filter(Boolean))], ['벤치', yi(bench)], ['예비', yi(reservePlayers)]];
+            const tot = grp.reduce((a, [, ps]) => a + ps.length, 0);
+            const parts = grp.filter(([, ps]) => ps.length).map(([l, ps]) => `${l} ${ps.length}`).join(', ');
+            return `<button type="button" class="sqsum__youth" id="youth-btn" aria-expanded="false" ${tot ? '' : 'disabled'}>유스 <b class="n">${tot}</b>${parts ? `(${parts})` : ''}</button>`;
+          })()}
         </div>
+        <ul class="youthlist" id="youth-list" hidden>${[['선발', slotted.filter(Boolean)], ['벤치', bench], ['예비', reservePlayers]].flatMap(([l, ps]) => ps.filter((p) => p.isDraftedYouth).map((p) => `<li><b>${esc(p.name)}</b> <span>${p.position} · ${p.age}세 · OVR ${p.baseOVR}</span><em>${l}</em></li>`)).join('')}</ul>
         ${contractRows.length ? `
         <div class="contractbox${contractCollapsed ? ' is-collapsed' : ''}" id="contract-panel">
           <button class="contractbox__head" id="contract-toggle" aria-expanded="${!contractCollapsed}">
@@ -2939,7 +2960,7 @@ function renderMarket(banner = '') {
           </li>
           ${['headCoach', 'headScout'].map((role) => `
           <li class="crewcard" style="--tier:var(--${STAFF_LEVEL_COLOR[staff[role].level] ?? 't-local'})">
-            ${renderPortrait(staff[role], { size: 48 })}
+            ${renderPortrait(staff[role], { size: 48, role: role === 'headScout' ? 'scout' : 'coach' })}
             <div class="crewcard__body">
               <small class="crewcard__role">${STAFF_ROLE_LABELS[role]} · <b class="staff__level">${STAFF_LEVEL_LABELS[staff[role].level] ?? staff[role].level}</b></small>
               <div class="player__name">${esc(staff[role].name ?? '무명')}</div>
@@ -3011,9 +3032,9 @@ function renderMarket(banner = '') {
       return `<div class="powerstrip">
         ${POSITION_GROUPS.map((g) => {
           const avg = groupAvg(g.positions);
-          return `<div class="pw${pwClass(avg)}"><span class="pw__label">${g.label}</span><span class="pw__val n">${avg === null ? '--' : avg.toFixed(0)}</span></div>`;
+          return `<div class="pw${pwClass(avg)}"><span class="pw__label">${{ 골키퍼: 'GK', 수비: 'DF', 중원: 'MF', 공격: 'FW' }[g.label] ?? g.label}</span><span class="pw__val n">${avg === null ? '--' : avg.toFixed(0)}</span></div>`;
         }).join('')}
-        <div class="pw pw--total"><span class="pw__label">팀 전력</span><span class="pw__val n">${teamPower.toFixed(0)}</span></div>
+        <div class="pw pw--total"><span class="pw__label">OVR</span><span class="pw__val n">${teamPower.toFixed(0)}</span></div>
       </div>`;
     })()}
 
@@ -3236,6 +3257,24 @@ function renderMarket(banner = '') {
       hint.textContent = el.dataset.tagDesc;
       hint.hidden = same;
     });
+  });
+  document.getElementById('youth-btn')?.addEventListener('click', (e) => {
+    const list = document.getElementById('youth-list');
+    list.hidden = !list.hidden;
+    e.currentTarget.setAttribute('aria-expanded', String(!list.hidden));
+  });
+  document.querySelectorAll('.squad .srow .ticon[data-tag-info]').forEach((el) => {
+    const show = (e) => {
+      e.stopPropagation();
+      const main = el.closest('.srow__main');
+      let h = main.querySelector('.srow__hint');
+      if (!h) { h = document.createElement('small'); h.className = 'srow__hint'; main.append(h); }
+      const same = !h.hidden && h.textContent === el.dataset.tagInfo;
+      h.textContent = el.dataset.tagInfo;
+      h.hidden = same;
+    };
+    el.addEventListener('click', show);
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(e); } });
   });
   if (tab === 'squad') {
     for (const p of squad) {
