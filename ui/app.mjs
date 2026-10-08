@@ -272,7 +272,7 @@ const TRAIT_DOWNSIDE_TEXT = {
 };
 const CONTINENT_LABELS = {
   europe: '유럽', southAmerica: '남미', africa: '아프리카',
-  asiaOceania: '아시아·오세아니아', northCentralAmerica: '북중미',
+  asiaOceania: '아시아·대양주', northCentralAmerica: '북중미',
 };
 // 팀 케미/특수 태그 배지 안에 그리는 작은 기호(글자 대신 아이콘). 풀네임은
 // title(호버)로만 남긴다. crest.mjs/portrait.mjs와 같은 원칙 - 이미지 파일
@@ -289,7 +289,7 @@ const PLAYSTYLE_ICON_PATHS = {
   counterAttack: '<path d="M13.5 2 L5.5 13.2 H11 L10 22 L18.5 10.2 H12.8 Z"/>',
   // 어려움
   gegenpressing: '<circle cx="12" cy="12" r="2.4"/><path d="M12 3 V7.5 M9.8 5.4 L12 7.6 L14.2 5.4"/><path d="M12 21 V16.5 M9.8 18.6 L12 16.4 L14.2 18.6"/><path d="M3 12 H7.5 M5.4 9.8 L7.6 12 L5.4 14.2"/><path d="M21 12 H16.5 M18.6 9.8 L16.4 12 L18.6 14.2"/>',
-  falseNine: '<circle cx="12" cy="12" r="9" stroke-dasharray="2.6 2.4"/><text x="12" y="16.4" font-size="12" font-weight="800" text-anchor="middle" fill="currentColor" stroke="none" font-family="Archivo, sans-serif">9</text>',
+  falseNine: '<circle cx="12" cy="12" r="9" stroke-dasharray="2.6 2.4"/><text x="12" y="16.4" font-size="12" font-weight="800" text-anchor="middle" fill="currentColor" stroke="none" font-family="Anton, sans-serif">9</text>',
   tikiTaka: '<circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M11 7.2 L6 15.8 M13 7.2 L18 15.8 M7.5 18 H16.5"/>',
   totalFootball: '<path d="M20 12 A8 8 0 0 1 6 17.3"/><path d="M4 12 A8 8 0 0 1 18 6.7"/><path d="M18.2 2.8 V7 H14"/><path d="M5.8 21.2 V17 H10"/>',
 };
@@ -2384,7 +2384,7 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
         <span class="slot__pos">${pos}</span>
         ${boost > 0 ? `<span class="slot__boost n">+${boost}</span>` : ''}
         ${renderPortrait(p, { size: 36, kit })}
-        <span class="slot__name">${esc(p.name)}</span>
+        <span class="slot__name">${esc(p.name.split(" ").slice(1).join(" ") || p.name)}</span>
         ${tagIconsHtml(p, activeTags?.get(p.id))}
       </div>
     </div>`;
@@ -2953,8 +2953,9 @@ function renderMarket(banner = '') {
 
   const showEvent = week === (phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0]) && eventTone;
 
+  document.documentElement.style.setProperty('--kit', club.kit ?? '#4a5a52');
   setScreen(`
-    <header class="topbar">
+    <header class="topbar" style="--kit:${club.kit ?? '#4a5a52'}">
       <div class="topbar__id">
         ${renderCrest(club, { size: 36 })}
         <div class="topbar__idText">

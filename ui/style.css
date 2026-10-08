@@ -1,3 +1,6 @@
+@font-face { font-family: 'SeoulRo'; src: url('fonts/SeoulRo.ttf') format('truetype'); font-weight: 400 900; font-display: swap; }
+@font-face { font-family: 'Anton'; src: url('fonts/Anton-Regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+* { font-synthesis: none; }
 /* FM-Roguelike. 야간 경기장 테마.
    고밀도 게임 HUD. 다이얼: DENSITY 7 / VARIANCE 4 / MOTION 4.
    한 런에 12번 돌아오는 화면이라 요소 위치는 예측 가능해야 하고,
@@ -28,7 +31,7 @@
   --t-legendary: #dda63a;
   --t-god: #e2564d;
 
-  --num: 'Archivo', system-ui, sans-serif;
+  --num: 'Anton', 'Pretendard Variable', Pretendard, system-ui, sans-serif;
   --ui: 'Pretendard Variable', Pretendard, system-ui, sans-serif;
 
   /* 타입 스케일. 위계는 크기보다 무게와 색으로 만든다 */
@@ -1683,3 +1686,76 @@ button:not(:disabled):active { transform: scale(0.98); }
 /* 판매 확인(행이 확인 바로 바뀔 때) */
 .srow.player--confirm, .crow.player--confirm { display: flex; align-items: center; gap: var(--s2); cursor: default; }
 .srow.player--confirm .confirm__q, .crow.player--confirm .confirm__q { font-size: var(--fs-label); }
+
+/* ===== 디자인 완성도 패스: 위계·색·일관성 ===== */
+:root {
+  /* 등급: 금·은 금속 대신 채도를 낮춘 보석색 사다리 */
+  --t-local: #8d929c;
+  --t-bigLeaguer: #4f8bd0;
+  --t-topClass: #3fa384;
+  --t-worldClass: #8a73d0;
+  --t-legendary: #d4566f;
+  --t-god: #efe6ff;
+}
+/* 구단 색 헤더: 어떤 유니폼 색이든 읽히도록 밤색에 섞는다 */
+.topbar {
+  background: linear-gradient(100deg, color-mix(in srgb, var(--kit, #4a5a52) 46%, var(--night)) 0%, var(--night) 78%);
+}
+/* 영입 버튼은 보조, 주 행동(다음 주로)만 채운 초록 */
+.buy.deal__buy {
+  background: var(--light);
+  color: var(--night);
+  border-color: var(--light);
+  box-shadow: none;
+}
+.buy.deal__buy:disabled { background: var(--surface-hi); color: var(--muted); border-color: var(--line); }
+/* 팀 전력: 가장 큰 숫자 */
+.pw--total .pw__val { font-size: 30px; }
+/* 포메이션 칩은 한 줄 가로 스크롤 */
+.formations { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.formations::-webkit-scrollbar { display: none; }
+.formations button { flex: none; }
+/* 보조 버튼이 배경에 묻히지 않게 */
+.tactics__acts .reroll { color: var(--light); border-color: var(--line); }
+.tactics__acts .reroll:disabled { color: var(--muted); }
+.tactics__acts .reroll:disabled { opacity: 0.65; }
+.deal .pcard { width: 70px; }
+.deal .pcard__pos { font-size: 10px; }
+.deal .pcard__ovr { font-size: 17px; right: 4px; }
+.offer.deal { gap: var(--s3); }
+
+/* 이름판: 성만 검은 판에 얹고 구단 색 밑줄 */
+.slot .slot__name {
+  display: block; margin: 3px -2px 0; padding: 2px 3px;
+  background: rgba(8, 12, 10, 0.88); border-radius: 2px;
+  border-bottom: 2px solid color-mix(in srgb, var(--kit, var(--turf)) 70%, #fff);
+  font-size: 10px; font-weight: 800; letter-spacing: 0.01em;
+}
+.slot--empty .slot__name { background: transparent; border-bottom-color: transparent; }
+
+/* 케미 아이콘: 5열 고정 그리드로 오른쪽 빈칸 제거 */
+.chembadges { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--s3) var(--s1); justify-items: center; }
+.chembadge__label { word-break: keep-all; text-align: center; }
+
+/* 영입 카드: 등급 색으로 물들인 카드 + 이름판 */
+.offer.deal {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--tier) 26%, #101613) 0%, color-mix(in srgb, var(--tier) 9%, #0d1210) 100%);
+  border: 1px solid color-mix(in srgb, var(--tier) 75%, transparent);
+  border-left: 3px solid var(--tier);
+}
+.deal__name {
+  display: inline-block; max-width: 100%; padding: 2px 8px; border-radius: 2px;
+  background: rgba(8, 12, 10, 0.88); color: #fff; font-size: var(--fs-body); font-weight: 800;
+  border-bottom: 2px solid var(--tier); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.deal__age { color: var(--muted); }
+.n, [class*="__ovr"], .deal__buy b, .pw__val, .res__val, .topbar__week b, .tag--count { letter-spacing: 0.03em; }
+
+/* 제목·탭·버튼: 숫자·영문은 Anton, 한글은 서울로. 본문은 Pretendard 유지 */
+:root { --display: 'Anton', 'SeoulRo', 'Pretendard Variable', sans-serif; }
+h1, h2, h3, .topbar__club, .club__name, .tab, .buy, .deal__buy span, .reroll, .formations button,
+.tactics__acts button, .subtabs button, #dock button, .go, .pcard__tier, .offer__tier, .tiermodal__row b {
+  font-family: var(--display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}

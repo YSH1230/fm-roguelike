@@ -54,7 +54,7 @@ export function renderCrest(club, { size = 40 } = {}) {
     <path d="${SHAPES[shapeId]}" fill="none" stroke="#00000030" stroke-width="2"/>
     <clipPath id="${clipId}"><path d="${SHAPES[shapeId]}"/></clipPath>
     <g clip-path="url(#${clipId})">${device(deviceId, accent)}</g>
-    <text x="32" y="39" text-anchor="middle" font-family="Archivo, system-ui, sans-serif"
+    <text x="32" y="39" text-anchor="middle" font-family="Anton, system-ui, sans-serif"
       font-weight="900" font-size="20" fill="${accent}" stroke="#00000040" stroke-width="0.6"
       paint-order="stroke">${esc(initials(club.name ?? '??'))}</text>
   </svg>`;
