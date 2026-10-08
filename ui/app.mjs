@@ -51,6 +51,7 @@ import { ageSquad } from '../engine/aging.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait, appearanceOf } from './portrait.mjs';
 import { pixelMatchHtml } from './pixel.mjs';
+import { track, telemetryOn, telemetryConfigured, setTelemetry } from './telemetry.mjs';
 import { renderCrest } from './crest.mjs';
 import {
   CHEMISTRY_START,
@@ -841,6 +842,7 @@ function renderClubButtons() {
       <h1 class="start__title">FM<br>ROGUELIKE</h1>
       <p class="start__sub">5부 리그 감독으로 시작합니다. 12주 동안 선수를 사고 팔아 한 시즌을 버티세요.</p>
       <button class="reroll start__records" id="records-btn">🏆 기록 · 업적</button>
+      ${telemetryConfigured() ? `<p class="note start__telemetry">플레이 통계가 익명으로 수집됩니다(이름 등 개인정보 없음). <button type="button" class="linkbtn" id="telemetry-toggle">${telemetryOn() ? '끄기' : '켜기'}</button></p>` : ''}
       <div class="clubs">
         ${resume}
         ${clubs.map((club) => {
@@ -862,6 +864,10 @@ function renderClubButtons() {
   `);
 
   document.getElementById('records-btn')?.addEventListener('click', renderRecords);
+  document.getElementById('telemetry-toggle')?.addEventListener('click', (e) => {
+    setTelemetry(!telemetryOn());
+    e.currentTarget.textContent = telemetryOn() ? '끄기' : '켜기';
+  });
   document.getElementById('resume-btn')?.addEventListener('click', () => {
     currentState = withRunDefaults(saved, DEFAULT_FORMATION); // 구버전 세이브 호환
     if (currentState.ucl) renderUcl(); else renderMarket();
@@ -1995,7 +2001,27 @@ function renderUcl(opts = {}) {
   });
 }
 
+// 통계로 보낼 이번 시즌 요약(개인정보 없음). 읽지 못하는 값이 있어도 게임은 계속된다.
+function telemetrySnapshot() {
+  try {
+    currentState.telemetryRun ??= Math.random().toString(36).slice(2, 8);
+    const fid = currentFormation();
+    const { lineup, bench } = pickBestXI(currentState.squad, fid, currentState.manualOverrides, currentState.benchOverrides);
+    const power = computeTeamPower(lineup, bench, currentState.manager.tier, currentState.chemistry, coachFor(), powerExtras(currentRoles(lineup, bench)));
+    return {
+      run: currentState.telemetryRun, s: currentState.seasonNumber, tier: currentState.leagueTierId, club: currentState.club?.name,
+      fm: fid, mgr: currentState.manager?.tier, pow: Math.round(power * 10) / 10,
+      avg: Math.round(lineup.reduce((x, p) => x + p.baseOVR, 0) / Math.max(1, lineup.length) * 10) / 10,
+      chem: Math.round(currentState.chemistry), funds: currentState.funds, squad: currentState.squad.length,
+      dem: currentState.boardDemand?.cardId ?? null,
+    };
+  } catch (e) {
+    return { run: currentState?.telemetryRun, s: currentState?.seasonNumber, tier: currentState?.leagueTierId };
+  }
+}
+
 // 시즌 결과를 역대 기록에 남기고, 리그 우승이면 트로피 연출을 띄운다.
+
 function recordSeasonEnd(result, points, rank = null) {
   // 이번 런의 명예 점수 재료(리그별 우승, 연속 우승)
   if (result === 'champion') {
@@ -2007,6 +2033,7 @@ function recordSeasonEnd(result, points, rank = null) {
     currentState.titleStreak = 0;
   }
   currentState.leagueResultThisSeason = result;
+  track('season', { ...telemetrySnapshot(), res: result, rank, pts: Math.round(points) });
   updateRecords((r) => recordSeason(r, {
     season: currentState.seasonNumber, club: currentState.club.name, tierId: currentState.leagueTierId, result, rank, points: Math.round(points),
     streak: currentState.titleStreak,
@@ -2315,6 +2342,7 @@ function renderRunEnd(reason, finalPoints, boardTrustMessage = '', uclResultId =
   const repRows = reputationBreakdown(repStats).filter((x) => x.value > 0);
   const prevBest = loadRecords(localStorage).bestReputation ?? 0;
   updateRecords((r) => recordRunEnd(r, { reputation, seasons: currentState.seasonNumber, retired: reason === 'victory' }));
+  track('run_end', { run: currentState.telemetryRun, reason, seasons: currentState.seasonNumber, rep: reputation, best: currentState.highestTierId, club: currentState.club?.name });
 
   setScreen(`
     <div class="verdict verdict--${reason === 'victory' ? 'champion' : 'relegation'}">

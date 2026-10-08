@@ -1955,3 +1955,7 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 
 /* 시뮬레이션: 선수를 작게, 간격을 넓게 */
 .pxp { width: 5%; }
+
+/* 통계 수집 안내 */
+.start__telemetry { margin: var(--s2) 0 0; font-size: var(--fs-micro); color: var(--muted-dim); }
+.linkbtn { background: none; border: 0; padding: 0 2px; color: var(--turf); text-decoration: underline; font: inherit; cursor: pointer; }
