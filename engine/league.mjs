@@ -39,10 +39,11 @@ export function convertPowerToPoints(
 //   태그까지 아는 플레이(smart 420커리어): 1부 우승 14.0%, 챔피언스리그 진출 커리어 19%
 //   (선수당 태그 보너스 smart 3부 3.4 / 2부 4.3 / 1부 4.4, greedy는 1.2 / 1.4 / 1.8)
 // 사람처럼 플레이하는 봇(tools/sim-human.mjs: 판매 순환·감독/스태프 구매·보상·챔스 상금·스카우터/코치 활용)으로 재보정.
-// 예전 값(5부 50 / 4부 54 / 3부 57 / 2부 66 / 1부 67)에서는 이 봇이 승격 직후 4부 전력 69, 3부 76, 2부 80, 1부 87로 들어오고
-// 1부에서 몇 시즌 만에 전력 100까지 올라 1부 우승을 시즌의 56%나 했다. 리그 평균을 5부 52 / 4부 58 / 3부 63 / 2부 69 / 1부 74로 올리고
-// 감독 배율(택티션 1.07 / 레전더리 1.16 / GOD 1.26)과 리그 기대 감독(4부 1.02 / 3부 1.05 / 2부 1.09 / 1부 1.14)을 키웠다. 420커리어 실측:
-//   리그 우승 5부 8% / 4부 12% / 3부 10% / 2부 12% / 1부 26%, 강등 13% / 9% / 12% / 8% / 6%, 1부 도달 11%.
+// 옛 값(5부 50 / 4부 54 / 3부 57 / 2부 66 / 1부 67)에서는 이 봇이 승격 직후 4부 전력 69, 3부 76, 2부 80, 1부 87로 들어오고
+// 1부에서 몇 시즌 만에 전력 100까지 올라 1부 우승을 시즌의 56%나 했다. 반대로 52/58/63/69/74는 실플레이에서 5부 승격 비율 24%로 너무 빡빡했다.
+// 지금 값(5부 50 / 4부 55 / 3부 60 / 2부 67 / 1부 75)은 하위 리그는 풀고 1부는 어렵게 둔 절충안이다.
+// 감독 배율(택티션 1.07 / 레전더리 1.16 / GOD 1.26)과 리그 기대 감독(4부 1.02 / 3부 1.05 / 2부 1.09 / 1부 1.14)도 같이 키웠다. 210커리어 실측:
+//   시즌당 승격(우승 포함) 5부 35% / 4부 47% / 3부 38% / 2부 38%, 강등 6% / 3% / 8% / 6% / 1부 12%, 1부 우승 17%, 1부 도달 30%.
 // (리그 평균은 선수 OVR 평균이 아니라 감독 배율·적응도·코치가 곱해진 팀 전력과 비교하는 기준값이다.)
 // tools/tune-ladder.mjs 2000판(OVR만 보는 봇):
 //   5부 우승  9.0 / 승격 22.3 / 안전 63.1 / 강등  5.5
@@ -54,18 +55,18 @@ export function convertPowerToPoints(
 // 리그가 오를수록 승격 확률이 내려간다.
 const LEAGUE_TIERS = {
   // 2000판 실측: 우승 22.3% / 승격 28.1% / 안전 47.1% / 강등 2.6%
-  tier5: { label: '5부', averageOVR: [48, 56], safePoints: 38, targetPoints: 68, championPoints: 80 },
+  tier5: { label: '5부', averageOVR: [46, 54], safePoints: 38, targetPoints: 68, championPoints: 80 },
   // 2000판 실측: 우승 10.8% / 승격 22.7% / 안전 56.5% / 강등 9.9%
-  tier4: { label: '4부', averageOVR: [54, 62], safePoints: 40, targetPoints: 73, championPoints: 86 },
+  tier4: { label: '4부', averageOVR: [51, 59], safePoints: 40, targetPoints: 73, championPoints: 86 },
   // 2000판 실측: 우승 8.8% / 승격 17.3% / 안전 54.6% / 강등 19.3%
-  tier3: { label: '3부', averageOVR: [59, 67], safePoints: 42, targetPoints: 76, championPoints: 89 },
+  tier3: { label: '3부', averageOVR: [56, 64], safePoints: 42, targetPoints: 76, championPoints: 89 },
   // 2000판 실측: 우승 7.0% / 승격 11.8% / 안전 52.3% / 강등 28.8%
-  tier2: { label: '2부', averageOVR: [65, 73], safePoints: 44, targetPoints: 79, championPoints: 91 },
+  tier2: { label: '2부', averageOVR: [63, 71], safePoints: 44, targetPoints: 79, championPoints: 91 },
   // 2000판 실측: 우승 4.3% / 승격 12.7% / 안전 49.5% / 강등 33.6%
   // 상위 4개 리그가 4부 우승률 10% 아래 좁은 띠에 몰려 있어서, 우승률 순서를
   // 지키면 1부는 4~5%가 상한이다. championPoints 88~89로는 1부 우승률이 2부와
   // 오차 범위 안에서 겹쳐(6.6% vs 5.9%) 순서가 판마다 뒤집혔다. 91로 벌렸다.
-  tier1: { label: '1부', averageOVR: [70, 78], safePoints: 46, targetPoints: 82, championPoints: 95 },
+  tier1: { label: '1부', averageOVR: [71, 79], safePoints: 46, targetPoints: 82, championPoints: 95 },
 };
 
 // 낮은 리그부터. 사다리 순서는 엔진이 소유한다.

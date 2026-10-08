@@ -7,9 +7,10 @@ import {
 } from '../engine/events.mjs';
 import { EVENTS } from '../data/events.mjs';
 
-test('FFP 긴급 감사 비용은 탑클래스 중간 OVR 가격이다', () => {
-  const { payCost } = resolveFfpAudit();
-  assert.ok(payCost > 0);
+test('FFP 긴급 감사 비용은 시즌 지급액의 12%(최소 20G)다', () => {
+  assert.equal(resolveFfpAudit(330).payCost, 40);
+  assert.equal(resolveFfpAudit(2000).payCost, 240);
+  assert.equal(resolveFfpAudit(50).payCost, 20);
 });
 
 test('승격 전용 재계약 인상은 기본 재계약비의 130%다', () => {

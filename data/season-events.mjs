@@ -20,8 +20,8 @@ const EVENTS = [
   },
   {
     id: 'ffpAudit', name: 'FFP 긴급 감사', tone: 'bad',
-    apply: ({ squad, funds }) => {
-      const { payCost } = resolveFfpAudit();
+    apply: ({ squad, funds, baseFunds }) => {
+      const { payCost } = resolveFfpAudit(baseFunds);
       if (funds >= payCost) return { funds: funds - payCost, message: `FFP 긴급 감사: ${payCost}G 납부` };
       // 자금이 모자라면 가장 약한 카드를 무료로 방출한다.
       const weakest = [...squad].sort((a, b) => a.baseOVR - b.baseOVR)[0];

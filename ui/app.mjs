@@ -1502,7 +1502,7 @@ function enterWinterMarket() {
   renderMarket(banner);
 }
 
-const RESULT_LABELS = { champion: '우승권!', promotion: '승격권', safe: '안전 잔류', relegation: '강등 위기' };
+const RESULT_LABELS = { champion: '우승', promotion: '승격권', safe: '안전 잔류', relegation: '강등 위기' };
 // 시즌이 끝난 뒤의 "확정된 결과"는 페이스 예측과 달리 애매하게 두면 안 된다 -
 // 우승/승격/강등처럼 실제로 일어난 일을 그대로 말한다("~권"은 아직 안 정해진
 // 가능성을 말할 때 쓰는 말이라 확정 결과에는 안 맞는다).
