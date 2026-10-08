@@ -3231,8 +3231,10 @@ function renderMarket(banner = '') {
     el.addEventListener('click', () => {
       const hint = el.closest('.offer')?.querySelector('.offer__hint');
       if (!hint) return;
+      // 같은 태그를 다시 누르면 설명을 닫는다
+      const same = !hint.hidden && hint.textContent === el.dataset.tagDesc;
       hint.textContent = el.dataset.tagDesc;
-      hint.hidden = false;
+      hint.hidden = same;
     });
   });
   if (tab === 'squad') {

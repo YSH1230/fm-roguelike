@@ -1905,3 +1905,7 @@ html[data-theme='kiwi'] .act--main { background: color-mix(in srgb, #ccff00 18%,
 
 /* 결산 화면의 안내 문장도 다른 내용과 같은 좌우 여백 */
 #screen > p.note { padding-left: var(--s4); padding-right: var(--s4); }
+
+/* 내용이 짧은 안내 화면은 세로 가운데로 */
+#screen:has(> .demandcards), #screen:has(> .verdict) { display: flex; flex-direction: column; justify-content: center; min-height: calc(100dvh - 96px); }
+#screen:has(> .demandcards) > *, #screen:has(> .verdict) > * { flex: none; }
