@@ -1959,3 +1959,26 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 /* 통계 수집 안내 */
 .start__telemetry { margin: var(--s2) 0 0; font-size: var(--fs-micro); color: var(--muted-dim); }
 .linkbtn { background: none; border: 0; padding: 0 2px; color: var(--turf); text-decoration: underline; font: inherit; cursor: pointer; }
+
+/* ===== 태그 등급 색: 기본기 하늘 · 보통 호박 · 어려움 산호 ===== */
+:root { --g-basic: #6fb1e0; --g-mid: #e3b341; --g-hard: #ef7a5a; }
+.chemgrade--basic, .ticon--g-basic, .chip--g-basic, .tag--basic { --g: var(--g-basic); }
+.chemgrade--mid, .ticon--g-mid, .chip--g-mid, .tag--mid { --g: var(--g-mid); }
+.chemgrade--hard, .ticon--g-hard, .chip--g-hard, .tag--hard { --g: var(--g-hard); }
+
+/* 전술 탭 팀 케미: 등급마다 한 줄 */
+.chemgrade { margin: 0 0 var(--s3); padding-left: var(--s2); border-left: 3px solid var(--g); }
+.chemgrade__head { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--s2); font-size: var(--fs-label); color: var(--g); }
+.chemgrade__head i { display: none; }
+.chemgrade .chembadges { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.chemgrade .chembadge__ring { border-color: color-mix(in srgb, var(--g) 45%, var(--line)); color: var(--g); }
+.chemgrade .chembadge.is-tier1 .chembadge__ring { border-color: var(--g); background: color-mix(in srgb, var(--g) 18%, var(--surface)); color: var(--g); }
+.chemgrade .chembadge.is-tier2 .chembadge__ring { border-color: var(--g); background: var(--g); color: #12100f; box-shadow: 0 0 0 3px color-mix(in srgb, var(--g) 24%, transparent); }
+.chemgrade .chembadge.is-tier1 .chembadge__count, .chemgrade .chembadge.is-tier2 .chembadge__count { color: var(--g); }
+
+/* 선수단·영입에서도 같은 색 */
+.ticon[class*='ticon--g-'] { color: var(--g); opacity: 1; }
+.chip[class*='chip--g-'] { border-color: color-mix(in srgb, var(--g) 55%, var(--line)); }
+.chip[class*='chip--g-'] svg { color: var(--g); }
+.chip.chip--up1[class*='chip--g-'], .chip.chip--up2[class*='chip--g-'] { border-color: var(--g); }
+.tag--basic, .tag--mid, .tag--hard { color: var(--g); background: color-mix(in srgb, var(--g) 14%, transparent); border: 1px solid color-mix(in srgb, var(--g) 50%, transparent); font-weight: 700; }

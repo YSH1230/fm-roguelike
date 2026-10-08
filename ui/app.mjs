@@ -509,7 +509,7 @@ function tagInfoText(kind, id) {
 function tagIconsHtml(p, active = null) {
   const on = (id) => (active && active.has(id) ? ' is-on' : '');
   const btn = (kind, id) => `data-tag-info="${esc(tagInfoText(kind, id))}" role="button" tabindex="0"`;
-  const play = (p.playstyleTags ?? []).map((t) => `<i class="ticon${on(t)}" title="${esc(TAG_LABELS[t] ?? t)}" ${btn('play', t)}>${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}</i>`).join('');
+  const play = (p.playstyleTags ?? []).map((t) => `<i class="ticon ticon--g-${PLAYSTYLE_TAGS[t]?.grade ?? 'basic'}${on(t)}" title="${esc(TAG_LABELS[t] ?? t)}" ${btn('play', t)}>${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}</i>`).join('');
   const cont = p.continentTag ? `<i class="ticon ticon--cont${on(p.continentTag)}" title="${esc(CONTINENT_LABELS[p.continentTag] ?? '')}" ${btn('cont', p.continentTag)}>${renderTagIcon(CONTINENT_ICON_PATHS, p.continentTag)}</i>` : '';
   const trait = p.specialTrait ? `<i class="ticon ticon--trait" title="${esc(TRAIT_LABELS[p.specialTrait] ?? '')}" ${btn('trait', p.specialTrait)}>${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}</i>` : '';
   return `<span class="ticons">${play}${cont}${trait}</span>`;
@@ -2560,7 +2560,7 @@ function renderChemistryPanel(lineup, bench, roles) {
       // 다음 단계까지 몇 명 더 필요하고, 그때 지금 라인업 중 몇 명이 받는지(계획용).
       const receivers = lineup.filter((p) => def.positions.includes(p.position)).length;
       const more = tier >= req.length ? '최대' : `${need - count}명 더 → +${values[tier]} (${receivers}명 수혜)`;
-      return { icon: renderTagIcon(PLAYSTYLE_ICON_PATHS, tagId), label: TAG_LABELS[tagId] ?? tagId, desc, caption, tier, more, near: tier < req.length && need - count === 1 };
+      return { icon: renderTagIcon(PLAYSTYLE_ICON_PATHS, tagId), label: TAG_LABELS[tagId] ?? tagId, desc, caption, tier, more, grade: def.grade, near: tier < req.length && need - count === 1 };
     })
     .sort((a, b) => b.tier - a.tier);
 
@@ -2620,13 +2620,19 @@ function renderChemistryPanel(lineup, bench, roles) {
   return `<div class="panel">
     <div class="panel__head"><h2>팀 케미</h2></div>
     <h3 class="chemgroup__title">플레이스타일</h3>
-    <ul class="chembadges">${playstyleRows.map(badge).join('')}</ul>
+    ${Object.entries(TAG_GRADE_LABELS).map(([g, label]) => `<div class="chemgrade chemgrade--${g}">
+      <div class="chemgrade__head"><i></i><b>${label}</b></div>
+      <ul class="chembadges">${playstyleRows.filter((r) => r.grade === g).map(badge).join('')}</ul>
+    </div>`).join('')}
     <h3 class="chemgroup__title">대륙</h3>
     <ul class="chembadges">${continentRows.map(badge).join('')}</ul>
     ${traitSection}
     <p class="note" id="chem-desc"></p>
   </div>`;
 }
+
+// 플레이스타일 태그 등급(기본기·보통·어려움). 같은 이름과 색을 영입·전술·선수단에서 쓴다.
+const TAG_GRADE_LABELS = { basic: '기본기', mid: '보통', hard: '어려움' };
 
 const TABS = [
   { id: 'draft', label: '영입' },
@@ -2728,9 +2734,9 @@ function renderMarket(banner = '') {
     // reach: 영입하면 넘는 문턱의 순번(0 = 첫 문턱 발동, 1 이상 = 강화), 없으면 -1
     // 칩은 아이콘 + "n/m"만. 이름과 규칙은 눌렀을 때 카드 아래에 뜬다.
     // reach: 영입하면 넘는 문턱의 순번(0 = 첫 문턱 발동, 1 이상 = 강화), 없으면 -1
-    const chip = (icon, count, need, reach, desc, label, dim = false) => {
+    const chip = (icon, count, need, reach, desc, label, dim = false, grade = '') => {
       const lvl = reach < 0 ? 0 : reach === 0 ? 1 : 2;
-      return `<button type="button" class="chip${lvl ? ` chip--up${lvl}` : ''}${dim ? ' chip--dim' : ''}" data-tag-desc="${esc(desc)}" title="${esc(label)}" aria-label="${esc(label)} ${count}/${need}">${icon}<b>${count}/${need}</b></button>`;
+      return `<button type="button" class="chip${lvl ? ` chip--up${lvl}` : ''}${dim ? ' chip--dim' : ''}${grade ? ` chip--g-${grade}` : ''}" data-tag-desc="${esc(desc)}" title="${esc(label)}" aria-label="${esc(label)} ${count}/${need}">${icon}<b>${count}/${need}</b></button>`;
     };
     const tags = [
       (() => {
@@ -2749,7 +2755,7 @@ function renderMarket(banner = '') {
         const desc = `${TAG_LABELS[t] ?? t}: 지금 라인업 ${count}명. ${tagLadderText(req, values)} (${def.positions.join('·')} 포지션만 셈)`
           + (reach === 0 ? ' · 영입하면 발동!' : reach > 0 ? ' · 영입하면 강화!' : '')
           + (receives ? '' : ` · ${c.position}은(는) 대상 포지션이 아니라 인원에 안 셉니다`);
-        return chip(renderTagIcon(PLAYSTYLE_ICON_PATHS, t), count, need, reach, desc, TAG_LABELS[t] ?? t, !receives);
+        return chip(renderTagIcon(PLAYSTYLE_ICON_PATHS, t), count, need, reach, desc, TAG_LABELS[t] ?? t, !receives, def.grade);
       }),
       c.specialTrait ? `<button type="button" class="chip chip--trait" data-tag-desc="${esc(`${ROLE_LABELS[TRAIT_ROLE[c.specialTrait]]} 칸 · ${TRAIT_LABELS[c.specialTrait]}: ${TRAIT_EFFECT_DESCRIPTIONS[c.specialTrait]}. 대가: ${TRAIT_DOWNSIDE_TEXT[c.specialTrait]}`)}" title="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}" aria-label="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, c.specialTrait)}<b>${esc(ROLE_LABELS[TRAIT_ROLE[c.specialTrait]] ?? '')}</b></button>` : '',
     ].join('');
