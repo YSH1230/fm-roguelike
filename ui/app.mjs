@@ -3011,7 +3011,7 @@ function renderMarket(banner = '') {
       </div>
       <div class="goalstrip" id="goal-strip" title="이사진 목표 ${currentBoardGoal()}점 (안전 ${effectiveTier(currentState.leagueTierId).safePoints} · 승격 ${effectiveTier(currentState.leagueTierId).targetPoints})">
         <span>이사진 요구</span>
-        ${boardDemandCard ? `<b>${esc(boardDemandCard.text)}</b><em>+${Math.round(BOARD_DEMAND_REWARD[currentState.boardDemand.difficulty] * 100)}%</em>` : '<b class="is-none">없음</b>'}
+        ${boardDemandCard ? `<b>${esc(boardDemandCard.short ?? boardDemandCard.text)}</b><em>+${Math.round(BOARD_DEMAND_REWARD[currentState.boardDemand.difficulty] * 100)}%</em>` : '<b class="is-none">없음</b>'}
       </div>
       <p class="note chem-info" id="funds-info" hidden>
         <b>이번 시즌 자금 흐름</b><br>
@@ -3057,6 +3057,14 @@ function renderMarket(banner = '') {
     </div>
     ${bodies[tab]}
   `, `<button class="cta" id="next-week-btn">${week === maxWeek ? (phase === 'summer' ? '전반기 시작' : '후반기 시작') : '다음 주로'}</button>`);
+
+  // 이사진 요구 문구가 길면 두 줄로 늘리지 않고 글자를 조금씩 줄여 한 줄에 맞춘다(최소 10px)
+  const demandText = document.querySelector('#goal-strip b');
+  if (demandText) {
+    let fs = 12;
+    demandText.style.fontSize = `${fs}px`;
+    while (demandText.scrollWidth > demandText.clientWidth && fs > 10) { fs -= 0.5; demandText.style.fontSize = `${fs}px`; }
+  }
 
   for (const t of TABS) {
     document.querySelector(`[data-tab="${t.id}"]`).onclick = () => {

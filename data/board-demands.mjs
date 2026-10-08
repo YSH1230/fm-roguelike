@@ -18,14 +18,14 @@ export const DEMAND_CARDS = [
     check: (s) => avg(s.lineup, (p) => p.age) <= 26 },
   { id: 'winter2', difficulty: 'normal', tags: ['stable'], text: '겨울 시장 거래 2건 이하',
     check: (s) => s.track.winterTransactions <= 2 },
-  { id: 'spend60', difficulty: 'normal', tags: ['spend'], text: '선수 영입에 쓴 돈을 시즌 지급 자금의 60% 이하로 (40%는 남기기)',
+  { id: 'spend60', difficulty: 'normal', tags: ['spend'], text: '선수 영입에 쓴 돈을 시즌 지급 자금의 60% 이하로 (40%는 남기기)', short: '영입 지출 60% 이하 (40% 남기기)',
     check: (s) => s.track.spent <= s.grant * 0.6 },
 
   { id: 'age24', difficulty: 'hard', tags: ['age'], text: '선발 평균 나이 24세 이하',
     check: (s) => avg(s.lineup, (p) => p.age) <= 24 },
   { id: 'pace', difficulty: 'hard', tags: ['pace'], text: '전반기 승점이 목표 페이스 이상',
     check: (s) => s.firstHalfPoints >= s.goal / 2 },
-  { id: 'spend40', difficulty: 'hard', tags: ['spend'], text: '선수 영입에 쓴 돈을 시즌 지급 자금의 40% 이하로 (60%는 남기기)',
+  { id: 'spend40', difficulty: 'hard', tags: ['spend'], text: '선수 영입에 쓴 돈을 시즌 지급 자금의 40% 이하로 (60%는 남기기)', short: '영입 지출 40% 이하 (60% 남기기)',
     check: (s) => s.track.spent <= s.grant * 0.4 },
 ];
 
