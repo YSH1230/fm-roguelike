@@ -332,7 +332,7 @@ button:not(:disabled):active { transform: scale(0.98); }
 .eventpane[hidden] { display: none; }
 .eventtabs { display: flex; gap: var(--s1); margin: var(--s3) 0; }
 .eventtabs button {
-  flex: 1; padding: 7px var(--s2); border-radius: 999px; font-weight: 700; font-size: var(--fs-label);
+  flex: 1; padding: 7px var(--s2); border-radius: 4px; font-weight: 700; font-size: var(--fs-label);
   background: var(--surface); border: 1px solid var(--line); color: var(--muted);
 }
 .eventtabs button[aria-selected='true'] { background: var(--turf); border-color: var(--turf); color: var(--night); }
@@ -366,7 +366,7 @@ button:not(:disabled):active { transform: scale(0.98); }
   font-weight: 700;
   font-size: var(--fs-micro);
   padding: 5px var(--s2);
-  border-radius: 999px;
+  border-radius: 4px;
   background: var(--surface);
   border: 1px solid var(--line);
   color: var(--muted);
@@ -495,7 +495,7 @@ button:not(:disabled):active { transform: scale(0.98); }
   display: flex; align-items: center; gap: 5px;
   font-size: var(--fs-label);
   padding: 5px var(--s2);
-  border-radius: 999px;
+  border-radius: 4px;
   background: var(--surface);
   border: 1px solid var(--line);
   color: var(--muted);
@@ -670,7 +670,7 @@ button:not(:disabled):active { transform: scale(0.98); }
 .tiermodal__row { display: flex; align-items: center; gap: var(--s3); padding: 10px var(--s3); background: var(--surface-hi); border-left: 4px solid var(--tier); border-radius: var(--r-sm); font-size: var(--fs-body); }
 .tiermodal__row i { font-style: normal; color: var(--muted); width: 14px; }
 .tiermodal__row b { color: var(--tier); }
-.tiermodal__row span { margin-left: auto; font-size: var(--fs-micro); color: var(--light); background: var(--tier); color: var(--night); padding: 2px 8px; border-radius: 999px; font-weight: 800; }
+.tiermodal__row span { margin-left: auto; font-size: var(--fs-micro); color: var(--light); background: var(--tier); color: var(--night); padding: 2px 8px; border-radius: 4px; font-weight: 800; }
 .tiermodal__row.is-now { outline: 1px solid var(--tier); background: color-mix(in srgb, var(--tier) 14%, var(--surface-hi)); }
 .offer__cmp { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--fs-label); color: var(--muted); background: var(--night); border: 1px solid var(--line-soft); border-radius: var(--r-md); padding: 4px 8px; }
 .offer__cmp > span { flex: none; font-size: var(--fs-micro); }
@@ -684,7 +684,7 @@ button:not(:disabled):active { transform: scale(0.98); }
 .offer__cmp.is-empty { border-style: dashed; border-color: var(--gold); }
 .offer__cmp.is-empty b { color: var(--gold); }
 .gapbar { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s3); }
-.gapchip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: rgba(221, 166, 58, 0.12); border: 1px dashed var(--gold); color: var(--gold); font: 700 var(--fs-label)/1 var(--ui); cursor: pointer; }
+.gapchip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 4px; background: rgba(221, 166, 58, 0.12); border: 1px dashed var(--gold); color: var(--gold); font: 700 var(--fs-label)/1 var(--ui); cursor: pointer; }
 .gapchip svg { width: 14px; height: 14px; fill: currentColor; }
 .gapchip.is-on { background: var(--gold); color: var(--night); border-style: solid; }
 .gapchip--clear { background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
@@ -715,7 +715,7 @@ button:not(:disabled):active { transform: scale(0.98); }
 .tagpanel__group { display: grid; grid-template-columns: 64px 1fr; gap: var(--s2); align-items: start; }
 .tagpanel__group em { font-style: normal; font-size: var(--fs-micro); color: var(--muted); padding-top: 5px; }
 .tagpanel__group > div { display: flex; flex-wrap: wrap; gap: 4px; }
-.tagchip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 999px; background: var(--night); border: 1px solid var(--line); color: var(--muted); font: 600 var(--fs-micro)/1 var(--ui); cursor: pointer; }
+.tagchip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; background: var(--night); border: 1px solid var(--line); color: var(--muted); font: 600 var(--fs-micro)/1 var(--ui); cursor: pointer; }
 .tagchip svg { width: 12px; height: 12px; }
 .tagchip b { font-family: var(--num); color: var(--light); }
 .tagchip.is-on { border-color: var(--turf); color: var(--light); }
@@ -1521,7 +1521,7 @@ button:not(:disabled):active { transform: scale(0.98); }
 .coachfocus { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: var(--s2); }
 .coachfocus em { font-style: normal; font-size: var(--fs-micro); color: var(--muted); flex-basis: 100%; }
 .coachfocus button {
-  font-size: var(--fs-micro); font-weight: 700; padding: 4px 10px; border-radius: 999px;
+  font-size: var(--fs-micro); font-weight: 700; padding: 4px 10px; border-radius: 4px;
   background: var(--surface); border: 1px solid var(--line); color: var(--muted);
 }
 .coachfocus button[aria-pressed='true'] { background: var(--turf); border-color: var(--turf); color: var(--night); }
@@ -1544,7 +1544,7 @@ button:not(:disabled):active { transform: scale(0.98); }
 .goalstrip em { margin-left: auto; flex: none; font: 800 var(--fs-label)/1 var(--num); font-style: normal; color: var(--turf); }
 
 .subtabs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0 0 var(--s3); }
-.subtabs > button[role='tab'] { padding: 7px 14px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font: 700 var(--fs-label)/1 var(--ui); cursor: pointer; }
+.subtabs > button[role='tab'] { padding: 7px 14px; border-radius: 4px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); font: 700 var(--fs-label)/1 var(--ui); cursor: pointer; }
 .subtabs > button[aria-selected='true'] { background: var(--turf); border-color: var(--turf); color: var(--night); }
 .subtabs > button i { font-style: normal; font-family: var(--num); opacity: 0.7; margin-left: 3px; }
 .subtabs .reroll { margin-left: auto; }
@@ -1552,13 +1552,13 @@ button:not(:disabled):active { transform: scale(0.98); }
 .scoutbar { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--s3); }
 .scoutbar__label { display: inline-flex; align-items: center; gap: 4px; flex: none; font: 700 var(--fs-label)/1 var(--ui); color: var(--gold); }
 .scoutbar__label .badgeicon { width: 16px; height: 16px; }
-.scoutbar select { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 999px; background: var(--surface); color: var(--light); border: 1px solid var(--line); font: 600 var(--fs-label)/1 var(--ui); }
+.scoutbar select { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 4px; background: var(--surface); color: var(--light); border: 1px solid var(--line); font: 600 var(--fs-label)/1 var(--ui); }
 
 .tagpanel__head b { font-size: var(--fs-label); }
 .tagpanel__head .tagpanel__sum { font-size: var(--fs-micro); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 칩: 아이콘 + 숫자. 이름·규칙은 눌렀을 때 */
-.chip { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px 3px 5px; border-radius: 999px; background: var(--night); border: 1px solid var(--line); color: var(--muted); font: 700 var(--fs-micro)/1 var(--num); cursor: pointer; }
+.chip { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px 3px 5px; border-radius: 4px; background: var(--night); border: 1px solid var(--line); color: var(--muted); font: 700 var(--fs-micro)/1 var(--num); cursor: pointer; }
 .chip .badgeicon { width: 15px; height: 15px; flex: none; }
 .chip b { color: var(--light); font-weight: 800; }
 .chip--up1 { border-color: var(--turf); }
@@ -1603,7 +1603,7 @@ button:not(:disabled):active { transform: scale(0.98); }
 
 /* ===== 선수단 탭: 선발 / 벤치 / 예비 ===== */
 .sqsum { display: flex; flex-wrap: wrap; gap: var(--s2); margin: 0 0 var(--s3); }
-.sqsum span { padding: 5px 10px; border-radius: 999px; background: var(--night); border: 1px solid var(--line-soft); font-size: var(--fs-label); color: var(--muted); }
+.sqsum span { padding: 5px 10px; border-radius: 4px; background: var(--night); border: 1px solid var(--line-soft); font-size: var(--fs-label); color: var(--muted); }
 .sqsum b { color: var(--light); font-weight: 800; }
 
 .sqsec { display: flex; align-items: center; gap: var(--s2); margin: var(--s4) 0 var(--s2); font-size: var(--fs-label); }
@@ -1632,11 +1632,11 @@ button:not(:disabled):active { transform: scale(0.98); }
 .srow.is-open .srow__chev { transform: rotate(180deg); }
 .srow__acts { display: none; grid-column: 1 / -1; flex-wrap: wrap; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--line-soft); }
 .srow.is-open .srow__acts { display: flex; }
-.rowtag { display: inline-block; padding: 2px 7px; border-radius: 999px; font: 700 var(--fs-micro)/1.3 var(--ui); background: var(--surface-hi); color: var(--muted); }
+.rowtag { display: inline-block; padding: 2px 7px; border-radius: 4px; font: 700 var(--fs-micro)/1.3 var(--ui); background: var(--surface-hi); color: var(--muted); }
 .rowtag--bad { background: rgba(226, 86, 77, 0.16); color: var(--debit); }
 .rowtag--warn { background: rgba(221, 166, 58, 0.16); color: var(--gold); }
 
-.act { padding: 6px 11px; border-radius: 999px; background: var(--night); border: 1px solid var(--line); color: var(--light); font: 700 var(--fs-micro)/1.2 var(--ui); cursor: pointer; }
+.act { padding: 6px 11px; border-radius: 4px; background: var(--night); border: 1px solid var(--line); color: var(--light); font: 700 var(--fs-micro)/1.2 var(--ui); cursor: pointer; }
 .act b { font-family: var(--num); color: var(--gold); margin-left: 2px; }
 .act--main { background: var(--turf); border-color: var(--turf); color: var(--night); }
 .act--main b { color: var(--night); }
@@ -1682,7 +1682,7 @@ button:not(:disabled):active { transform: scale(0.98); }
 .chip--tier { color: var(--tier, var(--light)); border-color: var(--tier, var(--line)); font-weight: 800; }
 .chip--plain .badgeicon { width: 13px; height: 13px; }
 .focus { display: inline-flex; gap: 4px; margin-top: 2px; }
-.focus button { padding: 5px 14px; border-radius: 999px; background: var(--night); border: 1px solid var(--line); color: var(--muted); font: 700 var(--fs-label)/1 var(--ui); cursor: pointer; }
+.focus button { padding: 5px 14px; border-radius: 4px; background: var(--night); border: 1px solid var(--line); color: var(--muted); font: 700 var(--fs-label)/1 var(--ui); cursor: pointer; }
 .focus button[aria-pressed='true'] { background: var(--turf); border-color: var(--turf); color: var(--night); }
 
 /* 판매 확인(행이 확인 바로 바뀔 때) */
@@ -1832,3 +1832,76 @@ h1, h2, h3, .topbar__club, .club__name, .tab, .buy, .deal__buy span, .reroll, .f
 /* 구단 선택 카드 */
 .club__name { font-size: 22px; line-height: 1.1; letter-spacing: 0.02em; margin-bottom: var(--s2); }
 .club__line > :first-child { white-space: nowrap; flex: none; min-width: 3.4em; }
+
+/* ===== v5: 각진 스포츠 톤 + 버튼 위계 (색은 건드리지 않는다) ===== */
+:root { --r-lg: 6px; --r-md: 4px; --r-sm: 2px; }
+.offer.deal, .demandcard, .club, .panel, .contractbox, .fitbar, .crewcard, .goalstrip { border-radius: 6px; }
+.deal .pcard, .slot__card, .pcard { border-radius: 6px; }
+.deal__name { border-radius: 2px; }
+.cta, .buy, .deal__buy, .reroll { border-radius: 4px; }
+
+/* 버튼 위계: 주 행동(다음 주로)만 채우고, 카드 안 영입은 윤곽선 */
+.buy.deal__buy { background: transparent; color: var(--light); border: 1.5px solid var(--light); box-shadow: none; }
+.buy.deal__buy:hover:not(:disabled) { background: var(--light); color: var(--night); }
+.buy.deal__buy:disabled { border-color: var(--line); color: var(--muted); background: transparent; }
+
+/* 시즌 결과 제목: 크게 */
+.verdict__result { font-size: 64px; line-height: 0.95; letter-spacing: 0.01em; font-weight: 400; }
+
+/* 다음 이벤트까지 남은 주 */
+.topbar__phase { color: var(--muted); }
+
+/* ======================================================================
+   테마: 포인트 색은 작은 면적에만. html[data-theme]로 선택(기본은 위의 야간 경기장).
+   kiwi  = 검정 + 회백색 글씨 + 연두 포인트
+   clear = 연회색 + 적갈색 글씨 + 진초록 포인트
+   ====================================================================== */
+html[data-theme='kiwi'] {
+  --night: #000000; --surface: #111111; --surface-hi: #1d1d1d;
+  --line: #353535; --line-soft: #222222;
+  --light: #f2f2f2; --muted: #a0a0a0; --muted-dim: #8a8a8a;
+  --turf: #ccff00; --gold: #ffff00; --debit: #ffff00;
+  --kit: #ccff00;
+  --t-local: #8a8a8a; --t-bigLeaguer: #6f8cb0; --t-topClass: #4fb08a; --t-worldClass: #9a82e0; --t-legendary: #e0607a; --t-god: #f2e8ff;
+}
+html[data-theme='kiwi'] body, html[data-theme='kiwi'] { background: #000; }
+html[data-theme='kiwi'] .topbar { background: linear-gradient(100deg, color-mix(in srgb, #ccff00 14%, #000) 0%, #000 78%) !important; border-top: 3px solid #ccff00; }
+html[data-theme='kiwi'] .pw--total { background: color-mix(in srgb, #ccff00 9%, #000) !important; }
+html[data-theme='kiwi'] .pw--total .pw__val { color: #f2f2f2; }
+html[data-theme='kiwi'] .pw--total .pw__label { color: #ccff00; }
+html[data-theme='kiwi'] .pw.is-strong .pw__val { color: #ccff00; }
+html[data-theme='kiwi'] .pw.is-weak .pw__val { color: #ffff00; text-decoration: underline dotted; }
+html[data-theme='kiwi'] .tab[aria-selected='true'] { border-bottom-color: #ccff00; }
+html[data-theme='kiwi'] .cta { background: color-mix(in srgb, #ccff00 16%, #000); color: #ccff00; border: 1.5px solid #ccff00; box-shadow: none; }
+html[data-theme='kiwi'] .cta:hover { background: #ccff00; color: #000; filter: none; }
+html[data-theme='kiwi'] .subtabs > button[aria-selected='true'], html[data-theme='kiwi'] .formations button[aria-pressed='true'] { background: color-mix(in srgb, #ccff00 18%, #000); color: #ccff00; border-color: #ccff00; }
+html[data-theme='kiwi'] .deal__name, html[data-theme='kiwi'] .slot .slot__name { background: #000; color: #f2f2f2; border-bottom-color: #ccff00; }
+html[data-theme='kiwi'] .offer.deal { background: linear-gradient(120deg, color-mix(in srgb, var(--tier) 16%, #111), #111); }
+html[data-theme='kiwi'] .pitch { background: #101300; }
+html[data-theme='kiwi'] .pitch::before { background: none; }
+html[data-theme='kiwi'] .ln { border-color: rgba(204, 255, 0, 0.28); }
+
+html[data-theme='kiwi'] .buy:not(.deal__buy) { background: transparent; color: #ccff00; border: 1.5px solid #ccff00; box-shadow: none; }
+html[data-theme='kiwi'] .buy:not(.deal__buy):hover:not(:disabled) { background: #ccff00; color: #000; }
+html[data-theme='kiwi'] .pw.is-weak .pw__val { text-decoration: none; }
+
+/* 결산 제목: 쨍한 큰 글씨 대신 회백색 + 작은 포인트 막대 */
+html[data-theme='kiwi'] .verdict__result { color: #f2f2f2; font-size: 46px; line-height: 1.1; word-break: keep-all; text-wrap: balance; position: relative; padding-bottom: 14px; }
+html[data-theme='kiwi'] .verdict__result::after { content: ''; display: block; width: 56px; height: 4px; margin: 12px auto 0; background: #ccff00; }
+html[data-theme='kiwi'] .verdict--relegation .verdict__result::after { background: #ffff00; }
+html[data-theme='kiwi'] .verdict--safe .verdict__result::after { background: #f2f2f2; }
+html[data-theme='kiwi'] .verdict--champion .verdict__result, html[data-theme='kiwi'] .verdict--promotion .verdict__result,
+html[data-theme='kiwi'] .verdict--safe .verdict__result, html[data-theme='kiwi'] .verdict--relegation .verdict__result { color: #f2f2f2; }
+
+/* 경고 배지: 노랑 꽉 찬 면 대신 윤곽선 */
+html[data-theme='kiwi'] .tab__count--warn { background: transparent; color: #ffff00; border: 1px solid #ffff00; padding: 0 4px; border-radius: 2px; }
+
+/* 선택 상태는 모두 같은 문법: 옅은 연두 면 + 연두 테두리 + 연두 글씨 */
+html[data-theme='kiwi'] .eventtabs button[aria-selected='true'],
+html[data-theme='kiwi'] .tagchip.is-sel,
+html[data-theme='kiwi'] .coachfocus button[aria-pressed='true'],
+html[data-theme='kiwi'] .focus button[aria-pressed='true'],
+html[data-theme='kiwi'] .act--main { background: color-mix(in srgb, #ccff00 18%, #000); border-color: #ccff00; color: #ccff00; }
+
+/* 결산 화면의 안내 문장도 다른 내용과 같은 좌우 여백 */
+#screen > p.note { padding-left: var(--s4); padding-right: var(--s4); }

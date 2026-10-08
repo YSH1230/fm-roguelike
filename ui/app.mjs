@@ -2960,7 +2960,7 @@ function renderMarket(banner = '') {
         ${renderCrest(club, { size: 36 })}
         <div class="topbar__idText">
           <span class="topbar__club">${esc(club.name)}</span>
-          <span class="topbar__phase">${phaseLabel}</span>
+          <span class="topbar__phase">${phaseLabel} · ${week === maxWeek ? '이번 주가 마지막' : `${phase === 'summer' ? '전반기' : '후반기'} 시작까지 ${maxWeek - week}주`}</span>
         </div>
         <span class="topbar__week"><b>${week}</b>/${maxWeek}주</span>
       </div>
