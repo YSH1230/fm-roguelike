@@ -55,6 +55,7 @@ import { pixelMatchHtml } from './pixel.mjs';
 import { track, telemetryOn, telemetryConfigured, setTelemetry } from './telemetry.mjs';
 import { renderCrest } from './crest.mjs';
 import { showSpot, clearSpot } from './tutorial.mjs';
+import { stadiumHtml, stadiumLevel } from './stadium.mjs';
 import { loadFlags, updateFlags, isUnlocked, unlockForSeason, UNLOCK_LABEL } from '../data/flags.mjs';
 import {
   CHEMISTRY_START,
@@ -1428,7 +1429,16 @@ function buyCard(card, rowEl = null, outgoing = null) {
       returnGodToPool(out);
     }
   }
+  const tagTiers = () => {
+    const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+    return Object.fromEntries(Object.keys(PLAYSTYLE_TAGS).map((t) => [t, playstyleTagProgress(t, lineup).tier]));
+  };
+  const tiersBefore = tagTiers();
   currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true }];
+  const tiersAfter = tagTiers();
+  const activated = Object.keys(tiersAfter).filter((t) => tiersAfter[t] > tiersBefore[t])
+    .map((t) => `${TAG_LABELS[t] ?? t} +${PLAYSTYLE_TAGS[t].values[tiersAfter[t] - 1]}`);
+  currentState.tagToast = activated.length ? `태그 발동! ${activated.join(', ')}` : '';
   currentState.justBoughtIds = [...(currentState.justBoughtIds ?? []), card.id];
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay());
   currentState.shopOffer = currentState.shopOffer.filter((c) => c.id !== card.id);
@@ -1441,7 +1451,9 @@ function buyCard(card, rowEl = null, outgoing = null) {
     track('first_buy', { run: currentState.telemetryRun, sec: Math.round((Date.now() - (currentState.startedAt ?? Date.now())) / 1000), s: currentState.seasonNumber });
   }
   if (tutStep() === 1) tutSet(2);
-  renderMarket();
+  const toast = currentState.tagToast;
+  currentState.tagToast = '';
+  renderMarket(toast);
 }
 
 // 감독 교체: 선수 영입과 동일하게 아무 때나, 영입가 그대로(위약금 없음).
@@ -2367,7 +2379,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   let dockHtml;
   let closingHtml = '';
   if (canPromote) {
-    closingHtml = `<p class="note">승격 보상: 적응도 +${PROMOTION_CHEMISTRY_BONUS}, 새 리그 첫 시즌 지급액은 ${PROMOTION_STAY_FUNDS_RATIO * 100}%</p>`;
+    closingHtml = `<div class="stadiumbox">${stadiumHtml(stadiumLevel(getNextTier(currentState.leagueTierId)), currentState.club.kit)}<small>${getLeagueTier(getNextTier(currentState.leagueTierId)).label} 구장으로 확장</small></div><p class="note">승격 보상: 적응도 +${PROMOTION_CHEMISTRY_BONUS}, 새 리그 첫 시즌 지급액은 ${PROMOTION_STAY_FUNDS_RATIO * 100}%</p>`;
     dockHtml = `<button class="cta" id="promote-btn">${getLeagueTier(getNextTier(currentState.leagueTierId)).label}로 승격</button>`;
   } else {
     const left = MISSED_TARGET_LIMIT - currentState.missedTargetCount;
@@ -2526,6 +2538,7 @@ function renderRunEnd(reason, finalPoints, boardTrustMessage = '', uclResultId =
         <b class="gradebox__grade">${grade}</b>
         <div class="gradebox__score"><b class="n">${score}</b><span>명성 점수</span></div>
       </div>
+      <div class="stadiumbox">${stadiumHtml(stadiumLevel(currentState.highestTierId), currentState.club.kit)}</div>
       <p class="rankline${isBest ? ' is-best' : ''}">${rankLine}${isBest ? '' : prevBest ? ` · 최고 ${prevBest}` : ''}</p>
     </div>
     ${boardTrustMessage}
@@ -2894,7 +2907,7 @@ function renderMarket(banner = '') {
       compareHtml = `<div class="deal__cmp"><span>현재 ${c.position} <b class="n">${sameSlot.baseOVR}</b></span><em class="${diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat'} n">${diff > 0 ? '▲' : diff < 0 ? '▼' : '='}${Math.abs(diff)}</em></div>`;
     }
     const decayNote = decay > 0 ? `적응도 −${decay}` : '';
-    return `<li class="offer deal" data-row="${c.id}" style="--tier:var(--t-${tier})">
+    return `<li class="offer deal" data-row="${c.id}" data-tier="${tier}" style="--tier:var(--t-${tier})">
       <div class="pcard">
         <b class="pcard__pos">${c.position}</b><b class="pcard__ovr n">${c.baseOVR}</b>
         <div class="pcard__art">${renderPortrait(c, { size: 56 })}</div>

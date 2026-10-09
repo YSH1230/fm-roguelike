@@ -2066,3 +2066,21 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .matchsim__ticker.is-fate { color: var(--gold); font-weight: 700; }
 .dirpick { display: grid; gap: var(--s2); margin-top: var(--s3); }
 .dirpick small { display: block; color: var(--muted); font-size: var(--fs-micro); }
+
+/* v2: 높은 등급 카드 연출, 스타디움 */
+.offer.deal[data-tier="worldClass"], .offer.deal[data-tier="legendary"], .offer.deal[data-tier="god"] { position: relative; overflow: hidden; }
+.offer.deal[data-tier="worldClass"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tier) 55%, transparent); }
+.offer.deal[data-tier="legendary"] { box-shadow: 0 0 14px color-mix(in srgb, var(--tier) 38%, transparent), inset 0 0 0 1px var(--tier); }
+.offer.deal[data-tier="god"] { box-shadow: 0 0 20px rgba(239, 230, 255, 0.45), inset 0 0 0 1px var(--tier); animation: godpulse 2.6s ease-in-out infinite; }
+.offer.deal[data-tier="worldClass"]::after, .offer.deal[data-tier="legendary"]::after, .offer.deal[data-tier="god"]::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; transform: translateX(-130%);
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.2) 50%, transparent 60%);
+  animation: cardsheen 3.4s ease-out 0.3s 1;
+}
+.offer.deal[data-tier="legendary"]::after, .offer.deal[data-tier="god"]::after { animation-iteration-count: infinite; animation-duration: 4.6s; }
+@keyframes cardsheen { to { transform: translateX(130%); } }
+@keyframes godpulse { 50% { box-shadow: 0 0 30px rgba(239, 230, 255, 0.75), inset 0 0 0 1px var(--tier); } }
+@media (prefers-reduced-motion: reduce) { .offer.deal::after, .offer.deal { animation: none !important; } }
+.stadiumbox { display: grid; justify-items: center; gap: 4px; margin: var(--s3) 0; }
+.stadiumbox small { color: var(--muted); font-size: var(--fs-label); }
+.stadium { max-width: 70%; height: auto; image-rendering: pixelated; }
