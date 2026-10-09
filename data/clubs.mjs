@@ -42,7 +42,7 @@ export const COLORS = {
   },
   veteranCore: {
     label: '베테랑 중심', fundsMultiplier: 1.05,
-    strength: '경험 많은 베테랑이 중심을 잡는다', weakness: '선수단이 늙었고 재계약 부담이 크다',
+    strength: '경험 많은 베테랑이 중심을 잡는다', weakness: '선수단이 늙어 세대교체가 코앞이다',
     demandBias: { stable: 2 }, eventBias: { retiringLegend: 3, rivalPoach: 2 },
   },
   overseasScouting: {
