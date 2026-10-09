@@ -70,6 +70,8 @@ export const BASE_POINTS_AT_LEAGUE_AVERAGE = 18;
 // basePoints 오캘리브레이션을 운으로 덮는 상황이었다. 기준점을 고친 뒤로는
 // ±20%로도 강등이 충분히 나온다(시장 미사용 15%) — 운의 비중을 다시 낮췄다.
 export const POWER_VARIANCE_RATIO = 0.20;
+// 반기 전술 방향(2시즌 해금): 기대 승점은 같고 기복만 다르다. 공격은 대박 또는 쪽박, 수비는 안정적.
+export const DIRECTION_VARIANCE = { attack: 1.6, balance: 1, defense: 0.45 };
 
 // 스펙 5.1절 "6등급" — OVR 범위와 등급별 전술 태그 칸(기본기 1개는 모두 공통).
 // advancedSlots의 각 칸은 'mid'/'hard'/'any'(보통+어려움)에서 하나를 뽑는다. 끝에 '?'가 붙으면 45% 확률로만 채운다.

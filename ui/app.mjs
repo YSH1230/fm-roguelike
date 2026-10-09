@@ -1647,6 +1647,27 @@ function flashWeekTransition(label, onDone) {
   }, 260);
 }
 
+// 반기 전술 방향(2시즌 해금): 기대 승점은 그대로, 공격은 기복이 크고 수비는 안정적이다.
+function askDirection(onPick) {
+  if (!isUnlocked('direction')) { currentState.direction = 'balance'; onPick(); return; }
+  const root = document.getElementById('eventmodal-root');
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--goal">
+        <div class="eventmodal__kicker">${currentState.phase === 'summer' ? '전반기' : '후반기'} 전술 방향</div>
+        <div class="eventmodal__title">이번 반기를 어떻게 치를까요?</div>
+        <div class="dirpick">
+          <button class="reroll" data-dir="attack">공격 <small>대박 또는 쪽박</small></button>
+          <button class="reroll" data-dir="balance">균형 <small>보통</small></button>
+          <button class="reroll" data-dir="defense">수비 <small>안정적</small></button>
+        </div>
+      </div>
+    </div>`;
+  root.querySelectorAll('[data-dir]').forEach((b) => {
+    b.onclick = () => { currentState.direction = b.dataset.dir; root.innerHTML = ''; onPick(); };
+  });
+}
+
 function nextWeek() {
   currentState.chemistry = advanceWeek(currentState.chemistry, currentState.transactedThisWeek);
   currentState.transactedThisWeek = false;
@@ -1655,11 +1676,11 @@ function nextWeek() {
   const saleMessage = resolveListedSales();
 
   if (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1]) {
-    runFirstHalf(saleMessage);
+    askDirection(() => runFirstHalf(saleMessage));
     return;
   }
   if (currentState.phase === 'winter' && currentState.week > WINTER_MARKET_WEEKS[1]) {
-    runSecondHalfAndFinish(saleMessage);
+    askDirection(() => runSecondHalfAndFinish(saleMessage));
     return;
   }
   currentState.shopOffer = newShopOffer();
@@ -1714,7 +1735,8 @@ function runFirstHalf(saleMessage = '') {
     currentState.chemistry,
     currentState.leagueTierId,
     Math.random,
-    coachFor()
+    coachFor(),
+    currentState.direction ?? 'balance'
   ));
 
   // 이 시즌의 순위표를 전반기에 만들어 두고, 후반기는 그 위에 이어서 쌓는다(상대 구단도 그대로).
@@ -2249,7 +2271,8 @@ function runSecondHalfAndFinish(saleMessage = '') {
     currentState.chemistry,
     currentState.leagueTierId,
     Math.random,
-    coachFor()
+    coachFor(),
+    currentState.direction ?? 'balance'
   ));
   const firstHalf = roundHalfPoints(currentState.firstHalfPoints ?? 0); // 옛 저장(소수점)도 같은 규칙으로
   const totalPoints = firstHalf + secondHalf;

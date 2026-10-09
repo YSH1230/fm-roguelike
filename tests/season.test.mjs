@@ -32,3 +32,13 @@ test('이사진 목표는 안전선~승격선 사이이고, 초과 승점만큼 
   assert.deepEqual(boardReward(64, 56, 1000), { surplus: 8, funds: 120, chemistry: 5 });
   assert.equal(boardReward(100, 56, 1000).funds, 300); // 상한 30%
 });
+
+test('반기 전술 방향: 같은 난수에서 수비는 변동이 작고 공격은 크다', async () => {
+  const { runHalfSeason } = await import('../engine/season.mjs');
+  const mk = (i) => ({ id: `p${i}`, baseOVR: 60, age: 25, position: 'CMF', playstyleTags: [], continentTag: null, specialTrait: null, seasonsAtClub: 0 });
+  const xi = Array.from({ length: 11 }, (_, i) => mk(i));
+  const at = (r) => (dir) => runHalfSeason(xi, [], 'rookie', 60, 'tier5', () => r, null, dir);
+  const hi = at(1); const lo = at(0);
+  const spread = (dir) => hi(dir) - lo(dir);
+  assert.ok(spread('defense') < spread('balance') && spread('balance') < spread('attack'));
+});
