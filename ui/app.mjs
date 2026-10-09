@@ -3102,7 +3102,7 @@ function renderMarket(banner = '') {
       </section>`,
   };
 
-  const showEvent = week === (phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0]) && eventTone;
+  const showEvent = week === (phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0]) && eventTone && eventMessage;
 
   document.documentElement.style.setProperty('--kit', club.kit ?? '#4a5a52');
   setScreen(`

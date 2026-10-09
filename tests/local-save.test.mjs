@@ -18,6 +18,12 @@ test('저장한 상태를 그대로 불러온다', () => {
   assert.deepEqual(loadRun(storage), state);
 });
 
+test('이전 규칙 버전으로 저장된 판은 이어할 수 없다(null)', () => {
+  const storage = makeFakeStorage();
+  storage.setItem('fm-roguelike-save', JSON.stringify({ week: 5, squad: [] })); // rulesVersion 없음 = v1
+  assert.equal(loadRun(storage), null);
+});
+
 test('저장한 적 없으면 null을 반환한다', () => {
   const storage = makeFakeStorage();
   assert.equal(loadRun(storage), null);
