@@ -961,10 +961,10 @@ function startRun(club) {
 }
 
 // ---------- 튜토리얼(모두에게 한 번, 건너뛸 수 있다) ----------
-// 0 목표 → 1 영입 → 2 태그 → 3 전술 탭 → 4 전술 화면 → 5 다음 주로 → 6 전반기 결산 → 끝
+// 0 목표 → 1 영입 → 2 태그 → 3 적응도 → 4 전술 탭 → 5 전술 화면 → 6 다음 주로 → 7 전반기 결산 → 끝
 const tutStep = () => { const f = loadFlags(); return f.tutorialDone ? -1 : f.tutorialStep; };
 function tutSet(step) {
-  updateFlags((f) => { f.tutorialStep = step; if (step > 6) f.tutorialDone = true; return f; });
+  updateFlags((f) => { f.tutorialStep = step; if (step > 7) f.tutorialDone = true; return f; });
   track('tutorial', { step });
 }
 function tutSkip() {
@@ -982,7 +982,7 @@ function tutorialTick(where) {
     return;
   }
   if (where === 'half') {
-    showSpot({ selector: '.verdict', text: '전반기 결산이에요. 목표 페이스와 비교해 보고, 겨울 시장에서 보강하세요.', ok: '확인', onOk: go(7), onSkip: tutSkip });
+    showSpot({ selector: '.verdict', text: '전반기 결산이에요. 목표 페이스와 비교해 보고, 겨울 시장에서 보강하세요.', ok: '확인', onOk: go(8), onSkip: tutSkip });
     return;
   }
   const onTactics = currentState.tab === 'tactics';
@@ -991,11 +991,13 @@ function tutorialTick(where) {
     showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '지금 선발보다 강한 선수예요. 영입해 보세요.', onSkip: tutSkip });
   } else if (step === 2) {
     if (!showSpot({ selector: '#tagpanel-toggle', text: '이게 기본기 태그예요. 같은 태그를 가진 선수가 모일수록 팀이 강해져요.', ok: '확인', onOk: go(3), onSkip: tutSkip })) { tutSet(3); tutorialTick(where); }
-  } else if (step === 3) showSpot({ selector: '[data-tab="tactics"]', text: '전술 탭에서 선발 11명을 볼 수 있어요.', onSkip: tutSkip });
-  else if (step === 4) {
-    if (onTactics) showSpot({ selector: '.pitch', text: '선발은 자동으로 정해져요. 선수를 눌러 직접 바꿀 수도 있어요.', ok: '확인', onOk: go(5), onSkip: tutSkip });
-    else { tutSet(3); tutorialTick(where); }
-  } else if (step === 5) showSpot({ selector: '#next-week-btn', text: '다음 주로 넘기면 시즌이 진행돼요. 8주 뒤 전반기가 시작됩니다.', onSkip: tutSkip });
+  } else if (step === 3) {
+    if (!showSpot({ selector: '#chem-info-btn', text: '적응도는 팀 조직력이에요. 영입·방출을 많이 하면 떨어지고(한 주 첫 거래는 괜찮아요), 거래가 없는 주엔 올라요.', ok: '확인', onOk: go(4), onSkip: tutSkip })) { tutSet(4); tutorialTick(where); }
+  } else if (step === 4) showSpot({ selector: '[data-tab="tactics"]', text: '전술 탭에서 선발 11명을 볼 수 있어요.', onSkip: tutSkip });
+  else if (step === 5) {
+    if (onTactics) showSpot({ selector: '.pitch', text: '선발은 자동으로 정해져요. 선수를 눌러 직접 바꿀 수도 있어요.', ok: '확인', onOk: go(6), onSkip: tutSkip });
+    else { tutSet(4); tutorialTick(where); }
+  } else if (step === 6) showSpot({ selector: '#next-week-btn', text: '다음 주로 넘기면 시즌이 진행돼요. 8주 뒤 전반기가 시작됩니다.', onSkip: tutSkip });
   else clearSpot();
 }
 
@@ -3161,11 +3163,10 @@ function renderMarket(banner = '') {
         <b>이적 손익 ${net >= 0 ? '+' : '−'}${Math.abs(net).toLocaleString('ko-KR')}G</b> (수입 − 영입 지출). 이적 명단은 1주 뒤 일부, 12주 데드라인 방출은 원가의 40%를 돌려받습니다.
       </p>
       <p class="note chem-info" id="chem-info" hidden>
-        <b>적응도 = 팀 조직력.</b> 높을수록 팀 전력이 오르고, 낮을수록 깎입니다
-        (0 → ×0.94 · 60 → ×1.015 · 100 → ×1.08, 지금은 ×${chemistryMultiplier(chemistry).toFixed(3)}).<br>
-        <b>오르는 때:</b> 영입·방출이 없는 주마다 +1, 전술 완성 +10, 승격 +${PROMOTION_CHEMISTRY_BONUS}, 일부 감독 성향.<br>
-        <b>깎이는 때:</b> 영입·방출 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'} (팀 전력 약 −${((chemistryMultiplier(chemistry) - chemistryMultiplier(Math.max(0, chemistry - decay))) * 100).toFixed(2)}%), 감독과의 불화 −${MANAGER_HARMONY_PENALTY}.<br>
-        그래서 자주 갈아치울수록 손해, 한 번에 굵직하게 바꾸고 기다릴수록 이득입니다.
+        <b>적응도 = 팀 조직력.</b> 높을수록 팀 전력이 오르고 낮을수록 깎입니다(지금 ×${chemistryMultiplier(chemistry).toFixed(3)}).<br>
+        <b>오르는 때:</b> 영입·방출이 없는 주마다 +1, 전술 완성, 승격.<br>
+        <b>깎이는 때:</b> 영입·방출 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'}. 한 주의 첫 거래는 깎이지 않고, 영입하면서 내보내는 교체는 한 건입니다.<br>
+        그래서 자주 갈아치울수록 손해, 굵직하게 바꾸고 기다릴수록 이득입니다.
       </p>
     </header>
 
@@ -3208,7 +3209,7 @@ function renderMarket(banner = '') {
   for (const t of visibleTabs()) {
     document.querySelector(`[data-tab="${t.id}"]`).onclick = () => {
       currentState.tab = t.id;
-      if (tutStep() === 3 && t.id === 'tactics') tutSet(4);
+      if (tutStep() === 4 && t.id === 'tactics') tutSet(5);
       renderMarket(banner);
     };
   }
@@ -3441,7 +3442,7 @@ function renderMarket(banner = '') {
     });
   }
   document.getElementById('next-week-btn').onclick = () => {
-    if (tutStep() === 5) tutSet(6);
+    if (tutStep() === 6) tutSet(7);
     clearSpot();
     const enteringSim = week === maxWeek; // 전/후반기 시뮬레이션은 renderSimulating이 따로 연출한다
     if (enteringSim) {
