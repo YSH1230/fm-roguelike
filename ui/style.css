@@ -2020,3 +2020,14 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .res__best { font-style: normal; font-size: var(--fs-micro); color: var(--muted-dim); }
 
 .start__copy { margin: var(--s6) 0 var(--s4); text-align: center; font-size: var(--fs-micro); color: var(--muted-dim); }
+
+/* v2: 정원 초과 표시, 내보낼 선수 고르기, 판매 오퍼 */
+.sqsum .is-over { color: var(--debit); }
+.outpick { max-height: 86vh; display: flex; flex-direction: column; }
+.outpick__list { list-style: none; margin: 0; padding: 0; overflow-y: auto; max-height: 52vh; display: grid; gap: 4px; }
+.outpick__list li { display: grid; grid-template-columns: 30px 1fr auto auto; align-items: center; gap: 6px; padding: 6px 8px; border-left: 3px solid var(--tier, var(--line)); background: var(--surface-hi); }
+.outpick__list small { display: block; color: var(--muted); font-size: var(--fs-micro); }
+.offerrow__btns { display: inline-flex; gap: 6px; }
+.listed__hint { color: var(--muted); font-size: var(--fs-micro); justify-content: flex-start !important; }
+.outpick__list { scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
+.outpick__list span { text-align: left; }

@@ -35,6 +35,7 @@ import {
   recallFunds,
   applyCostModifiers,
   computeReleaseProceeds,
+  generateSaleOffers,
   calculatePlayerPrice,
 } from '../engine/economy.mjs';
 import { applyTransactionDecay, chemistryMultiplier } from '../engine/chemistry.mjs';
@@ -58,6 +59,8 @@ import {
   SHOP_OFFER_SIZE,
   SHOP_REROLL_COST,
   SUMMER_MARKET_WEEKS,
+  squadCapFor,
+  SLUMP_OVR_PENALTY,
   WINTER_MARKET_WEEKS,
   WINTER_TAX_RATIO,
   TRAIT_PRICE_MULT, PLAYER_PRICE_TABLE,
@@ -1193,7 +1196,7 @@ function startNewSeason() {
   currentState.squad = currentState.squad.filter((p) => !p.emergencyYouth);
   // 가격 재계산은 나이를 먹은 뒤(아래 aged) 한 번에 한다.
   // 나이 한 살: 어린 선수는 크고 서른 줄부터 떨어지며, 은퇴할 선수는 떠난다. 변화는 브리핑 팝업에서 알린다.
-  const aged = ageSquad(currentState.squad);
+  const aged = ageSquad(currentState.squad.map((p) => (p.slump ? { ...p, baseOVR: p.baseOVR + p.slump, slump: 0 } : p)));
   currentState.squad = aged.squad.map(repricePlayer); // OVR이 바뀌었으니 몸값(재계약비·판매가)도 현재 OVR 기준으로 다시 매긴다
   const agingReport = { changes: aged.changes, retired: aged.retired, youthLeft: youthLeft.map((p) => ({ name: p.name, position: p.position })) };
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
@@ -1257,9 +1260,47 @@ function hometownExitPenalty(card) {
   }
 }
 
-function buyCard(card, rowEl = null) {
+// 한 주의 첫 거래는 적응도가 깎이지 않는다. 교체 영입(영입+내보내기)은 한 건으로 센다.
+function tradeDecay() {
+  const amount = currentState.transactedThisWeek ? transactionDecayAmount() : 0;
+  currentState.transactedThisWeek = true;
+  return amount;
+}
+
+// 정원이 찼을 때: 새 선수 대신 내보낼 선수를 고른다(판매 등록 또는 즉시 방출).
+function showSquadFullPicker(card) {
+  const root = document.getElementById('eventmodal-root');
+  const list = [...currentState.squad].sort((a, b) => a.baseOVR - b.baseOVR);
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal outpick">
+        <div class="eventmodal__title">정원 ${squadCapFor(currentState.seasonNumber)}명이 찼습니다</div>
+        <p class="eventmodal__detail">${esc(card.name)} 대신 내보낼 선수를 고르세요.</p>
+        <ul class="outpick__list">${list.map((p) => `<li style="--tier:var(--t-${tierOf(p.baseOVR)})">
+          <b class="n">${p.baseOVR}</b><span>${esc(p.name)}<small>${p.position} · ${p.age}세</small></span>
+          <button class="act" data-out="list:${p.id}" ${p.boughtThisSeason ? 'disabled' : ''}>판매 등록</button>
+          <button class="act act--warn" data-out="drop:${p.id}" ${p.boughtThisSeason ? 'disabled' : ''}>방출</button>
+        </li>`).join('')}</ul>
+        <button class="reroll" id="out-cancel" style="margin-top:var(--s2);width:100%">취소</button>
+      </div>
+    </div>`;
+  root.querySelectorAll('[data-out]').forEach((btn) => {
+    btn.onclick = () => {
+      const [mode, ...rest] = btn.dataset.out.split(':');
+      root.innerHTML = '';
+      buyCard(card, null, { mode, id: rest.join(':') });
+    };
+  });
+  document.getElementById('out-cancel').onclick = () => { root.innerHTML = ''; };
+}
+
+function buyCard(card, rowEl = null, outgoing = null) {
   const price = cardPrice(card);
   if (currentState.funds < price) return;
+  if (!outgoing && currentState.squad.length >= squadCapFor(currentState.seasonNumber)) {
+    showSquadFullPicker(card);
+    return;
+  }
   // 카드가 상점에서 빠져나가는 걸 보여준 뒤 다시 그린다.
   if (rowEl && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     rowEl.classList.add('is-leaving');
@@ -1270,10 +1311,18 @@ function buyCard(card, rowEl = null) {
   currentState.funds -= price;
   currentState.seasonTrack.spent += price;
   if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
+  const out = outgoing ? currentState.squad.find((p) => p.id === outgoing.id) : null;
+  if (out) {
+    if (outgoing.mode === 'list') listPlayer(out);
+    else {
+      hometownExitPenalty(out);
+      currentState.squad = currentState.squad.filter((p) => p.id !== out.id);
+      returnGodToPool(out);
+    }
+  }
   currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true }];
   currentState.justBoughtIds = [...(currentState.justBoughtIds ?? []), card.id];
-  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
-  currentState.transactedThisWeek = true;
+  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay());
   currentState.shopOffer = currentState.shopOffer.filter((c) => c.id !== card.id);
   // GOD 카드는 전 세계 2명뿐 — 영입하면 이번 런에서 다시 등장하지 않게 뺀다
   if (card.id.startsWith('god-')) {
@@ -1389,17 +1438,46 @@ function returnGodToPool(card) {
 }
 
 // 방출 3단계 (스펙 7절): 즉시(0%) / 이적 명단(1주 소모, 여름·겨울 범위 회수율) / Week12 데드라인(40%, 소모 없음)
-function listForSale(card) {
-  if (card.boughtThisSeason) return;
+// 2시즌부터는 등록하면 오퍼가 오고(기다리면 새 오퍼로 바뀜), 마감까지 안 팔리면 태업한다.
+function listPlayer(card) {
   hometownExitPenalty(card);
   const method = currentState.phase === 'summer' ? 'listedSummer' : 'listedWinter';
   // 겨울 이적명단은 당해 영입 선수를 받지 않는다 (스펙 7절)
   if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
-  currentState.listedForSale.push({ card, method, resolveWeek: currentState.week + 1 });
-  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, transactionDecayAmount());
-  currentState.transactedThisWeek = true;
+  const entry = { card, method, resolveWeek: currentState.week + 1 };
+  if (currentState.seasonNumber >= 2) entry.offers = generateSaleOffers(card.price, card.baseOVR, method);
+  currentState.listedForSale.push(entry);
+}
+
+function listForSale(card) {
+  if (card.boughtThisSeason) return;
+  listPlayer(card);
+  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay());
   renderMarket();
+}
+
+function acceptSaleOffer(cardId, amount) {
+  const l = currentState.listedForSale.find((x) => x.card.id === cardId);
+  if (!l || !l.offers?.includes(amount)) return;
+  currentState.listedForSale = currentState.listedForSale.filter((x) => x !== l);
+  returnGodToPool(l.card);
+  currentState.funds += amount;
+  currentState.seasonTrack.income += amount;
+  renderMarket(`${l.card.name} 이적 확정: ${amount}G`);
+}
+
+// 이벤트·유스 콜업·태업 복귀로 정원을 넘으면 시장 마감 때 선발·벤치가 아닌 낮은 OVR부터 자동 방출한다(긴급 유스는 제외).
+function enforceSquadCap() {
+  const over = currentState.squad.filter((p) => !p.emergencyYouth).length - squadCapFor(currentState.seasonNumber);
+  if (over <= 0) return '';
+  const { lineup, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const keep = new Set([...lineup, ...bench].map((p) => p.id));
+  const out = currentState.squad.filter((p) => !p.emergencyYouth && !keep.has(p.id)).sort((a, b) => a.baseOVR - b.baseOVR).slice(0, over);
+  const ids = new Set(out.map((p) => p.id));
+  out.forEach(returnGodToPool);
+  currentState.squad = currentState.squad.filter((p) => !ids.has(p.id));
+  return out.length ? `정원 초과로 방출: ${out.map((p) => p.name).join(', ')}` : '';
 }
 
 function releaseDeadline(card) {
@@ -1414,8 +1492,19 @@ function releaseDeadline(card) {
 }
 
 function resolveListedSales() {
-  const due = currentState.listedForSale.filter((l) => l.resolveWeek === currentState.week);
-  currentState.listedForSale = currentState.listedForSale.filter((l) => l.resolveWeek !== currentState.week);
+  const marketOver = (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1])
+    || (currentState.phase === 'winter' && currentState.week > WINTER_MARKET_WEEKS[1]);
+  const slumpMessages = [];
+  // 오퍼 방식(2시즌~): 시장이 끝나면 태업하고 복귀, 아니면 새 오퍼로 교체
+  currentState.listedForSale = currentState.listedForSale.flatMap((l) => {
+    if (!l.offers) return [l];
+    if (!marketOver) return [{ ...l, offers: generateSaleOffers(l.card.price, l.card.baseOVR, l.method) }];
+    currentState.squad = [...currentState.squad, { ...l.card, baseOVR: Math.max(1, l.card.baseOVR - SLUMP_OVR_PENALTY), slump: SLUMP_OVR_PENALTY, boughtThisSeason: false }];
+    slumpMessages.push(`${l.card.name} 태업(안 팔려서 복귀, OVR -${SLUMP_OVR_PENALTY})`);
+    return [];
+  });
+  const due = currentState.listedForSale.filter((l) => !l.offers && l.resolveWeek === currentState.week);
+  currentState.listedForSale = currentState.listedForSale.filter((l) => l.offers || l.resolveWeek !== currentState.week);
   const messages = due.map((l) => {
     returnGodToPool(l.card); // 정산이 끝나면 선수단 밖으로 완전히 나간 것
     const proceeds = computeReleaseProceeds(l.card.price, l.method);
@@ -1423,7 +1512,7 @@ function resolveListedSales() {
     currentState.seasonTrack.income += proceeds;
     return `${l.card.name} 방출 완료: ${proceeds}G 회수`;
   });
-  return messages.join(' / ');
+  return [...messages, ...slumpMessages].join(' / ');
 }
 
 // 주차가 넘어갔다는 걸 알려주는 짧은 화면 플래시. 시장 화면은 통째로
@@ -1493,6 +1582,8 @@ const roundHalfPoints = (p) => Math.min(55, Math.round(p));
 function runFirstHalf(saleMessage = '') {
   const { manager } = currentState;
 
+  const capMsg = enforceSquadCap();
+  if (capMsg) saleMessage = saleMessage ? `${saleMessage} / ${capMsg}` : capMsg;
   const callUps = ensurePositionCoverage();
   if (callUps.length) {
     const msg = `포지션 공백으로 유스 긴급 콜업: ${callUps.join(', ')}`;
@@ -1569,6 +1660,8 @@ function enterWinterMarket() {
   const { manager } = currentState;
   currentState.phase = 'winter';
   currentState.week = WINTER_MARKET_WEEKS[0];
+  // 여름에 산 선수는 겨울부터 판매할 수 있다.
+  currentState.squad = currentState.squad.map((p) => ({ ...p, boughtThisSeason: false }));
   currentState.shopOffer = newShopOffer();
   currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id, currentState.leagueTierId);
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
@@ -2025,6 +2118,8 @@ function recordSeasonEnd(result, points, rank = null) {
 
 function runSecondHalfAndFinish(saleMessage = '') {
   const { manager } = currentState;
+  const capMsg = enforceSquadCap();
+  if (capMsg) saleMessage = saleMessage ? `${saleMessage} / ${capMsg}` : capMsg;
   const callUps = ensurePositionCoverage();
   if (callUps.length) {
     const msg = `포지션 공백으로 유스 긴급 콜업: ${callUps.join(', ')}`;
@@ -2821,8 +2916,10 @@ function renderMarket(banner = '') {
     + sqSection('예비', 'reserve', reservePlayers, 'reserve');
 
   const listedHtml = listedForSale
-    .map((l) => `<li><span>${esc(l.card.name)}</span><span><b>${l.resolveWeek}</b>주차 정산</span></li>`)
-    .join('');
+    .map((l) => (l.offers
+      ? `<li class="offerrow"><span>${esc(l.card.name)}</span><span class="offerrow__btns">${l.offers.map((a) => `<button class="act act--main" data-accept="${l.card.id}:${a}"><b>${a}G</b></button>`).join('')}</span></li>`
+      : `<li><span>${esc(l.card.name)}</span><span><b>${l.resolveWeek}</b>주차 정산</span></li>`))
+    .join('') + (listedForSale.some((l) => l.offers) ? '<li class="listed__hint">기다리면 오퍼가 바뀝니다. 시장 마감까지 안 팔리면 태업(OVR -3)</li>' : '');
 
   const draftSub = currentState.draftSub ?? 'players';
   const boardDemandCard = currentState.boardDemand ? getDemand(currentState.boardDemand.cardId) : null;
@@ -2881,7 +2978,7 @@ function renderMarket(banner = '') {
     squad: `
       <section class="panel tabpanel">
         <div class="sqsum">
-          <span><b class="n">${squad.length}</b>명</span>
+          <span><b class="n${squad.length > squadCapFor(currentState.seasonNumber) ? ' is-over' : ''}">${squad.length}</b>/${squadCapFor(currentState.seasonNumber)}명</span>
           <span>평균 <b class="n">${avgAge(squad)}</b>세${lineup.length ? ` · 선발 <b class="n">${avgAge(lineup)}</b>세` : ''}</span>
           ${(() => {
             const yi = (ps) => ps.filter((p) => p.isDraftedYouth);
@@ -3004,7 +3101,7 @@ function renderMarket(banner = '') {
     ${banner ? `<div class="banner">${esc(banner)}</div>` : ''}
 
     <div class="tabs" role="tablist">
-      ${TABS.map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${t.label}${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>` : ''}${t.id === 'squad' ? `<span class="tab__count${expiredPlayers.length ? ' tab__count--warn' : ''}">${expiredPlayers.length ? `만료 ${expiredPlayers.length}` : squad.length}</span>` : ''}</button>`).join('')}
+      ${TABS.map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${t.label}${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>` : ''}${t.id === 'squad' ? `<span class="tab__count${squad.length > squadCapFor(currentState.seasonNumber) ? ' tab__count--warn' : ''}">${squad.length}</span>` : ''}</button>`).join('')}
     </div>
     ${bodies[tab]}
   `, `<button class="cta" id="next-week-btn">${week === maxWeek ? (phase === 'summer' ? '전반기 시작' : '후반기 시작') : '다음 주로'}</button>`);
@@ -3244,6 +3341,12 @@ function renderMarket(banner = '') {
     });
     document.querySelectorAll('[data-swap-in]').forEach((btn) => { btn.onclick = () => swapIntoLineup(btn.dataset.swapIn); });
     document.querySelectorAll('[data-swap-out]').forEach((btn) => { btn.onclick = () => swapOutOfLineup(btn.dataset.swapOut); });
+    document.querySelectorAll('[data-accept]').forEach((btn) => {
+      btn.onclick = () => {
+        const i = btn.dataset.accept.lastIndexOf(':');
+        acceptSaleOffer(btn.dataset.accept.slice(0, i), Number(btn.dataset.accept.slice(i + 1)));
+      };
+    });
   }
   document.getElementById('next-week-btn').onclick = () => {
     const enteringSim = week === maxWeek; // 전/후반기 시뮬레이션은 renderSimulating이 따로 연출한다

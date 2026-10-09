@@ -140,6 +140,13 @@ export const STAFF_PRICE_TABLE = {
   master: [500, 800],
 };
 
+// 선수단 정원: 첫 시즌 26명, 2시즌부터 24명. 정원이 차면 영입할 때 내보낼 선수를 고른다.
+export const SQUAD_CAP_FIRST_SEASON = 26;
+export const SQUAD_CAP = 24;
+export const squadCapFor = (seasonNumber) => (seasonNumber <= 1 ? SQUAD_CAP_FIRST_SEASON : SQUAD_CAP);
+// 판매 등록한 선수가 시장 마감까지 안 팔리면 태업하고 선수단에 돌아온다(그 시즌 끝까지 OVR 하락).
+export const SLUMP_OVR_PENALTY = 3;
+
 export const COST_MODIFIER_CLAMP_MIN = -0.6; // 할인/할증 가산 합계 하한
 export const COST_MODIFIER_CLAMP_MAX = 0.8; // 할인/할증 가산 합계 상한
 export const WINTER_TAX_RATIO = 0.2; // 겨울 시장 영입비 +20%

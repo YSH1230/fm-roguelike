@@ -32,6 +32,15 @@ export function applyCostModifiers(basePrice, modifierRatios) {
   return Math.round(basePrice * (1 + clamped));
 }
 
+// 판매 오퍼(2시즌~): 선수 가치(OVR)에 비례해 1~3건. 금액은 기존 판매 범위(여름 50~100%, 겨울 70~110%)에서 굴린다.
+export function saleOfferCount(baseOVR) {
+  return baseOVR >= 81 ? 3 : baseOVR >= 63 ? 2 : 1;
+}
+export function generateSaleOffers(originalPrice, baseOVR, method, rng = Math.random) {
+  return Array.from({ length: saleOfferCount(baseOVR) }, () => computeReleaseProceeds(originalPrice, method, rng))
+    .sort((a, b) => b - a);
+}
+
 // 방출 3단계 회수 금액. method: 'immediate' | 'listedSummer' | 'listedWinter' | 'deadline'
 export function computeReleaseProceeds(originalPrice, method, rng = Math.random) {
   switch (method) {
