@@ -104,16 +104,16 @@ test('명성 점수: 이사진 요구·챔피언스리그·더블·은퇴', () =
 
 test('런 등급과 칭호 진행도', () => {
   assert.equal(gradeOf(0), 'D');
-  assert.equal(gradeOf(179), 'D');
-  assert.equal(gradeOf(180), 'C');
-  assert.equal(gradeOf(449), 'C');
-  assert.equal(gradeOf(450), 'B');
+  assert.equal(gradeOf(199), 'D');
+  assert.equal(gradeOf(200), 'C');
+  assert.equal(gradeOf(549), 'C');
+  assert.equal(gradeOf(550), 'B');
   assert.equal(gradeOf(799), 'B');
   assert.equal(gradeOf(800), 'A');
-  assert.equal(gradeOf(1399), 'A');
-  assert.equal(gradeOf(1400), 'S');
-  assert.equal(gradeOf(6999), 'S');
-  assert.equal(gradeOf(7000), 'SS');
+  assert.equal(gradeOf(1099), 'A');
+  assert.equal(gradeOf(1100), 'S');
+  assert.equal(gradeOf(1699), 'S');
+  assert.equal(gradeOf(1700), 'SS');
   const t = titleProgress(0);
   assert.equal(t.title, '무명 감독');
   assert.equal(t.next, '동네 감독');

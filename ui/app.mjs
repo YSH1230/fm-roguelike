@@ -31,6 +31,7 @@ import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardRe
 import { resolvePromotionTransferDemand } from '../engine/events.mjs';
 import {
   calculateStartingFunds,
+  fundsScale,
   applyCarryoverCap,
   recallFunds,
   applyCostModifiers,
@@ -875,7 +876,7 @@ let currentState = null;
 
 function startRun(club) {
   updateRecords(recordRunStart);
-  const baseFunds = Math.round(calculateStartingFunds(0) * club.startingFundsMultiplier);
+  const baseFunds = Math.round(calculateStartingFunds(0) * club.startingFundsMultiplier * fundsScale('tier5', 1));
   const rawSquad = generateStartingSquad().map(toSquadPlayer).map(stripLockedTags);
   // 시작 감독은 루키(배율 ×1.00) - 예전엔 택티션(×1.05)이라 시작하자마자
   // 공짜 보너스가 붙어서, 시장을 한 번도 안 만져도(12주 내내 "다음 주로"만
@@ -1206,7 +1207,7 @@ function rerollCost() {
 // 아예 없어서 2시즌부터 무일푼이었고, 승격 시 상한이 한 단계 낮게 잡혔다.
 function grantSeasonFunds() {
   const base = calculateStartingFunds(getLadderIndex(currentState.leagueTierId))
-    * currentState.club.startingFundsMultiplier;
+    * currentState.club.startingFundsMultiplier * fundsScale(currentState.leagueTierId, currentState.seasonNumber);
   // 새 구단(선수단 초기화)은 전액, 승격해서 선수단을 유지하면 70%, 같은 리그에 남으면 60%.
   // 잔류 시즌엔 선수단을 많이 갈 필요가 없어서 큰돈이 필요 없다.
   const promoted = currentState.freshBudget
@@ -1805,7 +1806,7 @@ function enterWinterMarket() {
   // 일부를 얹는다(이월 상한과 무관한 별도 지급).
   const winterGrant = Math.round(
     calculateStartingFunds(getLadderIndex(currentState.leagueTierId))
-      * currentState.club.startingFundsMultiplier * WINTER_FUNDS_RATIO
+      * currentState.club.startingFundsMultiplier * fundsScale(currentState.leagueTierId, currentState.seasonNumber) * WINTER_FUNDS_RATIO
   );
   currentState.funds += winterGrant;
   applySeasonEvent('winter');

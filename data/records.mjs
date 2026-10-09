@@ -139,10 +139,10 @@ export const ACHIEVEMENTS = [
   { id: 'double', group: '챔피언스리그', label: '더블', desc: '같은 시즌에 1부 우승과 챔피언스리그 우승을 모두 차지한다', check: (r) => r.doubles >= 1 },
   { id: 'double2', group: '챔피언스리그', label: '더블 왕조', desc: '더블을 누적 2번 달성한다', check: (r) => r.doubles >= 2, progress: (r) => bar(r.doubles, 2) },
   // ---- 명예
-  { id: 'rep150', group: '명예', label: '이름이 알려지다', desc: '한 런에서 명성 점수 450점(B등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 450, progress: (r) => bar(r.bestScore ?? 0, 450) },
+  { id: 'rep150', group: '명예', label: '이름이 알려지다', desc: '한 런에서 명성 점수 550점(B등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 550, progress: (r) => bar(r.bestScore ?? 0, 550) },
   { id: 'rep400', group: '명예', label: '감독 명인', desc: '한 런에서 명성 점수 800점(A등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 800, progress: (r) => bar(r.bestScore ?? 0, 800) },
-  { id: 'rep800', group: '명예', label: '살아 있는 전설', desc: '한 런에서 명성 점수 1400점(S등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 1400, progress: (r) => bar(r.bestScore ?? 0, 1400) },
-  { id: 'rep1500', group: '명예', label: '축구사에 남다', desc: '한 런에서 명성 점수 7000점(SS등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 7000, progress: (r) => bar(r.bestScore ?? 0, 7000) },
+  { id: 'rep800', group: '명예', label: '살아 있는 전설', desc: '한 런에서 명성 점수 1100점(S등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 1100, progress: (r) => bar(r.bestScore ?? 0, 1100) },
+  { id: 'rep1500', group: '명예', label: '축구사에 남다', desc: '한 런에서 명성 점수 1700점(SS등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 1700, progress: (r) => bar(r.bestScore ?? 0, 1700) },
 ];
 
 export const unlockedIds = (r) => ACHIEVEMENTS.filter((a) => a.check(r)).map((a) => a.id);

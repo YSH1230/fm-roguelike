@@ -53,13 +53,15 @@ export function convertPowerToPoints(
 //   1부 우승  0.8 (승격 칸은 없음) / 안전 65.8 / 강등 26.7
 // 자금이 줄어 봇 전력이 5~8점 낮아져서 상대 평균(averageOVR)을 같은 만큼 내려 균형을 유지했다.
 // 리그가 오를수록 승격 확률이 내려간다.
+// v2(계약·대륙 폐지) 재조정: 대륙 시너지(+3)가 사라져 5부는 상대 평균을 낮추고, 재계약비가 없어져 돈이 남는 상위 리그는 올렸다.
+// 시즌 자금 배율(FUNDS_SCALE)과 함께 tools/sim-human.mjs 300판으로 v1 결과(승점)에 맞췄다.
 const LEAGUE_TIERS = {
   // 2000판 실측: 우승 22.3% / 승격 28.1% / 안전 47.1% / 강등 2.6%
-  tier5: { label: '5부', averageOVR: [46, 54], safePoints: 38, targetPoints: 68, championPoints: 80 },
+  tier5: { label: '5부', averageOVR: [44, 52], safePoints: 38, targetPoints: 68, championPoints: 80 },
   // 2000판 실측: 우승 10.8% / 승격 22.7% / 안전 56.5% / 강등 9.9%
-  tier4: { label: '4부', averageOVR: [51, 59], safePoints: 40, targetPoints: 73, championPoints: 86 },
+  tier4: { label: '4부', averageOVR: [52, 60], safePoints: 40, targetPoints: 73, championPoints: 86 },
   // 2000판 실측: 우승 8.8% / 승격 17.3% / 안전 54.6% / 강등 19.3%
-  tier3: { label: '3부', averageOVR: [56, 64], safePoints: 42, targetPoints: 76, championPoints: 89 },
+  tier3: { label: '3부', averageOVR: [57, 64], safePoints: 42, targetPoints: 76, championPoints: 89 },
   // 2000판 실측: 우승 7.0% / 승격 11.8% / 안전 52.3% / 강등 28.8%
   tier2: { label: '2부', averageOVR: [63, 71], safePoints: 44, targetPoints: 79, championPoints: 91 },
   // 2000판 실측: 우승 4.3% / 승격 12.7% / 안전 49.5% / 강등 33.6%

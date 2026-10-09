@@ -292,10 +292,10 @@ export const PRESTIGE_UCL = { league: 20, playoff: 30, r16: 50, qf: 80, sf: 120,
 export const PRESTIGE_DOUBLE = 150; // 같은 시즌 리그 우승 + 챔피언스리그 우승
 export const PRESTIGE_RETIRE = 200; // 1부 우승 후 은퇴로 커리어를 완결
 
-// 런 점수 등급(런 하나의 점수 기준). 피라미드: 사람처럼 플레이하는 봇 80개 런 기준으로
+// 런 점수 등급(런 하나의 점수 기준). 피라미드: 사람처럼 플레이하는 봇 v2 규칙 300개 런 기준으로(2026-10-10 재측정)
 // D 29% · C 26% · B 19% · A 14% · S 9% · SS 4%가 되도록 잡았다(위로 갈수록 확실히 드물다).
 export const PRESTIGE_GRADES = [
-  { id: 'SS', min: 7000 }, { id: 'S', min: 1400 }, { id: 'A', min: 800 }, { id: 'B', min: 450 }, { id: 'C', min: 180 }, { id: 'D', min: 0 },
+  { id: 'SS', min: 1700 }, { id: 'S', min: 1100 }, { id: 'A', min: 800 }, { id: 'B', min: 550 }, { id: 'C', min: 200 }, { id: 'D', min: 0 },
 ];
 // 칭호(커리어 누적 점수 기준). 올라가기만 한다.
 export const PRESTIGE_TITLES = [

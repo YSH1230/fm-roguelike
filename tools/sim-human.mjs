@@ -12,7 +12,7 @@ import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardRe
 import { applyTransactionDecay } from '../engine/chemistry.mjs';
 import { computeAverageOVR, computeTeamPower } from '../engine/team-power.mjs';
 import { computePlaystyleSynergyBonus } from '../engine/ovr.mjs';
-import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, computeReleaseProceeds, recallFunds, generateSaleOffers } from '../engine/economy.mjs';
+import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, computeReleaseProceeds, recallFunds, generateSaleOffers, FUNDS_SCALE, fundsScale } from '../engine/economy.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier } from '../engine/league.mjs';
 import { optimizeLineup } from '../engine/lineup.mjs';
 import { ageSquad, agePriceMult } from '../engine/aging.mjs';
@@ -26,6 +26,7 @@ import {
   squadCapFor, PLAYER_TIERS, PLAYER_PRICE_TABLE, TRAIT_PRICE_MULT, BOARD_DEMAND_REWARD, CHEMISTRY_DECAY_PER_TRANSACTION, POSITIONS,
 } from '../engine/constants.mjs';
 
+Object.assign(FUNDS_SCALE, JSON.parse(process.env.FS ?? '{}')); // 실험용: FS='{"tier1":0.5}'
 const argv = process.argv.slice(2);
 const N = Number(argv[0] ?? 100);
 const OUT = argv.includes('--out') ? argv[argv.indexOf('--out') + 1] : null;
@@ -97,7 +98,7 @@ function playCareer() {
   const seasons = []; let reason = 'cap'; let uclTitles = 0;
 
   for (let s = 0; s < MAX_SEASONS; s++) {
-    const base = calculateStartingFunds(getLadderIndex(tierId));
+    const base = calculateStartingFunds(getLadderIndex(tierId)) * fundsScale(tierId, s + 1);
     const ratio = first ? 1 : promotedPending ? PROMOTION_STAY_FUNDS_RATIO : SAME_LEAGUE_FUNDS_RATIO;
     const grant = Math.round(base * ratio * Math.max(0, 1 - missed * STAGNATION_FUNDS_PENALTY_PER_MISS));
     let funds = grant + (first ? 0 : recallFunds(leftover, grant).carried) + proceeds;
