@@ -39,9 +39,9 @@ import {
   calculatePlayerPrice,
 } from '../engine/economy.mjs';
 import { applyTransactionDecay, chemistryMultiplier } from '../engine/chemistry.mjs';
-import { computePlayerFinalOVR, computePlayerBonusBreakdown, countEffectiveContinentRequirement, resolveRoles } from '../engine/ovr.mjs';
+import { computePlayerFinalOVR, computePlayerBonusBreakdown } from '../engine/ovr.mjs';
 import {
-  PLAYSTYLE_TAGS, CONTINENT_TAGS, POSITIONS,
+  PLAYSTYLE_TAGS, POSITIONS,
   STAFF_LEVELS, STAFF_PRICE_TABLE,
 } from '../engine/constants.mjs';
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
@@ -73,9 +73,6 @@ import {
   MISSED_TARGET_LIMIT,
   STAGNATION_FUNDS_PENALTY_PER_MISS,
   SAME_LEAGUE_FUNDS_RATIO,
-  ROLE_SLOTS,
-  TRAIT_ROLE,
-  TRAIT_RENEWAL_MULT,
   HOMETOWN_RELEASE_CHEMISTRY_PENALTY,
   SEONGGOL_TRANSFER_DEMAND_CHANCE,
   SEONGGOL_REJECT_OVR_PENALTY,
@@ -189,12 +186,8 @@ function currentFormation() {
 // 이사진이 이번 시즌 요구하는 승점(안전선~승격선 사이). 리그와 구단 기대치만으로
 // 정해지니 따로 저장하지 않고 필요할 때 계산한다.
 // 팀 전력 계산에 들어가는 리그/스태프 요소(감독 리그 적합도, 수석 코치 직접 효과)
-function powerExtras(roles) {
-  return { leagueTierId: currentState.leagueTierId, roles };
-}
-// 유저가 고른 역할 배정 위에 자동 배정을 얹은 최종 역할(주장/에이스/조커).
-function currentRoles(lineup, bench) {
-  return resolveRoles(currentState.roleOverrides, lineup, bench, coachFor());
+function powerExtras() {
+  return { leagueTierId: currentState.leagueTierId };
 }
 function currentBoardGoal() {
   return boardGoalPoints(effectiveTier(currentState.leagueTierId));
@@ -224,19 +217,15 @@ const TAG_LABELS = {
 };
 const TRAIT_LABELS = {
   starPower: '스타 기질', seongGolYouth: '성골 유스', veteranLeader: '베테랑 리더', superSub: '슈퍼 서브',
-  hometownHero: '지역 영웅', polyglot: '폴리글롯', journeyman: '저니맨',
+  hometownHero: '지역 영웅', journeyman: '저니맨',
 };
-// 역할 칸: 특수 태그는 자기 칸에 서야 효과가 난다(engine/ovr.mjs autoRoles/resolveRoles).
-const ROLE_LABELS = { captain: '주장', ace: '에이스', joker: '조커' };
-const ROLE_WHERE = { captain: '선발 1명', ace: '선발 1명', joker: '벤치 1명' };
 // 전술 탭 "선수 특수 태그" 섹션에 쓰는 효과 설명(engine/ovr.mjs 실제 수치와 짝).
 const TRAIT_EFFECT_DESCRIPTIONS = {
-  starPower: '본인 OVR +10',
+  starPower: '선발이면 본인 OVR +10',
   seongGolYouth: '유스 출신 본인 OVR +10',
-  veteranLeader: '33세 이상이 주장이면 선발 23세 이하 전원 +3, 거래당 적응도 하락 −1',
-  superSub: '벤치 조커면 선발 전원 OVR +1',
+  veteranLeader: '33세 이상이 선발이면 선발 23세 이하 전원 +3, 거래당 적응도 하락 −1',
+  superSub: '벤치에 있으면 선발 전원 OVR +1',
   hometownHero: '뛴 시즌마다 본인 OVR +4 (최대 +12)',
-  polyglot: '같은 대륙 케미 요구 인원 2명 감면(최소 2명)',
   journeyman: '이번 시즌 영입이면 본인 OVR +8',
 };
 // 재계약비(태그 대가 배수 포함)와 재계약 가능 연수(저니맨은 딱 한 번, 1년만).
@@ -256,7 +245,7 @@ function repricePlayer(p) {
 function renewCost(p, years) {
   // 무료로 들어온 선수(price 0)도 재계약비가 0원이 되지 않게 등급 기준가로 계산한다.
   const basis = p.price || calculatePlayerPrice(tierOf(p.baseOVR), p.baseOVR);
-  return Math.round(renewalCost(basis, years) * (TRAIT_RENEWAL_MULT[p.specialTrait] ?? 1));
+  return Math.round(renewalCost(basis, years));
 }
 function renewYears(p) {
   if (p.noRenewal) return []; // 은퇴 앞둔 레전드: 재계약 불가
@@ -264,17 +253,12 @@ function renewYears(p) {
   return [1, 2];
 }
 const TRAIT_DOWNSIDE_TEXT = {
-  starPower: '영입가·재계약비 ×2',
-  seongGolYouth: '뛴 시즌이 끝나면 30% 확률로 이적 요구 (수락=자유계약으로 이탈, 거부=OVR −3)',
-  veteranLeader: '재계약비 ×1.5',
+  starPower: '영입가 ×1.5',
+  seongGolYouth: '시즌이 끝나면 30% 확률로 이적 요구 (수락=자유계약으로 이탈, 거부=OVR −3)',
+  veteranLeader: '대가 없음',
   superSub: '벤치에 고정(선발 출전 불가)',
   hometownHero: '방출·판매하면 팀 적응도 −8',
-  polyglot: '주장인 본인은 대륙 케미를 못 받음',
   journeyman: '재계약은 1년, 딱 한 번만 가능 - 그 뒤엔 자유계약으로 팀을 떠남',
-};
-const CONTINENT_LABELS = {
-  europe: '유럽', southAmerica: '남미', africa: '아프리카',
-  asiaOceania: '아시아·대양주', northCentralAmerica: '북중미',
 };
 // 팀 케미/특수 태그 배지 안에 그리는 작은 기호(글자 대신 아이콘). 풀네임은
 // title(호버)로만 남긴다. crest.mjs/portrait.mjs와 같은 원칙 - 이미지 파일
@@ -295,13 +279,6 @@ const PLAYSTYLE_ICON_PATHS = {
   tikiTaka: '<circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M11 7.2 L6 15.8 M13 7.2 L18 15.8 M7.5 18 H16.5"/>',
   totalFootball: '<path d="M20 12 A8 8 0 0 1 6 17.3"/><path d="M4 12 A8 8 0 0 1 18 6.7"/><path d="M18.2 2.8 V7 H14"/><path d="M5.8 21.2 V17 H10"/>',
 };
-const CONTINENT_ICON_PATHS = {
-  europe: '<path d="M7 5 C10 4 14 4 16 6 C19 7 18 11 16 12 C18 14 16 18 12 18 C9 19 6 16 7 13 C4 11 5 7 7 5 Z"/>',
-  southAmerica: '<path d="M12 3 C15 4 16 7 15 10 C17 12 15 16 13 17 C13 19 11 21 10 19 C9 17 10 14 9 12 C7 10 8 6 10 4 C10 3 11 3 12 3 Z"/>',
-  africa: '<path d="M10 3 C14 3 17 6 16 10 C18 12 17 16 14 18 C13 20 10 20 10 18 C8 17 8 14 7 12 C5 10 6 6 9 4 C9 3 10 3 10 3 Z"/>',
-  asiaOceania: '<path d="M4 8 C8 5 14 5 18 8 C20 9 19 12 16 12 C17 14 14 16 11 15 C9 16 6 15 6 12 C4 11 3 9 4 8 Z"/><circle cx="19" cy="17" r="1.5"/>',
-  northCentralAmerica: '<path d="M6 4 H18 L15 11 C15 13 13 13 13 15 L11 21 L9 15 C9 13 8 12 8 10 Z"/>',
-};
 const TRAIT_ICON_PATHS = {
   scout: '<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.8"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22"/>',
   starPower: '<path d="M12 3 L14 9 H20 L15 13 L17 19 L12 15 L7 19 L9 13 L4 9 H10 Z"/>',
@@ -309,7 +286,6 @@ const TRAIT_ICON_PATHS = {
   veteranLeader: '<rect x="5" y="9" width="14" height="6" rx="1.5"/><path d="M5 12 H19"/>',
   superSub: '<path d="M8 15 L8 5 M8 5 L5 8 M8 5 L11 8 M16 9 L16 19 M16 19 L13 16 M16 19 L19 16"/>',
   hometownHero: '<path d="M4 11 L12 4 L20 11 M6 10 V20 H18 V10"/>',
-  polyglot: '<path d="M4 5 H20 V15 H9 L5 19 V15 H4 Z"/>',
   journeyman: '<rect x="4" y="8" width="16" height="11" rx="1.5"/><path d="M9 8 V6 C9 5 10 4 11 4 H13 C14 4 15 5 15 6 V8"/>',
 };
 function renderTagIcon(paths, id) {
@@ -485,8 +461,7 @@ function applyManagerTacticalHarmony(lineup) {
 function playerTagsHtml(p) {
   const chips = [
     ...(p.playstyleTags ?? []).map((t) => `<span class="tag tag--${PLAYSTYLE_TAGS[t]?.grade ?? 'basic'}" title="${esc((PLAYSTYLE_TAGS[t]?.positions ?? []).join('·'))}">${TAG_LABELS[t] ?? t}</span>`),
-    p.continentTag ? `<span class="tag tag--continent">${CONTINENT_LABELS[p.continentTag] ?? p.continentTag}</span>` : '',
-    p.specialTrait ? `<span class="tag tag--trait" title="${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}">${ROLE_LABELS[TRAIT_ROLE[p.specialTrait]] ?? ''} · ${TRAIT_LABELS[p.specialTrait] ?? p.specialTrait}</span>` : '',
+    p.specialTrait ? `<span class="tag tag--trait" title="${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}">${TRAIT_LABELS[p.specialTrait] ?? p.specialTrait}</span>` : '',
   ].join('');
   return chips ? `<div class="tags">${chips}</div>` : '';
 }
@@ -498,11 +473,7 @@ function tagInfoText(kind, id) {
     const { req, values } = playstyleTagProgress(id, []);
     return `${TAG_LABELS[id] ?? id}: ${tagLadderText(req, values)} (${def.positions.join('·')} 포지션만 셈)`;
   }
-  if (kind === 'cont') {
-    const t = CONTINENT_TAGS[id];
-    return `${CONTINENT_LABELS[id] ?? id}: 같은 대륙 ${countEffectiveContinentRequirement(3, [], id)}명이면 +${t.tier3}, ${countEffectiveContinentRequirement(5, [], id)}명이면 +${t.tier5} (포지션 무관)`;
-  }
-  return `${ROLE_LABELS[TRAIT_ROLE[id]] ?? ''} 칸 · ${TRAIT_LABELS[id] ?? id}: ${TRAIT_EFFECT_DESCRIPTIONS[id] ?? ''}. 대가: ${TRAIT_DOWNSIDE_TEXT[id] ?? ''}`;
+  return `${TRAIT_LABELS[id] ?? id}: ${TRAIT_EFFECT_DESCRIPTIONS[id] ?? ''}. 대가: ${TRAIT_DOWNSIDE_TEXT[id] ?? ''}`;
 }
 // 선수의 태그를 아이콘 한 줄로(플레이스타일 → 대륙 → 특수). active에 든 태그는 초록(지금 보너스 중).
 // 눌러서 설명을 볼 수 있게 data-tag-info에 문장을 싣는다(선수단 탭에서 처리).
@@ -510,9 +481,8 @@ function tagIconsHtml(p, active = null) {
   const on = (id) => (active && active.has(id) ? ' is-on' : '');
   const btn = (kind, id) => `data-tag-info="${esc(tagInfoText(kind, id))}" role="button" tabindex="0"`;
   const play = (p.playstyleTags ?? []).map((t) => `<i class="ticon ticon--g-${PLAYSTYLE_TAGS[t]?.grade ?? 'basic'}${on(t)}" title="${esc(TAG_LABELS[t] ?? t)}" ${btn('play', t)}>${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}</i>`).join('');
-  const cont = p.continentTag ? `<i class="ticon ticon--cont${on(p.continentTag)}" title="${esc(CONTINENT_LABELS[p.continentTag] ?? '')}" ${btn('cont', p.continentTag)}>${renderTagIcon(CONTINENT_ICON_PATHS, p.continentTag)}</i>` : '';
   const trait = p.specialTrait ? `<i class="ticon ticon--trait" title="${esc(TRAIT_LABELS[p.specialTrait] ?? '')}" ${btn('trait', p.specialTrait)}>${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}</i>` : '';
-  return `<span class="ticons">${play}${cont}${trait}</span>`;
+  return `<span class="ticons">${play}${trait}</span>`;
 }
 
 function esc(text) {
@@ -991,8 +961,6 @@ function startRun(club) {
     staffOffer: generateStaffOffer(Math.random, 'tier5'),
     firstHalfPoints: null,
     listedForSale: [], // { card, method, resolveWeek }
-    roleOverrides: {}, // 역할 칸 수동 배정 { captain?, ace?, joker? } (선수 id 또는 'none')
-    rolePicker: null,
     boardDemand: null, // 이번 시즌 고른 이사진 요구 카드 { cardId, difficulty }
     seasonTrack: { spent: 0, winterTransactions: 0, income: 0, start: funds }, // 요구 카드 판정 + 자금 흐름 표시용
     boardTrustUsed: false,
@@ -1057,7 +1025,7 @@ function renderCareerIntro() {
   const scale = tier.championPoints * 1.1;
   const at = (v) => `${Math.min(100, (v / scale) * 100)}%`;
   const { lineup, bench } = pickBestXI(squad, currentFormation());
-  const teamPower = computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, null, powerExtras(currentRoles(lineup, bench)));
+  const teamPower = computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, null, powerExtras());
   const leagueAverageOVR = (tier.averageOVR[0] + tier.averageOVR[1]) / 2;
   const projectedPoints = convertPowerToPoints(teamPower, leagueAverageOVR);
   const zone = projectedPoints >= tier.championPoints ? 'champion'
@@ -1298,11 +1266,9 @@ function transactionDecayAmount() {
   const coachReduced = isStaffFreshThisWeek('headCoach')
     ? CHEMISTRY_DECAY_PER_TRANSACTION
     : COACH_CHEMISTRY_DECAY_BY_LEVEL[coachLevel] ?? CHEMISTRY_DECAY_PER_TRANSACTION;
-  // 주장 칸의 베테랑 리더: 거래당 적응도 하락 −1
-  const { lineup, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
-  const roles = currentRoles(lineup, bench);
-  const captain = roles.captain ? lineup.find((p) => p.id === roles.captain) : null;
-  const captainRelief = captain?.specialTrait === 'veteranLeader' ? 1 : 0;
+  // 선발 베테랑 리더(33세 이상): 거래당 적응도 하락 −1
+  const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const captainRelief = lineup.some((p) => p.specialTrait === 'veteranLeader' && p.age >= 33) ? 1 : 0;
   return Math.max(0, Math.min(managerReduced, coachReduced) - captainRelief);
 }
 
@@ -1582,8 +1548,7 @@ function runFirstHalf(saleMessage = '') {
     currentState.chemistry,
     currentState.leagueTierId,
     Math.random,
-    coachFor(),
-    currentRoles(lineup, bench)
+    coachFor()
   ));
 
   // 이 시즌의 순위표를 전반기에 만들어 두고, 후반기는 그 위에 이어서 쌓는다(상대 구단도 그대로).
@@ -2054,7 +2019,7 @@ function telemetrySnapshot() {
     currentState.telemetryRun ??= Math.random().toString(36).slice(2, 8);
     const fid = currentFormation();
     const { lineup, bench } = pickBestXI(currentState.squad, fid, currentState.manualOverrides, currentState.benchOverrides);
-    const power = computeTeamPower(lineup, bench, currentState.manager.tier, currentState.chemistry, coachFor(), powerExtras(currentRoles(lineup, bench)));
+    const power = computeTeamPower(lineup, bench, currentState.manager.tier, currentState.chemistry, coachFor(), powerExtras());
     return {
       run: currentState.telemetryRun, s: currentState.seasonNumber, tier: currentState.leagueTierId, club: currentState.club?.name,
       fm: fid, mgr: currentState.manager?.tier, pow: Math.round(power * 10) / 10,
@@ -2113,8 +2078,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
     currentState.chemistry,
     currentState.leagueTierId,
     Math.random,
-    coachFor(),
-    currentRoles(lineup, bench)
+    coachFor()
   ));
   const firstHalf = roundHalfPoints(currentState.firstHalfPoints ?? 0); // 옛 저장(소수점)도 같은 규칙으로
   const totalPoints = firstHalf + secondHalf;
@@ -2141,10 +2105,10 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const finalRank = finalRankFromTable(seasonTable, result, isTop ? 4 : 3);
   const uclQualified = isTop && finalRank <= 4;
   const uclPowerAway = uclQualified
-    ? computeTeamPower(lineup, bench, manager.tier, currentState.chemistry / 2, coachFor(), powerExtras(currentRoles(lineup, bench)))
+    ? computeTeamPower(lineup, bench, manager.tier, currentState.chemistry / 2, coachFor(), powerExtras())
     : 0;
   const uclPower = uclQualified
-    ? computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, coachFor(), powerExtras(currentRoles(lineup, bench)))
+    ? computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, coachFor(), powerExtras())
     : 0;
   const uclResultId = null;
 
@@ -2176,10 +2140,9 @@ function runSecondHalfAndFinish(saleMessage = '') {
   }
 
   // 이사진 목표 정산 - 보상은 다음 시즌 시작(startNewSeason)에 지급하고 팝업으로 알린다.
-  // 성골 유스 대가: 에이스로 뛴 시즌이 끝나면 일정 확률로 이적 요구(다음 시즌 브리핑에서 결정).
-  const aceId = currentRoles(lineup, bench).ace;
-  const ace = aceId ? lineup.find((p) => p.id === aceId) : null;
-  currentState.pendingTransferDemand = ace?.specialTrait === 'seongGolYouth' && Math.random() < SEONGGOL_TRANSFER_DEMAND_CHANCE
+  // 성골 유스 대가: 선발로 뛴 시즌이 끝나면 일정 확률로 이적 요구(다음 시즌 브리핑에서 결정).
+  const ace = lineup.find((p) => p.specialTrait === 'seongGolYouth');
+  currentState.pendingTransferDemand = ace && Math.random() < SEONGGOL_TRANSFER_DEMAND_CHANCE
     ? { id: ace.id, name: ace.name }
     : null;
   const goal = currentBoardGoal();
@@ -2265,7 +2228,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
     ${uclQualified ? '<div class="banner banner--ucl">리그 4위 이내로 마쳐 챔피언스리그에 진출했습니다. 시즌 결산 후 챔피언스리그가 이어집니다.</div>' : ''}
     <div class="panel">
       <ul class="summary">
-        <li><span>최종 팀 전력</span><b>${computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, coachFor(), powerExtras(currentRoles(lineup, bench))).toFixed(1)}</b></li>
+        <li><span>최종 팀 전력</span><b>${computeTeamPower(lineup, bench, manager.tier, currentState.chemistry, coachFor(), powerExtras()).toFixed(1)}</b></li>
         <li><span>최종 적응도</span><b>${currentState.chemistry.toFixed(1)}</b></li>
         <li><span>${goalLine}</span></li>
         ${demandLine ? `<li><span>${demandLine}</span></li>` : ''}
@@ -2544,43 +2507,10 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
 }
 
 // 피치에서 선수 칸을 눌렀을 때: 그 선수가 어떤 케미에서 몇 점 받는지 출처별로.
-// 역할 칸 3개(주장/에이스/조커). 칸을 누르면 그 칸에 세울 수 있는 선수 목록이 뜬다.
-// 칸은 비워 둬도 된다 - 비우면 그 칸 태그의 효과만 빠진다.
-function renderRoleChips(roles, lineup, bench) {
-  const all = [...lineup, ...bench];
-  const candidatesOf = (slot) => (slot === 'joker' ? bench : lineup).filter((p) => TRAIT_ROLE[p.specialTrait] === slot);
-  const chips = ROLE_SLOTS.map((slot) => {
-    const p = roles[slot] ? all.find((x) => x.id === roles[slot]) : null;
-    const n = candidatesOf(slot).length;
-    return `<button class="rolechip${p ? ' is-on' : ''}${currentState.rolePicker === slot ? ' is-open' : ''}" data-role="${slot}">
-      <span class="rolechip__slot">${ROLE_LABELS[slot]} <i>${ROLE_WHERE[slot]}</i></span>
-      <b class="rolechip__who">${p ? esc(p.name) : n ? '비어 있음' : '후보 없음'}</b>
-      ${p ? `<em>${esc(TRAIT_LABELS[p.specialTrait])}</em>` : ''}
-    </button>`;
-  }).join('');
-
-  const slot = currentState.rolePicker;
-  const picker = slot ? `<div class="panel rolepicker">
-    <div class="panel__head"><h2>${ROLE_LABELS[slot]} 칸</h2><span class="panel__count">${ROLE_WHERE[slot]}</span></div>
-    <ul class="rolepicks">
-      ${candidatesOf(slot).map((p) => `<li><button class="rolepick${roles[slot] === p.id ? ' is-on' : ''}" data-role-pick="${slot}:${p.id}">
-        <b>${esc(p.name)}</b> <span>${p.position} · ${esc(TRAIT_LABELS[p.specialTrait])}</span>
-        <small>${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait])}</small>
-        <small class="rolepick__cost">대가: ${esc(TRAIT_DOWNSIDE_TEXT[p.specialTrait])}</small>
-      </button></li>`).join('') || `<li class="empty">이 칸에 세울 태그 선수가 ${slot === 'joker' ? '벤치에' : '선발에'} 없습니다.</li>`}
-      <li class="rolepicks__foot">
-        <button class="rolepick rolepick--plain" data-role-pick="${slot}:none">비워 두기</button>
-        <button class="rolepick rolepick--plain" data-role-pick="${slot}:auto">자동 배정</button>
-      </li>
-    </ul>
-  </div>` : '';
-  return `<div class="rolechips">${chips}</div>${picker}`;
-}
-
-function renderBonusDetail(player, lineup, bench, coach, roles) {
+function renderBonusDetail(player, lineup, bench, coach) {
   if (!player) return '';
-  const labelOf = { playstyle: TAG_LABELS, continent: CONTINENT_LABELS, self: TRAIT_LABELS, team: TRAIT_LABELS, coach: { headCoach: '수석 코치' } };
-  const parts = computePlayerBonusBreakdown(player, lineup, bench, coach, roles);
+  const labelOf = { playstyle: TAG_LABELS, self: TRAIT_LABELS, team: TRAIT_LABELS, coach: { headCoach: '수석 코치' } };
+  const parts = computePlayerBonusBreakdown(player, lineup, bench, coach);
   const total = parts.reduce((s, x) => s + x.value, 0);
   const rows = parts.length
     ? parts.map((x) => `<div class="bonusdetail__row"><span>${esc(labelOf[x.kind][x.id] ?? x.id)}</span><b>+${x.value}</b></div>`).join('')
@@ -2631,7 +2561,7 @@ function renderSlotPicker(squad, formationId, selectedSlot, inXI, benchIds) {
 // 문턱(기본 3명/5명, 감독·폴리글롯이 있으면 감면)을 넘었는지 색으로 알려준다.
 // tagDef.tier3/tier5는 인원수가 아니라 그 인원 채웠을 때 실제로 붙는 OVR
 // 보너스 값이다(engine/ovr.mjs) - 배지 설명에 필요 인원과 보너스를 분리해서 쓴다.
-function renderChemistryPanel(lineup, bench, roles) {
+function renderChemistryPanel(lineup, bench) {
   const { manager } = currentState;
 
   const playstyleRows = Object.entries(PLAYSTYLE_TAGS)
@@ -2654,26 +2584,6 @@ function renderChemistryPanel(lineup, bench, roles) {
     })
     .sort((a, b) => b.tier - a.tier);
 
-  const continentRows = Object.entries(CONTINENT_TAGS)
-    .map(([tagId, def]) => {
-      const members = lineup.filter((p) => p.continentTag === tagId);
-      const count = members.length;
-      const req3 = countEffectiveContinentRequirement(3, lineup, tagId);
-      const req5 = countEffectiveContinentRequirement(5, lineup, tagId);
-      const tier = count >= req5 ? 2 : count >= req3 ? 1 : 0;
-      const need = tier === 0 ? req3 : req5;
-      const bonus = tier === 2 ? def.tier5 : def.tier3;
-      const caption = `${count}/${need} · +${bonus}`;
-      // 포지션 무관이지만 아무나 받는 게 아니라 "이 대륙 출신 선수"만 받는다.
-      const desc = `같은 대륙 출신끼리 말이 통하고 호흡이 잘 맞는다. 포지션 무관, ${CONTINENT_LABELS[tagId] ?? tagId} 출신 선수만 보너스를 받습니다`
-        + (req3 < 3 ? ' (폴리글롯으로 요구 인원 감면)' : '')
-        + `. ${req3}명 이상 모이면 +${def.tier3}, ${req5}명 이상이면 +${def.tier5}`
-        + (tier ? `. 지금 받는 선수: ${members.map((p) => p.name).join(', ')}` : '');
-      const more = tier === 2 ? '최대' : `${need - count}명 더 → +${tier === 0 ? def.tier3 : def.tier5}`;
-      return { icon: renderTagIcon(CONTINENT_ICON_PATHS, tagId), label: CONTINENT_LABELS[tagId] ?? tagId, desc, caption, tier, more, near: tier < 2 && need - count === 1 };
-    })
-    .sort((a, b) => b.tier - a.tier);
-
   const badge = (r) => `<li class="chembadge${r.tier ? ` is-tier${Math.min(r.tier, 2)}` : ''}${r.near ? ' is-near' : ''}" data-chem-desc="${esc(r.label)}: ${esc(r.desc)}${r.more ? ` — 다음 단계: ${esc(r.more)}` : ''}" title="${esc(r.label)} · ${esc(r.desc)}">
     <div class="chembadge__ring">${r.icon}</div>
     <span class="chembadge__label">${esc(r.label)}</span>
@@ -2687,21 +2597,19 @@ function renderChemistryPanel(lineup, bench, roles) {
   const holders = [...lineup, ...bench].filter((p) => p.specialTrait);
   // 발동 = 자기 역할 칸에 배정됨 / 대기 = 그 칸을 다른 선수가 차지 / 자리 아님 = 칸이 요구하는 자리(선발/벤치)가 아님
   const stateOf = (p) => {
-    const slot = TRAIT_ROLE[p.specialTrait];
-    if (roles[slot] === p.id) return ['on', '발동'];
-    const rightPlace = slot === 'joker' ? !inXI.has(p.id) : inXI.has(p.id);
-    return rightPlace ? ['wait', '대기'] : ['off', slot === 'joker' ? '선발이라 자리 아님' : '벤치라 자리 아님'];
+    if (p.specialTrait === 'superSub') return inXI.has(p.id) ? ['off', '선발이라 효과 없음'] : ['on', '발동'];
+    if (!inXI.has(p.id)) return ['off', '벤치라 효과 없음'];
+    return p.specialTrait === 'veteranLeader' && p.age < 33 ? ['off', '33세 미만'] : ['on', '발동'];
   };
   const traitSection = holders.length ? `
     <h3 class="chemgroup__title">선수 특수 태그</h3>
     <ul class="traitrows">
       ${holders.map((p) => {
         const [st, stText] = stateOf(p);
-        const slot = TRAIT_ROLE[p.specialTrait];
-        return `<li class="traitrow is-${st}" data-chem-desc="${esc(p.name)} · ${ROLE_LABELS[slot]} 칸 ${esc(TRAIT_LABELS[p.specialTrait])}: ${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}. 대가: ${esc(TRAIT_DOWNSIDE_TEXT[p.specialTrait] ?? '')}">
+        return `<li class="traitrow is-${st}" data-chem-desc="${esc(p.name)} · ${esc(TRAIT_LABELS[p.specialTrait])}: ${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}. 대가: ${esc(TRAIT_DOWNSIDE_TEXT[p.specialTrait] ?? '')}">
           <span class="traitrow__icon">${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}</span>
           <span class="traitrow__name">${esc(p.name)}</span>
-          <span class="traitrow__trait">${ROLE_LABELS[slot]} · ${esc(TRAIT_LABELS[p.specialTrait])}</span>
+          <span class="traitrow__trait">${esc(TRAIT_LABELS[p.specialTrait])}</span>
           <b class="traitrow__state">${stText}</b>
         </li>`;
       }).join('')}
@@ -2714,8 +2622,6 @@ function renderChemistryPanel(lineup, bench, roles) {
       <div class="chemgrade__head"><i></i><b>${label}</b></div>
       <ul class="chembadges">${playstyleRows.filter((r) => r.grade === g).map(badge).join('')}</ul>
     </div>`).join('')}
-    <h3 class="chemgroup__title">대륙</h3>
-    <ul class="chembadges">${continentRows.map(badge).join('')}</ul>
     ${traitSection}
     <p class="note" id="chem-desc"></p>
   </div>`;
@@ -2781,19 +2687,18 @@ function renderMarket(banner = '') {
 
   // 스트립은 시너지가 반영된 최종 OVR로 계산한다. 포메이션을 바꿨을 때
   // 숫자가 왜 움직이는지(태그 발동/해제) 읽히게 하려면 baseOVR로는 안 된다.
-  const roles = currentRoles(lineup, bench);
   // 지금 실제로 보너스를 주고 있는 태그(초록 아이콘): 플레이스타일/대륙 시너지가 발동한 것만
   const activeTags = new Map(lineup.map((p) => [
     p.id,
-    new Set(computePlayerBonusBreakdown(p, lineup, bench, coachFor(), roles).filter((x) => x.kind === 'playstyle' || x.kind === 'continent').map((x) => x.id)),
+    new Set(computePlayerBonusBreakdown(p, lineup, bench, coachFor()).filter((x) => x.kind === 'playstyle').map((x) => x.id)),
   ]));
-  const finalOVR = new Map(lineup.map((p) => [p.id, computePlayerFinalOVR(p, lineup, bench, coachFor(), roles)]));
+  const finalOVR = new Map(lineup.map((p) => [p.id, computePlayerFinalOVR(p, lineup, bench, coachFor())]));
   const groupAvg = (positions) => {
     const members = lineup.filter((p) => positions.includes(p.slotPosition));
     if (!members.length) return null;
     return members.reduce((sum, p) => sum + finalOVR.get(p.id), 0) / members.length;
   };
-  const teamPower = computeTeamPower(lineup, bench, manager.tier, chemistry, coachFor(), powerExtras(roles));
+  const teamPower = computeTeamPower(lineup, bench, manager.tier, chemistry, coachFor(), powerExtras());
 
   const weekStart = phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0];
   const dots = Array.from({ length: maxWeek - weekStart + 1 }, (_, i) => {
@@ -2811,7 +2716,7 @@ function renderMarket(banner = '') {
     const f = currentState.offerTag;
     if (!f) return true;
     const [kind, id] = f.split(':');
-    return kind === 'playstyle' ? c.playstyleTags.includes(id) : c.continentTag === id;
+    return c.playstyleTags.includes(id);
   };
   const offerHtml = shopOffer.filter((c) => (!currentState.offerFilter || c.position === currentState.offerFilter) && matchesTag(c)).map((c) => {
     const price = cardPrice(c);
@@ -2829,14 +2734,6 @@ function renderMarket(banner = '') {
       return `<button type="button" class="chip${lvl ? ` chip--up${lvl}` : ''}${dim ? ' chip--dim' : ''}${grade ? ` chip--g-${grade}` : ''}" data-tag-desc="${esc(desc)}" title="${esc(label)}" aria-label="${esc(label)} ${count}/${need}">${icon}<b>${count}/${need}</b></button>`;
     };
     const tags = [
-      (() => {
-        const n = lineup.filter((p) => p.continentTag === c.continentTag).length;
-        const r3 = countEffectiveContinentRequirement(3, lineup, c.continentTag);
-        const r5 = countEffectiveContinentRequirement(5, lineup, c.continentTag);
-        const label = CONTINENT_LABELS[c.continentTag] ?? c.continentTag;
-        const desc = `${label}: 지금 라인업 ${n}명. ${r3}명이면 +${CONTINENT_TAGS[c.continentTag].tier3}, ${r5}명이면 +${CONTINENT_TAGS[c.continentTag].tier5}(포지션 무관).` + (n + 1 === r3 ? ' 영입하면 발동!' : n + 1 === r5 ? ' 영입하면 강화!' : '');
-        return chip(renderTagIcon(CONTINENT_ICON_PATHS, c.continentTag), n, n >= r3 ? r5 : r3, [r3, r5].indexOf(n + 1), desc, label);
-      })(),
       ...c.playstyleTags.map((t) => {
         const { count, need, req, values } = playstyleTagProgress(t, lineup);
         const def = PLAYSTYLE_TAGS[t];
@@ -2847,7 +2744,7 @@ function renderMarket(banner = '') {
           + (receives ? '' : ` · ${c.position}은(는) 대상 포지션이 아니라 인원에 안 셉니다`);
         return chip(renderTagIcon(PLAYSTYLE_ICON_PATHS, t), count, need, reach, desc, TAG_LABELS[t] ?? t, !receives, def.grade);
       }),
-      c.specialTrait ? `<button type="button" class="chip chip--trait" data-tag-desc="${esc(`${ROLE_LABELS[TRAIT_ROLE[c.specialTrait]]} 칸 · ${TRAIT_LABELS[c.specialTrait]}: ${TRAIT_EFFECT_DESCRIPTIONS[c.specialTrait]}. 대가: ${TRAIT_DOWNSIDE_TEXT[c.specialTrait]}`)}" title="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}" aria-label="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, c.specialTrait)}<b>${esc(ROLE_LABELS[TRAIT_ROLE[c.specialTrait]] ?? '')}</b></button>` : '',
+      c.specialTrait ? `<button type="button" class="chip chip--trait" data-tag-desc="${esc(`${TRAIT_LABELS[c.specialTrait]}: ${TRAIT_EFFECT_DESCRIPTIONS[c.specialTrait]}. 대가: ${TRAIT_DOWNSIDE_TEXT[c.specialTrait]}`)}" title="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}" aria-label="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, c.specialTrait)}<b>${esc(ROLE_LABELS[TRAIT_ROLE[c.specialTrait]] ?? '')}</b></button>` : '',
     ].join('');
     // 같은 자리 비교: 이 선수가 들어가면 밀려날 선발(그 포지션 중 가장 약한 선수)과 개인 OVR만 견준다.
     // 팀 총점 같은 정답은 주지 않는다 - 비교 재료만.
@@ -2887,7 +2784,7 @@ function renderMarket(banner = '') {
   for (const pos of missingPositions(squad, formationId)) gapCounts[pos] = (gapCounts[pos] ?? 0) + 1;
   const filterLabel = [
     currentState.offerFilter,
-    currentState.offerTag ? (({ playstyle: TAG_LABELS, continent: CONTINENT_LABELS })[currentState.offerTag.split(':')[0]][currentState.offerTag.split(':')[1]]) : null,
+    currentState.offerTag ? TAG_LABELS[currentState.offerTag.split(':')[1]] : null,
   ].filter(Boolean).join(' · ');
   const gapBarHtml = Object.keys(gapCounts).length || filterLabel ? `<div class="gapbar">
       ${Object.entries(gapCounts).map(([pos, n]) => `<button class="gapchip${currentState.offerFilter === pos ? ' is-on' : ''}" data-gap="${pos}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21 C4 15 8 13 12 13 C16 13 20 15 20 21 Z"/></svg>공석 ${pos}${n > 1 ? ` ×${n}` : ''}</button>`).join('')}
@@ -2895,21 +2792,14 @@ function renderMarket(banner = '') {
     </div>` : '';
 
   // 내 선수단 태그 현황: 가진 태그만 칩으로 보여주고(선발 인원/다음 문턱), 누르면 그 태그 매물만 본다.
-  const heldPlay = {}; const heldCont = {};
+  const heldPlay = {};
   for (const p of squad) {
     for (const t of p.playstyleTags ?? []) heldPlay[t] = (heldPlay[t] ?? 0) + 1;
-    if (p.continentTag) heldCont[p.continentTag] = (heldCont[p.continentTag] ?? 0) + 1;
   }
   const playChips = Object.keys(heldPlay).map((t) => ({ t, ...playstyleTagProgress(t, lineup) }))
     .sort((a, b) => b.tier - a.tier || b.count - a.count)
     .map(({ t, count, need, tier }) => `<button class="tagchip${tier ? ' is-on' : ''}${count === 0 ? ' is-zero' : ''}${currentState.offerTag === `playstyle:${t}` ? ' is-sel' : ''}" data-offer-tag="playstyle:${t}" title="선발 ${count}명 · 전체 ${heldPlay[t]}명">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}${TAG_LABELS[t] ?? t}<b class="n">${count}/${need}</b></button>`).join('');
-  const contChips = Object.keys(heldCont).map((t) => {
-    const n = lineup.filter((p) => p.continentTag === t).length;
-    const need = countEffectiveContinentRequirement(n >= countEffectiveContinentRequirement(3, lineup, t) ? 5 : 3, lineup, t);
-    return { t, n, need };
-  }).sort((a, b) => b.n - a.n)
-    .map(({ t, n, need }) => `<button class="tagchip tagchip--cont${n >= countEffectiveContinentRequirement(3, lineup, t) ? ' is-on' : ''}${n === 0 ? ' is-zero' : ''}${currentState.offerTag === `continent:${t}` ? ' is-sel' : ''}" data-offer-tag="continent:${t}" title="선발 ${n}명 · 전체 ${heldCont[t]}명">${renderTagIcon(CONTINENT_ICON_PATHS, t)}${CONTINENT_LABELS[t] ?? t}<b class="n">${n}/${need}</b></button>`).join('');
-  const traitLines = [...lineup, ...bench].filter((p) => p.specialTrait).map((p) => `<span class="tagchip tagchip--trait" title="${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}${esc(p.name)}<b>${ROLE_LABELS[TRAIT_ROLE[p.specialTrait]]} · ${esc(TRAIT_LABELS[p.specialTrait])}</b></span>`).join('');
+  const traitLines = [...lineup, ...bench].filter((p) => p.specialTrait).map((p) => `<span class="tagchip tagchip--trait" title="${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}${esc(p.name)}<b>${esc(TRAIT_LABELS[p.specialTrait])}</b></span>`).join('');
   const caps = scoutCaps();
   const targetOptions = ADVANCED_TAGS.map((t) => `<option value="${t}"${currentState.scoutTargetTag === t ? ' selected' : ''}>${esc(TAG_LABELS[t] ?? t)} (${PLAYSTYLE_TAGS[t].grade === 'hard' ? '어려움' : '보통'})</option>`).join('');
   const posOptions = POSITIONS.map((p) => `<option value="${p}"${currentState.scoutTargetPos === p ? ' selected' : ''}>${p}</option>`).join('');
@@ -2922,11 +2812,10 @@ function renderMarket(banner = '') {
     : '';
   const tagPanelCollapsed = currentState.tagPanelCollapsed !== false; // 기본은 접어 둔다
   const tagSummary = Object.keys(heldPlay).map((t) => ({ t, ...playstyleTagProgress(t, lineup) })).sort((a, b) => b.tier - a.tier || b.count - a.count).slice(0, 3).map((x) => `${TAG_LABELS[x.t] ?? x.t} ${x.count}/${x.need}`).join(' · ');
-  const tagPanelHtml = playChips || contChips ? `<div class="tagpanel${tagPanelCollapsed ? ' is-collapsed' : ''}" id="tagpanel">
+  const tagPanelHtml = playChips ? `<div class="tagpanel${tagPanelCollapsed ? ' is-collapsed' : ''}" id="tagpanel">
             <button class="tagpanel__head" id="tagpanel-toggle" aria-expanded="${!tagPanelCollapsed}"><b>내 태그</b><span class="tagpanel__sum">${tagSummary}</span><i class="panel__chev" aria-hidden="true">⌄</i></button>
       <div class="tagpanel__body">
         ${playChips ? `<div class="tagpanel__group"><em>플레이스타일</em><div>${playChips}</div></div>` : ''}
-        ${contChips ? `<div class="tagpanel__group"><em>대륙</em><div>${contChips}</div></div>` : ''}
         ${traitLines ? `<div class="tagpanel__group"><em>특수</em><div>${traitLines}</div></div>` : ''}
       </div>
     </div>` : '';
@@ -3031,11 +2920,10 @@ function renderMarket(banner = '') {
             <b class="benchchip__ovr n">${p.baseOVR}</b>
           </div>`).join('')}
         </div>
-        ${renderRoleChips(roles, lineup, bench)}
-        ${renderBonusDetail(slotted[currentState.selectedSlot], lineup, bench, coachFor(), roles)}
+        ${renderBonusDetail(slotted[currentState.selectedSlot], lineup, bench, coachFor())}
         ${renderSlotPicker(squad, formationId, currentState.selectedSlot, inXI, new Set(bench.map((p) => p.id)))}
       </section>
-      ${renderChemistryPanel(lineup, bench, roles)}`,
+      ${renderChemistryPanel(lineup, bench)}`,
     squad: `
       <section class="panel tabpanel">
         <div class="sqsum">
@@ -3322,23 +3210,6 @@ function renderMarket(banner = '') {
       currentState.benchOverrides = {};
       currentState.selectedSlot = null;
       renderMarket(banner);
-    });
-    document.querySelectorAll('[data-role]').forEach((el) => {
-      el.onclick = () => {
-        currentState.rolePicker = currentState.rolePicker === el.dataset.role ? null : el.dataset.role;
-        renderMarket(banner);
-      };
-    });
-    document.querySelectorAll('[data-role-pick]').forEach((el) => {
-      el.onclick = () => {
-        const [slot, value] = el.dataset.rolePick.split(':');
-        const next = { ...(currentState.roleOverrides ?? {}) };
-        if (value === 'auto') delete next[slot];
-        else next[slot] = value;
-        currentState.roleOverrides = next;
-        currentState.rolePicker = null;
-        renderMarket(banner);
-      };
     });
     document.querySelectorAll('[data-chem-desc]').forEach((el) => {
       el.addEventListener('click', () => {

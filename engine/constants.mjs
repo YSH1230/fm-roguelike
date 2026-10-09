@@ -84,18 +84,9 @@ export const PLAYER_TIERS = {
 
 export const POSITIONS = ['GK', 'CB', 'WB', 'DMF', 'CMF', 'AMF', 'W', 'ST'];
 
-// 특수 성향은 역할 슬롯(주장/에이스/조커)에 배정돼야 효과가 난다. 슬롯은 각각 1명.
-// (docs/superpowers/specs/2026-09-30-player-roles-design.md)
-export const ROLE_SLOTS = ['captain', 'ace', 'joker'];
-export const TRAIT_ROLE = {
-  veteranLeader: 'captain', polyglot: 'captain',
-  seongGolYouth: 'ace', hometownHero: 'ace', journeyman: 'ace', starPower: 'ace',
-  superSub: 'joker',
-};
-// 대가(영입가/재계약비 배수). 역할 효과와 별개로 그 태그를 가진 선수에게 늘 붙는다.
-export const TRAIT_PRICE_MULT = { starPower: 2 };
-export const TRAIT_RENEWAL_MULT = { veteranLeader: 1.5, starPower: 2 };
-// 성골 유스 대가: 에이스로 뛴 시즌이 끝나면 이 확률로 이적 요구가 온다(수락 = 자유계약으로 떠남, 거부 = OVR 하락).
+// 대가(영입가 배수). 그 성향을 가진 선수에게 늘 붙는다.
+export const TRAIT_PRICE_MULT = { starPower: 1.5 };
+// 성골 유스 대가: 시즌이 끝나면 이 확률로 이적 요구가 온다(수락 = 자유계약으로 떠남, 거부 = OVR 하락).
 export const SEONGGOL_TRANSFER_DEMAND_CHANCE = 0.3;
 export const SEONGGOL_REJECT_OVR_PENALTY = 3;
 export const HOMETOWN_RELEASE_CHEMISTRY_PENALTY = 8;
@@ -106,7 +97,6 @@ export const SPECIAL_TRAITS = [
   'veteranLeader',
   'superSub',
   'hometownHero',
-  'polyglot',
   'journeyman',
 ];
 
