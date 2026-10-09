@@ -2063,3 +2063,4 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .tut__btns { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); }
 .tut__ok { padding: 8px 18px; background: var(--turf); color: #000; border: 0; border-radius: var(--r-sm); font: inherit; font-weight: 700; }
 .tut__skip { margin-left: auto; padding: 6px 8px; background: none; border: 0; color: var(--muted); font: inherit; font-size: var(--fs-label); text-decoration: underline; }
+.matchsim__ticker.is-fate { color: var(--gold); font-weight: 700; }

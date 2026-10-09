@@ -578,6 +578,14 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     </div>
   `);
 
+  const xi = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
+  currentState.mvp ??= {};
+  const pickMvp = () => {
+    const weights = xi.map((p) => Math.max(1, p.baseOVR - 40) ** 2);
+    let r = Math.random() * weights.reduce((a, b) => a + b, 0);
+    for (let i = 0; i < xi.length; i++) { r -= weights[i]; if (r <= 0) { currentState.mvp[xi[i].id] = (currentState.mvp[xi[i].id] ?? 0) + 1; return xi[i]; } }
+    return xi[0] ?? null;
+  };
   let round = 0;
   let delay = 430;
   let prevRank = rankingAt(table, 0).indexOf('me') + 1;
@@ -593,7 +601,17 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     if (clock) clock.textContent = `${round}/${N}`;
     const phrase = document.getElementById('sim-phrase');
     const myPts = pointsOf.get('me')[round - 1];
-    if (phrase) phrase.textContent = `${second ? '후반 ' : ''}${round}라운드 · ${second ? '시즌 ' : ''}${rank}위 · 승점 ${myPts}`;
+    const gained = myPts - (round > 1 ? pointsOf.get('me')[round - 2] : baseOf.get('me'));
+    const verdict = gained >= 3 ? '승' : gained >= 1 ? '무' : '패';
+    const moveText = move > 0 ? `▲${move}` : move < 0 ? `▼${-move}` : '';
+    // 승리한 라운드마다 선발 중 한 명이 MVP(OVR이 높을수록 잘 뽑힌다)
+    const mvp = gained >= 3 ? pickMvp() : null;
+    // 운명의 라운드: 시즌 막판 승격선·강등선 근처
+    const fate = second && round >= N - 2 && ((!ctx.isTop && rank >= 2 && rank <= 5) || (rank >= 15 && rank <= 18));
+    if (phrase) {
+      phrase.textContent = `${fate ? '운명의 라운드 · ' : ''}${round}라운드 ${verdict} · ${rank}위${moveText ? `(${moveText})` : ''}${mvp ? ` · MVP ${mvp.name.split(' ').slice(-1)[0]}` : ''}`;
+      phrase.closest('.matchsim__ticker')?.classList.toggle('is-fate', fate);
+    }
     updateStandings(round);
     if (move > 0) { const pitch = document.getElementById('sim-pitch'); pitch?.classList.add('is-up'); setTimeout(() => pitch?.classList.remove('is-up'), 700); }
     setTimeout(step, delay);
@@ -2268,7 +2286,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
 
   showHarmonyNotice(harmonyMsg, () => renderSimulating(currentState.club.name, tier.label, '후반기', currentState.club.kit, secondHalf, () => {
     finishSeasonRender();
-  }, { table: seasonTable, rivals, second: true }));
+  }, { table: seasonTable, rivals, second: true, isTop }));
 
   function finishSeasonRender() {
   // 명성 점수: 이번 시즌 성적을 점수로 바꿔 더한다(요구 달성은 아래에서 판정되면 이어서 더한다)
