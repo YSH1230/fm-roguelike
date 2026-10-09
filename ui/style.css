@@ -2031,3 +2031,25 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .listed__hint { color: var(--muted); font-size: var(--fs-micro); justify-content: flex-start !important; }
 .outpick__list { scrollbar-color: var(--line) transparent; scrollbar-width: thin; }
 .outpick__list span { text-align: left; }
+
+/* v2: 구단 카드 2줄, 이름 입력, 목표 한 줄, 자세히 보기 */
+.club__klass { margin-left: 6px; color: var(--muted); font-size: var(--fs-micro); font-weight: 400; }
+.club__rec { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--turf); color: #000; font-size: var(--fs-micro); font-style: normal; font-weight: 700; }
+.naming { display: grid; gap: var(--s3); }
+.naming__field { display: grid; gap: 4px; font-size: var(--fs-label); color: var(--muted); }
+.naming__field input { padding: 10px 12px; background: var(--surface-hi); border: 1px solid var(--line); border-radius: var(--r-md); color: var(--light); font: inherit; font-size: var(--fs-m); }
+.naming__kits { display: flex; gap: 10px; }
+.kitdot { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line); background: var(--kit); padding: 0; }
+.kitdot.is-on { border-color: var(--light); box-shadow: 0 0 0 2px var(--night), 0 0 0 4px var(--light); }
+.goalline { margin: var(--s2) 0 var(--s3); text-align: center; font-size: var(--fs-m); color: var(--light); }
+.goalline b { color: var(--debit); font-family: var(--num); font-size: var(--fs-l); }
+.more { margin: var(--s3) 0; }
+.more > summary { cursor: pointer; color: var(--muted); font-size: var(--fs-label); padding: var(--s2) 0; list-style: none; }
+.more > summary::-webkit-details-marker { display: none; }
+.more > summary::after { content: ' ⌄'; }
+.more[open] > summary::after { content: ' ⌃'; }
+.unlocknote { color: var(--turf); }
+.club__name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
+.club__klass, .club__rec { margin-left: 0; white-space: nowrap; }
+.more { margin: var(--s3) 0; }
+.more > summary { padding-left: var(--s4); }
