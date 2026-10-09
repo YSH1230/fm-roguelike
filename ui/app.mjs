@@ -2080,7 +2080,7 @@ function telemetrySnapshot() {
     const { lineup, bench } = pickBestXI(currentState.squad, fid, currentState.manualOverrides, currentState.benchOverrides);
     const power = computeTeamPower(lineup, bench, currentState.manager.tier, currentState.chemistry, coachFor(), powerExtras());
     return {
-      run: currentState.telemetryRun, s: currentState.seasonNumber, tier: currentState.leagueTierId, club: currentState.club?.name,
+      run: currentState.telemetryRun, s: currentState.seasonNumber, tier: currentState.leagueTierId, club: currentState.club?.id, // 입력한 이름은 보내지 않고 기본 구단 id만
       fm: fid, mgr: currentState.manager?.tier, pow: Math.round(power * 10) / 10,
       avg: Math.round(lineup.reduce((x, p) => x + p.baseOVR, 0) / Math.max(1, lineup.length) * 10) / 10,
       chem: Math.round(currentState.chemistry), funds: currentState.funds, squad: currentState.squad.length,

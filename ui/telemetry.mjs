@@ -5,7 +5,7 @@
 //   FIELD:       질문 칸 이름        entry.1234567890
 const FORM_ACTION = 'https://docs.google.com/forms/d/e/1FAIpQLSdaEoTGPwhzsGlFBxPnVTCVoCnoFOeWmwJ7aj1xspDadP9LLQ/formResponse';
 const FIELD = 'entry.1507070525';
-const BUILD = '2026-10-09';
+const BUILD = 'v2-2026-10-10'; // 규칙 버전이 바뀌면 이전 데이터와 섞이지 않게 올린다
 
 const ID_KEY = 'fm-roguelike-anon';
 const OFF_KEY = 'fm-roguelike-telemetry-off';
