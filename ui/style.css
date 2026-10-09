@@ -2088,3 +2088,5 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .srow__paid .up { color: var(--turf); font-style: normal; }
 .srow__paid .down { color: var(--debit); font-style: normal; }
 .offerrow small { color: var(--muted); }
+.tag--legend { margin-left: 6px; background: var(--gold); color: #000; }
+.tribute { color: var(--gold); }

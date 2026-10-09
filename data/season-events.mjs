@@ -2,7 +2,7 @@ import { generateProceduralPlayer } from './generate-player.mjs';
 import { resolveFfpAudit } from '../engine/events.mjs';
 import { SPONSORSHIP_FUNDS_BONUS_RATIO, EVENT_CHANCE_SUMMER, EVENT_CHANCE_WINTER } from '../engine/constants.mjs';
 
-// 시즌 이벤트 풀 18종. 두 갈래다.
+// 시즌 이벤트 풀 20종. 두 갈래다.
 //  - 자동 이벤트(EVENTS): apply가 { squad, funds, chemistry, baseFunds, manager }를 받아 바뀐 값과
 //    message("이름: 상세" - UI가 ': '로 제목/상세를 나눈다)를 돌려준다. state는 런 상태에 덧붙일 값.
 //  - 선택형 이벤트(CHOICES): 2지선다. prepare가 선택에 필요한 값(대상 선수, 유망주 등)을 한 번 정해
@@ -11,6 +11,7 @@ import { SPONSORSHIP_FUNDS_BONUS_RATIO, EVENT_CHANCE_SUMMER, EVENT_CHANCE_WINTER
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const RECENT_WEIGHT = 0.15;
 
+const youngestOf = (list) => [...list].sort((a, b) => a.age - b.age)[0];
 const topBy = (squad, key) => [...squad].sort((a, b) => b[key] - a[key])[0];
 
 const EVENTS = [
@@ -108,6 +109,18 @@ const EVENTS = [
     },
   },
   {
+    id: 'mentor', name: '베테랑의 조언', tone: 'good',
+    apply: ({ squad }) => {
+      const vet = squad.filter((p) => p.age >= 30).sort((a, b) => b.age - a.age)[0];
+      const kid = youngestOf(squad.filter((p) => p.age <= 22));
+      if (!vet || !kid) return { message: '베테랑의 조언: 라커룸이 차분하게 가라앉았습니다' };
+      return {
+        squad: squad.map((p) => (p.id === kid.id ? { ...p, baseOVR: clamp(p.baseOVR + 1, 1, 99) } : p)),
+        message: `베테랑의 조언: ${vet.name}이(가) ${kid.name}을(를) 밤늦게까지 가르쳤습니다. ${kid.name} OVR +1`,
+      };
+    },
+  },
+  {
     id: 'scandal', name: '선수 SNS 논란', tone: 'bad',
     apply: ({ squad, chemistry }, rng) => {
       const target = squad[Math.floor(rng() * squad.length)];
@@ -185,6 +198,32 @@ const CHOICES = [
     resolve: ({ squad, funds, baseFunds }, payload, i) => (i === 0
       ? { squad: [...squad, payload.youth], message: `유망주 테스트: ${payload.youth.name} 합류(18세, OVR ${payload.youth.baseOVR})` }
       : { funds: funds + Math.round(baseFunds * 0.04), message: `유망주 테스트: 사양하고 지원금 +${Math.round(baseFunds * 0.04)}G` }),
+  },
+  {
+    id: 'playtimeDemand', name: '출전 요구',
+    prepare: ({ squad }, rng) => {
+      const pool = squad.filter((p) => p.age <= 22);
+      const kid = pool.length ? pool[Math.floor(rng() * pool.length)] : youngest(squad);
+      return { playerId: kid.id };
+    },
+    describe: ({ squad }, payload) => {
+      const p = squad.find((x) => x.id === payload.playerId);
+      return {
+        detail: `${p?.name ?? '어린 선수'}(${p?.age ?? '?'}세)가 더 뛰고 싶다며 면담을 요청했습니다.`,
+        options: [
+          { label: '출전 약속', hint: `${p?.name ?? '선수'} OVR +1, 적응도 -2` },
+          { label: '거절', hint: `${p?.name ?? '선수'} OVR -1` },
+        ],
+      };
+    },
+    resolve: ({ squad, chemistry }, payload, i) => {
+      const p = squad.find((x) => x.id === payload.playerId);
+      if (!p) return { message: '출전 요구: 해당 선수는 이미 선수단에 없습니다' };
+      const bump = (d) => squad.map((x) => (x.id === p.id ? { ...x, baseOVR: clamp(x.baseOVR + d, 1, 99) } : x));
+      return i === 0
+        ? { squad: bump(1), chemistry: clamp(chemistry - 2, 0, 100), message: `출전 요구: ${p.name}에게 기회를 약속했습니다. OVR +1, 적응도 -2` }
+        : { squad: bump(-1), message: `출전 요구: ${p.name}의 요구를 거절했습니다. OVR -1` };
+    },
   },
   {
     id: 'lockerClash', name: '라커룸 갈등',

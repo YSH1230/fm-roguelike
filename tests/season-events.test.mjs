@@ -78,10 +78,10 @@ test('은퇴 앞둔 레전드는 시즌 후 은퇴 표시가 붙는다', () => {
   assert.equal(legend.retiresAfterSeason, true);
 });
 
-test('이벤트 풀은 18종이고, 선택형 4종이 섞여 있다', async () => {
+test('이벤트 풀은 20종이고, 선택형 5종이 섞여 있다', async () => {
   const { EVENT_IDS } = await import('../data/season-events.mjs');
-  assert.equal(EVENT_IDS.length, 18);
-  assert.equal(new Set(EVENT_IDS).size, 18);
+  assert.equal(EVENT_IDS.length, 20);
+  assert.equal(new Set(EVENT_IDS).size, 20);
 });
 
 test('최근에 나온 이벤트는 가중치가 낮아져 거의 반복되지 않는다', async () => {
@@ -120,4 +120,20 @@ test('선택형 이벤트: 빅클럽 제안 - 보내면 이적료를 받고 떠�
 test('전술 분석관 합류: 불화 면제 플래그를 건다', () => {
   const r = rollSeasonEvent(ctx(), 'summer', seq(0, 0.5), { analystJoins: 1000 });
   assert.equal(r.state.harmonyShield, true);
+});
+
+test('출전 요구: 약속하면 OVR +1·적응도 -2, 거절하면 OVR -1', async () => {
+  const { resolveChoice } = await import('../data/season-events.mjs');
+  const c = { id: 'playtimeDemand', payload: { playerId: 'a' } };
+  const base = ctx();
+  const yes = resolveChoice(c, 0, base);
+  assert.equal(yes.squad.find((p) => p.id === 'a').baseOVR, 61);
+  assert.equal(yes.chemistry, base.chemistry - 2);
+  assert.equal(resolveChoice(c, 1, base).squad.find((p) => p.id === 'a').baseOVR, 59);
+});
+
+test('베테랑의 조언: 어린 선수 OVR +1', () => {
+  const sq = [mk('a', 60), mk('b', 80)].map((p, i) => ({ ...p, age: i ? 33 : 20 }));
+  const r = rollSeasonEvent(ctx({ squad: sq }), 'summer', seq(0, 0.5), { mentor: 1000 });
+  assert.equal(r.squad.find((p) => p.id === 'a').baseOVR, 61);
 });

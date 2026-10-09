@@ -31,3 +31,11 @@ test('저장이 깨져 있어도 기본값으로 돌아온다', () => {
   updateFlags((f) => { f.tutorialDone = true; return f; }, s);
   assert.equal(loadFlags(s).tutorialDone, true);
 });
+
+test('처음 마주친 기능 안내는 한 번만 본 것으로 기록된다', async () => {
+  const { markSeen } = await import('../data/flags.mjs');
+  const s = fakeStorage();
+  assert.equal(loadFlags(s).seen.sale, undefined);
+  markSeen('sale', s);
+  assert.equal(loadFlags(s).seen.sale, true);
+});

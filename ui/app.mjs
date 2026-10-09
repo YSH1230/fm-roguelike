@@ -10,7 +10,7 @@ if (UCL_DEMO) {
 import { buildStartClubOffers, buildLeagueRivals } from '../data/clubs.mjs';
 import { saveRun, loadRun, clearRun, withRunDefaults } from '../data/local-save.mjs';
 import {
-  loadRecords, saveRecords, recordRunStart, recordPromotion, recordSeason, recordUcl, recordRunEnd,
+  loadRecords, saveRecords, recordRunStart, recordTrait, recordLegend, recordPromotion, recordSeason, recordUcl, recordRunEnd,
   uclReached, ACHIEVEMENTS, unlockedIds, newlyUnlocked,
 } from '../data/records.mjs';
 import { generateSquadPool, generateStartingSquad, generateEmergencyYouth } from '../data/generate-player.mjs';
@@ -56,7 +56,7 @@ import { track, telemetryOn, telemetryConfigured, setTelemetry } from './telemet
 import { renderCrest } from './crest.mjs';
 import { showSpot, clearSpot } from './tutorial.mjs';
 import { stadiumHtml, stadiumLevel } from './stadium.mjs';
-import { loadFlags, updateFlags, isUnlocked, unlockForSeason, UNLOCK_LABEL } from '../data/flags.mjs';
+import { loadFlags, updateFlags, isUnlocked, unlockForSeason, markSeen, UNLOCK_LABEL } from '../data/flags.mjs';
 import {
   CHEMISTRY_START,
   CHEMISTRY_DECAY_PER_TRANSACTION,
@@ -756,7 +756,7 @@ function renderRecords() {
   const r = loadRecords(localStorage);
   const have = new Set(unlockedIds(r));
   const stat = (label, value) => `<div class="recstat"><span>${label}</span><b class="n">${value}</b></div>`;
-  const groups = ['커리어', '리그', '챔피언스리그', '명예'];
+  const groups = ['커리어', '리그', '챔피언스리그', '선수', '명예'];
   const achHtml = groups.map((g) => `
     <h3 class="chemgroup__title">${g}</h3>
     <ul class="ach">
@@ -1308,8 +1308,12 @@ function startNewSeason() {
   currentState.squad = currentState.squad.filter((p) => !p.emergencyYouth);
   // 가격 재계산은 나이를 먹은 뒤(아래 aged) 한 번에 한다.
   // 나이 한 살: 어린 선수는 크고 서른 줄부터 떨어지며, 은퇴할 선수는 떠난다. 변화는 브리핑 팝업에서 알린다.
+  const preAge = new Map(currentState.squad.map((p) => [p.id, p]));
   const aged = ageSquad(currentState.squad.map((p) => (p.slump ? { ...p, baseOVR: p.baseOVR + p.slump, slump: 0 } : p)));
   currentState.squad = aged.squad.map(repricePlayer); // OVR이 바뀌었으니 몸값(재계약비·판매가)도 현재 OVR 기준으로 다시 매긴다
+  // 오래 뛴 선수(3시즌 이상)나 클럽 레전드가 은퇴하면 따로 인사한다.
+  const tribute = aged.retired.map((r) => preAge.get(r.id)).filter((p) => p && ((p.seasonsAtClub ?? 0) >= 3 || isLegend(p)))
+    .map((p) => ({ name: p.name, seasons: p.seasonsAtClub ?? 0, mvp: currentState.mvp?.[p.id] ?? 0, legend: isLegend(p) }));
   const agingReport = { changes: aged.changes, retired: aged.retired, youthLeft: youthLeft.map((p) => ({ name: p.name, position: p.position })) };
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
   currentState.shopOffer = newShopOffer();
@@ -1333,7 +1337,7 @@ function startNewSeason() {
   const transferDemand = currentState.pendingTransferDemand ?? null;
   currentState.pendingTransferDemand = null;
   const fundsReport = currentState.fundsReport ?? null;
-  currentState.seasonBriefing = { unlocked: unlockedNow, transferDemand, aging: agingReport, fundsReport, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}, currentState.leagueTierId).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
+  currentState.seasonBriefing = { tribute, unlocked: unlockedNow, transferDemand, aging: agingReport, fundsReport, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}, currentState.leagueTierId).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
   renderMarket(banner);
 }
 
@@ -1366,8 +1370,11 @@ function transactionDecayAmount() {
 }
 
 // 지역 영웅 대가: 방출·판매하면 팬이 반발해 팀 적응도가 깎인다.
+// 클럽 레전드: 한 구단에서 3시즌 이상 뛰고 MVP를 3번 이상 받은 선수. 팔면 지역 영웅처럼 팬이 반발한다.
+const isLegend = (p) => (p.seasonsAtClub ?? 0) >= 3 && (currentState.mvp?.[p.id] ?? 0) >= 3;
+
 function hometownExitPenalty(card) {
-  if (card.specialTrait === 'hometownHero') {
+  if (card.specialTrait === 'hometownHero' || isLegend(card)) {
     currentState.chemistry = Math.max(0, currentState.chemistry - HOMETOWN_RELEASE_CHEMISTRY_PENALTY);
   }
 }
@@ -2984,11 +2991,12 @@ function renderMarket(banner = '') {
       <span class="srow__pos">${p.position}</span>
       <b class="srow__ovr n">${p.baseOVR}</b>
       <div class="srow__main">
-        <div class="srow__name">${esc(p.name)}<small>${p.age}세${ageTrend(p.age, p.position)}</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}</div>
+        <div class="srow__name">${esc(p.name)}<small>${p.age}세${ageTrend(p.age, p.position)}</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
         ${tagIconsHtml(p)}
       </div>
       <div class="srow__side"><i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
+        ${(currentState.mvp?.[p.id] || p.seasonsAtClub) ? `<span class="srow__paid">${p.seasonsAtClub ? `${p.seasonsAtClub + 1}시즌째` : ''}${currentState.mvp?.[p.id] ? ` · MVP ${currentState.mvp[p.id]}회` : ''}${isLegend(p) ? ' · 팔면 적응도 -' + HOMETOWN_RELEASE_CHEMISTRY_PENALTY : ''}</span>` : ''}
         ${p.paidPrice ? `<span class="srow__paid">산 값 <b class="n">${p.paidPrice}G</b> · 시세 <b class="n">${p.price}G</b> <em class="${p.price > p.paidPrice ? 'up' : p.price < p.paidPrice ? 'down' : 'flat'}">${p.price >= p.paidPrice ? '+' : ''}${p.price - p.paidPrice}</em></span>` : p.price ? `<span class="srow__paid">시세 <b class="n">${p.price}G</b></span>` : ''}
         ${swap}
         <button class="act" data-release-listed="${p.id}" ${locked ? `disabled ${lockTitle}` : 'title="1주 뒤 정산"'}>판매 등록</button>
@@ -3491,6 +3499,7 @@ function renderMarket(banner = '') {
           <button class="reroll" id="td-keep">붙잡기 <small>OVR −${SEONGGOL_REJECT_OVR_PENALTY}</small></button>
         </div>
       </div>` : '';
+    const tributeHtml = (briefing.tribute ?? []).map((t) => `<p class="eventmodal__detail tribute"><b>${esc(t.name)}</b>, ${t.seasons}시즌을 함께하고${t.mvp ? ` MVP ${t.mvp}회를 남기고` : ''} 은퇴합니다.${t.legend ? ' 클럽 레전드였습니다.' : ''} 고마웠습니다.</p>`).join('');
     const demandReviewHtml = review?.demand
       ? `<p class="eventmodal__detail">요구 "${esc(review.demand.text)}": <b>${review.demand.achieved ? `달성! 자금 +${review.demand.funds.toLocaleString('ko-KR')}G` : '미달(불이익 없음)'}</b></p>`
       : '';
@@ -3502,7 +3511,7 @@ function renderMarket(banner = '') {
     eventRoot.innerHTML = `
       <div class="eventmodal-backdrop">
         <div class="eventmodal eventmodal--${review && review.surplus > 0 ? 'good' : 'goal'}">
-          <div class="eventmodal__kicker">시즌 ${seasonNumber} · 이사진 브리핑</div>
+          <div class="eventmodal__kicker">${currentState.ownerName ? `${esc(currentState.ownerName)} 단장님, 시즌 ${seasonNumber}` : `시즌 ${seasonNumber} · 이사진 브리핑`}</div>
           <div class="eventmodal__title">${tierLabel} 목표 승점 ${goal}점</div>
           ${hasSettle ? `<div class="eventtabs" role="tablist">
             <button type="button" role="tab" data-etab="brief" aria-selected="true">브리핑</button>
@@ -3510,6 +3519,7 @@ function renderMarket(banner = '') {
           </div>` : ''}
           <div class="eventpane" data-epane="brief">
             ${briefing.unlocked?.length ? `<p class="eventmodal__detail unlocknote">새로 열림: <b>${briefing.unlocked.map((k) => UNLOCK_LABEL[k]).join(' · ')}</b></p>` : ''}
+            ${tributeHtml}
             ${reviewHtml}
             ${demandReviewHtml}
             ${transferHtml}
@@ -3613,7 +3623,32 @@ function renderMarket(banner = '') {
   }
 
   saveRun(currentState, localStorage);
+  noteCollection();
   tutorialTick('market');
+  if (tutStep() < 0) introTick();
+}
+
+// 만나 본 특수 성향과 새 클럽 레전드를 기록(업적은 기록 갱신 때 토스트로 알린다).
+function noteCollection() {
+  const rec = loadRecords(localStorage);
+  const traits = [...new Set(currentState.squad.map((p) => p.specialTrait).filter(Boolean))].filter((t) => !rec.traitsSeen?.[t]);
+  traits.forEach((t) => updateRecords((x) => recordTrait(x, t)));
+  currentState.legendIds ??= [];
+  for (const p of currentState.squad) {
+    if (isLegend(p) && !currentState.legendIds.includes(p.id)) {
+      currentState.legendIds.push(p.id);
+      updateRecords(recordLegend);
+    }
+  }
+}
+
+// 2시즌 이후 새로 열린 기능을 처음 마주쳤을 때 한 줄로 알려 준다(튜토리얼이 끝난 뒤, 기능마다 한 번).
+function introTick() {
+  if (document.querySelector('#eventmodal-root .eventmodal')) return;
+  const seen = loadFlags().seen;
+  const once = (key) => ({ ok: '확인', onOk: () => markSeen(key), onSkip: () => markSeen(key) });
+  if (isUnlocked('staff') && !seen.staff) showSpot({ selector: '[data-tab="staff"]', text: '감독·스태프 탭이 열렸어요. 감독과 코치, 스카우터를 여기서 바꿀 수 있어요.', ...once('staff') });
+  else if (currentState.tab === 'squad' && !seen.sale && currentState.listedForSale.some((l) => l.offers)) showSpot({ selector: '.listed', text: '오퍼가 도착했어요. 하나를 수락해서 파세요. 마감까지 안 팔면 태업(OVR -3)해요.', ...once('sale') });
 }
 
 if (UCL_DEMO) {

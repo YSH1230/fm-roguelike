@@ -16,12 +16,12 @@ export const UNLOCK_LABEL = {
   hard: '어려움 태그', staff: '감독·스태프', traits: '특수 성향',
 };
 
-const blank = () => ({ tutorialStep: 0, tutorialDone: false, unlocked: {} });
+const blank = () => ({ tutorialStep: 0, tutorialDone: false, unlocked: {}, seen: {} });
 
 export function loadFlags(storage = globalThis.localStorage) {
   try {
     const raw = JSON.parse(storage.getItem(KEY));
-    return { ...blank(), ...raw, unlocked: { ...(raw?.unlocked ?? {}) } };
+    return { ...blank(), ...raw, unlocked: { ...(raw?.unlocked ?? {}) }, seen: { ...(raw?.seen ?? {}) } };
   } catch {
     return blank();
   }
@@ -33,6 +33,8 @@ export function updateFlags(fn, storage = globalThis.localStorage) {
   return next;
 }
 
+// 새 기능을 처음 마주쳤을 때 한 줄로 알려 준 적이 있는지(한 번만 보여 준다).
+export const markSeen = (key, storage) => updateFlags((f) => { f.seen[key] = true; return f; }, storage);
 export const isUnlocked = (feature, flags = loadFlags()) => Boolean(flags.unlocked[feature]);
 
 // 이 시즌에 도달해서 새로 열리는 기능 id 목록을 돌려주고 저장한다.
