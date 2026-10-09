@@ -2053,3 +2053,13 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .club__klass, .club__rec { margin-left: 0; white-space: nowrap; }
 .more { margin: var(--s3) 0; }
 .more > summary { padding-left: var(--s4); }
+
+/* v2: 튜토리얼 스포트라이트 */
+.tut { position: fixed; inset: 0; z-index: 9000; pointer-events: none; }
+.tut__dim { position: fixed; background: rgba(0, 0, 0, 0.8); pointer-events: auto; }
+.tut__ring { position: fixed; border: 2px solid var(--turf); border-radius: var(--r-md); box-shadow: 0 0 16px var(--turf); pointer-events: none; }
+.tut__tip { position: fixed; left: var(--s4); right: var(--s4); max-width: 398px; margin: 0 auto; padding: var(--s3) var(--s4); background: var(--surface-hi); border: 1px solid var(--turf); border-radius: var(--r-md); pointer-events: auto; }
+.tut__text { margin: 0 0 var(--s2); font-size: var(--fs-m); color: var(--light); line-height: 1.45; }
+.tut__btns { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); }
+.tut__ok { padding: 8px 18px; background: var(--turf); color: #000; border: 0; border-radius: var(--r-sm); font: inherit; font-weight: 700; }
+.tut__skip { margin-left: auto; padding: 6px 8px; background: none; border: 0; color: var(--muted); font: inherit; font-size: var(--fs-label); text-decoration: underline; }

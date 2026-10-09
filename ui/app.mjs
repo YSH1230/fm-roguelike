@@ -53,6 +53,7 @@ import { renderPortrait, appearanceOf } from './portrait.mjs';
 import { pixelMatchHtml } from './pixel.mjs';
 import { track, telemetryOn, telemetryConfigured, setTelemetry } from './telemetry.mjs';
 import { renderCrest } from './crest.mjs';
+import { showSpot, clearSpot } from './tutorial.mjs';
 import { loadFlags, updateFlags, isUnlocked, unlockForSeason, UNLOCK_LABEL } from '../data/flags.mjs';
 import {
   CHEMISTRY_START,
@@ -936,6 +937,45 @@ function startRun(club) {
   renderNaming();
 }
 
+// ---------- 튜토리얼(모두에게 한 번, 건너뛸 수 있다) ----------
+// 0 목표 → 1 영입 → 2 태그 → 3 전술 탭 → 4 전술 화면 → 5 다음 주로 → 6 전반기 결산 → 끝
+const tutStep = () => { const f = loadFlags(); return f.tutorialDone ? -1 : f.tutorialStep; };
+function tutSet(step) {
+  updateFlags((f) => { f.tutorialStep = step; if (step > 6) f.tutorialDone = true; return f; });
+  track('tutorial', { step });
+}
+function tutSkip() {
+  const step = tutStep();
+  updateFlags((f) => { f.tutorialDone = true; return f; });
+  track('tutorial', { skip: step });
+  clearSpot();
+}
+function tutorialTick(where) {
+  const step = tutStep();
+  if (step < 0 || document.querySelector('#eventmodal-root .eventmodal')) { clearSpot(); return; }
+  const go = (n) => () => { tutSet(n); tutorialTick(where); };
+  if (where === 'intro') {
+    if (step === 0) showSpot({ selector: '.goalline', text: '이 점수 밑으로 떨어지면 해임이에요. 우선 이 위로 버티는 게 목표예요.', ok: '확인', onOk: go(1), onSkip: tutSkip });
+    return;
+  }
+  if (where === 'half') {
+    showSpot({ selector: '.verdict', text: '전반기 결산이에요. 목표 페이스와 비교해 보고, 겨울 시장에서 보강하세요.', ok: '확인', onOk: go(7), onSkip: tutSkip });
+    return;
+  }
+  const onTactics = currentState.tab === 'tactics';
+  if (step === 1) {
+    const pick = currentState.shopOffer.find((c) => hasUpgrade([c]));
+    showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '지금 선발보다 강한 선수예요. 영입해 보세요.', onSkip: tutSkip });
+  } else if (step === 2) {
+    if (!showSpot({ selector: '#tagpanel-toggle', text: '이게 기본기 태그예요. 같은 태그를 가진 선수가 모일수록 팀이 강해져요.', ok: '확인', onOk: go(3), onSkip: tutSkip })) { tutSet(3); tutorialTick(where); }
+  } else if (step === 3) showSpot({ selector: '[data-tab="tactics"]', text: '전술 탭에서 선발 11명을 볼 수 있어요.', onSkip: tutSkip });
+  else if (step === 4) {
+    if (onTactics) showSpot({ selector: '.pitch', text: '선발은 자동으로 정해져요. 선수를 눌러 직접 바꿀 수도 있어요.', ok: '확인', onOk: go(5), onSkip: tutSkip });
+    else { tutSet(3); tutorialTick(where); }
+  } else if (step === 5) showSpot({ selector: '#next-week-btn', text: '다음 주로 넘기면 시즌이 진행돼요. 8주 뒤 전반기가 시작됩니다.', onSkip: tutSkip });
+  else clearSpot();
+}
+
 const KIT_CHOICES = ['#ccff00', '#ff6a3d', '#3aa0ff', '#ffd23a', '#c06bff', '#f2f2f2'];
 
 // 구단주(단장) 이름, 구단 이름(미리 채워짐), 유니폼 색. 전부 건너뛸 수 있다. 이름은 화면 문구에만 쓰고 통계로는 보내지 않는다.
@@ -1085,6 +1125,7 @@ function renderCareerIntro() {
   `, '<button class="cta" id="start-season-btn">시즌 시작</button>');
 
   // 첫 시즌에는 이사진 요구를 고르지 않는다(2시즌부터 등장).
+  tutorialTick('intro');
   document.getElementById('start-season-btn').onclick = () => (isUnlocked('board') ? renderDemandChoice(currentState.club.demandBias ?? {}, () => renderMarket()) : renderMarket());
   document.getElementById('back-to-clubs-btn').onclick = () => renderClubButtons();
 }
@@ -1374,6 +1415,7 @@ function buyCard(card, rowEl = null, outgoing = null) {
   if (card.id.startsWith('god-')) {
     currentState.availableGodPlayers = currentState.availableGodPlayers.filter((g) => g.id !== card.id);
   }
+  if (tutStep() === 1) tutSet(2);
   renderMarket();
 }
 
@@ -1699,7 +1741,8 @@ function renderHalfTimeVerdict(saleMessage, lineup, slotted, bench) {
     </div>
   `, `<button class="cta" id="to-winter-btn">겨울 이적시장으로</button>`);
 
-  document.getElementById('to-winter-btn').addEventListener('click', () => enterWinterMarket());
+  document.getElementById('to-winter-btn').addEventListener('click', () => { clearSpot(); enterWinterMarket(); });
+  tutorialTick('half');
 }
 
 function enterWinterMarket() {
@@ -3101,6 +3144,7 @@ function renderMarket(banner = '') {
   for (const t of visibleTabs()) {
     document.querySelector(`[data-tab="${t.id}"]`).onclick = () => {
       currentState.tab = t.id;
+      if (tutStep() === 3 && t.id === 'tactics') tutSet(4);
       renderMarket(banner);
     };
   }
@@ -3333,6 +3377,8 @@ function renderMarket(banner = '') {
     });
   }
   document.getElementById('next-week-btn').onclick = () => {
+    if (tutStep() === 5) tutSet(6);
+    clearSpot();
     const enteringSim = week === maxWeek; // 전/후반기 시뮬레이션은 renderSimulating이 따로 연출한다
     if (enteringSim) {
       const missing = missingPositions(currentState.squad, currentFormation());
@@ -3495,12 +3541,14 @@ function renderMarket(banner = '') {
       currentState.eventTone = null;
       eventRoot.innerHTML = '';
       saveRun(currentState, localStorage);
+      tutorialTick('market');
     };
   } else {
     eventRoot.innerHTML = '';
   }
 
   saveRun(currentState, localStorage);
+  tutorialTick('market');
 }
 
 if (UCL_DEMO) {
