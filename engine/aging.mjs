@@ -31,7 +31,7 @@ export function ageSquad(squad, rng = Math.random) {
   const retired = [];
   for (const p of squad) {
     const newAge = p.age + 1;
-    if (rng() < retireChance(newAge)) { retired.push({ id: p.id, name: p.name, age: newAge, baseOVR: p.baseOVR }); continue; }
+    if (p.retiresAfterSeason || rng() < retireChance(newAge)) { retired.push({ id: p.id, name: p.name, age: newAge, baseOVR: p.baseOVR }); continue; }
     const [lo, hi] = ovrChangeRange(p.age);
     const delta = lo + Math.floor(rng() * (hi - lo + 1));
     const next = Math.min(99, Math.max(1, p.baseOVR + delta));

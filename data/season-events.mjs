@@ -51,22 +51,18 @@ const EVENTS = [
     apply: ({ chemistry }) => ({ chemistry: clamp(chemistry - 8, 0, 100), message: '언론의 융단 폭격: 라커룸이 뒤숭숭합니다. 적응도 -8' }),
   },
   {
-    // 무료 영입이라 가격이 0 - 재계약비가 0원이 되지 않게 재계약 불가로 둔다(noRenewal).
+    // 무료 영입. 이번 한 시즌만 뛰고 시즌이 끝나면 은퇴한다(retiresAfterSeason).
     id: 'retiringLegend', name: '은퇴 앞둔 레전드', tone: 'good',
     apply: ({ squad }, rng) => {
-      const legend = { ...generateProceduralPlayer('bigLeaguer', rng), age: 35, price: 0, specialTrait: 'veteranLeader', contractYearsLeft: 1, noRenewal: true };
-      return { squad: [...squad, legend], message: `은퇴 앞둔 레전드: ${legend.name}이(가) 마지막 시즌을 함께합니다(무료 영입, 재계약 불가)` };
+      const legend = { ...generateProceduralPlayer('bigLeaguer', rng), age: 35, price: 0, specialTrait: 'veteranLeader', retiresAfterSeason: true };
+      return { squad: [...squad, legend], message: `은퇴 앞둔 레전드: ${legend.name}이(가) 마지막 시즌을 함께합니다(무료 영입, 시즌 후 은퇴)` };
     },
   },
   {
     id: 'rivalPoach', name: '라이벌의 러브콜', tone: 'bad',
-    apply: ({ squad }) => {
+    apply: ({ squad, chemistry }) => {
       const ace = [...squad].sort((a, b) => b.baseOVR - a.baseOVR)[0];
-      if ((ace.contractYearsLeft ?? 2) <= 1) return { message: `라이벌의 러브콜: ${ace.name}이(가) 흔들렸지만 버텼습니다` };
-      return {
-        squad: squad.map((p) => (p.id === ace.id ? { ...p, contractYearsLeft: 1 } : p)),
-        message: `라이벌의 러브콜: ${ace.name}의 계약이 1년 남은 것으로 조정됐습니다`,
-      };
+      return { chemistry: clamp(chemistry - 4, 0, 100), message: `라이벌의 러브콜: ${ace.name}이(가) 흔들려 라커룸이 뒤숭숭합니다. 적응도 -4` };
     },
   },
   {
@@ -156,7 +152,7 @@ const CHOICES = [
         detail: p ? `빅클럽이 ${p.name}(OVR ${p.baseOVR})에게 이적을 제안했습니다.` : '빅클럽이 핵심 선수에게 이적을 제안했습니다.',
         options: [
           { label: '보낸다', hint: p ? `이적료 +${Math.round(p.price * 0.85)}G, 선수단에서 제외` : '이적료를 받고 선수단에서 제외' },
-          { label: '붙잡는다', hint: '계약 1년 연장(무료), 적응도 +3' },
+          { label: '붙잡는다', hint: '잔류, 적응도 +3' },
         ],
       };
     },
@@ -168,9 +164,8 @@ const CHOICES = [
         return { squad: squad.filter((x) => x.id !== p.id), funds: funds + fee, leaving: p, message: `빅클럽의 이적 제안: ${p.name} 이적, 이적료 +${fee}G` };
       }
       return {
-        squad: squad.map((x) => (x.id === p.id ? { ...x, contractYearsLeft: (x.contractYearsLeft ?? 2) + 1 } : x)),
         chemistry: clamp(chemistry + 3, 0, 100),
-        message: `빅클럽의 이적 제안: ${p.name}이(가) 잔류하며 계약이 1년 연장됐습니다. 적응도 +3`,
+        message: `빅클럽의 이적 제안: ${p.name}이(가) 잔류합니다. 적응도 +3`,
       };
     },
   },

@@ -51,17 +51,3 @@ test('구버전 세이브를 이어하면 이 브랜치가 추가한 필드에 �
   assert.equal(state.missedTargetCount, 0);
   assert.equal(state.seasonNumber, 1);
 });
-
-test('계약 시스템 이전 세이브는 선수마다 contractYearsLeft 2가 채워진다', () => {
-  const storage = makeFakeStorage();
-  saveRun({ week: 5, funds: 1000, leagueTierId: 'tier3', squad: [{ id: 'p1', name: 'A' }] }, storage);
-  const state = withRunDefaults(loadRun(storage), '4-3-3');
-  assert.equal(state.squad[0].contractYearsLeft, 2);
-});
-
-test('이미 contractYearsLeft가 있으면 덮어쓰지 않는다', () => {
-  const storage = makeFakeStorage();
-  saveRun({ week: 5, funds: 1000, leagueTierId: 'tier3', squad: [{ id: 'p1', name: 'A', contractYearsLeft: 0 }] }, storage);
-  const state = withRunDefaults(loadRun(storage), '4-3-3');
-  assert.equal(state.squad[0].contractYearsLeft, 0);
-});

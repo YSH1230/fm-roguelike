@@ -46,9 +46,9 @@ test('bad 이벤트는 crisisImmune이면 효과 없이 무효화된다', () => 
   assert.match(r.message, /무효/);
 });
 
-test('rivalPoach: 에이스 계약이 1년으로 줄어든다', () => {
+test('rivalPoach: 적응도가 4 깎인다', () => {
   const r = rollSeasonEvent(ctx(), 'summer', seq(0, 0.5), { rivalPoach: 1000 });
-  assert.equal(r.squad.find((p) => p.id === 'b').contractYearsLeft, 1);
+  assert.equal(r.chemistry, ctx().chemistry - 4);
 });
 
 test('injuryAftermath: 한 명의 OVR이 3 깎인다', () => {
@@ -72,10 +72,10 @@ test('ffpAudit: 자금 부족이면 최약체 방출', () => {
   assert.equal(r.squad[0].id, 'b');
 });
 
-test('은퇴 앞둔 레전드는 재계약 불가 표시가 붙는다(무료 영입이라 재계약비가 0원이 되는 버그 방지)', () => {
+test('은퇴 앞둔 레전드는 시즌 후 은퇴 표시가 붙는다', () => {
   const r = rollSeasonEvent(ctx(), 'summer', seq(0, 0.5), { retiringLegend: 1000 });
   const legend = r.squad.at(-1);
-  assert.equal(legend.noRenewal, true);
+  assert.equal(legend.retiresAfterSeason, true);
 });
 
 test('이벤트 풀은 18종이고, 선택형 4종이 섞여 있다', async () => {
@@ -106,7 +106,7 @@ test('선택형 이벤트: 스폰서 일시금은 지금 자금, 장기 계약�
   assert.equal(long.state.nextGrantBonus, 0.22);
 });
 
-test('선택형 이벤트: 빅클럽 제안 - 보내면 이적료를 받고 떠나고, 붙잡으면 계약이 늘어난다', async () => {
+test('선택형 이벤트: 빅클럽 제안 - 보내면 이적료를 받고 떠나고, 붙잡으면 남는다', async () => {
   const { resolveChoice } = await import('../data/season-events.mjs');
   const c = { id: 'bigClubOffer', payload: { playerId: 'b' } };
   const base = ctx();
@@ -114,7 +114,7 @@ test('선택형 이벤트: 빅클럽 제안 - 보내면 이적료를 받고 떠�
   assert.equal(sold.squad.some((p) => p.id === 'b'), false);
   assert.equal(sold.funds, 1000 + Math.round(10 * 0.85));
   const kept = resolveChoice(c, 1, base);
-  assert.equal(kept.squad.find((p) => p.id === 'b').contractYearsLeft, 3);
+  assert.equal(kept.squad.some((p) => p.id === 'b'), true);
 });
 
 test('전술 분석관 합류: 불화 면제 플래그를 건다', () => {

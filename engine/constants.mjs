@@ -145,9 +145,6 @@ export const COST_MODIFIER_CLAMP_MAX = 0.8; // 할인/할증 가산 합계 상�
 export const WINTER_TAX_RATIO = 0.2; // 겨울 시장 영입비 +20%
 export const WINTER_FUNDS_RATIO = 0.3; // 겨울 시장 진입 시 그 리그 시즌 지급액의 30%를 추가 지급
 
-// 재계약 연장 연수 → 원가 비율. 2년은 1년 2번(60%)보다 싸게 - 오래 묶이는 리스크(하락/노쇠)를 보상한다.
-export const CONTRACT_RENEWAL_RATIO = { 1: 0.24, 2: 0.4 }; // 갱신비가 지급액의 약 45%를 먹어서 20% 낮췄다(이전 0.3 / 0.5)
-
 // 방출 회수율: 즉시 0%, 이적명단(여름/겨울 범위), Week12 데드라인 40%
 export const RELEASE_RECOVERY_IMMEDIATE = 0;
 export const RELEASE_RECOVERY_LISTED_SUMMER = [0.5, 1.0];
@@ -234,7 +231,6 @@ export const PROMOTION_STAY_FUNDS_RATIO = 0.7;
 
 // 스펙 3절/8절 "이벤트" — 슬라이스 범위: 일반 위기 2 + 일반 기회 3 + 승격 전용 위기 2
 export const PROMOTION_TRANSFER_DEMAND_OVR_PENALTY = 5; // 거부 시 그 시즌 OVR 하락(출발값, 튜닝 대상)
-export const PROMOTION_RENEWAL_HIKE_RATIO = 0.3; // 승격 전용: 재계약 비용 +30%
 export const SPONSORSHIP_FUNDS_BONUS_RATIO = 0.2; // 메인 스폰서십 특수: 시작 자금 +20%
 export const FA_FIRE_SALE_DISCOUNT_RATIO = -0.5; // FA 급매물 등장: 50% 할인
 export const AGENT_BACKLASH_SURCHARGE_RATIO = 0.1; // 에이전트의 뒷공작: 영입비 +10%

@@ -4,7 +4,6 @@ import {
   PLAYER_PRICE_TABLE,
   COST_MODIFIER_CLAMP_MIN,
   COST_MODIFIER_CLAMP_MAX,
-  CONTRACT_RENEWAL_RATIO,
   RELEASE_RECOVERY_IMMEDIATE,
   RELEASE_RECOVERY_LISTED_SUMMER,
   RELEASE_RECOVERY_LISTED_WINTER,
@@ -31,13 +30,6 @@ export function applyCostModifiers(basePrice, modifierRatios) {
   const total = modifierRatios.reduce((sum, r) => sum + r, 0);
   const clamped = clamp(total, COST_MODIFIER_CLAMP_MIN, COST_MODIFIER_CLAMP_MAX);
   return Math.round(basePrice * (1 + clamped));
-}
-
-// 재계약 비용: 1년 연장 30%, 2년 연장 60%
-export function renewalCost(originalPrice, years) {
-  const ratio = CONTRACT_RENEWAL_RATIO[years];
-  if (ratio === undefined) throw new Error(`Unknown renewal years: ${years}`);
-  return Math.round(originalPrice * ratio);
 }
 
 // 방출 3단계 회수 금액. method: 'immediate' | 'listedSummer' | 'listedWinter' | 'deadline'

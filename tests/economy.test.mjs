@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   calculatePlayerPrice,
   applyCostModifiers,
-  renewalCost,
   computeReleaseProceeds,
   calculateStartingFunds,
   applyCarryoverCap,
@@ -18,11 +17,6 @@ test('가산 할인/할증은 합산 후 한 번만 적용되고 -60%~+80%로 �
   assert.equal(applyCostModifiers(100, [0.2, -0.3]), 90); // -10% 합산
   assert.equal(applyCostModifiers(100, [1.0, 1.0]), 180); // +80% 상한 클램프
   assert.equal(applyCostModifiers(100, [-1.0, -1.0]), 40); // -60% 하한 클램프
-});
-
-test('재계약 비용은 1년 24%, 2년 40%다(2년이 연당 더 싸다, 이전보다 20% 낮춤)', () => {
-  assert.equal(renewalCost(1000, 1), 240);
-  assert.equal(renewalCost(1000, 2), 400);
 });
 
 test('방출 회수: 즉시 0%, 데드라인 40%', () => {

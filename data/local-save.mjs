@@ -59,11 +59,5 @@ export function withRunDefaults(state, defaultFormation) {
   }
   state.eventTone ??= null; // 구버전 세이브는 이벤트 팝업 정보가 없다 - 안 띄운다
   state.expectationModifier ??= 0; // 구버전 세이브는 이사진 기대치 가감이 없다 - 중립
-  // 계약 시스템 이전 세이브는 선수마다 contractYearsLeft가 없다. 없는 채로
-  // 두면 (undefined ?? 2)는 매번 2로 취급되지만, 명시적으로 채워서 다음
-  // startNewSeason의 -1 계산이 NaN이 되는 일을 막는다.
-  if (state.squad) {
-    state.squad = state.squad.map((p) => ({ ...p, contractYearsLeft: p.contractYearsLeft ?? 2 }));
-  }
   return state;
 }

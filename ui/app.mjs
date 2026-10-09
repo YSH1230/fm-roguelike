@@ -35,7 +35,6 @@ import {
   recallFunds,
   applyCostModifiers,
   computeReleaseProceeds,
-  renewalCost,
   calculatePlayerPrice,
 } from '../engine/economy.mjs';
 import { applyTransactionDecay, chemistryMultiplier } from '../engine/chemistry.mjs';
@@ -89,16 +88,7 @@ import {
 // 카드 데이터(정적)를 스쿼드 상태(동적 필드 포함)로 만든다. 새 스쿼드이므로
 // 전원 이번 시즌 영입, 잔류 0시즌으로 취급 — 저니맨 태그가 바로 발동한다.
 function toSquadPlayer(card) {
-  // 스펙: 신규 계약은 2년 고정. 매 시즌 시작(startNewSeason)마다 1씩 줄어들고,
-  // 0이 된 채로 그 시즌 여름이 끝나면 재계약 안 한 선수는 무료로 이탈한다.
-  return { ...card, seasonsAtClub: 0, acquiredThisSeason: true, inBench: false, contractYearsLeft: 2 };
-}
-
-// 스쿼드를 한 번에 통째로 생성할 때만 쓴다(런 시작/이적). 전원이 2년으로
-// 똑같이 맞춰지면 2시즌마다 스쿼드 전체가 한꺼번에 만료돼 "몇 명 붙잡을지"가
-// 아니라 "전원을 다시 살지"가 돼버린다 - 절반은 1년, 절반은 2년으로 미리 흩어둔다.
-function staggerContracts(squad) {
-  return squad.map((p) => ({ ...p, contractYearsLeft: Math.random() < 0.5 ? 1 : 2 }));
+  return { ...card, seasonsAtClub: 0, acquiredThisSeason: true, inBench: false };
 }
 
 // 지금 포메이션이 요구하는 포지션 중 스쿼드에 아예 없는 것들(계약 만료·방출로
@@ -228,7 +218,6 @@ const TRAIT_EFFECT_DESCRIPTIONS = {
   hometownHero: '뛴 시즌마다 본인 OVR +4 (최대 +12)',
   journeyman: '이번 시즌 영입이면 본인 OVR +8',
 };
-// 재계약비(태그 대가 배수 포함)와 재계약 가능 연수(저니맨은 딱 한 번, 1년만).
 // 평균 나이(소수 첫째 자리). 노화·은퇴로 선수단이 갈리는 흐름을 한눈에 보게 한다.
 function avgAge(players) {
   return players.length ? (players.reduce((sum, p) => sum + p.age, 0) / players.length).toFixed(1) : '-';
@@ -242,23 +231,13 @@ function repricePlayer(p) {
   const base = Math.min(range[1], Math.max(range[0], calculatePlayerPrice(tier, p.baseOVR)));
   return { ...p, price: Math.round(base * (TRAIT_PRICE_MULT[p.specialTrait] ?? 1)) };
 }
-function renewCost(p, years) {
-  // 무료로 들어온 선수(price 0)도 재계약비가 0원이 되지 않게 등급 기준가로 계산한다.
-  const basis = p.price || calculatePlayerPrice(tierOf(p.baseOVR), p.baseOVR);
-  return Math.round(renewalCost(basis, years));
-}
-function renewYears(p) {
-  if (p.noRenewal) return []; // 은퇴 앞둔 레전드: 재계약 불가
-  if (p.specialTrait === 'journeyman') return p.renewedOnce ? [] : [1];
-  return [1, 2];
-}
 const TRAIT_DOWNSIDE_TEXT = {
   starPower: '영입가 ×1.5',
   seongGolYouth: '시즌이 끝나면 30% 확률로 이적 요구 (수락=자유계약으로 이탈, 거부=OVR −3)',
   veteranLeader: '대가 없음',
   superSub: '벤치에 고정(선발 출전 불가)',
   hometownHero: '방출·판매하면 팀 적응도 −8',
-  journeyman: '재계약은 1년, 딱 한 번만 가능 - 그 뒤엔 자유계약으로 팀을 떠남',
+  journeyman: '대가 없음',
 };
 // 팀 케미/특수 태그 배지 안에 그리는 작은 기호(글자 대신 아이콘). 풀네임은
 // title(호버)로만 남긴다. crest.mjs/portrait.mjs와 같은 원칙 - 이미지 파일
@@ -896,7 +875,7 @@ let currentState = null;
 function startRun(club) {
   updateRecords(recordRunStart);
   const baseFunds = Math.round(calculateStartingFunds(0) * club.startingFundsMultiplier);
-  const rawSquad = staggerContracts(generateStartingSquad().map(toSquadPlayer));
+  const rawSquad = generateStartingSquad().map(toSquadPlayer);
   // 시작 감독은 루키(배율 ×1.00) - 예전엔 택티션(×1.05)이라 시작하자마자
   // 공짜 보너스가 붙어서, 시장을 한 번도 안 만져도(12주 내내 "다음 주로"만
   // 눌러도) 5부에서 77%가 잔류했다(직접 실측). "바닥에서 시작한다"는
@@ -1208,7 +1187,6 @@ function startNewSeason() {
     acquiredThisSeason: false,
     boughtThisSeason: false,
     seasonsAtClub: (p.seasonsAtClub ?? 0) + 1,
-    contractYearsLeft: Math.max(0, (p.contractYearsLeft ?? 2) - 1),
   }));
   // 포지션 공백 때우려고 콜업한 긴급 유스는 한 시즌만 뛰고 계약이 끝난다.
   const youthLeft = currentState.squad.filter((p) => p.emergencyYouth);
@@ -1514,21 +1492,6 @@ const roundHalfPoints = (p) => Math.min(55, Math.round(p));
 
 function runFirstHalf(saleMessage = '') {
   const { manager } = currentState;
-
-  // 여름 이적시장이 끝나는 시점 = 재계약 데드라인. 안 정한 선수는 무료로 나간다.
-  const expired = currentState.squad.filter((p) => (p.contractYearsLeft ?? 2) <= 0);
-  if (expired.length) {
-    currentState.squad = currentState.squad.filter((p) => (p.contractYearsLeft ?? 2) > 0);
-    const returningGods = expired.filter((p) => p.id.startsWith('god-'));
-    if (returningGods.length) {
-      currentState.availableGodPlayers = [
-        ...currentState.availableGodPlayers,
-        ...GOD_PLAYERS.filter((g) => returningGods.some((p) => p.id === g.id)),
-      ];
-    }
-    const names = expired.map((p) => p.name).join(', ');
-    saleMessage = saleMessage ? `${saleMessage} / 계약 만료로 이탈: ${names}` : `계약 만료로 이탈: ${names}`;
-  }
 
   const callUps = ensurePositionCoverage();
   if (callUps.length) {
@@ -2325,7 +2288,7 @@ function renderDestinationChoice(seasonResult, nextTierId) {
       }
       // 선수단 초기화. 목적지 리그 체급으로 생성한다(5부 분포로 고정하면 3부
       // 이상에서 강등이 거의 확정이었다). 적응도도 새 팀이므로 기본값으로 돌린다.
-      currentState.squad = staggerContracts(generateSquadPool(MOVE_SQUAD_WEIGHTS_BY_TIER[nextTierId]).map(toSquadPlayer));
+      currentState.squad = generateSquadPool(MOVE_SQUAD_WEIGHTS_BY_TIER[nextTierId]).map(toSquadPlayer);
       currentState.manualOverrides = {}; // 스쿼드가 통째로 바뀌니 예전 수동 배치는 의미가 없다
       currentState.benchOverrides = {};
       // 스쿼드에서 사라진 GOD 카드는 다시 상점에 나올 수 있게 되돌린다.
@@ -2821,20 +2784,12 @@ function renderMarket(banner = '') {
     </div>` : '';
 
   const starPlayer = [...squad].sort((a, b) => b.baseOVR - a.baseOVR)[0] ?? null;
-  const expiredPlayers = squad.filter((p) => (p.contractYearsLeft ?? 2) <= 0);
-  const expiringPlayers = squad.filter((p) => (p.contractYearsLeft ?? 2) === 1);
-
-  const contractRows = [...expiredPlayers, ...expiringPlayers];
-  const contractCollapsed = currentState.contractCollapsed ?? contractRows.length > 4; // 많으면 기본 접힘
-  // 선수단 탭: 선발 / 벤치 / 예비 세 묶음으로 보여 준다. 행을 누르면 교체·판매·재계약 버튼이 펼쳐진다.
+  // 선수단 탭: 선발 / 벤치 / 예비 세 묶음으로 보여 준다. 행을 누르면 교체·판매 버튼이 펼쳐진다.
   const benchIds = new Set(bench.map((p) => p.id));
   const reservePlayers = squad.filter((p) => !inXI.has(p.id) && !benchIds.has(p.id)).sort((a, b) => b.baseOVR - a.baseOVR);
   const renderSquadRow = (p, group) => {
     const locked = !!p.boughtThisSeason; // 이번 시즌 영입한 선수는 방출/판매 불가
     const lockTitle = 'title="이번 시즌 영입한 선수는 판매할 수 없습니다"';
-    const yearsLeft = p.contractYearsLeft ?? 2;
-    const contract = yearsLeft <= 0 ? '<span class="rowtag rowtag--bad">만료</span>'
-      : yearsLeft === 1 ? '<span class="rowtag rowtag--warn">1년</span>' : '';
     const swap = group === 'xi'
       ? `<button class="act" data-swap-out="${p.id}">벤치로</button>`
       : `<button class="act act--main" data-swap-in="${p.id}" ${FORMATIONS[formationId].slots.includes(p.position) ? '' : 'disabled title="이 포메이션엔 그 자리가 없습니다"'}>선발 투입</button>`;
@@ -2845,10 +2800,9 @@ function renderMarket(banner = '') {
         <div class="srow__name">${esc(p.name)}<small>${p.age}세</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}</div>
         ${tagIconsHtml(p)}
       </div>
-      <div class="srow__side">${contract}<i class="srow__chev" aria-hidden="true">⌄</i></div>
+      <div class="srow__side"><i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
         ${swap}
-        ${yearsLeft <= 1 ? renewYears(p).map((y) => `<button class="act" data-renew="${p.id}" data-years="${y}" ${funds >= renewCost(p, y) ? '' : 'disabled'}>재계약 ${y}년 <b>${renewCost(p, y)}G</b></button>`).join('') : ''}
         <button class="act" data-release-listed="${p.id}" ${locked ? `disabled ${lockTitle}` : 'title="1주 뒤 정산"'}>판매 등록</button>
         ${isDeadlineWeek ? `<button class="act act--warn" data-release-deadline="${p.id}" ${locked ? `disabled ${lockTitle}` : 'title="원가의 40% 회수"'}>데드라인 방출</button>` : ''}
       </div>
@@ -2938,26 +2892,6 @@ function renderMarket(banner = '') {
           })()}
         </div>
         <ul class="youthlist" id="youth-list" hidden>${[['선발', slotted.filter(Boolean)], ['벤치', bench], ['예비', reservePlayers]].flatMap(([l, ps]) => ps.filter((p) => p.isDraftedYouth).map((p) => `<li><b>${esc(p.name)}</b> <span>${p.position} · ${p.age}세 · OVR ${p.baseOVR}</span><em>${l}</em></li>`)).join('')}</ul>
-        ${contractRows.length ? `
-        <div class="contractbox${contractCollapsed ? ' is-collapsed' : ''}" id="contract-panel">
-          <button class="contractbox__head" id="contract-toggle" aria-expanded="${!contractCollapsed}">
-            <b>계약</b>
-            ${expiredPlayers.length ? `<span class="rowtag rowtag--bad">만료 ${expiredPlayers.length}</span>` : ''}
-            ${expiringPlayers.length ? `<span class="rowtag rowtag--warn">1년 ${expiringPlayers.length}</span>` : ''}
-            <i class="panel__chev" aria-hidden="true">⌄</i>
-          </button>
-          <ul class="contractbox__list">${contractRows.map((p) => {
-            const expired = (p.contractYearsLeft ?? 2) <= 0;
-            return `<li class="crow" data-row="contract-${p.id}" style="--tier:var(--t-${tierOf(p.baseOVR)})">
-              <b class="crow__ovr n">${p.baseOVR}</b>
-              <span class="crow__name">${esc(p.name)}<small>${p.position} · ${p.age}세${expired ? '' : ' · 1년'}</small></span>
-              <span class="crow__btns">
-                ${renewYears(p).map((y) => `<button class="act act--main" data-renew="${p.id}" data-years="${y}" ${funds >= renewCost(p, y) ? '' : 'disabled'}>${y}년 <b>${renewCost(p, y)}G</b></button>`).join('') || '<small class="nore">재계약 불가</small>'}
-                ${p.boughtThisSeason ? '' : `<button class="act" data-contract-sell="${p.id}" title="1주 뒤 정산">판매</button>`}
-              </span>
-            </li>`;
-          }).join('')}</ul>
-        </div>` : ''}
         ${listedHtml ? `<ul class="listed">${listedHtml}</ul>` : ''}
         ${squadHtml}
       </section>`,
@@ -3217,12 +3151,6 @@ function renderMarket(banner = '') {
       });
     });
   }
-  document.getElementById('contract-toggle')?.addEventListener('click', () => {
-    const panel = document.getElementById('contract-panel');
-    currentState.contractCollapsed = !panel.classList.contains('is-collapsed');
-    panel.classList.toggle('is-collapsed', currentState.contractCollapsed);
-    document.getElementById('contract-toggle').setAttribute('aria-expanded', String(!currentState.contractCollapsed));
-  });
   document.getElementById('funds-info-btn')?.addEventListener('click', () => {
     const box = document.getElementById('funds-info');
     box.hidden = !box.hidden;
@@ -3307,14 +3235,7 @@ function renderMarket(banner = '') {
         };
       }
     }
-    // 계약 관리 패널의 판매 등록(같은 판매 등록 규칙).
-    document.querySelectorAll('[data-contract-sell]').forEach((btn) => {
-      btn.onclick = () => {
-        const p = currentState.squad.find((x) => x.id === btn.dataset.contractSell);
-        if (p) confirmRelease(`contract-${p.id}`, `${p.name} 이적 명단에 올리시겠습니까?`, () => listForSale(p), banner);
-      };
-    });
-    // 선수 행을 누르면 관리 버튼(재계약/판매 등록/방출)이 펼쳐진다.
+    // 선수 행을 누르면 관리 버튼(판매 등록/방출)이 펼쳐진다.
     document.querySelectorAll('.squad .srow[data-row]:not(.srow--gap)').forEach((row) => {
       row.addEventListener('click', (e) => {
         if (e.target.closest('button')) return;
@@ -3323,24 +3244,6 @@ function renderMarket(banner = '') {
     });
     document.querySelectorAll('[data-swap-in]').forEach((btn) => { btn.onclick = () => swapIntoLineup(btn.dataset.swapIn); });
     document.querySelectorAll('[data-swap-out]').forEach((btn) => { btn.onclick = () => swapOutOfLineup(btn.dataset.swapOut); });
-    document.querySelectorAll('[data-renew]').forEach((btn) => {
-      btn.onclick = () => {
-        const id = btn.dataset.renew;
-        const years = Number(btn.dataset.years);
-        const player = currentState.squad.find((p) => p.id === id);
-        if (!player) return;
-        if (!renewYears(player).includes(years)) return;
-        const cost = renewCost(player, years);
-        if (currentState.funds < cost) return;
-        currentState.funds -= cost;
-        // 만료 전 미리 재계약하면 남은 계약에 이어 붙는다(0년 남았으면 그냥 years).
-        const total = Math.max(0, player.contractYearsLeft ?? 2) + years;
-        currentState.squad = currentState.squad.map((p) => p.id === id
-          ? { ...p, contractYearsLeft: total, renewedOnce: p.renewedOnce || p.specialTrait === 'journeyman' }
-          : p);
-        renderMarket(`${player.name} 재계약 완료(+${years}년 → 계약 ${total}년, ${cost}G)`);
-      };
-    });
   }
   document.getElementById('next-week-btn').onclick = () => {
     const enteringSim = week === maxWeek; // 전/후반기 시뮬레이션은 renderSimulating이 따로 연출한다
