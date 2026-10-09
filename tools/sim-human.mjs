@@ -182,7 +182,7 @@ function playCareer() {
           squad = squad.filter((x) => x.id !== p.id);
           const method = phase === 'summer' ? 'listedSummer' : 'listedWinter';
           if (s === 0) listed.push({ card: p, method, resolveWeek: week + 1 });
-          else { const got = Math.max(...generateSaleOffers(p.price, p.baseOVR, method)); funds += got; salesIncome += got; }
+          else { const got = Math.max(...generateSaleOffers(p.price, p.baseOVR)); funds += got; salesIncome += got; }
         };
         const spare = () => {
           const { xi: x0, bench: b0 } = optimizeLineup(squad, SLOTS, 5);

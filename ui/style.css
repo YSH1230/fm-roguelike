@@ -2084,3 +2084,7 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .stadiumbox { display: grid; justify-items: center; gap: 4px; margin: var(--s3) 0; }
 .stadiumbox small { color: var(--muted); font-size: var(--fs-label); }
 .stadium { max-width: 70%; height: auto; image-rendering: pixelated; }
+.srow__paid { flex-basis: 100%; color: var(--muted); font-size: var(--fs-label); }
+.srow__paid .up { color: var(--turf); font-style: normal; }
+.srow__paid .down { color: var(--debit); font-style: normal; }
+.offerrow small { color: var(--muted); }

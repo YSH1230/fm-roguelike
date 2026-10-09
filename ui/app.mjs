@@ -1435,7 +1435,7 @@ function buyCard(card, rowEl = null, outgoing = null) {
     return Object.fromEntries(Object.keys(PLAYSTYLE_TAGS).map((t) => [t, playstyleTagProgress(t, lineup).tier]));
   };
   const tiersBefore = tagTiers();
-  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true }];
+  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, paidPrice: cardPrice(card) }];
   const tiersAfter = tagTiers();
   const activated = Object.keys(tiersAfter).filter((t) => tiersAfter[t] > tiersBefore[t])
     .map((t) => `${TAG_LABELS[t] ?? t} +${PLAYSTYLE_TAGS[t].values[tiersAfter[t] - 1]}`);
@@ -1572,7 +1572,7 @@ function listPlayer(card) {
   if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
   const entry = { card, method, resolveWeek: currentState.week + 1 };
-  if (currentState.seasonNumber >= 2) entry.offers = generateSaleOffers(card.price, card.baseOVR, method);
+  if (currentState.seasonNumber >= 2) entry.offers = generateSaleOffers(card.price, card.baseOVR);
   currentState.listedForSale.push(entry);
 }
 
@@ -1622,10 +1622,10 @@ function resolveListedSales() {
   const marketOver = (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1])
     || (currentState.phase === 'winter' && currentState.week > WINTER_MARKET_WEEKS[1]);
   const slumpMessages = [];
-  // 오퍼 방식(2시즌~): 시장이 끝나면 태업하고 복귀, 아니면 새 오퍼로 교체
+  // 오퍼 방식(2시즌~): 시장이 끝날 때까지 안 팔리면 태업하고 복귀
   currentState.listedForSale = currentState.listedForSale.flatMap((l) => {
     if (!l.offers) return [l];
-    if (!marketOver) return [{ ...l, offers: generateSaleOffers(l.card.price, l.card.baseOVR, l.method) }];
+    if (!marketOver) return [l]; // 오퍼는 등록할 때 한 번 정해지고 바뀌지 않는다
     currentState.squad = [...currentState.squad, { ...l.card, baseOVR: Math.max(1, l.card.baseOVR - SLUMP_OVR_PENALTY), slump: SLUMP_OVR_PENALTY, boughtThisSeason: false }];
     slumpMessages.push(`${l.card.name} 태업(안 팔려서 복귀, OVR -${SLUMP_OVR_PENALTY})`);
     return [];
@@ -2987,6 +2987,7 @@ function renderMarket(banner = '') {
       </div>
       <div class="srow__side"><i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
+        ${p.paidPrice ? `<span class="srow__paid">산 값 <b class="n">${p.paidPrice}G</b> · 시세 <b class="n">${p.price}G</b> <em class="${p.price > p.paidPrice ? 'up' : p.price < p.paidPrice ? 'down' : 'flat'}">${p.price >= p.paidPrice ? '+' : ''}${p.price - p.paidPrice}</em></span>` : p.price ? `<span class="srow__paid">시세 <b class="n">${p.price}G</b></span>` : ''}
         ${swap}
         <button class="act" data-release-listed="${p.id}" ${locked ? `disabled ${lockTitle}` : 'title="1주 뒤 정산"'}>판매 등록</button>
         ${isDeadlineWeek ? `<button class="act act--warn" data-release-deadline="${p.id}" ${locked ? `disabled ${lockTitle}` : 'title="원가의 40% 회수"'}>데드라인 방출</button>` : ''}
@@ -3007,9 +3008,9 @@ function renderMarket(banner = '') {
 
   const listedHtml = listedForSale
     .map((l) => (l.offers
-      ? `<li class="offerrow"><span>${esc(l.card.name)}</span><span class="offerrow__btns">${l.offers.map((a) => `<button class="act act--main" data-accept="${l.card.id}:${a}"><b>${a}G</b></button>`).join('')}</span></li>`
+      ? `<li class="offerrow"><span>${esc(l.card.name)}${l.card.paidPrice ? `<small> 산 값 ${l.card.paidPrice}G</small>` : ''}</span><span class="offerrow__btns">${l.offers.map((a) => `<button class="act act--main" data-accept="${l.card.id}:${a}"><b>${a}G</b></button>`).join('')}</span></li>`
       : `<li><span>${esc(l.card.name)}</span><span><b>${l.resolveWeek}</b>주차 정산</span></li>`))
-    .join('') + (listedForSale.some((l) => l.offers) ? '<li class="listed__hint">기다리면 오퍼가 바뀝니다. 시장 마감까지 안 팔리면 태업(OVR -3)</li>' : '');
+    .join('') + (listedForSale.some((l) => l.offers) ? '<li class="listed__hint">오퍼는 바뀌지 않습니다. 시장 마감까지 안 팔리면 태업(OVR -3)</li>' : '');
 
   const draftSub = isUnlocked('staff') ? currentState.draftSub ?? 'players' : 'players';
   const boardDemandCard = currentState.boardDemand ? getDemand(currentState.boardDemand.cardId) : null;
