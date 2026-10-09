@@ -41,7 +41,7 @@ const MANAGER_ORDER = ['rookie', 'tactician', 'legendary'];
 const STAFF_ORDER = ['academy', 'proLicense', 'veteran', 'master'];
 const mid = ([a, b]) => Math.round((a + b) / 2);
 
-const toSquad = (c, bought = false) => ({ ...c, acquiredThisSeason: true, boughtThisSeason: bought, inBench: false });
+const toSquad = (c, bought = false) => ({ ...c, seasonsAtClub: 0, acquiredThisSeason: true, boughtThisSeason: bought, inBench: false });
 
 function tierOfOvr(ovr) {
   for (const [id, t] of Object.entries(PLAYER_TIERS)) if (ovr >= t.minOVR && ovr <= t.maxOVR) return id;
@@ -105,7 +105,7 @@ function playCareer() {
     let salesIncome = 0; let staffSpend = 0;
 
     if (!first) {
-      squad = ageSquad(squad).squad.map(repricePlayer).map((p) => ({ ...p, acquiredThisSeason: false, boughtThisSeason: false }));
+      squad = ageSquad(squad).squad.map(repricePlayer).map((p) => ({ ...p, seasonsAtClub: (p.seasonsAtClub ?? 0) + 1, acquiredThisSeason: false, boughtThisSeason: false }));
     }
     first = false;
 

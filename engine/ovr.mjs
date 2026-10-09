@@ -9,7 +9,7 @@ export function computeSelfTraitBonus(player) {
     case 'seongGolYouth':
       return player.isDraftedYouth ? 10 : 0;
     case 'hometownHero':
-      return Math.min(player.seasonsAtClub, 3) * 4; // 상한 +12 (3시즌분)
+      return Math.min(player.seasonsAtClub ?? 0, 3) * 4; // 상한 +12 (3시즌분)
     case 'journeyman':
       return player.acquiredThisSeason ? 8 : 0;
     case 'starPower':
