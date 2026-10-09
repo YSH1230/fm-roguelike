@@ -928,6 +928,8 @@ function startRun(club) {
     prestige: { total: 0, rows: {}, combo: 0, titleStreak: 0, beat: false }, // 명성 점수(이번 런)
     missedTargetCount: 0, // 기대 목표 미달 누적 (스펙 2절: 3회면 해임)
     seasonNumber: 1,
+    startedAt: Date.now(), // 첫 영입까지 걸린 시간 통계용
+    telemetryRun: Math.random().toString(36).slice(2, 8),
     formation: DEFAULT_FORMATION,
     manualOverrides: {},
     benchOverrides: {},
@@ -1432,6 +1434,10 @@ function buyCard(card, rowEl = null, outgoing = null) {
   // GOD 카드는 전 세계 2명뿐 — 영입하면 이번 런에서 다시 등장하지 않게 뺀다
   if (card.id.startsWith('god-')) {
     currentState.availableGodPlayers = currentState.availableGodPlayers.filter((g) => g.id !== card.id);
+  }
+  if (!currentState.firstBuyTracked) {
+    currentState.firstBuyTracked = true;
+    track('first_buy', { run: currentState.telemetryRun, sec: Math.round((Date.now() - (currentState.startedAt ?? Date.now())) / 1000), s: currentState.seasonNumber });
   }
   if (tutStep() === 1) tutSet(2);
   renderMarket();
