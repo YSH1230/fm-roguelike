@@ -38,11 +38,13 @@ export const FUNDS_SCALE = { first: 1.25, tier5: 0.85, tier4: 0.85, tier3: 0.75,
 export const fundsScale = (tierId, seasonNumber) => (seasonNumber <= 1 ? FUNDS_SCALE.first : FUNDS_SCALE[tierId] ?? 1);
 
 // 판매 오퍼(2시즌~): 선수 가치(OVR)에 비례해 1~3건. 금액은 기존 판매 범위(여름 50~100%, 겨울 70~110%)에서 굴린다.
+// 오퍼는 원가의 95%를 넘지 않는다: 기다리며 새 오퍼를 뽑아 100% 넘는 값을 받는 차익 거래를 막는다.
+export const SALE_OFFER_MAX_RATIO = 0.95;
 export function saleOfferCount(baseOVR) {
   return baseOVR >= 81 ? 3 : baseOVR >= 63 ? 2 : 1;
 }
 export function generateSaleOffers(originalPrice, baseOVR, method, rng = Math.random) {
-  return Array.from({ length: saleOfferCount(baseOVR) }, () => computeReleaseProceeds(originalPrice, method, rng))
+  return Array.from({ length: saleOfferCount(baseOVR) }, () => Math.min(computeReleaseProceeds(originalPrice, method, rng), Math.floor(originalPrice * SALE_OFFER_MAX_RATIO)))
     .sort((a, b) => b - a);
 }
 

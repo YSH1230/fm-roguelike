@@ -57,5 +57,5 @@ test('판매 오퍼: 선수 가치에 비례해 1~3건, 범위 안에서 내림�
   assert.equal(saleOfferCount(85), 3);
   const offers = generateSaleOffers(1000, 85, 'listedSummer');
   assert.equal(offers.length, 3);
-  assert.ok(offers.every((o, i) => o >= 500 && o <= 1000 && (i === 0 || o <= offers[i - 1])));
+  assert.ok(offers.every((o, i) => o >= 500 && o <= 950 && (i === 0 || o <= offers[i - 1])));
 });

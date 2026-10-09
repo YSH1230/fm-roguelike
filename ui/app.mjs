@@ -894,7 +894,8 @@ function startRun(club) {
     { squad: rawSquad, funds: baseFunds, chemistry: startChemistry, baseFunds, crisisImmune: manager.trait === 'crisisManager', manager, recent: [] },
     'summer'
   );
-  const { funds, squad, chemistry, message: eventMessage } = rolled;
+  const { funds, chemistry, message: eventMessage } = rolled;
+  const squad = rolled.squad.map(stripLockedTags);
   // 이벤트 없음(id === null)이면 팝업을 안 띄운다 - "아무 일도 없었다"는
   // 알림은 알림이 아니라 소음이다. good/bad는 팝업 색만 가른다.
   const eventTone = rolled.tone;
@@ -1248,7 +1249,7 @@ function applySeasonEvent(phase) {
     Math.random,
     currentState.club.eventBias ?? {}
   );
-  currentState.squad = r.squad;
+  currentState.squad = r.squad.map(stripLockedTags);
   currentState.funds = r.funds;
   currentState.chemistry = r.chemistry;
   currentState.eventMessage = r.message;
@@ -1565,7 +1566,7 @@ function returnGodToPool(card) {
 // 방출 3단계 (스펙 7절): 즉시(0%) / 이적 명단(1주 소모, 여름·겨울 범위 회수율) / Week12 데드라인(40%, 소모 없음)
 // 2시즌부터는 등록하면 오퍼가 오고(기다리면 새 오퍼로 바뀜), 마감까지 안 팔리면 태업한다.
 function listPlayer(card) {
-  hometownExitPenalty(card);
+  if (currentState.seasonNumber < 2) hometownExitPenalty(card); // 오퍼 방식은 실제로 팔릴 때 적용(태업 복귀 땐 벌 없음)
   const method = currentState.phase === 'summer' ? 'listedSummer' : 'listedWinter';
   // 겨울 이적명단은 당해 영입 선수를 받지 않는다 (스펙 7절)
   if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
@@ -1587,6 +1588,7 @@ function acceptSaleOffer(cardId, amount) {
   if (!l || !l.offers?.includes(amount)) return;
   currentState.listedForSale = currentState.listedForSale.filter((x) => x !== l);
   returnGodToPool(l.card);
+  hometownExitPenalty(l.card);
   currentState.funds += amount;
   currentState.seasonTrack.income += amount;
   renderMarket(`${l.card.name} 이적 확정: ${amount}G`);

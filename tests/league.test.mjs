@@ -22,7 +22,7 @@ test('승점은 0~114(38경기 만점) 범위를 벗어나지 않는다', () => 
 
 test('getLeagueTier는 5부와 4부의 체급 정보를 반환한다', () => {
   const tier5 = getLeagueTier('tier5');
-  assert.deepEqual(tier5.averageOVR, [44, 52]);
+  assert.deepEqual(tier5.averageOVR, [43, 51]);
   assert.equal(tier5.safePoints, 38);
   assert.equal(tier5.targetPoints, 68);
   assert.equal(tier5.championPoints, 80);

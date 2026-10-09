@@ -57,7 +57,7 @@ export function convertPowerToPoints(
 // 시즌 자금 배율(FUNDS_SCALE)과 함께 tools/sim-human.mjs 300판으로 v1 결과(승점)에 맞췄다.
 const LEAGUE_TIERS = {
   // 2000판 실측: 우승 22.3% / 승격 28.1% / 안전 47.1% / 강등 2.6%
-  tier5: { label: '5부', averageOVR: [44, 52], safePoints: 38, targetPoints: 68, championPoints: 80 },
+  tier5: { label: '5부', averageOVR: [43, 51], safePoints: 38, targetPoints: 68, championPoints: 80 },
   // 2000판 실측: 우승 10.8% / 승격 22.7% / 안전 56.5% / 강등 9.9%
   tier4: { label: '4부', averageOVR: [52, 60], safePoints: 40, targetPoints: 73, championPoints: 86 },
   // 2000판 실측: 우승 8.8% / 승격 17.3% / 안전 54.6% / 강등 19.3%

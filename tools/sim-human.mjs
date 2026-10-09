@@ -44,6 +44,14 @@ const mid = ([a, b]) => Math.round((a + b) / 2);
 
 const toSquad = (c, bought = false) => ({ ...c, seasonsAtClub: 0, acquiredThisSeason: true, boughtThisSeason: bought, inBench: false });
 
+// 해금 전 태그·특수 성향은 카드에 안 붙는다(ui/app.mjs stripLockedTags와 같은 규칙, 계정이 처음일 때 기준)
+function lockStrip(card, season) {
+  const open = (t) => { const g = PLAYSTYLE_TAGS[t].grade; return g === 'basic' || (g === 'mid' && season >= 2) || (g === 'hard' && season >= 3); };
+  const out = { ...card, playstyleTags: card.playstyleTags.filter(open) };
+  if (card.specialTrait && season < 3) { out.price = Math.round(card.price / (TRAIT_PRICE_MULT[card.specialTrait] ?? 1)); out.specialTrait = null; }
+  return out;
+}
+
 function tierOfOvr(ovr) {
   for (const [id, t] of Object.entries(PLAYER_TIERS)) if (ovr >= t.minOVR && ovr <= t.maxOVR) return id;
   return ovr > 94 ? null : 'local';
@@ -90,7 +98,7 @@ function tagStats(lineup) {
 
 function playCareer() {
   let tierId = 'tier5';
-  let squad = generateStartingSquad().map((p) => toSquad(p));
+  let squad = generateStartingSquad().map((p) => toSquad(lockStrip(p, 1)));
   let manager = { tier: 'rookie', price: mid(MANAGER_PRICE_TABLE.rookie) };
   let coachLevel = 'academy'; let scoutLevel = 'academy';
   let leftover = 0; let proceeds = 0; let listed = [];
@@ -165,7 +173,7 @@ function playCareer() {
         const useTag = caps.tag && !(caps.exclusive && targetPos);
         const size = SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[scoutLevel];
         let pool = generateShopOffer(size, [], Math.random, tierId, useTag ? targetTag : null, useTag ? 1 : 0, caps.position ? targetPos : null, SCOUT_QUALITY_BOOST_BY_LEVEL[scoutLevel], caps.combined)
-          .map((card) => ({ card, price: applyCostModifiers(card.price, phase === 'winter' ? [WINTER_TAX_RATIO] : []) }));
+          .map((c0) => { const card = lockStrip(c0, s + 1); return { card, price: applyCostModifiers(card.price, phase === 'winter' ? [WINTER_TAX_RATIO] : []) }; });
         let hadTx = false; let txCount = 0;
         const cap = squadCapFor(s + 1);
         const decayNow = () => { const d = txCount === 0 ? 0 : decay; txCount += 1; hadTx = true; chem = applyTransactionDecay(chem, 1, d); }; // 한 주 첫 거래는 면제
