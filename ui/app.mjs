@@ -46,7 +46,7 @@ import {
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
-import { ageSquad } from '../engine/aging.mjs';
+import { ageSquad, ageTrend, agePriceMult } from '../engine/aging.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait, appearanceOf } from './portrait.mjs';
 import { pixelMatchHtml } from './pixel.mjs';
@@ -229,7 +229,7 @@ function repricePlayer(p) {
   const range = PLAYER_PRICE_TABLE[tier];
   if (!range) return p;
   const base = Math.min(range[1], Math.max(range[0], calculatePlayerPrice(tier, p.baseOVR)));
-  return { ...p, price: Math.round(base * (TRAIT_PRICE_MULT[p.specialTrait] ?? 1)) };
+  return { ...p, price: Math.round(base * (TRAIT_PRICE_MULT[p.specialTrait] ?? 1) * agePriceMult(p.age)) };
 }
 const TRAIT_DOWNSIDE_TEXT = {
   starPower: '영입가 ×1.5',
@@ -2731,7 +2731,7 @@ function renderMarket(banner = '') {
         <button type="button" class="pcard__tier" data-tier-info="${tier}" aria-label="${TIER_LABELS[tier]} 등급">${TIER_LABELS[tier]}</button>
       </div>
       <div class="deal__body">
-        <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세</span></div>
+        <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세${ageTrend(c.age, c.position)}</span></div>
         <div class="deal__tags">${tags}</div>
         ${compareHtml}
       </div>
@@ -2797,7 +2797,7 @@ function renderMarket(banner = '') {
       <span class="srow__pos">${p.position}</span>
       <b class="srow__ovr n">${p.baseOVR}</b>
       <div class="srow__main">
-        <div class="srow__name">${esc(p.name)}<small>${p.age}세</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}</div>
+        <div class="srow__name">${esc(p.name)}<small>${p.age}세${ageTrend(p.age, p.position)}</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}</div>
         ${tagIconsHtml(p)}
       </div>
       <div class="srow__side"><i class="srow__chev" aria-hidden="true">⌄</i></div>
@@ -3279,8 +3279,8 @@ function renderMarket(banner = '') {
     const agingHtml = ups.length || downs.length || ag.retired.length || ag.youthLeft.length ? `<div class="agingbox">
         <b>선수단 오버롤 변화</b>
         <ul>
-          ${ups.map((c) => `<li class="is-up">▲ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (+${c.delta})</span></li>`).join('')}
-          ${downs.map((c) => `<li class="is-down">▼ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (${c.delta})</span></li>`).join('')}
+          ${ups.map((c) => `<li class="is-up">▲ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (+${c.delta})${c.kind === 'leap' ? ' 도약!' : ''}</span></li>`).join('')}
+          ${downs.map((c) => `<li class="is-down">▼ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (${c.delta})${c.kind === 'stall' ? ' 정체' : ''}</span></li>`).join('')}
           ${ag.retired.map((r) => `<li class="is-retire">은퇴 ${esc(r.name)} <span>${r.age}세</span></li>`).join('')}
           ${ag.youthLeft.map((y) => `<li class="is-retire">유스 계약 종료 ${esc(y.name)} <span>${y.position}</span></li>`).join('')}
         </ul>
