@@ -7,13 +7,13 @@ if (UCL_DEMO) {
     value: { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k), clear: () => mem.clear() },
   });
 }
-import { buildStartClubOffers, buildTierClubOffers, buildLeagueRivals } from '../data/clubs.mjs';
+import { buildStartClubOffers, buildLeagueRivals } from '../data/clubs.mjs';
 import { saveRun, loadRun, clearRun, withRunDefaults } from '../data/local-save.mjs';
 import {
   loadRecords, saveRecords, recordRunStart, recordPromotion, recordSeason, recordUcl, recordRunEnd,
   uclReached, ACHIEVEMENTS, unlockedIds, newlyUnlocked,
 } from '../data/records.mjs';
-import { generateSquadPool, generateStartingSquad, generateEmergencyYouth, MOVE_SQUAD_WEIGHTS_BY_TIER } from '../data/generate-player.mjs';
+import { generateSquadPool, generateStartingSquad, generateEmergencyYouth } from '../data/generate-player.mjs';
 import { generateProceduralManager } from '../data/generate-manager.mjs';
 import { assignRandomStaff, generateStaffOffer, generateStaffCandidate } from '../data/staff.mjs';
 import { generateManagerOffer } from '../data/manager-shop.mjs';
@@ -59,6 +59,7 @@ import {
   SHOP_OFFER_SIZE,
   SHOP_REROLL_COST,
   SUMMER_MARKET_WEEKS,
+  HARMONY_START_SEASON,
   squadCapFor,
   SLUMP_OVR_PENALTY,
   WINTER_MARKET_WEEKS,
@@ -398,6 +399,7 @@ function makeTempManager() {
 // 시뮬레이션 직전에 감독 평가(전술 완성/불화/면제) 결과를 팝업으로 확실히 보여 준다.
 // 예전에는 결과 문구가 후반기엔 시즌 결산 배너에만 떠서 놓치기 쉬웠다.
 function showHarmonyNotice(message, onContinue) {
+  if (!message) { onContinue(); return; }
   const bad = message.startsWith('감독과의 불화:');
   const [title, ...rest] = message.split(': ');
   const root = document.getElementById('eventmodal-root');
@@ -418,6 +420,7 @@ function applyManagerTacticalHarmony(lineup) {
   const { tier } = playstyleTagProgress(manager.tacticalTag, lineup);
   const tagLabel = TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag;
   if (tier === 0) {
+    if (currentState.seasonNumber < HARMONY_START_SEASON) return ''; // 감독 탭이 열리기 전에는 벌칙도 사임도 없다
     if (currentState.harmonyShield) {
       currentState.harmonyShield = false;
       return `감독과의 불화 면제: 전술 분석관이 ${manager.name} 감독과의 갈등을 막아 줬습니다`;
@@ -1592,7 +1595,7 @@ function runFirstHalf(saleMessage = '') {
 
   const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   const harmonyMsg = applyManagerTacticalHarmony(lineup);
-  saleMessage = saleMessage ? `${saleMessage} / ${harmonyMsg}` : harmonyMsg;
+  if (harmonyMsg) saleMessage = saleMessage ? `${saleMessage} / ${harmonyMsg}` : harmonyMsg;
 
   // 승점은 정수로 쓴다: 화면에 보이는 승점과 승/강등 판정에 쓰는 승점이 같아야 한다.
   currentState.firstHalfPoints = roundHalfPoints(runHalfSeason(
@@ -2128,7 +2131,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   // 겨울 마감 시점에도 여름과 똑같이 한 번 체크(겨울에 선수단을 갈아엎은 걸 반영)
   const harmonyMsg = applyManagerTacticalHarmony(lineup);
-  saleMessage = saleMessage ? `${saleMessage} / ${harmonyMsg}` : harmonyMsg;
+  if (harmonyMsg) saleMessage = saleMessage ? `${saleMessage} / ${harmonyMsg}` : harmonyMsg;
   const secondHalf = roundHalfPoints(runHalfSeason(
     lineup,
     bench,
@@ -2230,7 +2233,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   let dockHtml;
   let closingHtml = '';
   if (canPromote) {
-    closingHtml = `<p class="note">승격 보상: 적응도 +${PROMOTION_CHEMISTRY_BONUS}, 새 리그 첫 시즌 지급액은 ${PROMOTION_STAY_FUNDS_RATIO * 100}%(스쿼드를 유지할 때)</p>`;
+    closingHtml = `<p class="note">승격 보상: 적응도 +${PROMOTION_CHEMISTRY_BONUS}, 새 리그 첫 시즌 지급액은 ${PROMOTION_STAY_FUNDS_RATIO * 100}%</p>`;
     dockHtml = `<button class="cta" id="promote-btn">${getLeagueTier(getNextTier(currentState.leagueTierId)).label}로 승격</button>`;
   } else {
     const left = MISSED_TARGET_LIMIT - currentState.missedTargetCount;
@@ -2308,8 +2311,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
     currentState.chemistry = Math.min(100, currentState.chemistry + PROMOTION_CHEMISTRY_BONUS);
     currentState.promotionFundsBonusPending = true; // 지급 시점(startNewSeason)에 반영
 
-    // 승격 전용 위기(FFP 긴급 감사 무효화와는 별개)는 거취를 정한 뒤에 띄운다(잔류를 골랐을 때만 의미가 있다).
-    renderDestinationChoice(result, nextTier);
+    promoteToNextTier(nextTier);
   });
   document.getElementById('continue-btn')?.addEventListener('click', startNewSeason);
   document.getElementById('ucl-btn')?.addEventListener('click', () => {
@@ -2321,80 +2323,17 @@ function runSecondHalfAndFinish(saleMessage = '') {
   }
 }
 
-// 스펙 2절 거취 선택. 오퍼는 항상 3개.
-// 현재 구단은 후보에서 뺀다(이적인데 같은 곳이면 의미가 없다).
-function renderDestinationChoice(seasonResult, nextTierId) {
-  // 이 화면은 promote-btn에서 getNextTier로만 들어오므로 nextTierId는 항상 승격 리그다.
-  // 오퍼는 실제로 그 리그에 있는(승격해서 만나게 될) 20개 구단 풀에서 뽑는다 -
-  // 예전에는 시작 구단을 그대로 재활용해서 1부에 가도 5부 시절 이름이 나왔다.
-  const offers = buildTierClubOffers(nextTierId, 3);
-  const nextLabel = getLeagueTier(nextTierId).label;
-  const kicker = seasonResult === 'champion' ? '우승 소식에 러브콜이 쇄도합니다' : '활약을 지켜본 구단들의 제안';
-
-  setScreen(`
-    <div class="choice">
-      <div class="choice__kicker">${kicker}</div>
-      <h1 class="choice__title">누구의 제안을<br>받아들일까요</h1>
-      <p class="choice__body">
-        지금 구단에 남으면 <b>선수단을 그대로</b> 들고 ${nextLabel}로 승격합니다.
-        다른 구단의 제안을 받으면 <b>선수단이 전부 초기화</b>되고, 새 선수단은 그 구단의
-        체급으로 다시 생성됩니다. 지금까지 키운 전력보다 약할 수 있습니다.
-      </p>
-      <div class="options">
-        <button class="option option--accept option--crest" data-stay="1">
-          ${renderCrest(currentState.club, { size: 32 })}
-          <div>
-            <div class="option__name">${esc(currentState.club.name)}에 남는다</div>
-            <div class="option__effect">${nextLabel}로 승격. 선수단 <b>유지</b></div>
-          </div>
-        </button>
-        ${offers.map((c) => `
-          <button class="option option--crest" data-move="${c.id}">
-            ${renderCrest(c, { size: 32 })}
-            <div>
-              <div class="option__name">${esc(c.name)}</div>
-              <div class="option__effect"><span class="option__tier">${nextLabel}</span> ${c.klassLabel} · ${c.colorLabel}: ${esc(c.strength)}. 선수단 <b>초기화</b>, 시작 자금 x${c.startingFundsMultiplier}</div>
-            </div>
-          </button>`).join('')}
-      </div>
-    </div>
-  `);
-
-  document.querySelector('[data-stay]').onclick = () => {
-    currentState.leagueTierId = nextTierId;
-    if (getLadderIndex(nextTierId) > getLadderIndex(currentState.highestTierId)) {
-      currentState.highestTierId = nextTierId;
-    }
-    const keyPlayer = [...currentState.squad].sort((a, b) => b.baseOVR - a.baseOVR)[0];
-    if (keyPlayer && Math.random() < PROMOTION_TRANSFER_DEMAND_CHANCE) {
-      renderPromotionTransferDemand(keyPlayer);
-    } else {
-      startNewSeason();
-    }
-  };
-  for (const c of offers) {
-    document.querySelector(`[data-move="${c.id}"]`).onclick = () => {
-      currentState.promotionFundsBonusPending = false; // 새 구단은 선수단이 초기화되므로 감액 대상이 아니다
-      currentState.club = c;
-      currentState.expectationModifier = c.expectationModifier ?? 0; // 새 구단의 유형(강/중/약)이 이사진 기대치를 정한다
-      currentState.leagueTierId = nextTierId;
-      if (getLadderIndex(nextTierId) > getLadderIndex(currentState.highestTierId)) {
-        currentState.highestTierId = nextTierId;
-      }
-      // 선수단 초기화. 목적지 리그 체급으로 생성한다(5부 분포로 고정하면 3부
-      // 이상에서 강등이 거의 확정이었다). 적응도도 새 팀이므로 기본값으로 돌린다.
-      currentState.squad = generateSquadPool(MOVE_SQUAD_WEIGHTS_BY_TIER[nextTierId]).map(toSquadPlayer);
-      currentState.manualOverrides = {}; // 스쿼드가 통째로 바뀌니 예전 수동 배치는 의미가 없다
-      currentState.benchOverrides = {};
-      // 스쿼드에서 사라진 GOD 카드는 다시 상점에 나올 수 있게 되돌린다.
-      // 안 그러면 이미 영입한 GOD이 선수단에서도 사라지고 이번 런에서 영영 못 본다.
-      currentState.availableGodPlayers = GOD_PLAYERS.filter(
-        (g) => !currentState.squad.some((p) => p.id === g.id)
-      );
-      currentState.chemistry = CHEMISTRY_START;
-      currentState.freshBudget = true; // 새 구단은 이월 없이 시작 자금만(스펙 2절)
-      startNewSeason(); // 자금은 새 구단 배율로 여기서 한 번만 지급된다
-    };
+// 승격하면 구단을 옮기지 않고 같은 구단으로 새 리그에 올라간다(선수단 유지).
+function promoteToNextTier(nextTierId) {
+  currentState.leagueTierId = nextTierId;
+  if (getLadderIndex(nextTierId) > getLadderIndex(currentState.highestTierId)) {
+    currentState.highestTierId = nextTierId;
+  }
+  const keyPlayer = [...currentState.squad].sort((a, b) => b.baseOVR - a.baseOVR)[0];
+  if (keyPlayer && Math.random() < PROMOTION_TRANSFER_DEMAND_CHANCE) {
+    renderPromotionTransferDemand(keyPlayer);
+  } else {
+    startNewSeason();
   }
 }
 

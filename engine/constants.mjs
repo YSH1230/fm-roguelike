@@ -146,6 +146,8 @@ export const SQUAD_CAP = 24;
 export const squadCapFor = (seasonNumber) => (seasonNumber <= 1 ? SQUAD_CAP_FIRST_SEASON : SQUAD_CAP);
 // 판매 등록한 선수가 시장 마감까지 안 팔리면 태업하고 선수단에 돌아온다(그 시즌 끝까지 OVR 하락).
 export const SLUMP_OVR_PENALTY = 3;
+// 감독 탭이 열리는 시즌부터 감독 불화 규칙(벌칙·사임)이 발동한다. 그 전에는 선호 태그를 켜면 보너스만 있다.
+export const HARMONY_START_SEASON = 3;
 
 export const COST_MODIFIER_CLAMP_MIN = -0.6; // 할인/할증 가산 합계 하한
 export const COST_MODIFIER_CLAMP_MAX = 0.8; // 할인/할증 가산 합계 상한
