@@ -2113,3 +2113,18 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .offerchip { width: 100%; margin-bottom: var(--s2); padding: 8px 12px; background: color-mix(in srgb, var(--turf) 18%, var(--night)); border: 1px solid var(--turf); border-radius: var(--r-sm); color: var(--turf); font: inherit; font-weight: 700; text-align: left; }
 .listed li.offerlist { display: grid; justify-content: stretch; padding: var(--s2); }
 .offerrow2 small.is-last { color: var(--debit); font-weight: 700; }
+
+/* 태그 6종: 팀 스타일 패널, 씨앗 표시 */
+.stylename { color: var(--turf); font-weight: 700; }
+.stylerows { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.stylerow { display: grid; grid-template-columns: 28px 1fr auto auto; align-items: center; gap: var(--s2); padding: 8px 10px; background: var(--surface-hi); border-left: 3px solid var(--line); opacity: 0.75; cursor: pointer; }
+.stylerow.is-on { opacity: 1; border-left-color: var(--turf); }
+.stylerow.is-main { box-shadow: 0 0 0 1px var(--gold) inset; border-left-color: var(--gold); }
+.stylerow__icon svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.stylerow__pips { display: inline-flex; gap: 3px; }
+.stylerow__pips i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.stylerow__pips i.is-full { background: var(--turf); }
+.stylerow__count { color: var(--muted); font-size: var(--fs-label); }
+.chip--seed, .ticon--seed { opacity: 0.55; border-style: dashed; }
+.tag--seed { opacity: 0.6; border-style: dashed; }
+.stylebadge { text-align: center; margin: var(--s2) 0; color: var(--gold); font-weight: 700; }

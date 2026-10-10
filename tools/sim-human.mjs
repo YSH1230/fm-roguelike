@@ -22,7 +22,7 @@ import { judgeRunOutcome, nextMissedTargetCount } from '../engine/run.mjs';
 import { createUcl, advanceUcl, UCL_REWARDS_FUNDS } from '../engine/champions-league.mjs';
 import {
   CHEMISTRY_START, WINTER_TAX_RATIO, WINTER_FUNDS_RATIO, PROMOTION_STAY_FUNDS_RATIO, SAME_LEAGUE_FUNDS_RATIO,
-  STAGNATION_FUNDS_PENALTY_PER_MISS, PLAYSTYLE_TAGS, ADVANCED_TAGS, COACH_UNITS, COACH_CHEMISTRY_DECAY_BY_LEVEL,
+  STAGNATION_FUNDS_PENALTY_PER_MISS, PLAYSTYLE_TAGS, TAG_IDS, BASIC_TAGS, COACH_UNITS, COACH_CHEMISTRY_DECAY_BY_LEVEL,
   SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_QUALITY_BOOST_BY_LEVEL, SCOUT_TARGETS_BY_LEVEL, MANAGER_PRICE_TABLE, STAFF_PRICE_TABLE,
   squadCapFor, PLAYER_TIERS, PLAYER_PRICE_TABLE, TRAIT_PRICE_MULT, BOARD_DEMAND_REWARD, CHEMISTRY_DECAY_PER_TRANSACTION, POSITIONS,
 } from '../engine/constants.mjs';
@@ -47,8 +47,10 @@ const toSquad = (c, bought = false) => ({ ...c, seasonsAtClub: 0, acquiredThisSe
 
 // 해금 전 태그·특수 성향은 카드에 안 붙는다(ui/app.mjs stripLockedTags와 같은 규칙, 계정이 처음일 때 기준)
 function lockStrip(card, season) {
-  const open = (t) => { const g = PLAYSTYLE_TAGS[t].grade; return g === 'basic' || (g === 'mid' && season >= 2) || (g === 'hard' && season >= 3); };
-  const out = { ...card, playstyleTags: card.playstyleTags.filter(open) };
+  const open = (t) => PLAYSTYLE_TAGS[t].group === 'basic' || season >= 2;
+  let tags = card.playstyleTags.filter(open);
+  if (!tags.length) { const fit = BASIC_TAGS.filter((t) => PLAYSTYLE_TAGS[t].positions.includes(card.position)); tags = [(fit.length ? fit : BASIC_TAGS)[0]]; }
+  const out = { ...card, playstyleTags: tags };
   if (card.specialTrait && season < 3) { out.price = Math.round(card.price / (TRAIT_PRICE_MULT[card.specialTrait] ?? 1)); out.specialTrait = null; }
   return out;
 }
@@ -72,16 +74,17 @@ function bestCoachFocus(slots) {
   const size = (u) => slots.filter((p) => COACH_UNITS[u].includes(p)).length;
   return Object.keys(COACH_UNITS).sort((a, b) => size(b) - size(a))[0];
 }
-function chooseTarget(squad) {
-  const score = (t) => squad.filter((p) => p.playstyleTags.includes(t) && PLAYSTYLE_TAGS[t].positions.includes(p.position)).length;
-  const best = Math.max(...ADVANCED_TAGS.map(score));
-  const pool = best > 0 ? ADVANCED_TAGS.filter((t) => score(t) === best) : ADVANCED_TAGS.filter((t) => PLAYSTYLE_TAGS[t].grade === 'mid');
+function chooseTarget(squad, season = 1) {
+  const ids = TAG_IDS.filter((t) => PLAYSTYLE_TAGS[t].group === 'basic' || season >= 2);
+  const score = (t) => squad.filter((p) => p.playstyleTags.includes(t)).length;
+  const best = Math.max(...ids.map(score));
+  const pool = ids.filter((t) => score(t) === best);
   return pool[Math.floor(Math.random() * pool.length)];
 }
 function progressCredit(squad, card, tag) {
-  if (!tag || !card.playstyleTags.includes(tag) || !PLAYSTYLE_TAGS[tag].positions.includes(card.position)) return 0;
+  if (!tag || !card.playstyleTags.includes(tag)) return 0;
   const def = PLAYSTYLE_TAGS[tag];
-  const holders = squad.filter((p) => p.playstyleTags.includes(tag) && def.positions.includes(p.position)).length;
+  const holders = squad.filter((p) => p.playstyleTags.includes(tag)).length;
   const curTier = def.thresholds.filter((n) => holders >= n).length;
   if (curTier >= def.thresholds.length) return 0;
   const need = def.thresholds[curTier];
@@ -117,7 +120,7 @@ function playCareer() {
     first = false;
 
     // 시즌 시작 팀 전력(승격해서 올라온 직후 상단에 보이는 값) - 포메이션/주력은 아래에서 고른다
-    const targetTag = chooseTarget(squad);
+    const targetTag = chooseTarget(squad, s + 1);
     let SLOTS = bestFormationFor(targetTag);
     let focus = bestCoachFocus(SLOTS);
     const powerOf = (sq, chem) => {

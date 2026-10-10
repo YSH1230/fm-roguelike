@@ -41,9 +41,9 @@ import {
   noOfferChance,
 } from '../engine/economy.mjs';
 import { applyTransactionDecay, chemistryMultiplier } from '../engine/chemistry.mjs';
-import { computePlayerFinalOVR, computePlayerBonusBreakdown } from '../engine/ovr.mjs';
+import { computePlayerFinalOVR, computePlayerBonusBreakdown, isSeed } from '../engine/ovr.mjs';
 import {
-  PLAYSTYLE_TAGS, POSITIONS,
+  PLAYSTYLE_TAGS, POSITIONS, TAG_IDS, BASIC_TAGS, TAG_THRESHOLDS, TAG_VALUES,
   STAFF_LEVELS, STAFF_PRICE_TABLE,
 } from '../engine/constants.mjs';
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
@@ -78,7 +78,7 @@ import {
   PROMOTION_STAY_FUNDS_RATIO,
   REPUTATION_STREAK_BONUS,
   COACH_CHEMISTRY_DECAY_BY_LEVEL,
-  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_TARGETS_BY_LEVEL, SCOUT_QUALITY_BOOST_BY_LEVEL, SCOUT_REROLL_DISCOUNT_BY_LEVEL, ADVANCED_TAGS,
+  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_TARGETS_BY_LEVEL, SCOUT_QUALITY_BOOST_BY_LEVEL, SCOUT_REROLL_DISCOUNT_BY_LEVEL,
   PROMOTION_TRANSFER_DEMAND_CHANCE,
   PLAYER_TIERS,
   MISSED_TARGET_LIMIT,
@@ -212,10 +212,8 @@ const TIER_LABELS = {
   worldClass: '월드클래스', legendary: '레전더리', god: 'GOD',
 };
 const TAG_LABELS = {
-  gegenpressing: '게겐프레싱', falseNine: '폴스나인', longBallKickAndRush: '롱볼',
-  tikiTaka: '티키타카', totalFootball: '토탈풋볼', falseFullBack: '변형 3백',
-  buildUpFromBack: '후방 빌드업', counterAttack: '역습',
-  pass: '패스', dribble: '개인기', physical: '피지컬',
+  pass: '패스 플레이', dribble: '돌파', physical: '몸싸움',
+  press: '전방 압박', counter: '역습', buildup: '후방 빌드업',
 };
 const TRAIT_LABELS = {
   starPower: '스타 기질', seongGolYouth: '신성', veteranLeader: '베테랑 리더', superSub: '슈퍼 서브',
@@ -281,6 +279,17 @@ const PLAYSTYLE_ICON_PATHS = {
   tikiTaka: '<circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M11 7.2 L6 15.8 M13 7.2 L18 15.8 M7.5 18 H16.5"/>',
   totalFootball: '<path d="M20 12 A8 8 0 0 1 6 17.3"/><path d="M4 12 A8 8 0 0 1 18 6.7"/><path d="M18.2 2.8 V7 H14"/><path d="M5.8 21.2 V17 H10"/>',
 };
+// 새 태그 6종의 아이콘은 옛 그림을 재사용한다.
+Object.assign(PLAYSTYLE_ICON_PATHS, {
+  press: PLAYSTYLE_ICON_PATHS.gegenpressing, counter: PLAYSTYLE_ICON_PATHS.counterAttack, buildup: PLAYSTYLE_ICON_PATHS.buildUpFromBack,
+});
+// 태그 한 줄 설명(눌렀을 때 보인다)과 팀 스타일 이름(팀 컬러)
+const TAG_DESC = {
+  pass: '패스를 이어 가며 경기를 지배하는 점유형', dribble: '개인기로 상대를 뚫는 돌파형', physical: '몸싸움과 제공권으로 버티는 파워형',
+  press: '전방에서 압박해 공을 빨리 되찾는 스타일', counter: '수비 후 빠르게 반격하는 스타일', buildup: '수비수·골키퍼부터 패스로 풀어 가는 스타일',
+};
+const STYLE_NAMES = { pass: '점유 축구', dribble: '돌파 축구', physical: '파워 축구', press: '압박 축구', counter: '역습 축구', buildup: '빌드업 축구' };
+
 const TRAIT_ICON_PATHS = {
   scout: '<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.8"/><path d="M12 2 V5 M12 19 V22 M2 12 H5 M19 12 H22"/>',
   starPower: '<path d="M12 3 L14 9 H20 L15 13 L17 19 L12 15 L7 19 L9 13 L4 9 H10 Z"/>',
@@ -464,18 +473,17 @@ function applyManagerTacticalHarmony(lineup) {
 // 플레이스타일은 등급(기본기/보통/어려움)을 색 농도로 구분한다. 어려울수록 진하다.
 function playerTagsHtml(p) {
   const chips = [
-    ...(p.playstyleTags ?? []).map((t) => `<span class="tag tag--${PLAYSTYLE_TAGS[t]?.grade ?? 'basic'}" title="${esc((PLAYSTYLE_TAGS[t]?.positions ?? []).join('·'))}">${TAG_LABELS[t] ?? t}</span>`),
+    ...(p.playstyleTags ?? []).map((t) => `<span class="tag${isSeed(p) ? ' tag--seed' : ''}" title="${esc(TAG_DESC[t] ?? '')}">${TAG_LABELS[t] ?? t}</span>`),
     p.specialTrait ? `<span class="tag tag--trait" title="${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}">${TRAIT_LABELS[p.specialTrait] ?? p.specialTrait}</span>` : '',
   ].join('');
   return chips ? `<div class="tags">${chips}</div>` : '';
 }
 
 // 선수의 태그를 아이콘 한 줄로(플레이스타일 → 대륙 → 특수). active에 든 태그는 초록(지금 보너스 중).
-function tagInfoText(kind, id) {
+function tagInfoText(kind, id, seed = false) {
   if (kind === 'play') {
-    const def = PLAYSTYLE_TAGS[id];
-    const { req, values } = playstyleTagProgress(id, []);
-    return `${TAG_LABELS[id] ?? id}: ${tagLadderText(req, values)} (${def.positions.join('·')} 포지션만 셈)`;
+    return `${TAG_LABELS[id] ?? id}: ${TAG_DESC[id] ?? ''}. ${tagLadderText(TAG_THRESHOLDS, TAG_VALUES)}`
+      + (seed ? ' · 씨앗: 전성기 전이라 효과가 절반이에요(전성기에 닿으면 개화).' : '');
   }
   return `${TRAIT_LABELS[id] ?? id}: ${TRAIT_EFFECT_DESCRIPTIONS[id] ?? ''}. 대가: ${TRAIT_DOWNSIDE_TEXT[id] ?? ''}`;
 }
@@ -483,8 +491,8 @@ function tagInfoText(kind, id) {
 // 눌러서 설명을 볼 수 있게 data-tag-info에 문장을 싣는다(선수단 탭에서 처리).
 function tagIconsHtml(p, active = null) {
   const on = (id) => (active && active.has(id) ? ' is-on' : '');
-  const btn = (kind, id) => `data-tag-info="${esc(tagInfoText(kind, id))}" role="button" tabindex="0"`;
-  const play = (p.playstyleTags ?? []).map((t) => `<i class="ticon ticon--g-${PLAYSTYLE_TAGS[t]?.grade ?? 'basic'}${on(t)}" title="${esc(TAG_LABELS[t] ?? t)}" ${btn('play', t)}>${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}</i>`).join('');
+  const btn = (kind, id) => `data-tag-info="${esc(tagInfoText(kind, id, isSeed(p)))}" role="button" tabindex="0"`;
+  const play = (p.playstyleTags ?? []).map((t) => `<i class="ticon${isSeed(p) ? ' ticon--seed' : ''}${on(t)}" title="${esc(TAG_LABELS[t] ?? t)}" ${btn('play', t)}>${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}</i>`).join('');
   const trait = p.specialTrait ? `<i class="ticon ticon--trait" title="${esc(TRAIT_LABELS[p.specialTrait] ?? '')}" ${btn('trait', p.specialTrait)}>${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}</i>` : '';
   return `<span class="ticons">${play}${trait}</span>`;
 }
@@ -1000,7 +1008,7 @@ function tutorialTick(where) {
   if (step === 1) {
     const pick = currentState.shopOffer.find((c) => hasUpgrade([c]));
     showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '지금 선발보다 강한 선수예요. 협상을 눌러 영입해 보세요.', onSkip: tutSkip });
-  } else if (step === 2) spotOrSkip('#tagpanel-toggle', '이게 기본기 태그예요. 같은 태그를 가진 선수가 모일수록 팀이 강해져요.', 3);
+  } else if (step === 2) spotOrSkip('.deal__tags .chip', '선수마다 스타일 태그가 있어요. 같은 태그를 가진 선발이 3명 모이면 그 선수들이 모두 강해져요.', 3);
   else if (step === 3) spotOrSkip('#chem-info-btn', '적응도는 팀 조직력이에요. 영입·방출을 많이 하면 떨어지고(한 주 첫 거래는 괜찮아요), 거래가 없는 주엔 올라요.', 4);
   else if (step === 4) spotOrSkip('[data-tab="squad"]', `선수단은 최대 ${capNow()}명이에요. 가득 차면 영입할 때 내보낼 선수를 골라야 해요.`, 5);
   else if (step === 5) showSpot({ selector: '[data-tab="tactics"]', text: '전술 탭에서 선발 11명을 볼 수 있어요.', onSkip: tutSkip });
@@ -1194,11 +1202,13 @@ function scoutTargetSlots() {
 function stripLockedTags(card) {
   if (card.id?.startsWith('god-')) return card;
   const flags = loadFlags();
-  const open = (t) => {
-    const g = PLAYSTYLE_TAGS[t]?.grade ?? 'basic';
-    return g === 'basic' || flags.unlocked[g];
-  };
-  const out = { ...card, playstyleTags: (card.playstyleTags ?? []).filter(open) };
+  const open = (t) => PLAYSTYLE_TAGS[t]?.group === 'basic' || flags.unlocked.mid;
+  let tags = (card.playstyleTags ?? []).filter(open);
+  if (!tags.length) { // 태그가 하나도 안 남으면 그 포지션이 가질 수 있는 처음 3종 중 하나를 준다
+    const fit = BASIC_TAGS.filter((t) => PLAYSTYLE_TAGS[t].positions.includes(card.position));
+    tags = [(fit.length ? fit : BASIC_TAGS)[Math.floor(Math.random() * (fit.length || BASIC_TAGS.length))]];
+  }
+  const out = { ...card, playstyleTags: tags };
   if (card.specialTrait && !flags.unlocked.traits) {
     out.price = Math.round(card.price / (TRAIT_PRICE_MULT[card.specialTrait] ?? 1));
     out.specialTrait = null;
@@ -1888,14 +1898,23 @@ function coachFor() {
 // 상점 카드와 전술 탭 팀 케미 패널이 똑같은 계산을 쓴다.
 // tier = 넘은 문턱 수(0~5), need = 다음에 채워야 할 인원(다 넘었으면 마지막 문턱).
 function playstyleTagProgress(tagId, lineup) {
-  // 센 사람 = 보너스 받는 사람: 수혜 포지션에 서 있는 보유자만 센다.
-  const count = lineup.filter((p) => p.playstyleTags.includes(tagId) && PLAYSTYLE_TAGS[tagId].positions.includes(p.position)).length;
+  // 같은 태그를 가진 선발 수(포지션 무관). 보유자 전원이 보너스를 받는다.
+  const count = lineup.filter((p) => p.playstyleTags.includes(tagId)).length;
   const req = PLAYSTYLE_TAGS[tagId].thresholds;
   const tier = req.filter((n) => count >= n).length;
   const need = req[Math.min(tier, req.length - 1)];
   return { count, need, tier, req, values: PLAYSTYLE_TAGS[tagId].values };
 }
 // "3명 +6 · 5명 +10 · ..." 형태의 단계표 문구
+// 팀 컬러: 발동 중인 태그 중 가장 많이 모인 태그가 팀의 스타일이 된다(3명 이상).
+function teamStyle(lineup) {
+  let best = null;
+  for (const id of TAG_IDS) {
+    const { count } = playstyleTagProgress(id, lineup);
+    if (count >= TAG_THRESHOLDS[0] && (!best || count > best.count)) best = { id, count, name: STYLE_NAMES[id] };
+  }
+  return best;
+}
 const tagLadderText = (req, values) => req.map((n, i) => `${n}명 +${values[i]}`).join(' · ');
 
 // 19경기로 만들 수 없는 56점과 57점 이상은 55점으로 맞춘다(승 18·무 1이 최대).
@@ -2540,6 +2559,10 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const seasonRows = [...seasonPts.rows];
   awardPrestige(seasonPts.rows);
   const seasonMvp = decideSeasonMvp();
+  // 팀 컬러: 이번 시즌 라인업의 스타일을 기록해 두고, 가장 오래 쓴 스타일이 이 구단의 정체성이 된다.
+  const styleNow = teamStyle(lineup);
+  currentState.styleSeasons ??= {};
+  if (styleNow) currentState.styleSeasons[styleNow.id] = (currentState.styleSeasons[styleNow.id] ?? 0) + 1;
   if (outcome.ended) {
     // 같은 클릭에서 보드진의 신임이 발동하고도 목표 미달로 경질될 수 있다.
     // 그 경우에도 성향이 발동했다는 사실은 알려야 한다.
@@ -2608,6 +2631,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
       <div class="verdict__label">${esc(currentState.club.name)} · ${getLeagueTier(currentState.leagueTierId).label} 시즌 결산</div>
       <div class="verdict__result">${uclQualified && result === 'promotion' ? '챔피언스리그 진출' : FINAL_RESULT_LABELS[result]}</div>
       <div class="scoreline"><b>${totalPoints.toFixed(0)}</b><span>승점</span></div>
+      ${styleNow ? `<div class="stylebadge">팀 스타일 · ${esc(styleNow.name)}</div>` : ''}
       <div class="finalrank">최종 순위 <b>${finalRank}위</b> / 20팀</div>
       <div class="halves">
         <span>전반기 <b>${firstHalf}</b></span>
@@ -2742,6 +2766,10 @@ function renderRunEnd(reason, finalPoints, boardTrustMessage = '', uclResultId =
         <div class="gradebox__score"><b class="n">${score}</b><span>명성 점수</span></div>
       </div>
       <div class="stadiumbox">${stadiumHtml(stadiumLevel(currentState.highestTierId), currentState.club.kit)}</div>
+      ${(() => {
+        const top = Object.entries(currentState.styleSeasons ?? {}).sort((x, y) => y[1] - x[1])[0];
+        return top ? `<div class="stylebadge">${esc(currentState.club.name)}의 스타일 · ${esc(STYLE_NAMES[top[0]])} (${top[1]}시즌)</div>` : '';
+      })()}
       <p class="rankline${isBest ? ' is-best' : ''}">${rankLine}${isBest ? '' : prevBest ? ` · 최고 ${prevBest}` : ''}</p>
     </div>
     ${boardTrustMessage}
@@ -2911,32 +2939,20 @@ function renderSlotPicker(squad, formationId, selectedSlot, inXI, benchIds) {
 // 보너스 값이다(engine/ovr.mjs) - 배지 설명에 필요 인원과 보너스를 분리해서 쓴다.
 function renderChemistryPanel(lineup, bench) {
   const { manager } = currentState;
-
-  const playstyleRows = Object.entries(PLAYSTYLE_TAGS)
-    .map(([tagId, def]) => {
-      const { count, need, tier, req, values } = playstyleTagProgress(tagId, lineup);
-      const bonus = values[Math.max(0, tier - 1)];
-      const caption = `${count}/${need} · +${bonus}`;
-      const positions = def.positions.join('·');
-      // 문턱도 보너스도 그 포지션에 서 있는 보유자만 센다 - "누가 받는지"를 따로 보여준다.
-      const beneficiaries = tier
-        ? lineup.filter((p) => p.playstyleTags.includes(tagId) && def.positions.includes(p.position))
-        : [];
-      const desc = `${positions} 포지션에 선 보유자만 인원에 세고 보너스를 받습니다`
-        + `. 단계: ${tagLadderText(req, values)}`
-        + (beneficiaries.length ? `. 지금 받는 선수: ${beneficiaries.map((p) => p.name).join(', ')}` : '');
-      // 다음 단계까지 몇 명 더 필요하고, 그때 지금 라인업 중 몇 명이 받는지(계획용).
-      const receivers = lineup.filter((p) => def.positions.includes(p.position)).length;
-      const more = tier >= req.length ? '최대' : `${need - count}명 더 → +${values[tier]} (${receivers}명 수혜)`;
-      return { icon: renderTagIcon(PLAYSTYLE_ICON_PATHS, tagId), label: TAG_LABELS[tagId] ?? tagId, desc, caption, tier, more, grade: def.grade, near: tier < req.length && need - count === 1 };
-    })
-    .sort((a, b) => b.tier - a.tier);
-
-  const badge = (r) => `<li class="chembadge${r.tier ? ` is-tier${Math.min(r.tier, 2)}` : ''}${r.near ? ' is-near' : ''}" data-chem-desc="${esc(r.label)}: ${esc(r.desc)}${r.more ? ` — 다음 단계: ${esc(r.more)}` : ''}" title="${esc(r.label)} · ${esc(r.desc)}">
-    <div class="chembadge__ring">${r.icon}</div>
-    <span class="chembadge__label">${esc(r.label)}</span>
-    <span class="chembadge__count">${r.caption}${r.near ? ' ▲' : ''}</span>
-  </li>`;
+  const style = teamStyle(lineup);
+  const ids = TAG_IDS.filter((t) => PLAYSTYLE_TAGS[t].group === 'basic' || isUnlocked('mid'));
+  const rows = ids.map((id) => {
+    const { count, tier, req, values } = playstyleTagProgress(id, lineup);
+    const seeds = lineup.filter((p) => p.playstyleTags.includes(id) && isSeed(p)).length;
+    const next = tier >= req.length ? '최대' : `${req[tier] - count}명 더 → +${values[tier]}`;
+    return { id, count, tier, req, values, seeds, next };
+  }).sort((x, y) => y.count - x.count);
+  const styleRows = `<ul class="stylerows">${rows.map((r) => `<li class="stylerow${r.tier ? ' is-on' : ''}${style?.id === r.id ? ' is-main' : ''}" data-chem-desc="${esc(TAG_LABELS[r.id])}: ${esc(TAG_DESC[r.id])}. ${esc(tagLadderText(r.req, r.values))}${r.seeds ? ` · 씨앗 ${r.seeds}명은 효과가 절반` : ''} — 다음: ${esc(r.next)}">
+      <span class="stylerow__icon">${renderTagIcon(PLAYSTYLE_ICON_PATHS, r.id)}</span>
+      <span class="stylerow__name">${esc(TAG_LABELS[r.id])}</span>
+      <span class="stylerow__pips">${r.req.map((n, k) => `<i class="${r.count >= n ? 'is-full' : ''}"></i>`).join('')}</span>
+      <b class="stylerow__count n">${r.count}명${r.tier ? ` · +${r.values[r.tier - 1]}` : ''}</b>
+    </li>`).join('')}</ul>`;
 
   // 특수 태그는 지금 뛰는 선발+벤치(16명)만 본다 - 그 밖의 선수는 이번 주
   // 효과가 발동하지 않는 죽은 정보라 노이즈만 된다. 종류별로 묶어서 배지 하나 +
@@ -2964,19 +2980,12 @@ function renderChemistryPanel(lineup, bench) {
     </ul>` : '';
 
   return `<div class="panel">
-    <div class="panel__head"><h2>팀 케미</h2></div>
-    <h3 class="chemgroup__title">플레이스타일</h3>
-    ${Object.entries(TAG_GRADE_LABELS).filter(([g]) => g === 'basic' || isUnlocked(g)).map(([g, label]) => `<div class="chemgrade chemgrade--${g}">
-      <div class="chemgrade__head"><i></i><b>${label}</b></div>
-      <ul class="chembadges">${playstyleRows.filter((r) => r.grade === g).map(badge).join('')}</ul>
-    </div>`).join('')}
+    <div class="panel__head"><h2>팀 스타일</h2><span class="panel__count stylename">${style ? esc(style.name) : '아직 없음'}</span></div>
+    ${styleRows}
     ${traitSection}
     <p class="note" id="chem-desc"></p>
   </div>`;
 }
-
-// 플레이스타일 태그 등급(기본기·보통·어려움). 같은 이름과 색을 영입·전술·선수단에서 쓴다.
-const TAG_GRADE_LABELS = { basic: '기본기', mid: '보통', hard: '어려움' };
 
 const visibleTabs = () => TABS.filter((t) => t.id !== 'staff' || isUnlocked('staff'));
 const TABS = [
@@ -3077,38 +3086,24 @@ function renderMarket(banner = '') {
   const decay = transactionDecayAmount();
   const decayLabel = decay > 0 ? `적응도 -${decay}` : '적응도 유지';
 
-  const matchesTag = (c) => {
-    const f = currentState.offerTag;
-    if (!f) return true;
-    const [kind, id] = f.split(':');
-    return c.playstyleTags.includes(id);
-  };
-  const offerHtml = shopOffer.filter((c) => (!currentState.offerFilter || c.position === currentState.offerFilter) && matchesTag(c)).map((c) => {
+  const offerHtml = shopOffer.filter((c) => (!currentState.offerFilter || c.position === currentState.offerFilter)).map((c) => {
     const price = cardPrice(c);
     const affordable = funds >= price;
     const tier = tierOf(c.baseOVR);
-    // 정답(팀 +X.X 델타)은 안 주고 재료만 준다 - 태그 옆에 지금 라인업이
-    // 몇 명째인지만 보여주고, "그래서 사야 하는지"는 유저가 판단한다.
-      // 칩에는 "라벨 n/m"만 - 영입 시 발동(▲ 초록)/강화(▲ 금색)는 색으로, 보너스
-    // 포지션이 아니면 흐리게. 자세한 문장은 칩을 눌렀을 때 카드 아래에 뜬다.
-    // reach: 영입하면 넘는 문턱의 순번(0 = 첫 문턱 발동, 1 이상 = 강화), 없으면 -1
-    // 칩은 아이콘 + "n/m"만. 이름과 규칙은 눌렀을 때 카드 아래에 뜬다.
-    // reach: 영입하면 넘는 문턱의 순번(0 = 첫 문턱 발동, 1 이상 = 강화), 없으면 -1
-    const chip = (icon, count, need, reach, desc, label, dim = false, grade = '') => {
+    // 태그 칩은 아이콘만: 영입하면 발동(▲ 초록)/강화(▲ 금색)되는 태그는 반짝이고, 씨앗(전성기 전)은 연하게 보인다.
+    // 규칙과 설명은 칩을 눌렀을 때 카드 아래에 뜬다.
+    const seed = isSeed(c);
+    const chip = (t) => {
+      const { count, req, values } = playstyleTagProgress(t, lineup);
+      const reach = req.indexOf(count + 1); // 영입하면 넘는 문턱(0 = 첫 발동, 1 이상 = 강화), 없으면 -1
       const lvl = reach < 0 ? 0 : reach === 0 ? 1 : 2;
-      return `<button type="button" class="chip${lvl ? ` chip--up${lvl}` : ''}${dim ? ' chip--dim' : ''}${grade ? ` chip--g-${grade}` : ''}" data-tag-desc="${esc(desc)}" title="${esc(label)}" aria-label="${esc(label)} ${count}/${need}">${icon}<b>${count}/${need}</b></button>`;
+      const desc = `${TAG_LABELS[t] ?? t}: ${TAG_DESC[t]}. 지금 라인업 ${count}명. ${tagLadderText(req, values)}`
+        + (reach === 0 ? ' · 영입하면 발동!' : reach > 0 ? ' · 영입하면 강화!' : '')
+        + (seed ? ' · 씨앗: 전성기 전이라 효과가 절반이에요' : '');
+      return `<button type="button" class="chip${lvl ? ` chip--up${lvl}` : ''}${seed ? ' chip--seed' : ''}" data-tag-desc="${esc(desc)}" title="${esc(TAG_LABELS[t] ?? t)}" aria-label="${esc(TAG_LABELS[t] ?? t)}">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}${lvl ? '<b>▲</b>' : ''}</button>`;
     };
     const tags = [
-      ...c.playstyleTags.map((t) => {
-        const { count, need, req, values } = playstyleTagProgress(t, lineup);
-        const def = PLAYSTYLE_TAGS[t];
-        const receives = def.positions.includes(c.position);
-        const reach = receives ? req.indexOf(count + 1) : -1;
-        const desc = `${TAG_LABELS[t] ?? t}: 지금 라인업 ${count}명. ${tagLadderText(req, values)} (${def.positions.join('·')} 포지션만 셈)`
-          + (reach === 0 ? ' · 영입하면 발동!' : reach > 0 ? ' · 영입하면 강화!' : '')
-          + (receives ? '' : ` · ${c.position}은(는) 대상 포지션이 아니라 인원에 안 셉니다`);
-        return chip(renderTagIcon(PLAYSTYLE_ICON_PATHS, t), count, need, reach, desc, TAG_LABELS[t] ?? t, !receives, def.grade);
-      }),
+      ...c.playstyleTags.map(chip),
       c.specialTrait ? `<button type="button" class="chip chip--trait" data-tag-desc="${esc(`${TRAIT_LABELS[c.specialTrait]}: ${TRAIT_EFFECT_DESCRIPTIONS[c.specialTrait]}. 대가: ${TRAIT_DOWNSIDE_TEXT[c.specialTrait]}`)}" title="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}" aria-label="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, c.specialTrait)}</button>` : '',
     ].join('');
     // 같은 자리 비교: 이 선수가 들어가면 밀려날 선발(그 포지션 중 가장 약한 선수)과 개인 OVR만 견준다.
@@ -3153,24 +3148,14 @@ function renderMarket(banner = '') {
   for (const pos of missingPositions(squad, formationId)) gapCounts[pos] = (gapCounts[pos] ?? 0) + 1;
   const filterLabel = [
     currentState.offerFilter,
-    currentState.offerTag ? TAG_LABELS[currentState.offerTag.split(':')[1]] : null,
   ].filter(Boolean).join(' · ');
   const gapBarHtml = Object.keys(gapCounts).length || filterLabel ? `<div class="gapbar">
       ${Object.entries(gapCounts).map(([pos, n]) => `<button class="gapchip${currentState.offerFilter === pos ? ' is-on' : ''}" data-gap="${pos}"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21 C4 15 8 13 12 13 C16 13 20 15 20 21 Z"/></svg>공석 ${pos}${n > 1 ? ` ×${n}` : ''}</button>`).join('')}
       ${filterLabel ? `<button class="gapchip gapchip--clear" data-gap-clear>${esc(filterLabel)}만 보는 중 · 전체 보기</button>` : ''}
     </div>` : '';
 
-  // 내 선수단 태그 현황: 가진 태그만 칩으로 보여주고(선발 인원/다음 문턱), 누르면 그 태그 매물만 본다.
-  const heldPlay = {};
-  for (const p of squad) {
-    for (const t of p.playstyleTags ?? []) heldPlay[t] = (heldPlay[t] ?? 0) + 1;
-  }
-  const playChips = Object.keys(heldPlay).map((t) => ({ t, ...playstyleTagProgress(t, lineup) }))
-    .sort((a, b) => b.tier - a.tier || b.count - a.count)
-    .map(({ t, count, need, tier }) => `<button class="tagchip${tier ? ' is-on' : ''}${count === 0 ? ' is-zero' : ''}${currentState.offerTag === `playstyle:${t}` ? ' is-sel' : ''}" data-offer-tag="playstyle:${t}" title="선발 ${count}명 · 전체 ${heldPlay[t]}명">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}${TAG_LABELS[t] ?? t}<b class="n">${count}/${need}</b></button>`).join('');
-  const traitLines = [...lineup, ...bench].filter((p) => p.specialTrait).map((p) => `<span class="tagchip tagchip--trait" title="${esc(TRAIT_EFFECT_DESCRIPTIONS[p.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}${esc(p.name)}<b>${esc(TRAIT_LABELS[p.specialTrait])}</b></span>`).join('');
   const caps = scoutCaps();
-  const targetOptions = ADVANCED_TAGS.map((t) => `<option value="${t}"${currentState.scoutTargetTag === t ? ' selected' : ''}>${esc(TAG_LABELS[t] ?? t)} (${PLAYSTYLE_TAGS[t].grade === 'hard' ? '어려움' : '보통'})</option>`).join('');
+  const targetOptions = TAG_IDS.filter((t) => PLAYSTYLE_TAGS[t].group === 'basic' || isUnlocked('mid')).map((t) => `<option value="${t}"${currentState.scoutTargetTag === t ? ' selected' : ''}>${esc(TAG_LABELS[t] ?? t)}</option>`).join('');
   const posOptions = POSITIONS.map((p) => `<option value="${p}"${currentState.scoutTargetPos === p ? ' selected' : ''}>${p}</option>`).join('');
   const scoutTargetHtml = caps.tag && isUnlocked('staff')
     ? `<div class="scoutbar" title="스카우터가 매주 이 조건의 선수를 1장 찾아 줍니다(다음 주부터)">
@@ -3179,16 +3164,6 @@ function renderMarket(banner = '') {
         ${caps.position ? `<select id="scout-target-pos" aria-label="목표 포지션"><option value="">포지션</option>${posOptions}</select>` : ''}
       </div>`
     : '';
-  const tagPanelCollapsed = currentState.tagPanelCollapsed !== false; // 기본은 접어 둔다
-  const tagSummary = Object.keys(heldPlay).map((t) => ({ t, ...playstyleTagProgress(t, lineup) })).sort((a, b) => b.tier - a.tier || b.count - a.count).slice(0, 3).map((x) => `${TAG_LABELS[x.t] ?? x.t} ${x.count}/${x.need}`).join(' · ');
-  const tagPanelHtml = playChips ? `<div class="tagpanel${tagPanelCollapsed ? ' is-collapsed' : ''}" id="tagpanel">
-            <button class="tagpanel__head" id="tagpanel-toggle" aria-expanded="${!tagPanelCollapsed}"><b>내 태그</b><span class="tagpanel__sum">${tagSummary}</span><i class="panel__chev" aria-hidden="true">⌄</i></button>
-      <div class="tagpanel__body">
-        ${playChips ? `<div class="tagpanel__group"><em>플레이스타일</em><div>${playChips}</div></div>` : ''}
-        ${traitLines ? `<div class="tagpanel__group"><em>특수</em><div>${traitLines}</div></div>` : ''}
-      </div>
-    </div>` : '';
-
   const starPlayer = [...squad].sort((a, b) => b.baseOVR - a.baseOVR)[0] ?? null;
   // 선수단 탭: 선발 / 벤치 / 예비 세 묶음으로 보여 준다. 행을 누르면 교체·판매 버튼이 펼쳐진다.
   const benchIds = new Set(bench.map((p) => p.id));
@@ -3245,7 +3220,7 @@ function renderMarket(banner = '') {
           <button type="button" role="tab" data-draft-sub="staff" aria-selected="${draftSub === 'staff'}">스태프</button>` : ''}
           ${draftSub === 'players' ? `<button class="reroll" id="reroll-btn" ${funds >= rerollCost() ? '' : 'disabled'}>다시 뽑기 <b>${rerollCost()}G</b></button>` : ''}
         </div>
-        ${draftSub === 'players' ? `${scoutTargetHtml}${tagPanelHtml}${gapBarHtml}
+        ${draftSub === 'players' ? `${scoutTargetHtml}${gapBarHtml}
         <ul class="offers">${offerHtml || `<li class="empty">${currentState.offerFilter ? `이번 주 매물에 ${currentState.offerFilter}가 없습니다. 다시 뽑거나 전체 보기로 돌아가세요.` : '이번 주는 매물이 없습니다. 다시 뽑거나 다음 주로 넘어가세요.'}</li>`}</ul>` : ''}
         ${draftSub === 'manager' ? draftManagerHtml(funds) : ''}
         ${draftSub === 'staff' ? draftStaffHtml(funds) : ''}
@@ -3575,14 +3550,7 @@ function renderMarket(banner = '') {
   });
   document.querySelector('[data-gap-clear]')?.addEventListener('click', () => {
     currentState.offerFilter = null;
-    currentState.offerTag = null;
     renderMarket(banner);
-  });
-  document.querySelectorAll('[data-offer-tag]').forEach((el) => {
-    el.onclick = () => {
-      currentState.offerTag = currentState.offerTag === el.dataset.offerTag ? null : el.dataset.offerTag;
-      renderMarket(banner);
-    };
   });
   document.querySelectorAll('[data-coach-focus]').forEach((btn) => {
     btn.onclick = () => { currentState.staff.headCoach.focus = btn.dataset.coachFocus; renderMarket(); };
@@ -3594,11 +3562,6 @@ function renderMarket(banner = '') {
   document.getElementById('scout-target-pos')?.addEventListener('change', (e) => {
     currentState.scoutTargetPos = e.target.value || null;
     if (scoutCaps().exclusive && currentState.scoutTargetPos) { currentState.scoutTargetTag = null; renderMarket(); }
-  });
-  document.getElementById('tagpanel-toggle')?.addEventListener('click', () => {
-    currentState.tagPanelCollapsed = currentState.tagPanelCollapsed === false; // 기본(undefined)은 접힘 상태
-    document.getElementById('tagpanel')?.classList.toggle('is-collapsed', currentState.tagPanelCollapsed);
-    document.getElementById('tagpanel-toggle')?.setAttribute('aria-expanded', String(!currentState.tagPanelCollapsed));
   });
   document.querySelectorAll('[data-tag-desc]').forEach((el) => {
     el.addEventListener('click', () => {
@@ -3850,10 +3813,8 @@ function introTick() {
   const seen = loadFlags().seen;
   const once = (key) => ({ ok: '확인', onOk: () => markSeen(key), onSkip: () => markSeen(key) });
   const draft = currentState.tab === 'draft';
-  const tagPanel = !!document.querySelector('#tagpanel-toggle');
   const items = [
-    ['mid', isUnlocked('mid') && draft && tagPanel, '#tagpanel-toggle', '보통 태그가 열렸어요. 같은 태그 3명이 모이면 발동하고, 기본기보다 효과가 커요.'],
-    ['hard', isUnlocked('hard') && draft && tagPanel, '#tagpanel-toggle', '어려움 태그가 열렸어요. 모으기 어렵지만 효과가 가장 커요.'],
+    ['mid', isUnlocked('mid') && draft && !!document.querySelector('.deal__tags .chip'), '.deal__tags .chip', '태그 3종이 더 열렸어요. 전방 압박, 역습, 후방 빌드업 선수도 나와요.'],
     ['staff', isUnlocked('staff'), '[data-tab="staff"]', '감독·스태프 탭이 열렸어요. 감독과 코치, 스카우터를 여기서 바꿀 수 있어요.'],
     ['traits', isUnlocked('traits') && draft && !!document.querySelector('.chip--trait'), '.chip--trait', '특수 성향 선수예요. 성향마다 효과와 대가가 자동으로 붙어요.'],
     ['haggle', draft && !!document.querySelector('.deal__buy:not([disabled])'), '.deal__buy:not([disabled])', '협상을 누르면 구단에 더 낮은 가격을 제안할 수 있어요. 거절당하면 얼굴이 굳어지고, 화가 나면 협상이 깨져 그 선수를 놓쳐요.'],

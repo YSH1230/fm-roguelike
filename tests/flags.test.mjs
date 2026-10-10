@@ -20,8 +20,8 @@ test('시즌에 도달하면 그 시즌까지의 기능이 열리고, 한 번만
   assert.deepEqual(unlockForSeason(1, s), []);
   assert.deepEqual(unlockForSeason(2, s).sort(), ['board', 'direction', 'mid']);
   assert.deepEqual(unlockForSeason(2, s), []); // 이미 열림
-  assert.deepEqual(unlockForSeason(3, s).sort(), ['hard', 'staff', 'traits']);
-  assert.equal(isUnlocked('hard', loadFlags(s)), true);
+  assert.deepEqual(unlockForSeason(3, s).sort(), ['staff', 'traits']);
+  assert.equal(isUnlocked('staff', loadFlags(s)), true);
 });
 
 test('저장이 깨져 있어도 기본값으로 돌아온다', () => {

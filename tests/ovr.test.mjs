@@ -79,20 +79,21 @@ test('슈퍼 서브는 벤치에 있으면 선발 전원 +1, 여러 명이어도
   assert.equal(computeTeamTraitBonuses([starter], []).get('starter') ?? 0, 0);
 });
 
-test('플레이스타일 시너지: 문턱 3/4/5명에서 +2/+4/+7, 5명 넘어도 최대값(포지션 무관)', () => {
+test('플레이스타일 시너지: 문턱 3/4/5명에서 +1/+2/+4, 5명 넘어도 최대값(포지션 무관)', () => {
   const pos = ['ST', 'CMF', 'W', 'AMF', 'DMF', 'CMF', 'ST'];
   const make = (n) => Array.from({ length: n }, (_, i) => makePlayer({ id: `p${i}`, position: pos[i], playstyleTags: ['press'] }));
   assert.equal(computePlaystyleSynergyBonus(make(2)).get('p0') ?? 0, 0);
-  assert.equal(computePlaystyleSynergyBonus(make(3)).get('p0'), 2);
-  assert.equal(computePlaystyleSynergyBonus(make(4)).get('p0'), 4);
-  assert.equal(computePlaystyleSynergyBonus(make(5)).get('p0'), 7);
-  assert.equal(computePlaystyleSynergyBonus(make(7)).get('p0'), 7);
+  assert.equal(computePlaystyleSynergyBonus(make(3)).get('p0'), 1);
+  assert.equal(computePlaystyleSynergyBonus(make(4)).get('p0'), 2);
+  assert.equal(computePlaystyleSynergyBonus(make(5)).get('p0'), 4);
+  assert.equal(computePlaystyleSynergyBonus(make(7)).get('p0'), 4);
 });
 
 test('씨앗: 전성기 전 선수는 효과가 절반이고 인원에는 그대로 센다, 개화(전성기 도달)하면 100%', () => {
   const seed = (id) => makePlayer({ id, position: 'CMF', age: 20, playstyleTags: ['pass'], peakOVR: 75, peakBodyAge: 26 });
   const bloom = (id) => makePlayer({ id, position: 'CMF', age: 28, playstyleTags: ['pass'], peakOVR: 70, peakBodyAge: 26 });
-  const b = computePlaystyleSynergyBonus([seed('a'), seed('b'), bloom('c')]); // 3명 -> +2
+  const four = [seed('a'), seed('b'), bloom('c'), bloom('d')]; // 4명 -> +2
+  const b = computePlaystyleSynergyBonus(four);
   assert.equal(b.get('a'), 1); // 씨앗은 절반
   assert.equal(b.get('c'), 2); // 개화는 전부
   assert.equal(computePlaystyleSynergyBonus([seed('a'), seed('b')]).size, 0); // 2명이면 발동 안 함
@@ -118,8 +119,8 @@ test('computePlayerFinalOVR은 baseOVR에 모든 가산을 합산한다', () => 
   const teammate1 = makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['press'] });
   const teammate2 = makePlayer({ id: 'c', position: 'CMF', playstyleTags: ['press'] });
   const lineup = [player, teammate1, teammate2];
-  // 70 (base) + 8 (저니맨) + 2 (압박 3명 시너지) = 80
-  assert.equal(computePlayerFinalOVR(player, lineup, []), 80);
+  // 70 (base) + 8 (저니맨) + 1 (압박 3명 시너지) = 79
+  assert.equal(computePlayerFinalOVR(player, lineup, []), 79);
 });
 
 test('같은 태그 보유자가 3명 미만이면 보너스가 없다', () => {

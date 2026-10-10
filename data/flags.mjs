@@ -4,16 +4,15 @@ const KEY = 'fm-roguelike-flags';
 
 // 해금 기능 id와 열리는 시즌. 시즌 번호는 그 런의 seasonNumber.
 export const UNLOCK_SEASON = {
-  mid: 2, // 보통 태그
+  mid: 2, // 태그 3종 추가(전방 압박·역습·후방 빌드업)
   board: 2, // 이사진 요구
   direction: 2, // 반기 전술 방향
-  hard: 3, // 어려움 태그
   staff: 3, // 감독·스태프
   traits: 3, // 특수 성향 배지
 };
 export const UNLOCK_LABEL = {
-  mid: '보통 태그', board: '이사진 요구', direction: '반기 전술 방향',
-  hard: '어려움 태그', staff: '감독·스태프', traits: '특수 성향',
+  mid: '새 태그 3종', board: '이사진 요구', direction: '반기 전술 방향',
+  staff: '감독·스태프', traits: '특수 성향',
 };
 
 const blank = () => ({ tutorialStep: 0, tutorialDone: false, unlocked: {}, seen: {} });

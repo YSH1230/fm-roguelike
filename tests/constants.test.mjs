@@ -12,11 +12,11 @@ import {
   BASE_POINTS_AT_LEAGUE_AVERAGE,
 } from '../engine/constants.mjs';
 
-test('플레이스타일 태그 6종: 한 층, 모두 같은 문턱(3/4/5명)과 값(+2/+4/+7)', () => {
+test('플레이스타일 태그 6종: 한 층, 모두 같은 문턱(3/4/5명)과 값(+1/+2/+4)', () => {
   assert.deepEqual(Object.keys(PLAYSTYLE_TAGS).sort(), ['buildup', 'counter', 'dribble', 'pass', 'physical', 'press']);
   for (const tag of Object.values(PLAYSTYLE_TAGS)) {
     assert.deepEqual(tag.thresholds, [3, 4, 5]);
-    assert.deepEqual(tag.values, [2, 4, 7]);
+    assert.deepEqual(tag.values, [1, 2, 4]);
   }
 });
 
