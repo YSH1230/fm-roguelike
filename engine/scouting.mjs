@@ -11,7 +11,7 @@ export const MIN_HALF_WIDTH = 2;
 // 정규분포에서 양쪽 hit 확률을 덮는 z값
 const Z = { 0.6: 0.8416, 0.75: 1.1503, 0.8: 1.2816 };
 
-function hash32(str) {
+export function hash32(str) {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
   // 마지막에 비트를 한 번 더 섞는다(비슷한 문자열이 비슷한 값으로 나오면 오차가 한쪽으로 쏠린다)

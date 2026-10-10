@@ -16,6 +16,7 @@ import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, compu
 import { getLeagueTier, getLadderIndex, getNextTier } from '../engine/league.mjs';
 import { optimizeLineup } from '../engine/lineup.mjs';
 import { ageSquad, ensurePotential } from '../engine/aging.mjs';
+import { patienceFor, offerAccepted } from '../engine/haggle.mjs';
 import { finalLeagueRank } from '../engine/half-results.mjs';
 import { judgeRunOutcome, nextMissedTargetCount } from '../engine/run.mjs';
 import { createUcl, advanceUcl, UCL_REWARDS_FUNDS } from '../engine/champions-league.mjs';
@@ -197,6 +198,20 @@ function playCareer() {
             .sort((x, y) => y.gain - x.gain);
           if (!ranked.length || ranked[0].gain <= 0.02) break;
           const best = ranked[0];
+          // 흥정: 구단 태도(-1·0·1)를 보고 유연하면 20%→10%, 보통이면 10%, 완강하면 안 깎는다. 인내심이 바닥나면 협상 결렬.
+          const hscore = [-1, 0, 1][Math.floor(Math.random() * 3)];
+          const hu = Math.random();
+          const hTrue = valuePrice(best.card, 0);
+          const plan = hscore >= 1 ? [0.2, 0.1] : hscore === 0 ? [0.1] : [];
+          let hpat = patienceFor(hscore); let hfactor = 1; let hbroken = false;
+          for (const d of plan) {
+            if (offerAccepted({ ask: best.card.price, trueValue: hTrue, discount: d, score: hscore, u: hu })) { hfactor = 1 - d; break; }
+            hpat -= 1;
+            if (hpat <= 0) { hbroken = true; break; }
+          }
+          if (hbroken) { pool = pool.filter((o) => o.card !== best.card); continue; }
+          best.price = Math.round(best.price * hfactor);
+          if (funds < best.price) { pool = pool.filter((o) => o.card !== best.card); continue; }
           if (full) sellOut(spare()[0]); // 교체 영입은 한 건으로 센다
           funds -= best.price; spent += best.price; buys += 1;
           squad = [...squad, toSquad(best.card, true)];

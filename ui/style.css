@@ -2093,3 +2093,12 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .mvprace__list li.is-winner b { color: var(--gold); }
 .deal__peak { color: var(--muted); font-size: var(--fs-label); margin-top: 2px; }
 .deal__peak b { color: var(--light); }
+.deal__act { display: grid; gap: 6px; justify-items: stretch; }
+.deal__haggle { padding: 6px 8px; background: transparent; border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--muted); font: inherit; font-size: var(--fs-label); }
+.deal__haggle:disabled { opacity: 0.4; }
+.deal__seller { color: var(--muted); font-size: var(--fs-label); margin-top: 2px; }
+.att { font-weight: 700; }
+.att--유연 { color: var(--turf); }
+.att--보통 { color: var(--light); }
+.att--완강 { color: var(--debit); }
+.haggle__pat { letter-spacing: 1px; }

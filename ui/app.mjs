@@ -50,6 +50,7 @@ import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
 import { ageSquad, playerTrend, ensurePotential, hasPeaked } from '../engine/aging.mjs';
 import { estimatePeak } from '../engine/scouting.mjs';
+import { HAGGLE_DISCOUNTS, patienceFor, attitudeScore, attitudeLabel, clubBaseAttitude, cardUniform, offerAccepted, moodAfter } from '../engine/haggle.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait, appearanceOf } from './portrait.mjs';
 import { pixelMatchHtml } from './pixel.mjs';
@@ -237,7 +238,7 @@ function avgAge(players) {
 function peakRangeText(p, role) {
   if (!Number.isFinite(p.age) || p.peakOVR == null || hasPeaked(p)) return '';
   const e = estimatePeak(p, staffLevel(role), role === 'headCoach' ? p.seasonsAtClub ?? 0 : 0);
-  return e ? `${e.lo}~${e.hi}` : '';
+  return e ? (e.lo === e.hi ? `${e.lo}` : `${e.lo}~${e.hi}`) : '';
 }
 
 function repricePlayer(p) {
@@ -1198,11 +1199,79 @@ function stripLockedTags(card) {
 }
 
 function newShopOffer() {
+  currentState.patience = {}; // 새 매물이 오면 흥정 인내심도 새로 시작
+  currentState.rejected = {};
   const slots = scoutTargetSlots();
   const position = scoutCaps().position ? currentState.scoutTargetPos ?? null : null;
   const boost = isStaffFreshThisWeek('headScout') ? 0 : SCOUT_QUALITY_BOOST_BY_LEVEL[staffLevel('headScout')] ?? 0;
   return generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId,
-    slots ? currentState.scoutTargetTag : null, slots, position, boost, scoutCaps().combined).map(stripLockedTags);
+    slots ? currentState.scoutTargetTag : null, slots, position, boost, scoutCaps().combined).map(stripLockedTags).map(withSeller);
+}
+
+// 카드마다 내놓는 구단(리그 구단 이름)을 붙인다. GOD 카드는 흥정 없이 고정가라 구단을 안 붙인다.
+function withSeller(card) {
+  if (card.id?.startsWith('god-')) return card;
+  const names = buildLeagueRivals(currentState?.leagueTierId ?? 'tier5', 12).map((c) => c.name);
+  return { ...card, seller: names[Math.floor(Math.random() * names.length)] };
+}
+
+// 구단 태도: 성격(런마다 고정) + 이번 시즌에 쌓인 기분
+function sellerAttitude(name) {
+  const base = clubBaseAttitude(name, currentState.telemetryRun ?? '');
+  const mood = currentState.clubMood?.[name] ?? 0;
+  const score = attitudeScore(base, mood);
+  return { score, label: attitudeLabel(score) };
+}
+function setMood(name, event) {
+  currentState.clubMood ??= {};
+  currentState.clubMood[name] = moodAfter(currentState.clubMood[name] ?? 0, event);
+}
+
+// 흥정 창: 깎아 달라는 비율을 고르면 구단이 답한다. 거절하면 인내심이 줄고, 바닥나면 협상이 깨진다.
+function openHaggle(card, note = '') {
+  const root = document.getElementById('eventmodal-root');
+  currentState.patience ??= {};
+  const att = sellerAttitude(card.seller);
+  const maxPat = patienceFor(att.score);
+  const pat = currentState.patience[card.id] ?? maxPat;
+  currentState.rejected ??= {};
+  const rejected = currentState.rejected[card.id] ?? 1; // 거절당한 비율 이상은 다시 못 고른다
+  const ask = cardPrice(card);
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--goal haggle">
+        <div class="eventmodal__kicker">${esc(card.seller)} · 태도 <b class="att att--${att.label}">${att.label}</b></div>
+        <div class="eventmodal__title">${esc(card.name)} 요구액 ${ask}G</div>
+        <p class="eventmodal__detail haggle__pat">인내심 ${'●'.repeat(pat)}${'○'.repeat(Math.max(0, maxPat - pat))}${note ? ` · ${esc(note)}` : ''}</p>
+        <div class="dirpick">
+          ${HAGGLE_DISCOUNTS.map((d) => { const price = Math.round(ask * (1 - d)); return `<button class="reroll" data-offer="${d}" ${currentState.funds < price || d >= rejected ? 'disabled' : ''}>${Math.round(d * 100)}% 깎아 주세요 <small>${price}G</small></button>`; }).join('')}
+        </div>
+        <button class="reroll" id="haggle-close" style="margin-top:var(--s2);width:100%">그만두기</button>
+      </div>
+    </div>`;
+  root.querySelectorAll('[data-offer]').forEach((btn) => {
+    btn.onclick = () => {
+      const d = Number(btn.dataset.offer);
+      const trueValue = valuePrice(card, 0);
+      const ok = offerAccepted({ ask: card.price, trueValue, discount: d, score: att.score, u: cardUniform(card.id, currentState.telemetryRun ?? '') });
+      if (ok) {
+        root.innerHTML = '';
+        buyCard(card, null, null, Math.round(ask * (1 - d)));
+        return;
+      }
+      currentState.patience[card.id] = pat - 1;
+      currentState.rejected[card.id] = d;
+      if (pat - 1 <= 0) {
+        root.innerHTML = '';
+        setMood(card.seller, 'broken');
+        currentState.shopOffer = currentState.shopOffer.filter((c) => c.id !== card.id);
+        renderMarket(`${card.seller}와(과) 협상 결렬 - ${card.name}은(는) 다른 구단으로 갔습니다`);
+        return;
+      }
+      openHaggle(card, '거절당했습니다');
+    };
+  });
+  document.getElementById('haggle-close').onclick = () => { root.innerHTML = ''; };
 }
 function scoutOfferSize() {
   if (isStaffFreshThisWeek('headScout')) return SHOP_OFFER_SIZE;
@@ -1302,6 +1371,7 @@ function startNewSeason() {
   currentState.boardDemand = null;
   currentState.seasonTrack = { spent: 0, winterTransactions: 0, income: 0, start: currentState.funds };
   currentState.mvpPoints = {};
+  currentState.clubMood = {}; // 구단 기분은 시즌이 바뀌면 풀린다
   currentState.seasonNumber += 1;
   const unlockedNow = unlockForSeason(currentState.seasonNumber);
   currentState.week = SUMMER_MARKET_WEEKS[0];
@@ -1401,7 +1471,7 @@ function tradeDecay() {
 }
 
 // 정원이 찼을 때: 새 선수 대신 내보낼 선수를 고른다(판매 등록 또는 즉시 방출).
-function showSquadFullPicker(card) {
+function showSquadFullPicker(card, priceOverride = null) {
   const root = document.getElementById('eventmodal-root');
   const list = [...currentState.squad].sort((a, b) => a.baseOVR - b.baseOVR);
   root.innerHTML = `
@@ -1421,23 +1491,23 @@ function showSquadFullPicker(card) {
     btn.onclick = () => {
       const [mode, ...rest] = btn.dataset.out.split(':');
       root.innerHTML = '';
-      buyCard(card, null, { mode, id: rest.join(':') });
+      buyCard(card, null, { mode, id: rest.join(':') }, priceOverride);
     };
   });
   document.getElementById('out-cancel').onclick = () => { root.innerHTML = ''; };
 }
 
-function buyCard(card, rowEl = null, outgoing = null) {
-  const price = cardPrice(card);
+function buyCard(card, rowEl = null, outgoing = null, priceOverride = null) {
+  const price = priceOverride ?? cardPrice(card);
   if (currentState.funds < price) return;
   if (!outgoing && currentState.squad.length >= capNow()) {
-    showSquadFullPicker(card);
+    showSquadFullPicker(card, priceOverride);
     return;
   }
   // 카드가 상점에서 빠져나가는 걸 보여준 뒤 다시 그린다.
   if (rowEl && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     rowEl.classList.add('is-leaving');
-    setTimeout(() => buyCard(card), 160);
+    setTimeout(() => buyCard(card, null, null, priceOverride), 160);
     rowEl.style.pointerEvents = 'none';
     return;
   }
@@ -1460,9 +1530,11 @@ function buyCard(card, rowEl = null, outgoing = null) {
   const tiersBefore = tagTiers();
   // 영입하면 시장의 어긋남이 드러난다: 진짜 시세와 비교해 스카우트가 맞았는지 알려 준다.
   const trueValue = card.price && !card.id.startsWith('god-') ? valuePrice(card, 0) : card.price;
-  const diff = trueValue ? (card.price - trueValue) / trueValue : 0;
+  const discountRatio = priceOverride ? priceOverride / cardPrice(card) : 1;
+  const diff = trueValue ? (card.price * discountRatio - trueValue) / trueValue : 0;
   const scoutMsg = diff <= -0.07 ? `스카우트 적중! 시세 대비 −${Math.round(-diff * 100)}%` : diff >= 0.07 ? `스카우트 오판 (시세 대비 +${Math.round(diff * 100)}%)` : '';
-  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, paidPrice: cardPrice(card), price: trueValue }];
+  if (card.seller && !priceOverride) setMood(card.seller, 'asking');
+  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, paidPrice: price, price: trueValue }];
   const tiersAfter = tagTiers();
   const activated = Object.keys(tiersAfter).filter((t) => tiersAfter[t] > tiersBefore[t])
     .map((t) => `${TAG_LABELS[t] ?? t} +${PLAYSTYLE_TAGS[t].values[tiersAfter[t] - 1]}`);
@@ -2994,13 +3066,17 @@ function renderMarket(banner = '') {
       </div>
       <div class="deal__body">
         <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세${playerTrend(c)}</span></div>
+        ${c.seller ? `<div class="deal__seller">${esc(c.seller)} 요구액 · 태도 <b class="att att--${sellerAttitude(c.seller).label}">${sellerAttitude(c.seller).label}</b></div>` : ''}
         ${peakRangeText(c, 'headScout') ? `<div class="deal__peak">전성기 <b class="n">${peakRangeText(c, 'headScout')}</b> <small>추정</small></div>` : ''}
         <div class="deal__tags">${tags}</div>
         ${compareHtml}
       </div>
-      <button class="buy deal__buy" data-buy="${c.id}" ${affordable ? '' : 'disabled'} title="${decayNote}">
-        <span>${affordable ? '영입' : '부족'}</span><b class="n">${price}G</b>
-      </button>
+      <div class="deal__act">
+        <button class="buy deal__buy" data-buy="${c.id}" ${affordable ? '' : 'disabled'} title="${decayNote}">
+          <span>${affordable ? '영입' : '부족'}</span><b class="n">${price}G</b>
+        </button>
+        ${c.seller ? `<button class="deal__haggle" data-haggle="${c.id}" ${funds >= Math.round(price * (1 - HAGGLE_DISCOUNTS[0])) ? '' : 'disabled'}>흥정</button>` : ''}
+      </div>
       <p class="offer__hint" hidden></p>
     </li>`;
   }).join('');
@@ -3289,6 +3365,8 @@ function renderMarket(banner = '') {
       const btn = document.querySelector(`[data-buy="${card.id}"]`);
       if (!btn) continue; // 공석 필터로 가려진 카드는 화면에 없다
       btn.onclick = () => buyCard(card, document.querySelector(`[data-row="${card.id}"]`));
+      const hg = document.querySelector(`[data-haggle="${card.id}"]`);
+      if (hg) hg.onclick = () => openHaggle(card);
     }
     document.getElementById('reroll-btn')?.addEventListener('click', rerollShop);
     document.querySelectorAll('[data-draft-sub]').forEach((b) => { b.onclick = () => { currentState.draftSub = b.dataset.draftSub; renderMarket(); }; });
@@ -3718,6 +3796,7 @@ function introTick() {
     ['hard', isUnlocked('hard') && draft && tagPanel, '#tagpanel-toggle', '어려움 태그가 열렸어요. 모으기 어렵지만 효과가 가장 커요.'],
     ['staff', isUnlocked('staff'), '[data-tab="staff"]', '감독·스태프 탭이 열렸어요. 감독과 코치, 스카우터를 여기서 바꿀 수 있어요.'],
     ['traits', isUnlocked('traits') && draft && !!document.querySelector('.chip--trait'), '.chip--trait', '특수 성향 선수예요. 성향마다 효과와 대가가 자동으로 붙어요.'],
+    ['haggle', draft && !!document.querySelector('.deal__haggle:not([disabled])'), '.deal__haggle:not([disabled])', '구단과 흥정할 수 있어요. 태도를 보고 깎아 달라고 해 보세요. 거절당하면 인내심이 줄고, 바닥나면 협상이 깨져 그 선수를 놓쳐요.'],
     ['sale', currentState.tab === 'squad' && currentState.listedForSale.some((l) => l.offers), '.listed', '오퍼가 도착했어요. 하나를 수락해서 파세요. 마감까지 안 팔면 태업(OVR -3)해요.'],
   ];
   const next = items.find(([key, when]) => when && !seen[key]);
