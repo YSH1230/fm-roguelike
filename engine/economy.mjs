@@ -46,7 +46,7 @@ export function applyCostModifiers(basePrice, modifierRatios) {
 
 // 시즌 지급액 배율. 계약(재계약비)을 없애서 생긴 여윳돈을 리그별로 되돌리는 조절판이다. first = 첫 시즌.
 // 시뮬레이션(tools/sim-human.mjs, 환경변수 FS)으로 맞춘다.
-export const FUNDS_SCALE = { first: 1.25, tier5: 0.95, tier4: 1.15, tier3: 1.0, tier2: 0.9, tier1: 0.62 };
+export const FUNDS_SCALE = { first: 1.25, tier5: 0.95, tier4: 1.25, tier3: 1.0, tier2: 0.9, tier1: 0.72 };
 export const fundsScale = (tierId, seasonNumber) => (seasonNumber <= 1 ? FUNDS_SCALE.first : FUNDS_SCALE[tierId] ?? 1);
 
 // 안 팔리는 선수: 능력이 낮거나 나이가 많거나 가치가 없는(0G) 선수는 오퍼가 한 건도 안 올 수 있다. 그러면 자유계약으로 떠난다.
