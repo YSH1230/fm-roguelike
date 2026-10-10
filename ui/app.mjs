@@ -37,7 +37,7 @@ import {
   applyCostModifiers,
   computeReleaseProceeds,
   generateSaleOffers,
-  calculatePlayerPrice,
+  valuePrice,
 } from '../engine/economy.mjs';
 import { applyTransactionDecay, chemistryMultiplier } from '../engine/chemistry.mjs';
 import { computePlayerFinalOVR, computePlayerBonusBreakdown } from '../engine/ovr.mjs';
@@ -48,7 +48,8 @@ import {
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
-import { ageSquad, ageTrend, agePriceMult } from '../engine/aging.mjs';
+import { ageSquad, playerTrend, ensurePotential, hasPeaked } from '../engine/aging.mjs';
+import { estimatePeak } from '../engine/scouting.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait, appearanceOf } from './portrait.mjs';
 import { pixelMatchHtml } from './pixel.mjs';
@@ -232,13 +233,17 @@ function avgAge(players) {
   return players.length ? (players.reduce((sum, p) => sum + p.age, 0) / players.length).toFixed(1) : '-';
 }
 // 시즌 시작 몸값 재계산: 성장한 선수는 비싸지고(갱신비 상승) 노쇠한 선수는 싸진다. GOD 카드와 무료 영입(0G)은 그대로.
+// 전성기 추정(스카우터: 시장 카드, 코치: 내 선수단). 이미 전성기가 지난 선수는 보여 줄 게 없다.
+function peakRangeText(p, role) {
+  if (!Number.isFinite(p.age) || p.peakOVR == null || hasPeaked(p)) return '';
+  const e = estimatePeak(p, staffLevel(role), role === 'headCoach' ? p.seasonsAtClub ?? 0 : 0);
+  return e ? `${e.lo}~${e.hi}` : '';
+}
+
 function repricePlayer(p) {
   if (!p.price || p.id.startsWith('god-')) return p;
-  const tier = tierOf(p.baseOVR);
-  const range = PLAYER_PRICE_TABLE[tier];
-  if (!range) return p;
-  const base = Math.min(range[1], Math.max(range[0], calculatePlayerPrice(tier, p.baseOVR)));
-  return { ...p, price: Math.round(base * (TRAIT_PRICE_MULT[p.specialTrait] ?? 1) * agePriceMult(p.age)) };
+  const q = ensurePotential(p);
+  return { ...q, price: valuePrice(q, 0) }; // 시즌 시작에는 시장이 선수를 제대로 평가한다(노이즈 없음)
 }
 const TRAIT_DOWNSIDE_TEXT = {
   starPower: '영입가 ×1.5',
@@ -1321,7 +1326,7 @@ function startNewSeason() {
   // 오래 뛴 선수(3시즌 이상)나 클럽 레전드가 은퇴하면 따로 인사한다.
   const tribute = aged.retired.map((r) => preAge.get(r.id)).filter((p) => p && ((p.seasonsAtClub ?? 0) >= 3 || isLegend(p)))
     .map((p) => ({ name: p.name, seasons: p.seasonsAtClub ?? 0, mvp: currentState.mvpSeasons?.[p.id] ?? 0, legend: isLegend(p) }));
-  const agingReport = { changes: aged.changes, retired: aged.retired, youthLeft: youthLeft.map((p) => ({ name: p.name, position: p.position })) };
+  const agingReport = { peaked: aged.peaked ?? [], changes: aged.changes, retired: aged.retired, youthLeft: youthLeft.map((p) => ({ name: p.name, position: p.position })) };
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
   currentState.shopOffer = newShopOffer();
   currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id, currentState.leagueTierId);
@@ -1453,11 +1458,15 @@ function buyCard(card, rowEl = null, outgoing = null) {
     return Object.fromEntries(Object.keys(PLAYSTYLE_TAGS).map((t) => [t, playstyleTagProgress(t, lineup).tier]));
   };
   const tiersBefore = tagTiers();
-  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, paidPrice: cardPrice(card) }];
+  // 영입하면 시장의 어긋남이 드러난다: 진짜 시세와 비교해 스카우트가 맞았는지 알려 준다.
+  const trueValue = card.price && !card.id.startsWith('god-') ? valuePrice(card, 0) : card.price;
+  const diff = trueValue ? (card.price - trueValue) / trueValue : 0;
+  const scoutMsg = diff <= -0.07 ? `스카우트 적중! 시세 대비 −${Math.round(-diff * 100)}%` : diff >= 0.07 ? `스카우트 오판 (시세 대비 +${Math.round(diff * 100)}%)` : '';
+  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, paidPrice: cardPrice(card), price: trueValue }];
   const tiersAfter = tagTiers();
   const activated = Object.keys(tiersAfter).filter((t) => tiersAfter[t] > tiersBefore[t])
     .map((t) => `${TAG_LABELS[t] ?? t} +${PLAYSTYLE_TAGS[t].values[tiersAfter[t] - 1]}`);
-  currentState.tagToast = activated.length ? `태그 발동! ${activated.join(', ')}` : '';
+  currentState.tagToast = [scoutMsg, activated.length ? `태그 발동! ${activated.join(', ')}` : ''].filter(Boolean).join(' · ');
   currentState.justBoughtIds = [...(currentState.justBoughtIds ?? []), card.id];
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay());
   currentState.shopOffer = currentState.shopOffer.filter((c) => c.id !== card.id);
@@ -2984,7 +2993,8 @@ function renderMarket(banner = '') {
         <button type="button" class="pcard__tier" data-tier-info="${tier}" aria-label="${TIER_LABELS[tier]} 등급">${TIER_LABELS[tier]}</button>
       </div>
       <div class="deal__body">
-        <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세${ageTrend(c.age, c.position)}</span></div>
+        <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세${playerTrend(c)}</span></div>
+        ${peakRangeText(c, 'headScout') ? `<div class="deal__peak">전성기 <b class="n">${peakRangeText(c, 'headScout')}</b> <small>추정</small></div>` : ''}
         <div class="deal__tags">${tags}</div>
         ${compareHtml}
       </div>
@@ -3050,11 +3060,12 @@ function renderMarket(banner = '') {
       <span class="srow__pos">${p.position}</span>
       <b class="srow__ovr n">${p.baseOVR}</b>
       <div class="srow__main">
-        <div class="srow__name">${esc(p.name)}<small>${p.age}세${ageTrend(p.age, p.position)}</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
+        <div class="srow__name">${esc(p.name)}<small>${p.age}세${playerTrend(p)}</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
         ${tagIconsHtml(p)}
       </div>
       <div class="srow__side"><i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
+        ${peakRangeText(p, 'headCoach') ? `<span class="srow__paid">전성기 <b class="n">${peakRangeText(p, 'headCoach')}</b> 추정</span>` : ''}
         ${(currentState.mvpSeasons?.[p.id] || p.seasonsAtClub) ? `<span class="srow__paid">${p.seasonsAtClub ? `${p.seasonsAtClub + 1}시즌째` : ''}${currentState.mvpSeasons?.[p.id] ? ` · 시즌 MVP ${currentState.mvpSeasons[p.id]}회` : ''}${isLegend(p) ? ' · 팔면 적응도 -' + HOMETOWN_RELEASE_CHEMISTRY_PENALTY : ''}</span>` : ''}
         ${p.paidPrice ? `<span class="srow__paid">산 값 <b class="n">${p.paidPrice}G</b> · 시세 <b class="n">${p.price}G</b> <em class="${p.price > p.paidPrice ? 'up' : p.price < p.paidPrice ? 'down' : 'flat'}">${p.price >= p.paidPrice ? '+' : ''}${p.price - p.paidPrice}</em></span>` : p.price ? `<span class="srow__paid">시세 <b class="n">${p.price}G</b></span>` : ''}
         ${swap}
@@ -3534,9 +3545,10 @@ function renderMarket(banner = '') {
     const ag = { youthLeft: [], ...(briefing.aging ?? { changes: [], retired: [] }) };
     const ups = [...ag.changes].filter((c) => c.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 4);
     const downs = [...ag.changes].filter((c) => c.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 4);
-    const agingHtml = ups.length || downs.length || ag.retired.length || ag.youthLeft.length ? `<div class="agingbox">
+    const agingHtml = ups.length || downs.length || ag.retired.length || ag.youthLeft.length || ag.peaked?.length ? `<div class="agingbox">
         <b>선수단 오버롤 변화</b>
         <ul>
+          ${(ag.peaked ?? []).map((x) => `<li class="is-up">★ ${esc(x.name)} <span>전성기 도달 · OVR ${x.ovr}</span></li>`).join('')}
           ${ups.map((c) => `<li class="is-up">▲ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (+${c.delta})${c.kind === 'leap' ? ' 도약!' : ''}</span></li>`).join('')}
           ${downs.map((c) => `<li class="is-down">▼ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (${c.delta})${c.kind === 'stall' ? ' 정체' : ''}</span></li>`).join('')}
           ${ag.retired.map((r) => `<li class="is-retire">은퇴 ${esc(r.name)} <span>${r.age}세</span></li>`).join('')}

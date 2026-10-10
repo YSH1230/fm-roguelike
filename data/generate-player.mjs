@@ -1,6 +1,6 @@
-import { agePriceMult } from '../engine/aging.mjs';
+import { generatePotential } from '../engine/aging.mjs';
 import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, BASIC_TAGS, ADVANCED_TAGS, SPECIAL_TRAITS, TRAIT_PRICE_MULT } from '../engine/constants.mjs';
-import { calculatePlayerPrice } from '../engine/economy.mjs';
+import { valuePrice } from '../engine/economy.mjs';
 import { pick, randomName } from './name-pools.mjs';
 
 // 5부 시작 스쿼드 등급 분포 (스펙 11절: 60~80장, 스펙 2절 "5부=로컬 급"에 맞춤).
@@ -90,11 +90,15 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
   const eligibleTraits = age >= 33 ? SPECIAL_TRAITS : SPECIAL_TRAITS.filter((t) => t !== 'veteranLeader');
   const specialTrait = rng() < SPECIAL_TRAIT_CHANCE ? pick(eligibleTraits, rng) : null;
 
+  // 전성기(보이지 않는 잠재력)와, 시장이 그걸 ±7% 정도 잘못 보는 가격(스카우트가 좋으면 어긋남을 찾아낸다)
+  const pot = generatePotential(baseOVR, age, pos, rng);
+  const marketNoise = Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng()) * 0.07;
   return {
     id: `p${String(nextId++).padStart(4, '0')}`,
     name,
     baseOVR,
-    price: Math.round(calculatePlayerPrice(tierId, baseOVR) * (TRAIT_PRICE_MULT[specialTrait] ?? 1) * agePriceMult(age)),
+    ...pot,
+    price: valuePrice({ baseOVR, age, position: pos, specialTrait, ...pot }, marketNoise),
     age,
     position: pos,
     playstyleTags: withForcedTag(pickPlaystyleTags(tier, pos, rng), forceTag),
@@ -161,7 +165,8 @@ export function generateStartingSquad(rng = Math.random) {
     } while (usedNames.has(player.name) && tries < 50);
     usedNames.add(player.name);
     if (player.baseOVR > STARTING_SQUAD_MAX_OVR) {
-      player = { ...player, baseOVR: STARTING_SQUAD_MAX_OVR, price: calculatePlayerPrice('local', STARTING_SQUAD_MAX_OVR) };
+      const capped = { ...player, baseOVR: STARTING_SQUAD_MAX_OVR, peakOVR: Math.max(STARTING_SQUAD_MAX_OVR, player.peakOVR) };
+      player = { ...capped, price: valuePrice(capped, 0) };
     }
     return player;
   });

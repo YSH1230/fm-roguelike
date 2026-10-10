@@ -2091,3 +2091,5 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .mvprace__list em { font-style: normal; color: var(--muted); }
 .mvprace__list li.is-winner { box-shadow: 0 0 0 1px var(--gold) inset; }
 .mvprace__list li.is-winner b { color: var(--gold); }
+.deal__peak { color: var(--muted); font-size: var(--fs-label); margin-top: 2px; }
+.deal__peak b { color: var(--light); }

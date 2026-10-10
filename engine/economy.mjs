@@ -1,5 +1,7 @@
 import { clamp } from './chemistry.mjs';
+import { bodyAge, agePriceMult } from './aging.mjs';
 import {
+  TRAIT_PRICE_MULT,
   PLAYER_TIERS,
   PLAYER_PRICE_TABLE,
   COST_MODIFIER_CLAMP_MIN,
@@ -23,6 +25,16 @@ export function calculatePlayerPrice(tierId, baseOVR) {
   if (!tier) throw new Error(`Unknown player tier: ${tierId}`);
   const progress = (baseOVR - tier.minOVR) / (tier.maxOVR - tier.minOVR);
   return Math.round(minPrice + progress * (maxPrice - minPrice));
+}
+
+// 가격은 "현재 OVR + 전성기까지 남은 성장의 절반"으로 매긴다(유망주 프리미엄). marketNoise는 시장 평가가 전성기를 얼마나
+// 잘못 보는지(생성 때만 ±7% 정도, 시즌 시작 재평가에서는 0). 전성기를 지난 선수는 현재 OVR만 본다.
+export function valuePrice(p, marketNoise = 0) {
+  const growing = p.peakOVR != null && bodyAge(p.age, p.position) < (p.peakBodyAge ?? 27);
+  const peak = growing ? Math.min(99, Math.max(p.baseOVR, Math.round(p.peakOVR * (1 + marketNoise)))) : p.baseOVR;
+  const priceOVR = Math.min(94, Math.max(50, Math.round(p.baseOVR + 0.5 * (peak - p.baseOVR))));
+  const tier = Object.entries(PLAYER_TIERS).find(([, t]) => priceOVR >= t.minOVR && priceOVR <= t.maxOVR)?.[0] ?? 'local';
+  return Math.round(calculatePlayerPrice(tier, priceOVR) * (TRAIT_PRICE_MULT[p.specialTrait] ?? 1) * agePriceMult(p.age));
 }
 
 // 영입비 할인/할증(감독 화술, 윈터 택스 등)을 전부 가산 합산 후 한 번만 적용, -60%~+80% 클램프

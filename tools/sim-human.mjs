@@ -12,10 +12,10 @@ import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardRe
 import { applyTransactionDecay } from '../engine/chemistry.mjs';
 import { computeAverageOVR, computeTeamPower } from '../engine/team-power.mjs';
 import { computePlaystyleSynergyBonus } from '../engine/ovr.mjs';
-import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, computeReleaseProceeds, recallFunds, generateSaleOffers, FUNDS_SCALE, fundsScale } from '../engine/economy.mjs';
+import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, computeReleaseProceeds, recallFunds, generateSaleOffers, valuePrice, FUNDS_SCALE, fundsScale } from '../engine/economy.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier } from '../engine/league.mjs';
 import { optimizeLineup } from '../engine/lineup.mjs';
-import { ageSquad, agePriceMult } from '../engine/aging.mjs';
+import { ageSquad, ensurePotential } from '../engine/aging.mjs';
 import { finalLeagueRank } from '../engine/half-results.mjs';
 import { judgeRunOutcome, nextMissedTargetCount } from '../engine/run.mjs';
 import { createUcl, advanceUcl, UCL_REWARDS_FUNDS } from '../engine/champions-league.mjs';
@@ -59,11 +59,8 @@ function tierOfOvr(ovr) {
 // 시즌 시작 몸값 재계산(ui/app.mjs repricePlayer와 같다)
 function repricePlayer(p) {
   if (!p.price) return p;
-  const tier = tierOfOvr(p.baseOVR);
-  const range = tier && PLAYER_PRICE_TABLE[tier];
-  if (!range) return p;
-  const base = Math.min(range[1], Math.max(range[0], calculatePlayerPrice(tier, p.baseOVR)));
-  return { ...p, price: Math.round(base * (TRAIT_PRICE_MULT[p.specialTrait] ?? 1) * agePriceMult(p.age)) };
+  const q = ensurePotential(p);
+  return { ...q, price: valuePrice(q, 0) };
 }
 
 function bestFormationFor(tag) {
