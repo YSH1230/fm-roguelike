@@ -63,7 +63,8 @@ import {
   SHOP_OFFER_SIZE,
   SHOP_REROLL_COST,
   SUMMER_MARKET_WEEKS,
-  squadCapFor,
+  SQUAD_CAP,
+  SQUAD_CAP_FIRST_SEASON,
   SLUMP_OVR_PENALTY,
   LEGEND_MIN_SEASONS,
   LEGEND_MIN_MVP,
@@ -1393,6 +1394,9 @@ function hometownExitPenalty(card) {
   }
 }
 
+// 정원: 계정에서 '정원 24'가 열렸으면 24명, 아니면 26명(입문용).
+const capNow = () => (isUnlocked('cap') ? SQUAD_CAP : SQUAD_CAP_FIRST_SEASON);
+
 // 한 주의 첫 거래는 적응도가 깎이지 않는다. 교체 영입(영입+내보내기)은 한 건으로 센다.
 function tradeDecay() {
   const amount = currentState.transactedThisWeek ? transactionDecayAmount() : 0;
@@ -1407,7 +1411,7 @@ function showSquadFullPicker(card) {
   root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal outpick">
-        <div class="eventmodal__title">정원 ${squadCapFor(currentState.seasonNumber)}명이 찼습니다</div>
+        <div class="eventmodal__title">정원 ${capNow()}명이 찼습니다</div>
         <p class="eventmodal__detail">${esc(card.name)} 대신 내보낼 선수를 고르세요.</p>
         <ul class="outpick__list">${list.map((p) => `<li style="--tier:var(--t-${tierOf(p.baseOVR)})">
           <b class="n">${p.baseOVR}</b><span>${esc(p.name)}<small>${p.position} · ${p.age}세</small></span>
@@ -1430,7 +1434,7 @@ function showSquadFullPicker(card) {
 function buyCard(card, rowEl = null, outgoing = null) {
   const price = cardPrice(card);
   if (currentState.funds < price) return;
-  if (!outgoing && currentState.squad.length >= squadCapFor(currentState.seasonNumber)) {
+  if (!outgoing && currentState.squad.length >= capNow()) {
     showSquadFullPicker(card);
     return;
   }
@@ -1589,13 +1593,13 @@ function returnGodToPool(card) {
 // 방출 3단계 (스펙 7절): 즉시(0%) / 이적 명단(1주 소모, 여름·겨울 범위 회수율) / Week12 데드라인(40%, 소모 없음)
 // 2시즌부터는 등록하면 오퍼가 오고(기다리면 새 오퍼로 바뀜), 마감까지 안 팔리면 태업한다.
 function listPlayer(card) {
-  if (currentState.seasonNumber < 2) hometownExitPenalty(card); // 오퍼 방식은 실제로 팔릴 때 적용(태업 복귀 땐 벌 없음)
+  if (!isUnlocked('offers')) hometownExitPenalty(card); // 오퍼 방식은 실제로 팔릴 때 적용(태업 복귀 땐 벌 없음)
   const method = currentState.phase === 'summer' ? 'listedSummer' : 'listedWinter';
   // 겨울 이적명단은 당해 영입 선수를 받지 않는다 (스펙 7절)
   if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
   const entry = { card, method, resolveWeek: currentState.week + 1 };
-  if (currentState.seasonNumber >= 2) entry.offers = generateSaleOffers(card.price, card.baseOVR);
+  if (isUnlocked('offers')) entry.offers = generateSaleOffers(card.price, card.baseOVR);
   currentState.listedForSale.push(entry);
 }
 
@@ -1619,7 +1623,7 @@ function acceptSaleOffer(cardId, amount) {
 
 // 이벤트·유스 콜업·태업 복귀로 정원을 넘으면 시장 마감 때 선발·벤치가 아닌 낮은 OVR부터 자동 방출한다(긴급 유스는 제외).
 function enforceSquadCap() {
-  const over = currentState.squad.filter((p) => !p.emergencyYouth).length - squadCapFor(currentState.seasonNumber);
+  const over = currentState.squad.filter((p) => !p.emergencyYouth).length - capNow();
   if (over <= 0) return '';
   const { lineup, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   const keep = new Set([...lineup, ...bench].map((p) => p.id));
@@ -2916,7 +2920,7 @@ function renderMarket(banner = '') {
           + (receives ? '' : ` · ${c.position}은(는) 대상 포지션이 아니라 인원에 안 셉니다`);
         return chip(renderTagIcon(PLAYSTYLE_ICON_PATHS, t), count, need, reach, desc, TAG_LABELS[t] ?? t, !receives, def.grade);
       }),
-      c.specialTrait ? `<button type="button" class="chip chip--trait" data-tag-desc="${esc(`${TRAIT_LABELS[c.specialTrait]}: ${TRAIT_EFFECT_DESCRIPTIONS[c.specialTrait]}. 대가: ${TRAIT_DOWNSIDE_TEXT[c.specialTrait]}`)}" title="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}" aria-label="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, c.specialTrait)}<b>${esc(ROLE_LABELS[TRAIT_ROLE[c.specialTrait]] ?? '')}</b></button>` : '',
+      c.specialTrait ? `<button type="button" class="chip chip--trait" data-tag-desc="${esc(`${TRAIT_LABELS[c.specialTrait]}: ${TRAIT_EFFECT_DESCRIPTIONS[c.specialTrait]}. 대가: ${TRAIT_DOWNSIDE_TEXT[c.specialTrait]}`)}" title="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}" aria-label="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, c.specialTrait)}</button>` : '',
     ].join('');
     // 같은 자리 비교: 이 선수가 들어가면 밀려날 선발(그 포지션 중 가장 약한 선수)과 개인 OVR만 견준다.
     // 팀 총점 같은 정답은 주지 않는다 - 비교 재료만.
@@ -3095,7 +3099,7 @@ function renderMarket(banner = '') {
     squad: `
       <section class="panel tabpanel">
         <div class="sqsum">
-          <span><b class="n${squad.length > squadCapFor(currentState.seasonNumber) ? ' is-over' : ''}">${squad.length}</b>/${squadCapFor(currentState.seasonNumber)}명</span>
+          <span><b class="n${squad.length > capNow() ? ' is-over' : ''}">${squad.length}</b>/${capNow()}명</span>
           <span>평균 <b class="n">${avgAge(squad)}</b>세${lineup.length ? ` · 선발 <b class="n">${avgAge(lineup)}</b>세` : ''}</span>
           ${(() => {
             const yi = (ps) => ps.filter((p) => p.isDraftedYouth);
@@ -3217,7 +3221,7 @@ function renderMarket(banner = '') {
     ${banner ? `<div class="banner">${esc(banner)}</div>` : ''}
 
     <div class="tabs" role="tablist">
-      ${visibleTabs().map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${t.label}${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>` : ''}${t.id === 'squad' ? `<span class="tab__count${squad.length > squadCapFor(currentState.seasonNumber) ? ' tab__count--warn' : ''}">${squad.length}</span>` : ''}</button>`).join('')}
+      ${visibleTabs().map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${t.label}${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>` : ''}${t.id === 'squad' ? `<span class="tab__count${squad.length > capNow() ? ' tab__count--warn' : ''}">${squad.length}</span>` : ''}</button>`).join('')}
     </div>
     ${bodies[tab]}
   `, `<button class="cta" id="next-week-btn">${week === maxWeek ? (phase === 'summer' ? '전반기 시작' : '후반기 시작') : '다음 주로'}</button>`);
