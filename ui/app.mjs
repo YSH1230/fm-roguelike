@@ -584,11 +584,18 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
 
   const xi = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
   currentState.mvp ??= {};
-  const pickMvp = () => {
-    const weights = xi.map((p) => Math.max(1, p.baseOVR - 40) ** 2);
+  const pickFrom = (pool) => {
+    const weights = pool.map((p) => Math.max(1, p.baseOVR - 40) ** 1.5); // 포지션 구분 없이 OVR이 높을수록 유리하되 한 명이 독점하지 않게 완만하게
     let r = Math.random() * weights.reduce((a, b) => a + b, 0);
-    for (let i = 0; i < xi.length; i++) { r -= weights[i]; if (r <= 0) { currentState.mvp[xi[i].id] = (currentState.mvp[xi[i].id] ?? 0) + 1; return xi[i]; } }
-    return xi[0] ?? null;
+    for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { currentState.mvp[pool[i].id] = (currentState.mvp[pool[i].id] ?? 0) + 1; return pool[i]; } }
+    return pool[0] ?? null;
+  };
+  const pickMvp = () => pickFrom(xi);
+  // 진 경기에서도 가끔(25%) 후방(골키퍼·수비·수비형 미드필더)이 "패배 속 MVP"로 뽑힌다. 막아 낸 선수를 알아봐 주는 장치.
+  const REAR = ['GK', 'CB', 'WB', 'DMF'];
+  const pickLossMvp = () => {
+    const rear = xi.filter((p) => REAR.includes(p.slotPosition ?? p.position));
+    return rear.length && Math.random() < 0.25 ? pickFrom(rear) : null;
   };
   let round = 0;
   let delay = 430;
@@ -610,10 +617,11 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     const moveText = move > 0 ? `▲${move}` : move < 0 ? `▼${-move}` : '';
     // 승리한 라운드마다 선발 중 한 명이 MVP(포지션 무관, OVR이 높을수록 조금 더 잘 뽑힌다)
     const mvp = gained >= 3 ? pickMvp() : null;
+    const lossMvp = gained < 1 ? pickLossMvp() : null;
     // 운명의 라운드: 시즌 막판 승격선·강등선 근처
     const fate = second && round >= N - 2 && ((!ctx.isTop && rank >= 2 && rank <= 5) || (rank >= 15 && rank <= 18));
     if (phrase) {
-      phrase.textContent = `${fate ? '운명의 라운드 · ' : ''}${round}라운드 ${verdict} · ${rank}위${moveText ? `(${moveText})` : ''}${mvp ? ` · MVP ${mvp.name.split(' ').slice(-1)[0]}` : ''}`;
+      phrase.textContent = `${fate ? '운명의 라운드 · ' : ''}${round}라운드 ${verdict} · ${rank}위${moveText ? `(${moveText})` : ''}${mvp ? ` · MVP ${mvp.name.split(' ').slice(-1)[0]}` : ''}${lossMvp ? ` · 패배 속 MVP ${lossMvp.name.split(' ').slice(-1)[0]}` : ''}`;
       phrase.closest('.matchsim__ticker')?.classList.toggle('is-fate', fate);
     }
     updateStandings(round);
