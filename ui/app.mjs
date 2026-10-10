@@ -998,7 +998,7 @@ function tutorialTick(where) {
   const onTactics = currentState.tab === 'tactics';
   if (step === 1) {
     const pick = currentState.shopOffer.find((c) => hasUpgrade([c]));
-    showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '지금 선발보다 강한 선수예요. 영입해 보세요.', onSkip: tutSkip });
+    showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '지금 선발보다 강한 선수예요. 협상을 눌러 영입해 보세요.', onSkip: tutSkip });
   } else if (step === 2) spotOrSkip('#tagpanel-toggle', '이게 기본기 태그예요. 같은 태그를 가진 선수가 모일수록 팀이 강해져요.', 3);
   else if (step === 3) spotOrSkip('#chem-info-btn', '적응도는 팀 조직력이에요. 영입·방출을 많이 하면 떨어지고(한 주 첫 거래는 괜찮아요), 거래가 없는 주엔 올라요.', 4);
   else if (step === 4) spotOrSkip('[data-tab="squad"]', `선수단은 최대 ${capNow()}명이에요. 가득 차면 영입할 때 내보낼 선수를 골라야 해요.`, 5);
@@ -1229,6 +1229,10 @@ function sellerAttitude(name) {
   const score = attitudeScore(base, mood);
   return { score, label: attitudeLabel(score) };
 }
+// 인내심을 얼굴로: 3 이상 😄 / 2 🙂 / 1 😠
+const patienceFace = (pat) => (pat >= 3 ? '😄' : pat === 2 ? '🙂' : '😠');
+const attitudeFace = (label) => (label === '유연' ? '😄' : label === '보통' ? '🙂' : '😠');
+
 function setMood(name, event) {
   currentState.clubMood ??= {};
   currentState.clubMood[name] = moodAfter(currentState.clubMood[name] ?? 0, event);
@@ -1247,13 +1251,14 @@ function openHaggle(card, note = '') {  // 영입 창: 요구액 그대로 영�
   root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal eventmodal--goal haggle">
-        <div class="eventmodal__kicker">${esc(card.seller)} · 태도 <b class="att att--${att.label}">${att.label}</b></div>
+        <div class="eventmodal__kicker">${esc(card.seller)} · 태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)}</div>
         <div class="eventmodal__title">${esc(card.name)}</div>
-        <p class="eventmodal__detail">${esc(card.seller)}의 요구액은 ${ask}G입니다. 낮은 가격을 제안해 볼 수 있어요.</p>
-        <p class="eventmodal__detail haggle__pat">인내심 ${'●'.repeat(pat)}${'○'.repeat(Math.max(0, maxPat - pat))}${note ? ` · ${esc(note)}` : ''}</p>
+        <p class="eventmodal__detail">${esc(card.seller)}의 요구액은 ${ask}G입니다.</p>
+        <div class="haggle__face" aria-label="인내심 ${pat}">${patienceFace(pat)}</div>
+        ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
         <button class="cta" id="haggle-ask" ${currentState.funds < ask ? 'disabled' : ''}>요구액 ${ask}G로 영입</button>
         <div class="dirpick">
-          ${HAGGLE_DISCOUNTS.map((d) => { const price = Math.round(ask * (1 - d)); return `<button class="reroll" data-offer="${d}" ${currentState.funds < price || d >= rejected ? 'disabled' : ''}>${price}G에 제안 <small>요구액보다 ${Math.round(d * 100)}% 낮게</small></button>`; }).join('')}
+          ${HAGGLE_DISCOUNTS.map((d) => { const price = Math.round(ask * (1 - d)); return `<button class="reroll" data-offer="${d}" ${currentState.funds < price || d >= rejected ? 'disabled' : ''}>${price}G에 제안</button>`; }).join('')}
         </div>
         <button class="reroll" id="haggle-close" style="margin-top:var(--s2);width:100%">그만두기</button>
       </div>
@@ -3076,14 +3081,14 @@ function renderMarket(banner = '') {
       </div>
       <div class="deal__body">
         <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세${playerTrend(c)}</span></div>
-        ${c.seller ? `<div class="deal__seller">${esc(c.seller)} 요구액 · 태도 <b class="att att--${sellerAttitude(c.seller).label}">${sellerAttitude(c.seller).label}</b></div>` : ''}
+        ${c.seller ? `<div class="deal__seller">${esc(c.seller)} · 태도 <b class="att att--${sellerAttitude(c.seller).label}">${sellerAttitude(c.seller).label}</b> ${attitudeFace(sellerAttitude(c.seller).label)}</div>` : ''}
         ${peakRangeText(c, 'headScout') ? `<div class="deal__peak">전성기 <b class="n">${peakRangeText(c, 'headScout')}</b> <small>추정</small></div>` : peakStatusText(c) ? `<div class="deal__peak"><b>${peakStatusText(c)}</b>${peakStatusText(c) === '전성기' ? ' <small>지금이 정점</small>' : ' <small>내려가는 중</small>'}</div>` : ''}
         <div class="deal__tags">${tags}</div>
         ${compareHtml}
       </div>
       <div class="deal__act">
         <button class="buy deal__buy" data-buy="${c.id}" ${affordable || (c.seller && funds >= Math.round(price * (1 - HAGGLE_DISCOUNTS[0]))) ? '' : 'disabled'} title="${decayNote}">
-          <span>${affordable || (c.seller && funds >= Math.round(price * (1 - HAGGLE_DISCOUNTS[0]))) ? '영입' : '부족'}</span><b class="n">${price}G</b>
+          <span>${affordable || (c.seller && funds >= Math.round(price * (1 - HAGGLE_DISCOUNTS[0]))) ? (c.seller ? '협상' : '영입') : '부족'}</span><b class="n">${price}G</b>
         </button>
       </div>
       <p class="offer__hint" hidden></p>
@@ -3803,7 +3808,7 @@ function introTick() {
     ['hard', isUnlocked('hard') && draft && tagPanel, '#tagpanel-toggle', '어려움 태그가 열렸어요. 모으기 어렵지만 효과가 가장 커요.'],
     ['staff', isUnlocked('staff'), '[data-tab="staff"]', '감독·스태프 탭이 열렸어요. 감독과 코치, 스카우터를 여기서 바꿀 수 있어요.'],
     ['traits', isUnlocked('traits') && draft && !!document.querySelector('.chip--trait'), '.chip--trait', '특수 성향 선수예요. 성향마다 효과와 대가가 자동으로 붙어요.'],
-    ['haggle', draft && !!document.querySelector('.deal__buy:not([disabled])'), '.deal__buy:not([disabled])', '영입을 누르면 구단에 더 낮은 가격을 제안할 수 있어요. 거절당하면 인내심이 줄고, 바닥나면 협상이 깨져 그 선수를 놓쳐요.'],
+    ['haggle', draft && !!document.querySelector('.deal__buy:not([disabled])'), '.deal__buy:not([disabled])', '협상을 누르면 구단에 더 낮은 가격을 제안할 수 있어요. 거절당하면 얼굴이 굳어지고, 화가 나면 협상이 깨져 그 선수를 놓쳐요.'],
     ['sale', currentState.tab === 'squad' && currentState.listedForSale.some((l) => l.offers), '.listed', '오퍼가 도착했어요. 하나를 수락해서 파세요. 마감까지 안 팔면 태업(OVR -3)해요.'],
   ];
   const next = items.find(([key, when]) => when && !seen[key]);

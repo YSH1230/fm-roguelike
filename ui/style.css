@@ -2102,3 +2102,5 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .att--보통 { color: var(--light); }
 .att--완강 { color: var(--debit); }
 .haggle__pat { letter-spacing: 1px; }
+.haggle__face { font-size: 56px; line-height: 1; text-align: center; margin: var(--s2) 0; }
+.haggle__note { text-align: center; color: var(--debit); }
