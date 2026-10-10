@@ -123,7 +123,7 @@ export function createUcl(myPower, rng = Math.random, { myPowerAway = null } = {
   const table = Object.fromEntries(teams.map((t) => [t.id, { p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, form: [] }]));
   return {
     teams, table, stage: 'league', day: 0, leg: 1,
-    myPowerAway: myPowerAway ?? myPower * 0.97, // 원정팀의 무덤에서 조직력가 절반이 된 전력
+    myPowerAway: myPowerAway ?? myPower * 0.97, // 원정팀의 무덤에서 조직력이 절반이 된 전력
     pots: [0, 1, 2, 3].map((p) => byStrength.slice(p * 9, p * 9 + 9)),
     fixtures: buildLeagueSchedule(byStrength, rng),
     ties: [], // 현재 토너먼트 라운드의 대진: { a(시드 높은 팀), b, legs: [{ga,gb}], winner, pens }
@@ -156,7 +156,7 @@ function record(state, h, a, m) {
   else { H.d += 1; A.d += 1; H.p += 1; A.p += 1; push(H, 'D'); push(A, 'D'); }
 }
 
-// 내 팀이 이 경기에서 쓰는 전력(원정팀의 무덤이면 조직력가 절반인 전력)
+// 내 팀이 이 경기에서 쓰는 전력(원정팀의 무덤이면 조직력이 절반인 전력)
 function powerFor(state, id, opponentId, isHome) {
   if (id !== 'me') return teamOf(state, id).power;
   const fortressAway = !isHome && teamOf(state, opponentId).fortress;

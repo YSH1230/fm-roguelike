@@ -1012,7 +1012,7 @@ function tutorialTick(where) {
     const pick = currentState.shopOffer.find((c) => hasUpgrade([c]));
     showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '지금 선발보다 강한 선수예요. 협상을 눌러 영입해 보세요.', onSkip: tutSkip });
   } else if (step === 2) spotOrSkip('.deal__tags .chip', '선수마다 스타일 태그가 있어요. 같은 태그를 가진 선발이 3명 모이면 그 선수들이 모두 강해져요.', 3);
-  else if (step === 3) spotOrSkip('#chem-info-btn', '조직력는 팀 조직력이에요. 영입·방출을 많이 하면 떨어지고(한 주 첫 거래는 괜찮아요), 거래가 없는 주엔 올라요.', 4);
+  else if (step === 3) spotOrSkip('#chem-info-btn', '조직력은 팀 조직력이에요. 영입·방출을 많이 하면 떨어지고(한 주 첫 거래는 괜찮아요), 거래가 없는 주엔 올라요.', 4);
   else if (step === 4) spotOrSkip('[data-tab="squad"]', `선수단은 최대 ${capNow()}명이에요. 가득 차면 영입할 때 내보낼 선수를 골라야 해요.`, 5);
   else if (step === 5) showSpot({ selector: '[data-tab="tactics"]', text: '전술 탭에서 선발 11명을 볼 수 있어요.', onSkip: tutSkip });
   else if (step === 6) {
@@ -1480,7 +1480,7 @@ function transactionDecayAmount() {
   return Math.max(0, Math.min(managerReduced, coachReduced) - captainRelief);
 }
 
-// 지역 영웅 대가: 방출·판매하면 팬이 반발해 팀 조직력가 깎인다.
+// 지역 영웅 대가: 방출·판매하면 팬이 반발해 팀 조직력이 깎인다.
 // 클럽 레전드: 한 구단에서 5시즌 이상 뛰고 시즌 MVP를 2번 이상 받은 선수. 팔면 지역 영웅처럼 팬이 반발한다.
 const isLegend = (p) => (p.seasonsAtClub ?? 0) >= LEGEND_MIN_SEASONS && (currentState.mvpSeasons?.[p.id] ?? 0) >= LEGEND_MIN_MVP;
 
@@ -1492,7 +1492,7 @@ function hometownExitPenalty(card) {
 
 const capNow = () => SQUAD_CAP;
 
-// 한 주의 첫 거래는 조직력가 깎이지 않는다. 교체 영입(영입+내보내기)은 한 건으로 센다.
+// 한 주의 첫 거래는 조직력이 깎이지 않는다. 교체 영입(영입+내보내기)은 한 건으로 센다.
 function tradeDecay() {
   const amount = currentState.transactedThisWeek ? transactionDecayAmount() : 0;
   currentState.transactedThisWeek = true;
@@ -2332,7 +2332,7 @@ function renderUcl(opts = {}) {
         </div>
         <div class="uclnext__venue is-${venue}">${{ home: '홈 경기', away: '원정 경기', neutral: '중립 경기(단판)' }[venue]}</div>
         <div class="uclnext__power">내 전력 ${Math.round(myTeam.power)} · 상대 전력 ${opp ? opp.power : ''}${opp ? ` · ${UCL_STYLE_LABELS[opp.style]}` : ''}</div>
-        ${fortress ? `<div class="uclnext__fortress">⚠ 원정팀의 무덤 — 이 원정에서는 조직력가 절반이 되어 내 전력이 ${Math.round(s.myPowerAway)}로 떨어집니다</div>` : ''}
+        ${fortress ? `<div class="uclnext__fortress">⚠ 원정팀의 무덤 — 이 원정에서는 조직력이 절반이 되어 내 전력이 ${Math.round(s.myPowerAway)}로 떨어집니다</div>` : ''}
         ${agg ? `<div class="uclnext__agg">${agg}</div>` : ''}
       </div>`;
   }
@@ -2991,7 +2991,7 @@ function renderChemistryPanel(lineup, bench) {
   return `<div class="panel">
     <div class="panel__head"><h2>팀 스타일</h2><span class="panel__count stylename">${style ? esc(style.name) : '아직 없음'}</span></div>
     ${styleRows}
-    ${completedTags(lineup).length ? `<p class="note stylecomplete">팀 컬러 완성 · 조직력 매주 +${COLOR_COMPLETE_CHEMISTRY} · 그 태그 선수의 판매 오퍼 +${Math.round((COLOR_COMPLETE_VALUE - 1) * 100)}%</p>` : '<p class="note">같은 태그 5명이 모이면 팀 컬러가 완성돼요(조직력와 판매 오퍼 보너스).</p>'}
+    ${completedTags(lineup).length ? `<p class="note stylecomplete">팀 컬러 완성 · 조직력 매주 +${COLOR_COMPLETE_CHEMISTRY} · 그 태그 선수의 판매 오퍼 +${Math.round((COLOR_COMPLETE_VALUE - 1) * 100)}%</p>` : '<p class="note">같은 태그 5명이 모이면 팀 컬러가 완성돼요(조직력과 판매 오퍼 보너스).</p>'}
     ${traitSection}
     <p class="note" id="chem-desc"></p>
   </div>`;
@@ -3363,7 +3363,7 @@ function renderMarket(banner = '') {
         <b>이적 손익 ${net >= 0 ? '+' : '−'}${Math.abs(net).toLocaleString('ko-KR')}G</b> (수입 − 영입 지출). 선수는 판매 등록 뒤 오퍼를 받아 팝니다(오퍼 기한이 지나거나 시장이 끝나면 태업).
       </p>
       <p class="note chem-info" id="chem-info" hidden>
-        <b>조직력 = 팀 조직력.</b> 높을수록 팀 전력이 오르고 낮을수록 깎입니다(지금 ×${chemistryMultiplier(chemistry).toFixed(3)}).<br>
+        <b>조직력</b>은 선수들이 얼마나 손발이 맞는지예요. 높을수록 팀 전력이 오르고 낮을수록 깎입니다(지금 ×${chemistryMultiplier(chemistry).toFixed(3)}).<br>
         <b>오르는 때:</b> 영입·방출이 없는 주마다 +1, 전술 완성, 승격.<br>
         <b>깎이는 때:</b> 영입·방출 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'}. 한 주의 첫 거래는 깎이지 않고, 영입하면서 내보내는 교체는 한 건입니다.<br>
         그래서 자주 갈아치울수록 손해, 굵직하게 바꾸고 기다릴수록 이득입니다.
