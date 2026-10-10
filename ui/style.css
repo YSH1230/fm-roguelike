@@ -2220,3 +2220,34 @@ html[data-theme='kiwi'] .start__new--ghost.is-armed { color: var(--debit); borde
 .chip--seed, .ticon--seed { opacity: 1; border-style: solid; position: relative; }
 .chip--seed::after, .ticon--seed::after { content: '½'; position: absolute; top: -6px; right: -5px; min-width: 14px; height: 14px; padding: 0 2px; border-radius: 7px; background: var(--turf); color: #04120a; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; font-style: normal; }
 .tag--seed::after { content: ' ½'; color: var(--turf); font-weight: 700; }
+
+/* 태그는 이름까지 보여 준다(아이콘만으로는 뭔지 모른다) */
+.chip__name { font-family: var(--ui); font-size: var(--fs-label); font-weight: 700; color: var(--light); }
+.ticon--named { width: auto; height: auto; display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-micro); }
+.ticon--named .badgeicon { width: 13px; height: 13px; flex: none; }
+.ticon--named span { font-family: var(--ui); font-weight: 700; }
+
+/* 영입 결과 팝업 */
+.buyres__list { list-style: none; margin: var(--s3) 0 var(--s4); padding: 0; display: grid; gap: var(--s2); text-align: left; }
+.buyres__row { display: grid; grid-template-columns: 10px 1fr; gap: var(--s2); align-items: start; font-size: var(--fs-body); line-height: 1.4; color: var(--light); }
+.buyres__row i { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--muted-dim); }
+.buyres__row.is-good i { background: var(--turf); }
+.buyres__row.is-bad i { background: var(--debit); }
+.buyres__row.is-bad { color: #f0b0aa; }
+
+/* 팀 스타일 등급: 3명 브론즈 · 4명 실버 · 5명 골드 */
+:root { --medal-1: #d08a4a; --medal-2: #c9d3dc; --medal-3: #f4c43f; }
+.stylerow.medal-1 { --medal: var(--medal-1); }
+.stylerow.medal-2 { --medal: var(--medal-2); }
+.stylerow.medal-3 { --medal: var(--medal-3); }
+.stylerow.is-on { border-left-color: var(--medal, var(--turf)); }
+.stylerow.is-on .stylerow__name small, .stylerow.is-on .stylerow__bonus { color: var(--medal); }
+.stylerow.is-on .stylerow__gauge i.is-on, .stylerow.is-main .stylerow__gauge i.is-on { background: var(--medal); border-color: var(--medal); }
+.stylerow.is-main { box-shadow: none; }
+.stylerow__icon { color: var(--muted-dim); }
+.stylerow.is-on .stylerow__icon { color: var(--medal); }
+/* 경기장 위 선수 카드: 켜진 태그 로고를 등급 색(브론즈/실버/골드)으로 */
+.slot .ticon.is-on { width: 16px; height: 16px; padding: 2px; border-radius: 50%; background: rgba(0, 0, 0, 0.55); border: 1px solid currentColor; }
+.slot .ticon--t1 { color: var(--medal-1); }
+.slot .ticon--t2 { color: var(--medal-2); }
+.slot .ticon--t3 { color: var(--medal-3); }

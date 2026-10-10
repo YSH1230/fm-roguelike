@@ -492,19 +492,19 @@ function playerTagsHtml(p) {
 // 선수의 태그를 아이콘 한 줄로(플레이스타일 → 대륙 → 특수). active에 든 태그는 초록(지금 보너스 중).
 function tagInfoText(kind, id, seed = false, ovr = 0) {
   if (kind === 'play') {
-    return `${TAG_LABELS[id] ?? id}: ${TAG_DESC[id] ?? ''}. ${tagLadderText(TAG_THRESHOLDS, TAG_VALUES)}`
+    return `${TAG_LABELS[id] ?? id} · 같은 태그 ${tagLadderText(TAG_THRESHOLDS, TAG_VALUES)}`
       + (tagAmp(ovr) > 1 ? ` · 높은 등급이라 효과 ×${tagAmp(ovr)}` : '')
-      + (seed ? ' · 성장 중: 전성기 전이라 효과가 절반이에요(전성기에 닿으면 완성).' : '');
+      + (seed ? ' · 성장 중이라 효과 ½(전성기에 닿으면 전부)' : '');
   }
   if (kind === 'flair') return `개인 특기 ${id}: 선발로 뛰면 본인 OVR +${flairBonusFor(ovr)}`;
   return `${TRAIT_LABELS[id] ?? id}: ${TRAIT_EFFECT_DESCRIPTIONS[id] ?? ''}. 대가: ${TRAIT_DOWNSIDE_TEXT[id] ?? ''}`;
 }
 // 선수의 태그를 아이콘 한 줄로(플레이스타일 → 대륙 → 특수). active에 든 태그는 초록(지금 보너스 중).
 // 눌러서 설명을 볼 수 있게 data-tag-info에 문장을 싣는다(선수단 탭에서 처리).
-function tagIconsHtml(p, active = null) {
-  const on = (id) => (active && active.has(id) ? ' is-on' : '');
+function tagIconsHtml(p, active = null, withName = false, tiers = null) {
+  const on = (id) => (active && active.has(id) ? ` is-on${tiers?.[id] ? ` ticon--t${tiers[id]}` : ''}` : '');
   const btn = (kind, id) => `data-tag-info="${esc(tagInfoText(kind, id, isSeed(p), p.baseOVR))}" role="button" tabindex="0"`;
-  const play = (p.playstyleTags ?? []).map((t) => `<i class="ticon${isSeed(p) ? ' ticon--seed' : ''}${on(t)}" title="${esc(TAG_LABELS[t] ?? t)}" ${btn('play', t)}>${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}</i>`).join('');
+  const play = (p.playstyleTags ?? []).map((t) => `<i class="ticon${isSeed(p) ? ' ticon--seed' : ''}${on(t)}${withName ? ' ticon--named' : ''}" title="${esc(TAG_LABELS[t] ?? t)}" ${btn('play', t)}>${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}${withName ? `<span>${esc(TAG_LABELS[t] ?? t)}</span>` : ''}</i>`).join('');
   const trait = p.specialTrait ? `<i class="ticon ticon--trait" title="${esc(TRAIT_LABELS[p.specialTrait] ?? '')}" ${btn('trait', p.specialTrait)}>${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}</i>` : '';
   const flair = p.flair ? `<i class="ticon ticon--flair" title="${esc(p.flair)}" ${btn('flair', p.flair)}>★</i>` : '';
   return `<span class="ticons">${play}${trait}${flair}</span>`;
@@ -1573,7 +1573,8 @@ function showSquadFullPicker(card, priceOverride = null) {
 }
 
 function buyCard(card, rowEl = null, outgoing = null, priceOverride = null) {
-  const price = priceOverride ?? cardPrice(card);
+  const askPrice = cardPrice(card);
+  const price = priceOverride ?? askPrice;
   if (currentState.funds < price) return;
   if (!outgoing && currentState.squad.length >= capNow()) {
     showSquadFullPicker(card, priceOverride);
@@ -1607,13 +1608,14 @@ function buyCard(card, rowEl = null, outgoing = null, priceOverride = null) {
   const trueValue = card.price && !card.id.startsWith('god-') ? valuePrice(card, 0) : card.price;
   const discountRatio = priceOverride ? priceOverride / cardPrice(card) : 1;
   const diff = trueValue ? (card.price * discountRatio - trueValue) / trueValue : 0;
-  const scoutMsg = diff <= -0.07 ? `스카우트 적중! 시세 대비 −${Math.round(-diff * 100)}%` : diff >= 0.07 ? `스카우트 오판 (시세 대비 +${Math.round(diff * 100)}%)` : '';
+  const scout = diff <= -0.07 ? { tone: 'good', text: `스카우트 적중 · 시세보다 ${Math.round(-diff * 100)}% 싸게 샀어요` }
+    : diff >= 0.07 ? { tone: 'bad', text: `스카우트 오판 · 시세보다 ${Math.round(diff * 100)}% 비싸게 샀어요` }
+    : { tone: 'flat', text: '적정가 · 시세와 비슷하게 샀어요' };
   if (card.seller && !priceOverride) setMood(card.seller, 'asking');
   currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, paidPrice: price, price: trueValue }];
   const tiersAfter = tagTiers();
   const activated = Object.keys(tiersAfter).filter((t) => tiersAfter[t] > tiersBefore[t])
     .map((t) => `${TAG_LABELS[t] ?? t} +${PLAYSTYLE_TAGS[t].values[tiersAfter[t] - 1]}`);
-  currentState.tagToast = [scoutMsg, activated.length ? `태그 발동! ${activated.join(', ')}` : ''].filter(Boolean).join(' · ');
   currentState.justBoughtIds = [...(currentState.justBoughtIds ?? []), card.id];
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay());
   currentState.shopOffer = currentState.shopOffer.filter((c) => c.id !== card.id);
@@ -1626,9 +1628,33 @@ function buyCard(card, rowEl = null, outgoing = null, priceOverride = null) {
     track('first_buy', { run: currentState.telemetryRun, sec: Math.round((Date.now() - (currentState.startedAt ?? Date.now())) / 1000), s: currentState.seasonNumber });
   }
   if (tutStep() === 1) tutSet(2);
-  const toast = currentState.tagToast;
-  currentState.tagToast = '';
-  renderMarket(toast);
+  const haggled = priceOverride && priceOverride < askPrice;
+  renderMarket('');
+  if (!card.id.startsWith('god-') || haggled || activated.length) {
+    showBuyResult({
+      name: card.name,
+      deal: haggled ? { tone: 'good', text: `협상 성공! 요구액 ${askPrice}G → ${price}G (−${Math.round((1 - price / askPrice) * 100)}%)` }
+        : { tone: 'flat', text: `요구액 그대로 ${price}G에 영입했어요` },
+      scout: card.id.startsWith('god-') ? null : scout,
+      tags: activated,
+    });
+  }
+}
+
+// 영입 직후 결과 팝업: 협상이 어떻게 됐는지, 스카우트가 맞았는지, 태그가 켜졌는지를 한 번에 알려 준다.
+function showBuyResult({ name, deal, scout, tags }) {
+  const root = document.getElementById('eventmodal-root');
+  const row = (r) => (r ? `<li class="buyres__row is-${r.tone}"><i></i><span>${esc(r.text)}</span></li>` : '');
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--goal buyres">
+        <div class="eventmodal__kicker">영입 완료</div>
+        <div class="eventmodal__title">${esc(name)}</div>
+        <ul class="buyres__list">${row(deal)}${row(scout)}${tags.length ? row({ tone: 'good', text: `태그 발동! ${tags.join(', ')}` }) : ''}</ul>
+        <button class="cta" id="buyres-ok">확인</button>
+      </div>
+    </div>`;
+  document.getElementById('buyres-ok').onclick = () => { root.innerHTML = ''; tutorialTick('market'); };
 }
 
 // 감독 교체: 선수 영입과 동일하게 아무 때나, 영입가 그대로(위약금 없음).
@@ -2908,7 +2934,7 @@ function renderPromotionTransferDemand(keyPlayer) {
 // interactive면 각 칸이 클릭 가능한 data-slot을 달고 나온다(전술 탭 전용 -
 // 결산 화면 등 읽기 전용 피치에는 안 준다).
 // finalOVR: playerId -> 케미 보너스가 붙은 최종 OVR (전술 탭에서만 넘어온다).
-function renderPitch(slotted, formationId, kit, { interactive = false, selectedSlot = null, finalOVR = null, activeTags = null } = {}) {
+function renderPitch(slotted, formationId, kit, { interactive = false, selectedSlot = null, finalOVR = null, activeTags = null, tagTiers = null } = {}) {
   const { slots, coords } = FORMATIONS[formationId];
   const chips = slots.map((pos, i) => {
     const p = slotted[i];
@@ -2934,7 +2960,7 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
         ${boost > 0 ? `<span class="slot__boost n">+${boost}</span>` : ''}
         ${renderPortrait(p, { size: 36, kit })}
         <span class="slot__name">${esc(p.name.split(" ").slice(1).join(" ") || p.name)}</span>
-        ${tagIconsHtml(p, activeTags?.get(p.id))}
+        ${tagIconsHtml(p, activeTags?.get(p.id), false, tagTiers)}
       </div>
     </div>`;
   }).join('');
@@ -3008,12 +3034,13 @@ function renderChemistryPanel(lineup, bench) {
   const rows = ids.map((id) => {
     const { count, tier, req, values } = playstyleTagProgress(id, lineup);
     const seeds = lineup.filter((p) => p.playstyleTags.includes(id) && isSeed(p)).length;
-    const next = tier >= req.length ? '완성' : `${req[tier] - count}명 더 → +${values[tier]}`;
+    const MEDAL = ['브론즈', '실버', '골드'];
+    const next = tier >= req.length ? `${MEDAL[2]} 완성!` : tier === 0 ? `${req[0] - count}명 더 → ${MEDAL[0]} +${values[0]}` : `${MEDAL[tier - 1]} · ${req[tier] - count}명 더 → ${MEDAL[tier]} +${values[tier]}`;
     return { id, count, tier, req, values, seeds, next };
   }).sort((x, y) => y.count - x.count);
-  const styleRows = `<ul class="stylerows">${rows.map((r) => `<li class="stylerow${r.tier ? ' is-on' : ''}${style?.id === r.id ? ' is-main' : ''}" data-chem-desc="${esc(TAG_LABELS[r.id])}: ${esc(TAG_DESC[r.id])}. ${esc(tagLadderText(r.req, r.values))}${r.seeds ? ` · 성장 중 ${r.seeds}명은 효과가 절반` : ''} — 다음: ${esc(r.next)}">
+  const styleRows = `<ul class="stylerows">${rows.map((r) => `<li class="stylerow${r.tier ? ` is-on medal-${r.tier}` : ''}${style?.id === r.id ? ' is-main' : ''}" data-chem-desc="${esc(TAG_LABELS[r.id])} · 같은 태그 ${esc(tagLadderText(r.req, r.values))}${r.seeds ? ` · 성장 중 ${r.seeds}명은 효과 ½` : ''} · ${esc(r.next)}">
       <span class="stylerow__icon">${renderTagIcon(PLAYSTYLE_ICON_PATHS, r.id)}</span>
-      <span class="stylerow__name">${esc(TAG_LABELS[r.id])}<small>${r.tier >= r.req.length ? '완성!' : esc(r.next)}</small></span>
+      <span class="stylerow__name">${esc(TAG_LABELS[r.id])}<small>${esc(r.next)}</small></span>
       <span class="stylerow__gauge" aria-label="${r.count}명">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= r.count ? 'is-on' : ''}${r.req.includes(n) ? ' is-gate' : ''}">${r.req.includes(n) ? n : ''}</i>`).join('')}</span>
       <b class="stylerow__bonus n">${r.tier ? `+${r.values[r.tier - 1]}` : '–'}</b>
     </li>`).join('')}</ul>`;
@@ -3132,6 +3159,7 @@ function renderMarket(banner = '') {
     new Set(computePlayerBonusBreakdown(p, lineup, bench, coachFor()).filter((x) => x.kind === 'playstyle').map((x) => x.id)),
   ]));
   const finalOVR = new Map(lineup.map((p) => [p.id, computePlayerFinalOVR(p, lineup, bench, coachFor())]));
+  const tagTiers = Object.fromEntries(TAG_IDS.map((t) => [t, playstyleTagProgress(t, lineup).tier])); // 팀 스타일 단계(1 브론즈·2 실버·3 골드)
   const groupAvg = (positions) => {
     const members = lineup.filter((p) => positions.includes(p.slotPosition));
     if (!members.length) return null;
@@ -3164,11 +3192,11 @@ function renderMarket(banner = '') {
       const { count, req, values } = playstyleTagProgress(t, lineup);
       const reach = req.indexOf(count + 1); // 영입하면 넘는 문턱(0 = 첫 발동, 1 이상 = 강화), 없으면 -1
       const lvl = reach < 0 ? 0 : reach === 0 ? 1 : 2;
-      const desc = `${TAG_LABELS[t] ?? t}: ${TAG_DESC[t]}. 지금 라인업 ${count}명. ${tagLadderText(req, values)}`
+      const desc = `${TAG_LABELS[t] ?? t} · 같은 태그 ${tagLadderText(req, values)} · 지금 라인업 ${count}명`
         + (reach === 0 ? ' · 영입하면 발동!' : reach > 0 ? ' · 영입하면 강화!' : '')
         + (tagAmp(c.baseOVR) > 1 ? ` · 높은 등급이라 효과 ×${tagAmp(c.baseOVR)}` : '')
-      + (seed ? ' · 성장 중: 전성기 전이라 효과가 절반이에요' : '');
-      return `<button type="button" class="chip${lvl ? ` chip--up${lvl}` : ''}${seed ? ' chip--seed' : ''}" data-tag-desc="${esc(desc)}" title="${esc(TAG_LABELS[t] ?? t)}" aria-label="${esc(TAG_LABELS[t] ?? t)}">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}${lvl ? '<b>▲</b>' : ''}</button>`;
+        + (seed ? ' · 성장 중이라 효과 ½(전성기에 닿으면 전부)' : '');
+      return `<button type="button" class="chip${lvl ? ` chip--up${lvl}` : ''}${seed ? ' chip--seed' : ''}" data-tag-desc="${esc(desc)}" title="${esc(TAG_LABELS[t] ?? t)}" aria-label="${esc(TAG_LABELS[t] ?? t)}">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}<span class="chip__name">${esc(TAG_LABELS[t] ?? t)}</span>${lvl ? '<b>▲</b>' : ''}</button>`;
     };
     const tags = [
       ...c.playstyleTags.map(chip),
@@ -3247,7 +3275,7 @@ function renderMarket(banner = '') {
       <b class="srow__ovr n">${p.baseOVR}</b>
       <div class="srow__main">
         <div class="srow__name">${esc(p.name)}<small>${p.age}세</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
-        ${tagIconsHtml(p)}
+        ${tagIconsHtml(p, null, true)}
       </div>
       <div class="srow__side"><i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
@@ -3319,7 +3347,7 @@ function renderMarket(banner = '') {
           </div>
         </div>`
         : ''}
-        ${renderPitch(slotted, formationId, club.kit, { interactive: true, selectedSlot: currentState.selectedSlot, finalOVR, activeTags })}
+        ${renderPitch(slotted, formationId, club.kit, { interactive: true, selectedSlot: currentState.selectedSlot, finalOVR, activeTags, tagTiers })}
         <div class="benchstrip">
           <span class="benchstrip__label">벤치</span>
           ${bench.map((p, i) => `<div class="benchchip${currentState.selectedSlot === `bench-${i}` ? ' is-selected' : ''}" data-bench-slot="${i}" title="${esc(p.name)}">
@@ -3595,7 +3623,8 @@ function renderMarket(banner = '') {
     });
     document.querySelectorAll('[data-chem-desc]').forEach((el) => {
       el.addEventListener('click', () => {
-        document.getElementById('chem-desc').textContent = el.dataset.chemDesc;
+        const box = document.getElementById('chem-desc');
+        box.textContent = box.textContent === el.dataset.chemDesc ? '' : el.dataset.chemDesc; // 다시 누르면 닫힌다
       });
     });
   }
@@ -3893,6 +3922,14 @@ function introTick() {
   const next = items.find(([key, when]) => when && !seen[key]);
   if (next) showSpot({ selector: next[2], text: next[3], ...once(next[0]) });
 }
+
+// 설명창(태그·팀 스타일·ⓘ)은 다시 누르거나 다른 곳을 누르면 닫힌다
+document.addEventListener('click', (e) => {
+  if (e.target.closest('[data-tag-desc], [data-tag-info], [data-chem-desc], #funds-info-btn, #chem-info-btn')) return;
+  document.querySelectorAll('.offer__hint:not([hidden]), .srow__hint:not([hidden]), .chem-info:not([hidden])').forEach((h) => { h.hidden = true; });
+  const cd = document.getElementById('chem-desc');
+  if (cd) cd.textContent = '';
+});
 
 if (UCL_DEMO) {
   // 1부 챔피언스리그 진행 화면을 바로 띄운다. win이면 압도적 전력이라 우승까지 간다.
