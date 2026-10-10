@@ -2310,3 +2310,8 @@ html[data-theme='kiwi'] .cta--alt { background: transparent; color: var(--gold);
 html[data-theme='kiwi'] .cta--alt:hover { background: var(--gold); color: #000; }
 .growth.grade-S { color: #ff9b3d; box-shadow: 0 0 0 1px #ff9b3d55 inset; }
 .growth.grade-S b { font-size: 1.2em; }
+
+/* ½ 표시는 작게: 눈에 걸리지 않지만 찾으면 보이는 정도 */
+.chip--seed::after, .ticon--seed::after { top: -4px; right: -3px; min-width: 10px; height: 10px; padding: 0 1px; border-radius: 5px; background: var(--surface-hi); color: var(--turf); border: 1px solid var(--turf); font-size: 7px; line-height: 8px; font-weight: 700; }
+.ticon--named.ticon--seed { padding-right: 8px; }
+.slot .ticon--seed::after { display: none; }
