@@ -248,6 +248,19 @@ function peakStatusText(p) {
   return bodyAge(p.age, p.position) < 29 ? '전성기' : '전성기 지남';
 }
 
+// 선수단 정리 조언: 선발 추천 / 유망(키울 만함) / 정리 후보. 선발·벤치 구성을 모르는 사람이 판단할 재료.
+function squadAdvice(p, group, xi) {
+  if (group === 'xi') return null;
+  const e = !hasPeaked(p) && p.peakOVR != null ? estimatePeak(p, staffLevel('headCoach'), p.seasonsAtClub ?? 0) : null;
+  const upside = e ? e.hi - p.baseOVR : 0;
+  const declining = hasPeaked(p) && bodyAge(p.age, p.position) >= 29;
+  const same = xi.filter((q) => q.position === p.position).map((q) => q.baseOVR);
+  if (same.length && p.baseOVR > Math.min(...same)) return { id: 'start', label: '선발 추천', why: `같은 자리 선발보다 강해요(${p.baseOVR} > ${Math.min(...same)})` };
+  if (upside >= 4) return { id: 'prospect', label: '유망', why: `전성기에 ${e.lo === e.hi ? e.hi : `${e.lo}~${e.hi}`}까지 오를 수 있어요 — 키워서 비싸게 팔 만해요` };
+  if (group === 'reserve' && (declining || upside <= 1)) return { id: 'cut', label: '정리 후보', why: declining ? '내리막이고 선발·벤치 밖이에요 — 오퍼를 받아 정리해도 좋아요' : '더 오를 여지가 거의 없고 선발·벤치 밖이에요' };
+  return null;
+}
+
 // 성장 한 줄 배지: ↗ 성장(전성기까지 오를 폭) / ● 전성기 / ↘ 내리막. 시장 카드와 선수단이 같은 모양을 쓴다.
 function growthBadge(p, role) {
   if (!Number.isFinite(p.age) || p.peakOVR == null) return '';
@@ -3265,21 +3278,22 @@ function renderMarket(banner = '') {
   const benchIds = new Set(bench.map((p) => p.id));
   const reservePlayers = squad.filter((p) => !inXI.has(p.id) && !benchIds.has(p.id)).sort((a, b) => b.baseOVR - a.baseOVR);
   const renderSquadRow = (p, group) => {
+    const advice = squadAdvice(p, group, slotted.filter(Boolean));
     const locked = !!p.boughtThisSeason; // 이번 시즌 영입한 선수는 방출/판매 불가
     const lockTitle = 'title="이번 시즌 영입한 선수는 판매할 수 없습니다"';
     const swap = group === 'xi'
       ? `<button class="act" data-swap-out="${p.id}">벤치로</button>`
       : `<button class="act act--main" data-swap-in="${p.id}" ${FORMATIONS[formationId].slots.includes(p.position) ? '' : 'disabled title="이 포메이션엔 그 자리가 없습니다"'}>선발 투입</button>`;
-    return `<li class="srow srow--${group}" data-row="${p.id}" style="--tier:var(--t-${tierOf(p.baseOVR)})">
+    return `<li class="srow srow--${group}" data-row="${p.id}" data-advice="${advice?.id ?? ''}" style="--tier:var(--t-${tierOf(p.baseOVR)})">
       <span class="srow__pos">${p.position}</span>
       <b class="srow__ovr n">${p.baseOVR}</b>
       <div class="srow__main">
-        <div class="srow__name">${esc(p.name)}<small>${p.age}세</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
-        ${tagIconsHtml(p, null, true)}
+        <div class="srow__name">${esc(p.name)}<small>${p.age}세</small><small class="srow__grade">${TIER_LABELS[tierOf(p.baseOVR)]}</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
+        <div class="srow__line2">${tagIconsHtml(p, null, true)}${growthBadge(p, 'headCoach')}</div>
       </div>
-      <div class="srow__side"><i class="srow__chev" aria-hidden="true">⌄</i></div>
+      <div class="srow__side">${advice ? `<b class="advice advice--${advice.id}">${advice.label}</b>` : ''}<i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
-        ${growthBadge(p, 'headCoach') ? `<span class="srow__paid">${growthBadge(p, 'headCoach')}</span>` : ''}
+        ${advice ? `<span class="srow__why advice--${advice.id}">${esc(advice.why)}</span>` : ''}
         ${(currentState.mvpSeasons?.[p.id] || p.seasonsAtClub) ? `<span class="srow__paid">${p.seasonsAtClub ? `${p.seasonsAtClub + 1}시즌째` : ''}${currentState.mvpSeasons?.[p.id] ? ` · 시즌 MVP ${currentState.mvpSeasons[p.id]}회` : ''}${isLegend(p) ? ' · 팔면 조직력 -' + HOMETOWN_RELEASE_CHEMISTRY_PENALTY : ''}</span>` : ''}
         ${p.paidPrice ? `<span class="srow__paid">산 값 <b class="n">${p.paidPrice}G</b> · 시세 <b class="n">${p.price}G</b> <em class="${p.price > p.paidPrice ? 'up' : p.price < p.paidPrice ? 'down' : 'flat'}">${p.price >= p.paidPrice ? '+' : ''}${p.price - p.paidPrice}</em></span>` : p.price ? `<span class="srow__paid">시세 <b class="n">${p.price}G</b></span>` : ''}
         ${swap}
@@ -3304,12 +3318,20 @@ function renderMarket(banner = '') {
       ${l.offers.map((o, i) => `<button class="offerrow2" data-sale="${l.card.id}:${i}"><span>${esc(o.club)} ${attitudeFace(sellerAttitude(o.club).label)}</span><b class="n">${o.amount}G</b><small class="${offerWeeksLeft(o) === 1 ? 'is-last' : ''}">${offerWeeksLeft(o) === 1 ? '이번 주까지' : `${offerWeeksLeft(o)}주 남음`}</small></button>`).join('')}
     </li>`).join('') + (listedForSale.length ? '<li class="listed__hint">오퍼는 시간이 지나면 사라지고, 다 사라지거나 시장이 끝나면 태업(OVR -3)해요</li>' : '');
 
+  const adviceCount = { start: 0, prospect: 0, cut: 0 };
+  for (const [group, list] of [['bench', bench], ['reserve', reservePlayers]]) for (const p of list) { const a = squadAdvice(p, group, slotted.filter(Boolean)); if (a) adviceCount[a.id] += 1; }
+  const ADVICE_LABELS = { start: '선발 추천', prospect: '유망', cut: '정리 후보' };
+  const adviceBar = Object.values(adviceCount).some(Boolean) ? `<div class="advicebar" role="group" aria-label="선수단 보기">
+      <button type="button" class="is-on" data-advice-filter="">전체</button>
+      ${Object.entries(adviceCount).filter(([, n]) => n).map(([id, n]) => `<button type="button" data-advice-filter="${id}">${ADVICE_LABELS[id]} <i class="n">${n}</i></button>`).join('')}
+    </div>` : '';
+
   const draftSub = isUnlocked('staff') ? currentState.draftSub ?? 'players' : 'players';
   const boardDemandCard = currentState.boardDemand ? getDemand(currentState.boardDemand.cardId) : null;
   const bodies = {
     draft: `
       <section class="panel tabpanel">
-        ${listedForSale.length ? `<button class="offerchip" data-goto-squad>받은 오퍼 ${listedForSale.reduce((n, l) => n + l.offers.length, 0)}건 ▸</button>` : ''}
+        ${listedHtml ? `<ul class="listed listed--draft">${listedHtml}</ul>` : ''}
         <div class="subtabs" role="tablist">
           <button type="button" role="tab" data-draft-sub="players" aria-selected="${draftSub === 'players'}">선수 <i>${shopOffer.length}</i></button>
           ${isUnlocked('staff') ? `<button type="button" role="tab" data-draft-sub="manager" aria-selected="${draftSub === 'manager'}">감독</button>
@@ -3367,6 +3389,7 @@ function renderMarket(banner = '') {
           <span>평균 <b class="n">${avgAge(squad)}</b>세${lineup.length ? ` · 선발 <b class="n">${avgAge(lineup)}</b>세` : ''}</span>
         </div>
         ${listedHtml ? `<ul class="listed">${listedHtml}</ul>` : ''}
+        ${adviceBar}
         ${squadHtml}
       </section>`,
     staff: `
@@ -3478,7 +3501,7 @@ function renderMarket(banner = '') {
     ${banner ? `<div class="banner">${esc(banner)}</div>` : ''}
 
     <div class="tabs" role="tablist">
-      ${visibleTabs().map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${t.label}${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>` : ''}${t.id === 'squad' ? `<span class="tab__count${squad.length > capNow() ? ' tab__count--warn' : ''}">${squad.length}/${capNow()}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}</button>`).join('')}
+      ${visibleTabs().map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${t.label}${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}${t.id === 'squad' ? `<span class="tab__count${squad.length > capNow() ? ' tab__count--warn' : ''}">${squad.length}/${capNow()}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}</button>`).join('')}
     </div>
     ${bodies[tab]}
   `, `<button class="cta" id="next-week-btn">${week === maxWeek ? (phase === 'summer' ? '전반기 시작' : '후반기 시작') : '다음 주로'}</button>`);
@@ -3699,13 +3722,21 @@ function renderMarket(banner = '') {
     });
     document.querySelectorAll('[data-swap-in]').forEach((btn) => { btn.onclick = () => swapIntoLineup(btn.dataset.swapIn); });
     document.querySelectorAll('[data-swap-out]').forEach((btn) => { btn.onclick = () => swapOutOfLineup(btn.dataset.swapOut); });
-    document.querySelectorAll('[data-sale]').forEach((btn) => {
+    document.querySelectorAll('[data-advice-filter]').forEach((btn) => {
       btn.onclick = () => {
-        const i2 = btn.dataset.sale.lastIndexOf(':');
-        openSale(btn.dataset.sale.slice(0, i2), Number(btn.dataset.sale.slice(i2 + 1)));
+        const f = btn.dataset.adviceFilter;
+        document.querySelectorAll('[data-advice-filter]').forEach((b) => b.classList.toggle('is-on', b === btn));
+        document.querySelectorAll('.squad .srow[data-row]').forEach((row) => { row.hidden = !!f && row.dataset.advice !== f; });
+        document.querySelectorAll('.sqsec').forEach((h) => { const ul = h.nextElementSibling; h.hidden = !!f && ![...ul.querySelectorAll('.srow')].some((r) => !r.hidden); });
       };
     });
   }
+  document.querySelectorAll('[data-sale]').forEach((btn) => {
+    btn.onclick = () => {
+      const i2 = btn.dataset.sale.lastIndexOf(':');
+      openSale(btn.dataset.sale.slice(0, i2), Number(btn.dataset.sale.slice(i2 + 1)));
+    };
+  });
   document.getElementById('next-week-btn').onclick = () => {
     if (tutStep() === 8) tutSet(9);
     clearSpot();
@@ -3917,7 +3948,7 @@ function introTick() {
     ['traits', isUnlocked('traits') && draft && !!document.querySelector('.chip--trait'), '.chip--trait', '특수 성향 선수예요. 성향마다 효과와 대가가 자동으로 붙어요.'],
     ['haggle', draft && loadFlags().tutorialStep < 2 && !!document.querySelector('.deal__buy:not([disabled])'), // 튜토리얼에서 이미 협상을 해 본 사람은 다시 안내하지 않는다
      '.deal__buy:not([disabled])', '협상을 누르면 구단에 더 낮은 가격을 제안할 수 있어요. 거절당하면 얼굴이 굳어지고, 화가 나면 협상이 깨져 그 선수를 놓쳐요.'],
-    ['sale', currentState.tab === 'squad' && currentState.listedForSale.length, '.listed', '오퍼가 도착했어요. 눌러서 팔거나 더 높은 금액을 불러 보세요. 오퍼는 시간이 지나면 사라지고, 다 사라지면 태업(OVR -3)해요.'],
+    ['sale', (currentState.tab === 'draft' || currentState.tab === 'squad') && currentState.listedForSale.length, '.listed', '오퍼가 도착했어요. 눌러서 팔거나 더 높은 금액을 불러 보세요. 오퍼는 시간이 지나면 사라지고, 다 사라지면 태업(OVR -3)해요.'],
   ];
   const next = items.find(([key, when]) => when && !seen[key]);
   if (next) showSpot({ selector: next[2], text: next[3], ...once(next[0]) });

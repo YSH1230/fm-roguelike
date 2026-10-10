@@ -2251,3 +2251,20 @@ html[data-theme='kiwi'] .start__new--ghost.is-armed { color: var(--debit); borde
 .slot .ticon--t1 { color: var(--medal-1); }
 .slot .ticon--t2 { color: var(--medal-2); }
 .slot .ticon--t3 { color: var(--medal-3); }
+
+/* 선수단: 등급·성장·조언 */
+.srow__grade { color: var(--tier, var(--muted)); font-weight: 700; margin-left: 4px; }
+.srow__line2 { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+.srow__line2 .ticons { display: inline-flex; }
+.srow__line2 .growth { font-size: var(--fs-micro); padding: 1px 6px; }
+.advice { font-size: var(--fs-micro); font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
+.advice--start { color: var(--turf); }
+.advice--prospect { color: var(--gold); }
+.advice--cut { color: #d98a82; }
+.srow__why { display: block; width: 100%; font-size: var(--fs-label); line-height: 1.4; border: 0; }
+.advicebar { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--s3) 0; }
+.advicebar button { font: 700 var(--fs-label)/1 var(--ui); padding: 7px 10px; border-radius: 999px; background: var(--surface); color: var(--muted); border: 1px solid var(--line); cursor: pointer; }
+.advicebar button.is-on { color: var(--light); border-color: var(--turf); background: var(--surface-hi); }
+.listed--draft { margin-bottom: var(--s3); }
+.ticon--seed { border: 0; border-style: none; }
+.ticon--named.ticon--seed { padding-right: 14px; }
