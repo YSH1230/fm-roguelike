@@ -3178,10 +3178,10 @@ function renderMarket(banner = '') {
           ${(loadRecords(localStorage).bestScore ?? 0) > 0 ? `<i class="res__best">최고 ${loadRecords(localStorage).bestScore}</i>` : ''}
         </div>
       </div>
-      <div class="goalstrip" id="goal-strip" title="이사진 목표 ${currentBoardGoal()}점 (안전 ${effectiveTier(currentState.leagueTierId).safePoints} · 승격 ${effectiveTier(currentState.leagueTierId).targetPoints})">
+      ${isUnlocked('board') ? `      <div class="goalstrip" id="goal-strip" title="이사진 목표 ${currentBoardGoal()}점 (안전 ${effectiveTier(currentState.leagueTierId).safePoints} · 승격 ${effectiveTier(currentState.leagueTierId).targetPoints})">
         <span>이사진 요구</span>
         ${boardDemandCard ? `<b>${esc(boardDemandCard.short ?? boardDemandCard.text)}</b><em>+${Math.round(BOARD_DEMAND_REWARD[currentState.boardDemand.difficulty] * 100)}%</em>` : '<b class="is-none">없음</b>'}
-      </div>
+      </div>` : ''}
       <p class="note chem-info" id="funds-info" hidden>
         <b>이번 시즌 자금 흐름</b><br>
         시즌 시작 <b>${track.start.toLocaleString('ko-KR')}G</b> ·
