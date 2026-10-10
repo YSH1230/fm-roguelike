@@ -46,7 +46,7 @@ export function applyCostModifiers(basePrice, modifierRatios) {
 
 // 시즌 지급액 배율. 계약(재계약비)을 없애서 생긴 여윳돈을 리그별로 되돌리는 조절판이다. first = 첫 시즌.
 // 시뮬레이션(tools/sim-human.mjs, 환경변수 FS)으로 맞춘다.
-export const FUNDS_SCALE = { first: 1.25, tier5: 0.85, tier4: 0.85, tier3: 0.75, tier2: 0.7, tier1: 0.45 };
+export const FUNDS_SCALE = { first: 1.25, tier5: 0.95, tier4: 1.15, tier3: 1.0, tier2: 0.9, tier1: 0.7 };
 export const fundsScale = (tierId, seasonNumber) => (seasonNumber <= 1 ? FUNDS_SCALE.first : FUNDS_SCALE[tierId] ?? 1);
 
 // 판매 오퍼(2시즌~): 선수 가치(OVR)에 비례해 1~3건. 금액은 기존 판매 범위(여름 50~100%, 겨울 70~110%)에서 굴린다.
