@@ -2290,3 +2290,9 @@ html[data-theme='kiwi'] .start__new--ghost.is-armed { color: var(--debit); borde
 .mvpaward__rest small { display: block; color: var(--muted-dim); font-size: var(--fs-micro); }
 @keyframes mvpPop { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
 @media (prefers-reduced-motion: reduce) { .mvpaward__trophy, .mvpaward__winner, .mvpaward__rest { animation: none; } }
+
+/* 성장 등급 A/B/C, 베테랑 */
+.growth.is-down { color: #8fb3d9; }
+.growth.grade-A { color: var(--gold); }
+.growth.grade-A b { font-size: 1.15em; }
+.growth.grade-C { color: #9bbd9f; }

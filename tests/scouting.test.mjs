@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { estimatePeak, SCOUT_ACCURACY, MIN_HALF_WIDTH } from '../engine/scouting.mjs';
+import { estimatePeak, SCOUT_ACCURACY, MIN_HALF_WIDTH, potentialGrade } from '../engine/scouting.mjs';
 import { valuePrice } from '../engine/economy.mjs';
 
 const p = (i, peak = 75) => ({ id: `p${i}`, baseOVR: 60, peakOVR: peak, peakBodyAge: 27, age: 20, position: 'CMF' });
@@ -35,4 +35,19 @@ test('전성기가 높은 어린 선수는 같은 OVR의 노장보다 비싸고,
   const old = valuePrice({ ...base, age: 30, peakOVR: 60, peakBodyAge: 26 });
   assert.ok(young > old);
   assert.ok(valuePrice({ ...base, age: 19, peakOVR: 78, peakBodyAge: 26 }, 0.1) > young);
+});
+
+test('잠재력 등급: 올라갈 여지가 없으면 등급이 없고, 같은 선수는 항상 같은 등급이다', () => {
+  assert.equal(potentialGrade({ ...p(1, 60), baseOVR: 60 }, 'master'), null);
+  assert.equal(potentialGrade(p(7, 80), 'veteran'), potentialGrade(p(7, 80), 'veteran'));
+});
+
+test('잠재력 등급: 좋은 스카우터일수록 진짜 등급을 더 자주 맞힌다', () => {
+  const hit = (level) => { let ok = 0; const n = 2000; for (let i = 0; i < n; i++) if (potentialGrade({ ...p(i, 70), baseOVR: 60 }, level) === 'A') ok += 1; return ok / n; }; // 진짜는 +10 = A
+  assert.ok(hit('master') > hit('academy'));
+  assert.ok(hit('academy') > 0.8); // 폭이 +10이라 아카데미도 대체로 A로 본다
+});
+
+test('잠재력 등급: 오를 여지가 조금 있으면 "성장 없음"으로 보이지 않는다', () => {
+  for (let i = 0; i < 500; i++) assert.ok(['A', 'B', 'C'].includes(potentialGrade({ ...p(i, 62), baseOVR: 60 }, 'academy')));
 });

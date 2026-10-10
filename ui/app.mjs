@@ -50,7 +50,7 @@ import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
 import { ageSquad, playerTrend, ensurePotential, hasPeaked, bodyAge } from '../engine/aging.mjs';
-import { estimatePeak } from '../engine/scouting.mjs';
+import { potentialGrade } from '../engine/scouting.mjs';
 import { HAGGLE_DISCOUNTS, COUNTER_RAISES, counterAccepted, patienceFor, attitudeScore, attitudeLabel, clubBaseAttitude, cardUniform, offerAccepted, moodAfter } from '../engine/haggle.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait, appearanceOf } from './portrait.mjs';
@@ -235,12 +235,10 @@ function avgAge(players) {
   return players.length ? (players.reduce((sum, p) => sum + p.age, 0) / players.length).toFixed(1) : '-';
 }
 // 시즌 시작 몸값 재계산: 성장한 선수는 비싸지고(갱신비 상승) 노쇠한 선수는 싸진다. GOD 카드와 무료 영입(0G)은 그대로.
-// 전성기 추정(스카우터: 시장 카드, 코치: 내 선수단). 이미 전성기가 지난 선수는 보여 줄 게 없다.
-function peakRangeText(p, role) {
-  if (!Number.isFinite(p.age) || p.peakOVR == null) return '';
-  if (hasPeaked(p)) return ''; // 전성기 이후는 아래 peakStatusText가 맡는다
-  const e = estimatePeak(p, staffLevel(role), role === 'headCoach' ? p.seasonsAtClub ?? 0 : 0);
-  return e ? (e.lo === e.hi ? `${e.lo}` : `${e.lo}~${e.hi}`) : '';
+// 잠재력 등급 A/B/C(스카우터: 시장 카드, 코치: 내 선수단). 아직 전성기 전이고 더 오를 여지가 있는 선수만 받는다.
+function potentialOf(p, role) {
+  if (!Number.isFinite(p.age) || p.peakOVR == null || hasPeaked(p)) return null;
+  return potentialGrade(p, staffLevel(role), role === 'headCoach' ? p.seasonsAtClub ?? 0 : 0);
 }
 
 // 전성기를 이미 지난 선수: 아직 정점(몸 나이 29 미만)이면 "전성기", 그 뒤는 "전성기 지남".
@@ -252,23 +250,22 @@ function peakStatusText(p) {
 // 선수단 정리 조언: 선발 추천 / 유망(키울 만함) / 정리 후보. 선발·벤치 구성을 모르는 사람이 판단할 재료.
 function squadAdvice(p, group, xi) {
   if (group === 'xi') return null;
-  const e = !hasPeaked(p) && p.peakOVR != null ? estimatePeak(p, staffLevel('headCoach'), p.seasonsAtClub ?? 0) : null;
-  const upside = e ? e.hi - p.baseOVR : 0;
+  const grade = potentialOf(p, 'headCoach');
   const declining = hasPeaked(p) && bodyAge(p.age, p.position) >= 29;
   const same = xi.filter((q) => q.position === p.position).map((q) => q.baseOVR);
   if (same.length && p.baseOVR > Math.min(...same)) return { id: 'start', label: '선발 추천', why: `같은 자리 선발보다 강해요(${p.baseOVR} > ${Math.min(...same)})` };
-  if (upside >= 4) return { id: 'prospect', label: '유망', why: `전성기에 ${e.lo === e.hi ? e.hi : `${e.lo}~${e.hi}`}까지 오를 수 있어요 — 키워서 비싸게 팔 만해요` };
-  if (group === 'reserve' && (declining || upside <= 1)) return { id: 'cut', label: '정리 후보', why: declining ? '내리막이고 선발·벤치 밖이에요 — 오퍼를 받아 정리해도 좋아요' : '더 오를 여지가 거의 없고 선발·벤치 밖이에요' };
+  if (grade === 'A' || grade === 'B') return { id: 'prospect', label: '유망', why: `성장 ${grade}등급이에요 — 키워서 비싸게 팔 만해요` };
+  if (group === 'reserve' && (declining || !grade)) return { id: 'cut', label: '정리 후보', why: declining ? '베테랑이고 선발·벤치 밖이에요 — 오퍼를 받아 정리해도 좋아요' : '더 오를 여지가 거의 없고 선발·벤치 밖이에요' };
   return null;
 }
 
-// 성장 한 줄 배지: ↗ 성장(전성기까지 오를 폭) / ● 전성기 / ↘ 내리막. 시장 카드와 선수단이 같은 모양을 쓴다.
+// 성장 한 줄 배지: ↗ 성장 A·B·C(전성기까지 오를 폭의 등급) / ● 전성기 / ● 베테랑. 시장 카드와 선수단이 같은 모양을 쓴다.
 function growthBadge(p, role) {
   if (!Number.isFinite(p.age) || p.peakOVR == null) return '';
-  const range = peakRangeText(p, role);
-  if (range) return `<span class="growth is-up" title="성장 중: 전성기까지 OVR이 오를 수 있어요. 대신 태그 효과는 절반(½)만 받아요(${role === 'headScout' ? '스카우터' : '코치'} 추정치)">↗ 성장 <b class="n">${range}</b></span>`;
+  const grade = potentialOf(p, role);
+  if (grade) return `<span class="growth is-up grade-${grade}" title="성장 ${grade}등급: 전성기까지 ${{ A: '크게', B: '꽤', C: '조금' }[grade]} 오를 수 있어요. 대신 태그 효과는 절반(½)만 받아요(${role === 'headScout' ? '스카우터' : '코치'} 추정 · 한 등급 틀릴 수 있어요)">↗ 성장 <b>${grade}</b></span>`;
   if (peakStatusText(p) === '전성기') return '<span class="growth is-peak" title="지금이 전성기예요. 곧 내려가기 시작합니다">● 전성기</span>';
-  return '<span class="growth is-down" title="전성기가 지나 OVR이 내려가는 중이에요">↘ 내리막</span>';
+  return '<span class="growth is-down" title="경험이 많은 노장이에요. 시간이 지나면 OVR이 서서히 줄어요">● 베테랑</span>';
 }
 
 function repricePlayer(p) {
