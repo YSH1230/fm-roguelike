@@ -248,6 +248,15 @@ function peakStatusText(p) {
   return bodyAge(p.age, p.position) < 29 ? '전성기' : '전성기 지남';
 }
 
+// 성장 한 줄 배지: ↗ 성장(전성기까지 오를 폭) / ● 전성기 / ↘ 내리막. 시장 카드와 선수단이 같은 모양을 쓴다.
+function growthBadge(p, role) {
+  if (!Number.isFinite(p.age) || p.peakOVR == null) return '';
+  const range = peakRangeText(p, role);
+  if (range) return `<span class="growth is-up" title="성장 중: 전성기까지 OVR이 오를 수 있어요(${role === 'headScout' ? '스카우터' : '코치'} 추정치)">↗ 성장 <b class="n">${range}</b></span>`;
+  if (peakStatusText(p) === '전성기') return '<span class="growth is-peak" title="지금이 전성기예요. 곧 내려가기 시작합니다">● 전성기</span>';
+  return '<span class="growth is-down" title="전성기가 지나 OVR이 내려가는 중이에요">↘ 내리막</span>';
+}
+
 function repricePlayer(p) {
   if (!p.price || p.id.startsWith('god-')) return p;
   const q = ensurePotential(p);
@@ -3188,10 +3197,9 @@ function renderMarket(banner = '') {
         <button type="button" class="pcard__tier" data-tier-info="${tier}" aria-label="${TIER_LABELS[tier]} 등급">${TIER_LABELS[tier]}</button>
       </div>
       <div class="deal__body">
-        <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세${playerTrend(c)}</span></div>
+        <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세</span></div>
         ${c.seller ? `<div class="deal__seller"><span>${esc(c.seller)}</span><span class="deal__att">태도 <b class="att att--${sellerAttitude(c.seller).label}">${sellerAttitude(c.seller).label}</b> ${attitudeFace(sellerAttitude(c.seller).label)}</span></div>` : ''}
-        ${peakRangeText(c, 'headScout') ? `<div class="deal__peak">전성기 <b class="n">${peakRangeText(c, 'headScout')}</b> <small>추정</small></div>` : peakStatusText(c) ? `<div class="deal__peak"><b>${peakStatusText(c)}</b></div>` : ''}
-        <div class="deal__tags">${tags}</div>
+        <div class="deal__meta"><div class="deal__tags">${tags}</div>${growthBadge(c, 'headScout')}</div>
         ${compareHtml}
       </div>
       <div class="deal__act">
@@ -3238,12 +3246,12 @@ function renderMarket(banner = '') {
       <span class="srow__pos">${p.position}</span>
       <b class="srow__ovr n">${p.baseOVR}</b>
       <div class="srow__main">
-        <div class="srow__name">${esc(p.name)}<small>${p.age}세${playerTrend(p)}</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
+        <div class="srow__name">${esc(p.name)}<small>${p.age}세</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
         ${tagIconsHtml(p)}
       </div>
       <div class="srow__side"><i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
-        ${peakRangeText(p, 'headCoach') ? `<span class="srow__paid">전성기 <b class="n">${peakRangeText(p, 'headCoach')}</b> 추정</span>` : peakStatusText(p) ? `<span class="srow__paid"><b>${peakStatusText(p)}</b></span>` : ''}
+        ${growthBadge(p, 'headCoach') ? `<span class="srow__paid">${growthBadge(p, 'headCoach')}</span>` : ''}
         ${(currentState.mvpSeasons?.[p.id] || p.seasonsAtClub) ? `<span class="srow__paid">${p.seasonsAtClub ? `${p.seasonsAtClub + 1}시즌째` : ''}${currentState.mvpSeasons?.[p.id] ? ` · 시즌 MVP ${currentState.mvpSeasons[p.id]}회` : ''}${isLegend(p) ? ' · 팔면 조직력 -' + HOMETOWN_RELEASE_CHEMISTRY_PENALTY : ''}</span>` : ''}
         ${p.paidPrice ? `<span class="srow__paid">산 값 <b class="n">${p.paidPrice}G</b> · 시세 <b class="n">${p.price}G</b> <em class="${p.price > p.paidPrice ? 'up' : p.price < p.paidPrice ? 'down' : 'flat'}">${p.price >= p.paidPrice ? '+' : ''}${p.price - p.paidPrice}</em></span>` : p.price ? `<span class="srow__paid">시세 <b class="n">${p.price}G</b></span>` : ''}
         ${swap}
