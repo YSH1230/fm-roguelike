@@ -150,7 +150,7 @@ export const SLUMP_OVR_PENALTY = 3;
 export const LEGEND_MIN_SEASONS = 5;
 export const LEGEND_MIN_MVP = 2;
 // 감독 탭이 열리는 시즌부터 감독 불화 규칙(벌칙·사임)이 발동한다. 그 전에는 선호 태그를 켜면 보너스만 있다.
-export const HARMONY_START_SEASON = 3;
+export const HARMONY_START_SEASON = 2; // 감독 선호 전술 검사는 2시즌부터(첫 시즌은 규칙을 익히는 시간)
 
 export const COST_MODIFIER_CLAMP_MIN = -0.6; // 할인/할증 가산 합계 하한
 export const COST_MODIFIER_CLAMP_MAX = 0.8; // 할인/할증 가산 합계 상한

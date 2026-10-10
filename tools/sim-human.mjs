@@ -47,11 +47,11 @@ const toSquad = (c, bought = false) => ({ ...c, seasonsAtClub: 0, acquiredThisSe
 
 // 해금 전 태그·특수 성향은 카드에 안 붙는다(ui/app.mjs stripLockedTags와 같은 규칙, 계정이 처음일 때 기준)
 function lockStrip(card, season) {
-  const open = (t) => PLAYSTYLE_TAGS[t].group === 'basic' || season >= 2;
+  const open = () => true; // 해금 시스템 폐지
   let tags = card.playstyleTags.filter(open);
   if (!tags.length) { const fit = BASIC_TAGS.filter((t) => PLAYSTYLE_TAGS[t].positions.includes(card.position)); tags = [(fit.length ? fit : BASIC_TAGS)[0]]; }
   const out = { ...card, playstyleTags: tags };
-  if (card.specialTrait && season < 3) { out.price = Math.round(card.price / (TRAIT_PRICE_MULT[card.specialTrait] ?? 1)); out.specialTrait = null; }
+  if (card.specialTrait && false) { out.price = Math.round(card.price / (TRAIT_PRICE_MULT[card.specialTrait] ?? 1)); out.specialTrait = null; }
   return out;
 }
 
@@ -75,7 +75,7 @@ function bestCoachFocus(slots) {
   return Object.keys(COACH_UNITS).sort((a, b) => size(b) - size(a))[0];
 }
 function chooseTarget(squad, season = 1) {
-  const ids = TAG_IDS.filter((t) => PLAYSTYLE_TAGS[t].group === 'basic' || season >= 2);
+  const ids = TAG_IDS.filter((t) => true);
   const score = (t) => squad.filter((p) => p.playstyleTags.includes(t)).length;
   const best = Math.max(...ids.map(score));
   const pool = ids.filter((t) => score(t) === best);
@@ -131,7 +131,7 @@ function playCareer() {
     const startInfo = powerOf(squad, CHEMISTRY_START);
 
     // 감독·스태프 투자(리그별 목표 등급까지, 감독 → 코치 → 스카우터 순)
-    const staffOpen = s + 1 >= 3; // 감독·스태프는 3시즌부터 열린다
+    const staffOpen = true; // 해금 시스템 폐지: 처음부터 열려 있다
     const wantM = staffOpen ? MANAGER_ORDER.indexOf(MANAGER_TARGET[tierId]) : -1;
     if (MANAGER_ORDER.indexOf(manager.tier) < wantM) {
       const next = MANAGER_ORDER[MANAGER_ORDER.indexOf(manager.tier) + 1];
