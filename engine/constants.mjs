@@ -148,6 +148,9 @@ export const SQUAD_CAP = 24;
 export const squadCapFor = (seasonNumber) => (seasonNumber <= 1 ? SQUAD_CAP_FIRST_SEASON : SQUAD_CAP);
 // 판매 등록한 선수가 시장 마감까지 안 팔리면 태업하고 선수단에 돌아온다(그 시즌 끝까지 OVR 하락).
 export const SLUMP_OVR_PENALTY = 3;
+// 클럽 레전드: 한 구단에서 이만큼 뛰고 MVP를 이만큼 받은 선수. 팀 최고 OVR 선수가 시즌당 MVP 2~3번을 받는다(추정)고 보고, 에이스급이 6시즌을 뛰어야 닿도록 잡았다.
+export const LEGEND_MIN_SEASONS = 6;
+export const LEGEND_MIN_MVP = 15;
 // 감독 탭이 열리는 시즌부터 감독 불화 규칙(벌칙·사임)이 발동한다. 그 전에는 선호 태그를 켜면 보너스만 있다.
 export const HARMONY_START_SEASON = 3;
 

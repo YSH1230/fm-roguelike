@@ -66,6 +66,8 @@ import {
   HARMONY_START_SEASON,
   squadCapFor,
   SLUMP_OVR_PENALTY,
+  LEGEND_MIN_SEASONS,
+  LEGEND_MIN_MVP,
   WINTER_MARKET_WEEKS,
   WINTER_TAX_RATIO,
   TRAIT_PRICE_MULT, PLAYER_PRICE_TABLE,
@@ -1370,8 +1372,8 @@ function transactionDecayAmount() {
 }
 
 // 지역 영웅 대가: 방출·판매하면 팬이 반발해 팀 적응도가 깎인다.
-// 클럽 레전드: 한 구단에서 3시즌 이상 뛰고 MVP를 3번 이상 받은 선수. 팔면 지역 영웅처럼 팬이 반발한다.
-const isLegend = (p) => (p.seasonsAtClub ?? 0) >= 3 && (currentState.mvp?.[p.id] ?? 0) >= 3;
+// 클럽 레전드: 한 구단에서 6시즌 이상 뛰고 MVP를 15번 이상 받은 선수. 팔면 지역 영웅처럼 팬이 반발한다.
+const isLegend = (p) => (p.seasonsAtClub ?? 0) >= LEGEND_MIN_SEASONS && (currentState.mvp?.[p.id] ?? 0) >= LEGEND_MIN_MVP;
 
 function hometownExitPenalty(card) {
   if (card.specialTrait === 'hometownHero' || isLegend(card)) {
