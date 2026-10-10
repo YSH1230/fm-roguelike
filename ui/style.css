@@ -2090,3 +2090,6 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .offerrow small { color: var(--muted); }
 .tag--legend { margin-left: 6px; background: var(--gold); color: #000; }
 .tribute { color: var(--gold); }
+.start__new { width: 100%; margin-top: var(--s3); }
+.naming__crest { display: grid; place-items: center; margin: var(--s3) 0 0; }
+.naming__kits { flex-wrap: wrap; }
