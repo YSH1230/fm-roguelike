@@ -252,7 +252,7 @@ function peakStatusText(p) {
 function growthBadge(p, role) {
   if (!Number.isFinite(p.age) || p.peakOVR == null) return '';
   const range = peakRangeText(p, role);
-  if (range) return `<span class="growth is-up" title="성장 중: 전성기까지 OVR이 오를 수 있어요(${role === 'headScout' ? '스카우터' : '코치'} 추정치)">↗ 성장 <b class="n">${range}</b></span>`;
+  if (range) return `<span class="growth is-up" title="성장 중: 전성기까지 OVR이 오를 수 있어요. 대신 태그 효과는 절반(½)만 받아요(${role === 'headScout' ? '스카우터' : '코치'} 추정치)">↗ 성장 <b class="n">${range}</b></span>`;
   if (peakStatusText(p) === '전성기') return '<span class="growth is-peak" title="지금이 전성기예요. 곧 내려가기 시작합니다">● 전성기</span>';
   return '<span class="growth is-down" title="전성기가 지나 OVR이 내려가는 중이에요">↘ 내리막</span>';
 }

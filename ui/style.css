@@ -2215,3 +2215,8 @@ html[data-theme='kiwi'] .start__new--ghost.is-armed { color: var(--debit); borde
 .growth.is-peak { color: var(--gold); }
 .growth.is-down { color: #c9786f; }
 .deal__seller { font-size: var(--fs-label); }
+
+/* 성장 중(전성기 전) 선수의 태그는 효과가 절반 - 흐리게 하지 않고 "½" 표시를 붙인다(안 켜진 태그의 점선과 헷갈리지 않게) */
+.chip--seed, .ticon--seed { opacity: 1; border-style: solid; position: relative; }
+.chip--seed::after, .ticon--seed::after { content: '½'; position: absolute; top: -6px; right: -5px; min-width: 14px; height: 14px; padding: 0 2px; border-radius: 7px; background: var(--turf); color: #04120a; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center; font-style: normal; }
+.tag--seed::after { content: ' ½'; color: var(--turf); font-weight: 700; }
