@@ -30,10 +30,10 @@ const EVENTS = [
     },
   },
   {
-    id: 'youthGoldenGeneration', name: '유스 아카데미 골든 제너레이션', tone: 'good',
+    id: 'youthGoldenGeneration', name: '신인 풍년', tone: 'good',
     apply: ({ squad }, rng) => {
       const youth = { ...generateProceduralPlayer('local', rng), price: 0, specialTrait: 'seongGolYouth', isDraftedYouth: true };
-      return { squad: [...squad, youth], message: `유스 아카데미 골든 제너레이션: ${youth.name} 무료 영입` };
+      return { squad: [...squad, youth], message: `신인 풍년: ${youth.name} 무료 영입` };
     },
   },
   {

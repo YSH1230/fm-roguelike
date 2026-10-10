@@ -5,15 +5,15 @@
 const avg = (xs, f) => (xs.length ? xs.reduce((n, x) => n + f(x), 0) / xs.length : 0);
 
 export const DEMAND_CARDS = [
-  { id: 'youth1', difficulty: 'easy', tags: ['youth'], text: '선발 중 유스 출신 1명 이상',
-    check: (s) => s.lineup.filter((p) => p.isDraftedYouth).length >= 1 },
+  { id: 'young1', difficulty: 'easy', tags: ['youth'], text: '선발 중 21세 이하 1명 이상',
+    check: (s) => s.lineup.filter((p) => p.age <= 21).length >= 1 },
   { id: 'chem50', difficulty: 'easy', tags: ['stable'], text: '시즌 종료 때 적응도 50 이상',
     check: (s) => s.chemistry >= 50 },
   { id: 'age28', difficulty: 'easy', tags: ['age'], text: '선발 평균 나이 28세 이하',
     check: (s) => avg(s.lineup, (p) => p.age) <= 28 },
 
-  { id: 'youth3', difficulty: 'normal', tags: ['youth'], text: '선발 중 유스 출신 3명 이상',
-    check: (s) => s.lineup.filter((p) => p.isDraftedYouth).length >= 3 },
+  { id: 'young3', difficulty: 'normal', tags: ['youth'], text: '선발 중 21세 이하 3명 이상',
+    check: (s) => s.lineup.filter((p) => p.age <= 21).length >= 3 },
   { id: 'age26', difficulty: 'normal', tags: ['age'], text: '선발 평균 나이 26세 이하',
     check: (s) => avg(s.lineup, (p) => p.age) <= 26 },
   { id: 'winter2', difficulty: 'normal', tags: ['stable'], text: '겨울 시장 거래 2건 이하',

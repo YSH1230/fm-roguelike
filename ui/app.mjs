@@ -215,13 +215,13 @@ const TAG_LABELS = {
   pass: '패스', dribble: '개인기', physical: '피지컬',
 };
 const TRAIT_LABELS = {
-  starPower: '스타 기질', seongGolYouth: '성골 유스', veteranLeader: '베테랑 리더', superSub: '슈퍼 서브',
+  starPower: '스타 기질', seongGolYouth: '신성', veteranLeader: '베테랑 리더', superSub: '슈퍼 서브',
   hometownHero: '지역 영웅', journeyman: '저니맨',
 };
 // 전술 탭 "선수 특수 태그" 섹션에 쓰는 효과 설명(engine/ovr.mjs 실제 수치와 짝).
 const TRAIT_EFFECT_DESCRIPTIONS = {
   starPower: '선발이면 본인 OVR +10',
-  seongGolYouth: '유스 출신 본인 OVR +10',
+  seongGolYouth: '신인 출신 본인 OVR +10',
   veteranLeader: '33세 이상이 선발이면 선발 23세 이하 전원 +3, 거래당 적응도 하락 −1',
   superSub: '벤치에 있으면 선발 전원 OVR +1',
   hometownHero: '뛴 시즌마다 본인 OVR +4 (최대 +12)',
@@ -582,19 +582,16 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
   `);
 
   const xi = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
-  currentState.mvp ??= {};
-  const pickFrom = (pool) => {
-    const weights = pool.map((p) => Math.max(1, p.baseOVR - 40) ** 1.5); // 포지션 구분 없이 OVR이 높을수록 유리하되 한 명이 독점하지 않게 완만하게
-    let r = Math.random() * weights.reduce((a, b) => a + b, 0);
-    for (let i = 0; i < pool.length; i++) { r -= weights[i]; if (r <= 0) { currentState.mvp[pool[i].id] = (currentState.mvp[pool[i].id] ?? 0) + 1; return pool[i]; } }
-    return pool[0] ?? null;
-  };
-  const pickMvp = () => pickFrom(xi);
-  // 진 경기에서도 가끔(25%) 후방(골키퍼·수비·수비형 미드필더)이 "패배 속 MVP"로 뽑힌다. 막아 낸 선수를 알아봐 주는 장치.
-  const REAR = ['GK', 'CB', 'WB', 'DMF'];
-  const pickLossMvp = () => {
-    const rear = xi.filter((p) => REAR.includes(p.slotPosition ?? p.position));
-    return rear.length && Math.random() < 0.25 ? pickFrom(rear) : null;
+  // 라운드마다 선발 전원에게 보이지 않는 "활약 점수"를 쌓는다. 승리가 크고, OVR은 약하게 반영하며, 포지션은 구분하지 않는다.
+  // 가끔(8%) 누구에게나 깜짝 활약이 터진다. 전반기 결산에서 MVP 레이스로, 시즌 결산에서 시즌 MVP로 보여 준다.
+  currentState.mvpPoints ??= {};
+  const form = new Map(xi.map((p) => [p.id, 0.6 + Math.random() * 0.8])); // 이번 반기 컨디션: 물오른 선수와 부진한 선수가 갈린다
+  const scoreRound = (gained) => {
+    const base = gained >= 3 ? 3 : gained >= 1 ? 1.5 : 0.7;
+    for (const p of xi) {
+      const s = (base * (0.5 + Math.random()) + (p.baseOVR - 50) / 25 + (Math.random() < 0.08 ? 3 : 0)) * form.get(p.id);
+      currentState.mvpPoints[p.id] = (currentState.mvpPoints[p.id] ?? 0) + Math.max(0, s);
+    }
   };
   let round = 0;
   let delay = 430;
@@ -614,13 +611,11 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     const gained = myPts - (round > 1 ? pointsOf.get('me')[round - 2] : baseOf.get('me'));
     const verdict = gained >= 3 ? '승' : gained >= 1 ? '무' : '패';
     const moveText = move > 0 ? `▲${move}` : move < 0 ? `▼${-move}` : '';
-    // 승리한 라운드마다 선발 중 한 명이 MVP(포지션 무관, OVR이 높을수록 조금 더 잘 뽑힌다)
-    const mvp = gained >= 3 ? pickMvp() : null;
-    const lossMvp = gained < 1 ? pickLossMvp() : null;
+    scoreRound(gained);
     // 운명의 라운드: 시즌 막판 승격선·강등선 근처
     const fate = second && round >= N - 2 && ((!ctx.isTop && rank >= 2 && rank <= 5) || (rank >= 15 && rank <= 18));
     if (phrase) {
-      phrase.textContent = `${fate ? '운명의 라운드 · ' : ''}${round}라운드 ${verdict} · ${rank}위${moveText ? `(${moveText})` : ''}${mvp ? ` · MVP ${mvp.name.split(' ').slice(-1)[0]}` : ''}${lossMvp ? ` · 패배 속 MVP ${lossMvp.name.split(' ').slice(-1)[0]}` : ''}`;
+      phrase.textContent = `${fate ? '운명의 라운드 · ' : ''}${round}라운드 ${verdict} · ${rank}위${moveText ? `(${moveText})` : ''}`;
       phrase.closest('.matchsim__ticker')?.classList.toggle('is-fate', fate);
     }
     updateStandings(round);
@@ -1301,6 +1296,7 @@ function startNewSeason() {
   }
   currentState.boardDemand = null;
   currentState.seasonTrack = { spent: 0, winterTransactions: 0, income: 0, start: currentState.funds };
+  currentState.mvpPoints = {};
   currentState.seasonNumber += 1;
   const unlockedNow = unlockForSeason(currentState.seasonNumber);
   currentState.week = SUMMER_MARKET_WEEKS[0];
@@ -1324,7 +1320,7 @@ function startNewSeason() {
   currentState.squad = aged.squad.map(repricePlayer); // OVR이 바뀌었으니 몸값(재계약비·판매가)도 현재 OVR 기준으로 다시 매긴다
   // 오래 뛴 선수(3시즌 이상)나 클럽 레전드가 은퇴하면 따로 인사한다.
   const tribute = aged.retired.map((r) => preAge.get(r.id)).filter((p) => p && ((p.seasonsAtClub ?? 0) >= 3 || isLegend(p)))
-    .map((p) => ({ name: p.name, seasons: p.seasonsAtClub ?? 0, mvp: currentState.mvp?.[p.id] ?? 0, legend: isLegend(p) }));
+    .map((p) => ({ name: p.name, seasons: p.seasonsAtClub ?? 0, mvp: currentState.mvpSeasons?.[p.id] ?? 0, legend: isLegend(p) }));
   const agingReport = { changes: aged.changes, retired: aged.retired, youthLeft: youthLeft.map((p) => ({ name: p.name, position: p.position })) };
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
   currentState.shopOffer = newShopOffer();
@@ -1381,8 +1377,8 @@ function transactionDecayAmount() {
 }
 
 // 지역 영웅 대가: 방출·판매하면 팬이 반발해 팀 적응도가 깎인다.
-// 클럽 레전드: 한 구단에서 6시즌 이상 뛰고 MVP를 15번 이상 받은 선수. 팔면 지역 영웅처럼 팬이 반발한다.
-const isLegend = (p) => (p.seasonsAtClub ?? 0) >= LEGEND_MIN_SEASONS && (currentState.mvp?.[p.id] ?? 0) >= LEGEND_MIN_MVP;
+// 클럽 레전드: 한 구단에서 5시즌 이상 뛰고 시즌 MVP를 2번 이상 받은 선수. 팔면 지역 영웅처럼 팬이 반발한다.
+const isLegend = (p) => (p.seasonsAtClub ?? 0) >= LEGEND_MIN_SEASONS && (currentState.mvpSeasons?.[p.id] ?? 0) >= LEGEND_MIN_MVP;
 
 function hometownExitPenalty(card) {
   if (card.specialTrait === 'hometownHero' || isLegend(card)) {
@@ -1762,7 +1758,7 @@ function runFirstHalf(saleMessage = '') {
   if (capMsg) saleMessage = saleMessage ? `${saleMessage} / ${capMsg}` : capMsg;
   const callUps = ensurePositionCoverage();
   if (callUps.length) {
-    const msg = `포지션 공백으로 유스 긴급 콜업: ${callUps.join(', ')}`;
+    const msg = `포지션 공백으로 무명 보충 선수 긴급 영입: ${callUps.join(', ')}`;
     saleMessage = saleMessage ? `${saleMessage} / ${msg}` : msg;
   }
 
@@ -1796,6 +1792,30 @@ function runFirstHalf(saleMessage = '') {
 
 // 여름시장 다음에 바로 겨울시장 화면이 뜨면 시즌을 건너뛴 것처럼 보인다.
 // 시즌 결산 화면처럼 전반기에도 확인 화면을 하나 끼워 넣는다.
+// MVP 레이스: 활약 점수 상위 N명. 전반기 결산(중간 순위)과 시즌 결산(최종)에서 쓴다.
+function mvpRanking(limit = 3) {
+  const pts = currentState.mvpPoints ?? {};
+  return currentState.squad.filter((p) => pts[p.id] > 0).map((p) => ({ p, pts: pts[p.id] }))
+    .sort((x, y) => y.pts - x.pts).slice(0, limit);
+}
+function mvpRaceHtml(title, rows, winner = false) {
+  if (!rows.length) return '';
+  return `<div class="panel mvprace">
+    <div class="panel__head"><h2>${title}</h2></div>
+    <ol class="mvprace__list">${rows.map((r, i) => `<li class="${winner && i === 0 ? 'is-winner' : ''}" style="--tier:var(--t-${tierOf(r.p.baseOVR)})">
+      <b class="n">${i + 1}</b><span>${esc(r.p.name)}<small>${r.p.position} · OVR ${r.p.baseOVR}</small></span><em class="n">${Math.round(r.pts)}점</em>
+    </li>`).join('')}</ol>
+  </div>`;
+}
+// 시즌 MVP 확정: 1위에게 "시즌 MVP 1회"를 남긴다.
+function decideSeasonMvp() {
+  const top = mvpRanking(3);
+  if (!top.length) return null;
+  currentState.mvpSeasons ??= {};
+  currentState.mvpSeasons[top[0].p.id] = (currentState.mvpSeasons[top[0].p.id] ?? 0) + 1;
+  return top;
+}
+
 function renderHalfTimeVerdict(saleMessage, lineup, slotted, bench) {
   const { manager } = currentState;
   const tier = effectiveTier(currentState.leagueTierId);
@@ -1824,6 +1844,7 @@ function renderHalfTimeVerdict(saleMessage, lineup, slotted, bench) {
     ${saleMessage ? `<div class="banner">${esc(saleMessage)}</div>` : ''}
     <p class="note">이사진 목표 <b>${currentBoardGoal()}점</b> - 전반기 ${points.toFixed(0)}점(목표 페이스 ${(currentBoardGoal() / 2).toFixed(0)}점).</p>
     <p class="note">겨울 이적시장에서 스쿼드를 보강하세요(윈터 택스 +${WINTER_TAX_RATIO * 100}%).</p>
+    ${mvpRaceHtml('MVP 레이스 (전반기 현황)', mvpRanking(3))}
     <div class="panel">
       <div class="panel__head"><h2>전반기 라인업</h2><span class="panel__count">${currentFormation()}</span></div>
       ${renderPitch(slotted, currentFormation(), currentState.club.kit)}
@@ -2300,7 +2321,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   if (capMsg) saleMessage = saleMessage ? `${saleMessage} / ${capMsg}` : capMsg;
   const callUps = ensurePositionCoverage();
   if (callUps.length) {
-    const msg = `포지션 공백으로 유스 긴급 콜업: ${callUps.join(', ')}`;
+    const msg = `포지션 공백으로 무명 보충 선수 긴급 영입: ${callUps.join(', ')}`;
     saleMessage = saleMessage ? `${saleMessage} / ${msg}` : msg;
   }
   const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
@@ -2368,6 +2389,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   pst.titleStreak = seasonPts.titleStreak;
   const seasonRows = [...seasonPts.rows];
   awardPrestige(seasonPts.rows);
+  const seasonMvp = decideSeasonMvp();
   if (outcome.ended) {
     // 같은 클릭에서 보드진의 신임이 발동하고도 목표 미달로 경질될 수 있다.
     // 그 경우에도 성향이 발동했다는 사실은 알려야 한다.
@@ -2473,6 +2495,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
       </ul>
       ${closingHtml}
     </div>
+    ${seasonMvp ? mvpRaceHtml('시즌 MVP', seasonMvp, true) : ''}
     <div class="panel">
       <div class="panel__head"><h2>최종 라인업</h2><span class="panel__count">${currentFormation()}</span></div>
       ${renderPitch(slotted, currentFormation(), currentState.club.kit)}
@@ -2849,7 +2872,7 @@ function showCapWarning(over, onProceed, onCancel) {
 }
 
 // 포지션이 비어 있는 채로 경기를 시작하려 하면 먼저 알린다. 그대로 가면
-// 능력치가 가장 낮은 무명 유스(태그 없음)가 빈자리를 채운다.
+// 능력치가 가장 낮은 무명 보충 선수(태그 없음)가 빈자리를 채운다.
 function showLineupWarning(missing, onProceed, onCancel) {
   const root = document.getElementById('eventmodal-root');
   root.innerHTML = `
@@ -2857,7 +2880,7 @@ function showLineupWarning(missing, onProceed, onCancel) {
       <div class="eventmodal eventmodal--bad">
         <div class="eventmodal__kicker">라인업 경고</div>
         <div class="eventmodal__title">${esc([...new Set(missing)].join('·'))} 자리가 비었습니다</div>
-        <p class="eventmodal__detail">이대로 시작하면 능력치가 가장 낮은 무명 유스(태그 없음) ${missing.length}명이 빈자리를 채웁니다.</p>
+        <p class="eventmodal__detail">이대로 시작하면 능력치가 가장 낮은 무명 보충 선수(태그 없음) ${missing.length}명이 빈자리를 채웁니다.</p>
         <button class="cta" id="warn-proceed">그대로 시작</button>
         <button class="reroll" id="warn-cancel" style="margin-top:var(--s2);width:100%">돌아가서 보강하기</button>
       </div>
@@ -3032,7 +3055,7 @@ function renderMarket(banner = '') {
       </div>
       <div class="srow__side"><i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
-        ${(currentState.mvp?.[p.id] || p.seasonsAtClub) ? `<span class="srow__paid">${p.seasonsAtClub ? `${p.seasonsAtClub + 1}시즌째` : ''}${currentState.mvp?.[p.id] ? ` · MVP ${currentState.mvp[p.id]}회` : ''}${isLegend(p) ? ' · 팔면 적응도 -' + HOMETOWN_RELEASE_CHEMISTRY_PENALTY : ''}</span>` : ''}
+        ${(currentState.mvpSeasons?.[p.id] || p.seasonsAtClub) ? `<span class="srow__paid">${p.seasonsAtClub ? `${p.seasonsAtClub + 1}시즌째` : ''}${currentState.mvpSeasons?.[p.id] ? ` · 시즌 MVP ${currentState.mvpSeasons[p.id]}회` : ''}${isLegend(p) ? ' · 팔면 적응도 -' + HOMETOWN_RELEASE_CHEMISTRY_PENALTY : ''}</span>` : ''}
         ${p.paidPrice ? `<span class="srow__paid">산 값 <b class="n">${p.paidPrice}G</b> · 시세 <b class="n">${p.price}G</b> <em class="${p.price > p.paidPrice ? 'up' : p.price < p.paidPrice ? 'down' : 'flat'}">${p.price >= p.paidPrice ? '+' : ''}${p.price - p.paidPrice}</em></span>` : p.price ? `<span class="srow__paid">시세 <b class="n">${p.price}G</b></span>` : ''}
         ${swap}
         <button class="act" data-release-listed="${p.id}" ${locked ? `disabled ${lockTitle}` : 'title="1주 뒤 정산"'}>판매 등록</button>
@@ -3089,7 +3112,7 @@ function renderMarket(banner = '') {
         ${(() => {
           const missing = missingPositions(squad, formationId);
           return missing.length
-            ? `<p class="note note--warn">⚠ 포지션 공백: ${missing.join('·')} 자리에 선수가 없습니다. 시즌을 시작하면 유스가 긴급 콜업됩니다 - 이적시장에서 미리 보강하세요.</p>`
+            ? `<p class="note note--warn">⚠ 포지션 공백: ${missing.join('·')} 자리에 선수가 없습니다. 시즌을 시작하면 무명 보충 선수가 긴급 콜업됩니다 - 이적시장에서 미리 보강하세요.</p>`
             : '';
         })()}
         ${isUnlocked('staff') ? `        <div class="tactics__manager" style="--tier:var(--${MANAGER_TIER_COLOR[manager.tier] ?? 't-local'})">
@@ -3118,15 +3141,7 @@ function renderMarket(banner = '') {
         <div class="sqsum">
           <span><b class="n${squad.length > capNow() ? ' is-over' : ''}">${squad.length}</b>/${capNow()}명</span>
           <span>평균 <b class="n">${avgAge(squad)}</b>세${lineup.length ? ` · 선발 <b class="n">${avgAge(lineup)}</b>세` : ''}</span>
-          ${(() => {
-            const yi = (ps) => ps.filter((p) => p.isDraftedYouth);
-            const grp = [['선발', yi(slotted.filter(Boolean))], ['벤치', yi(bench)], ['예비', yi(reservePlayers)]];
-            const tot = grp.reduce((a, [, ps]) => a + ps.length, 0);
-            const parts = grp.filter(([, ps]) => ps.length).map(([l, ps]) => `${l} ${ps.length}`).join(', ');
-            return `<button type="button" class="sqsum__youth" id="youth-btn" aria-expanded="false" ${tot ? '' : 'disabled'}>유스 <b class="n">${tot}</b>${parts ? `(${parts})` : ''}</button>`;
-          })()}
         </div>
-        <ul class="youthlist" id="youth-list" hidden>${[['선발', slotted.filter(Boolean)], ['벤치', bench], ['예비', reservePlayers]].flatMap(([l, ps]) => ps.filter((p) => p.isDraftedYouth).map((p) => `<li><b>${esc(p.name)}</b> <span>${p.position} · ${p.age}세 · OVR ${p.baseOVR}</span><em>${l}</em></li>`)).join('')}</ul>
         ${listedHtml ? `<ul class="listed">${listedHtml}</ul>` : ''}
         ${squadHtml}
       </section>`,
@@ -3441,11 +3456,6 @@ function renderMarket(banner = '') {
       hint.hidden = same;
     });
   });
-  document.getElementById('youth-btn')?.addEventListener('click', (e) => {
-    const list = document.getElementById('youth-list');
-    list.hidden = !list.hidden;
-    e.currentTarget.setAttribute('aria-expanded', String(!list.hidden));
-  });
   document.querySelectorAll('.squad .srow .ticon[data-tag-info]').forEach((el) => {
     const show = (e) => {
       e.stopPropagation();
@@ -3530,12 +3540,12 @@ function renderMarket(banner = '') {
           ${ups.map((c) => `<li class="is-up">▲ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (+${c.delta})${c.kind === 'leap' ? ' 도약!' : ''}</span></li>`).join('')}
           ${downs.map((c) => `<li class="is-down">▼ ${esc(c.name)} <span>${c.age}세 · ${c.from}→${c.to} (${c.delta})${c.kind === 'stall' ? ' 정체' : ''}</span></li>`).join('')}
           ${ag.retired.map((r) => `<li class="is-retire">은퇴 ${esc(r.name)} <span>${r.age}세</span></li>`).join('')}
-          ${ag.youthLeft.map((y) => `<li class="is-retire">유스 계약 종료 ${esc(y.name)} <span>${y.position}</span></li>`).join('')}
+          ${ag.youthLeft.map((y) => `<li class="is-retire">보충 선수 퇴단 ${esc(y.name)} <span>${y.position}</span></li>`).join('')}
         </ul>
       </div>` : '';
     const td = briefing.transferDemand;
     const transferHtml = td ? `<div class="transferdemand">
-        <p class="eventmodal__detail"><b>${esc(td.name)}</b>(성골 유스)에게 빅클럽의 이적 요구가 왔습니다.</p>
+        <p class="eventmodal__detail"><b>${esc(td.name)}</b>(신성)에게 빅클럽의 이적 요구가 왔습니다.</p>
         <div class="transferdemand__btns">
           <button class="reroll" id="td-release">보내주기 <small>자유계약으로 이탈</small></button>
           <button class="reroll" id="td-keep">붙잡기 <small>OVR −${SEONGGOL_REJECT_OVR_PENALTY}</small></button>

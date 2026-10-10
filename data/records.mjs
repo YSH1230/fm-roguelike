@@ -146,7 +146,7 @@ export const ACHIEVEMENTS = [
   // ---- 선수(개성 도감 대신)
   { id: 'trait3', group: '선수', label: '개성파 수집가', desc: '서로 다른 특수 성향 선수를 3종 만난다', check: (r) => Object.keys(r.traitsSeen ?? {}).length >= 3, progress: (r) => bar(Object.keys(r.traitsSeen ?? {}).length, 3) },
   { id: 'trait6', group: '선수', label: '개성 도감 완성', desc: '특수 성향 선수를 6종 모두 만난다', check: (r) => Object.keys(r.traitsSeen ?? {}).length >= 6, progress: (r) => bar(Object.keys(r.traitsSeen ?? {}).length, 6) },
-  { id: 'legend1', group: '선수', label: '클럽 레전드', desc: '한 구단에서 6시즌 이상, MVP 15회 이상 활약한 선수를 배출한다', check: (r) => (r.legends ?? 0) >= 1, progress: (r) => bar(r.legends ?? 0, 1) },
+  { id: 'legend1', group: '선수', label: '클럽 레전드', desc: '한 구단에서 5시즌 이상 뛰고 시즌 MVP를 2회 이상 받은 선수를 배출한다', check: (r) => (r.legends ?? 0) >= 1, progress: (r) => bar(r.legends ?? 0, 1) },
   { id: 'legend3', group: '선수', label: '레전드의 산실', desc: '클럽 레전드를 누적 3명 배출한다', check: (r) => (r.legends ?? 0) >= 3, progress: (r) => bar(r.legends ?? 0, 3) },
   { id: 'rep150', group: '명예', label: '이름이 알려지다', desc: '한 런에서 명성 점수 550점(B등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 550, progress: (r) => bar(r.bestScore ?? 0, 550) },
   { id: 'rep400', group: '명예', label: '감독 명인', desc: '한 런에서 명성 점수 800점(A등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 800, progress: (r) => bar(r.bestScore ?? 0, 800) },

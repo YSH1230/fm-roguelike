@@ -16,8 +16,8 @@ export const KLASS = {
 // eventBias: 시즌 이벤트 id 가중치 배수
 export const COLORS = {
   youthDevelopment: {
-    label: '유스 육성형', fundsMultiplier: 0.9,
-    strength: '유스 아카데미 출신 성골 유망주 다수', weakness: '시작 자금이 빠듯하다',
+    label: '신인 육성형', fundsMultiplier: 0.9,
+    strength: '신인 발굴이 빠르다', weakness: '시작 자금이 빠듯하다',
     demandBias: { youth: 3, age: 2 }, eventBias: { youthGoldenGeneration: 3 },
   },
   richOwner: {

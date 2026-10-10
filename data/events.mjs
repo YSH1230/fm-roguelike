@@ -36,7 +36,7 @@ export const EVENTS = [
   },
   {
     id: 'youthGoldenGeneration',
-    name: '유스 아카데미 골든 제너레이션',
+    name: '신인 풍년',
     type: 'opportunity',
     scope: 'general',
     weekRange: [1, 4],

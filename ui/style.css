@@ -1924,14 +1924,6 @@ html[data-theme='kiwi'] .deal__name { background: none; border-bottom: 0; paddin
 /* 선수 태그 설명, 유스 요약 */
 .ticon[data-tag-info] { cursor: pointer; }
 .srow__hint { grid-column: 1 / -1; display: block; margin-top: 4px; padding: 6px 8px; border-left: 2px solid var(--turf); background: var(--surface-hi); color: var(--light); font-size: var(--fs-label); line-height: 1.45; white-space: normal; }
-.sqsum__youth { padding: 5px 10px; border-radius: 4px; background: var(--night); border: 1px solid var(--line-soft); color: var(--light); font: inherit; font-size: var(--fs-label); cursor: pointer; }
-.sqsum__youth:disabled { opacity: 0.6; cursor: default; }
-.sqsum__youth[aria-expanded='true'] { border-color: var(--turf); color: var(--turf); }
-.youthlist { list-style: none; margin: 0 0 var(--s3); padding: 0; display: grid; gap: 4px; }
-.youthlist li { display: flex; align-items: baseline; gap: var(--s2); padding: 6px 10px; background: var(--surface); border-left: 3px solid var(--turf); font-size: var(--fs-label); }
-.youthlist li span { color: var(--muted); }
-.youthlist li em { margin-left: auto; font-style: normal; color: var(--muted); }
-.youthlist[hidden] { display: none; }
 
 /* ===== 시뮬레이션: 픽셀 경기장 ===== */
 .pxpitch { aspect-ratio: 8 / 5; border: 2px solid #14100f; border-radius: 4px; background: #3f8f45; image-rendering: pixelated; }
@@ -2093,3 +2085,9 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .start__new { width: 100%; margin-top: var(--s3); }
 .naming__crest { display: grid; place-items: center; margin: var(--s3) 0 0; }
 .naming__kits { flex-wrap: wrap; }
+.mvprace__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.mvprace__list li { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: var(--s2); padding: 8px 10px; background: var(--surface-hi); border-left: 3px solid var(--tier, var(--line)); }
+.mvprace__list small { display: block; color: var(--muted); font-size: var(--fs-micro); }
+.mvprace__list em { font-style: normal; color: var(--muted); }
+.mvprace__list li.is-winner { box-shadow: 0 0 0 1px var(--gold) inset; }
+.mvprace__list li.is-winner b { color: var(--gold); }
