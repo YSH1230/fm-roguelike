@@ -63,6 +63,7 @@ import { loadFlags, updateFlags, isUnlocked, unlockForSeason, markSeen, UNLOCK_L
 import {
   CHEMISTRY_START,
   CHEMISTRY_DECAY_PER_TRANSACTION,
+  CHEMISTRY_RECOVERY_PER_STABLE_WEEK,
   SHOP_OFFER_SIZE,
   SHOP_REROLL_COST,
   SUMMER_MARKET_WEEKS,
@@ -332,7 +333,7 @@ function staffChips(role, level) {
   if (role === 'headCoach') {
     const v = COACH_CHEMISTRY_DECAY_BY_LEVEL[level];
     const units = COACH_UNIT_BONUS_BY_LEVEL[level] ?? [];
-    return chip(v === 0 ? '거래 조직력 유지' : `거래당 조직력 −${v}`, '영입·판매 등록 한 건마다 떨어지는 조직력')
+    return chip(v === 0 ? '거래 조직력 유지' : `거래당 조직력 −${v}`, '영입·판매 한 건마다 떨어지는 조직력')
       + units.map((b, i) => chip(`${['주력', '2순위', '3순위'][i]} +${b}`, '코치가 고른 주력 유닛부터 선수 OVR을 올려 줍니다')).join('');
   }
   const t = SCOUT_TARGETS_BY_LEVEL[level];
@@ -417,7 +418,7 @@ function managerTraitHtml(m) {
 // 감독의 전술 태그 케미가 그때 안 켜져 있으면 "선호하는 선수단을 못 꾸렸다"는
 // 뜻이라 불화, 켜져 있으면 전술이 자리잡았다는 뜻이라 보너스 - 새 수치 체계
 // 없이 이미 있는 조직력(케미스트리)를 그대로 밀고 올린다.
-const MANAGER_HARMONY_PENALTY = 15;
+const MANAGER_HARMONY_PENALTY = 10;
 const MANAGER_HARMONY_BONUS = 10;
 // 사임 때 자금이 모자라도 판이 막히지 않게 늘 고를 수 있는 임시 감독(무료·루키·세부 성향 없음, 위약금도 없음).
 function makeTempManager() {
@@ -1717,8 +1718,7 @@ function listPlayer(card) {
 function listForSale(card) {
   if (card.boughtThisSeason) return;
   const offers = listPlayer(card);
-  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay());
-  if (!offers.length) { renderMarket(`${card.name}에 대한 오퍼가 한 건도 없었습니다. 자유계약으로 팀을 떠납니다`); return; }
+  if (!offers.length) { currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay()); renderMarket(`${card.name}에 대한 오퍼가 한 건도 없었습니다. 자유계약으로 팀을 떠납니다`); return; }
   renderMarket(`${card.name}에 대한 오퍼가 ${offers.length}건 도착했습니다. 기한 ${Math.max(...offers.map((o) => o.expires)) - currentState.week + 1}주까지 - 선수단 탭에서 확인하세요`);
 }
 
@@ -1729,6 +1729,7 @@ function acceptSaleOffer(cardId, index, amount, viaCounter = false) {
   currentState.listedForSale = currentState.listedForSale.filter((x) => x !== l);
   returnGodToPool(l.card);
   hometownExitPenalty(l.card);
+  currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay()); // 조직력 벌은 실제로 팔릴 때 붙는다
   if (!viaCounter) setMood(offer.club, 'asking'); // 제시한 금액 그대로 팔면 그 구단은 기분이 좋다
   currentState.funds += amount;
   currentState.seasonTrack.income += amount;
@@ -1872,14 +1873,20 @@ function askDirection(onPick) {
 }
 
 function nextWeek() {
+  // 주마다 오르는 조직력: 이유와 함께 한 줄로 알려 준다(거래로 깎인 건 그때 바로 보인다)
+  const chemBefore = currentState.chemistry;
+  const gains = [];
   currentState.chemistry = advanceWeek(currentState.chemistry, currentState.transactedThisWeek);
+  if (!currentState.transactedThisWeek) gains.push(`거래 없음 +${CHEMISTRY_RECOVERY_PER_STABLE_WEEK}`);
   // 팀 컬러가 완성돼 있으면 거래와 상관없이 조직력 +1
   const xi = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
-  if (completedTags(xi).length) currentState.chemistry = Math.min(100, currentState.chemistry + COLOR_COMPLETE_CHEMISTRY);
+  if (completedTags(xi).length) { currentState.chemistry = Math.min(100, currentState.chemistry + COLOR_COMPLETE_CHEMISTRY); gains.push(`팀 컬러 +${COLOR_COMPLETE_CHEMISTRY}`); }
+  const chemGain = currentState.chemistry - chemBefore;
+  const chemMessage = chemGain > 0 ? `조직력 +${chemGain} (${gains.join(', ')})` : '';
   currentState.transactedThisWeek = false;
   currentState.justBoughtIds = []; // NEW 표시는 산 주에만 - 다음 주로 넘어가면 지운다
   currentState.week += 1;
-  const saleMessage = resolveListedSales();
+  const saleMessage = [resolveListedSales(), chemMessage].filter(Boolean).join(' / ');
 
   if (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1]) {
     askDirection(() => runFirstHalf(saleMessage));
@@ -3368,7 +3375,7 @@ function renderMarket(banner = '') {
       <p class="note chem-info" id="chem-info" hidden>
         <b>조직력</b>은 선수들이 얼마나 손발이 맞는지예요. 높을수록 팀 전력이 오르고 낮을수록 깎입니다(지금 ×${chemistryMultiplier(chemistry).toFixed(3)}).<br>
         <b>오르는 때:</b> 거래가 없는 주마다 +1, 팀 컬러 완성 시 매주 +1, 감독 선호 전술 발동, 이사진 목표 초과, 승격.<br>
-        <b>깎이는 때:</b> 영입·판매 등록 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'}. 한 주의 첫 거래는 깎이지 않고, 영입하면서 내보내는 교체는 한 건입니다.<br>
+        <b>깎이는 때:</b> 영입·판매 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'}. 한 주의 첫 거래는 깎이지 않고, 영입하면서 내보내는 교체는 한 건입니다.<br>
         그래서 자주 갈아치울수록 손해, 굵직하게 바꾸고 기다릴수록 이득입니다.
       </p>
     </header>
