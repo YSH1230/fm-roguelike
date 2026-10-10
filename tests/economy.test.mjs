@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   calculatePlayerPrice,
   applyCostModifiers,
-  renewalCost,
   computeReleaseProceeds,
   calculateStartingFunds,
   applyCarryoverCap,
@@ -18,11 +17,6 @@ test('가산 할인/할증은 합산 후 한 번만 적용되고 -60%~+80%로 �
   assert.equal(applyCostModifiers(100, [0.2, -0.3]), 90); // -10% 합산
   assert.equal(applyCostModifiers(100, [1.0, 1.0]), 180); // +80% 상한 클램프
   assert.equal(applyCostModifiers(100, [-1.0, -1.0]), 40); // -60% 하한 클램프
-});
-
-test('재계약 비용은 1년 24%, 2년 40%다(2년이 연당 더 싸다, 이전보다 20% 낮춤)', () => {
-  assert.equal(renewalCost(1000, 1), 240);
-  assert.equal(renewalCost(1000, 2), 400);
 });
 
 test('방출 회수: 즉시 0%, 데드라인 40%', () => {
@@ -54,4 +48,14 @@ test('남은 돈은 이월 상한만큼 남기고 나머지는 2~3개 명분으�
   assert.equal(r.items.reduce((s, x) => s + x.amount, 0), 850);
   assert.deepEqual(recallFunds(100, 1500), { carried: 100, recalled: 0, items: [] });
   assert.deepEqual(recallFunds(0, 500), { carried: 0, recalled: 0, items: [] });
+});
+
+test('판매 오퍼: 선수 가치에 비례해 1~3건, 범위 안에서 내림차순', async () => {
+  const { saleOfferCount, generateSaleOffers } = await import('../engine/economy.mjs');
+  assert.equal(saleOfferCount(55), 1);
+  assert.equal(saleOfferCount(70), 2);
+  assert.equal(saleOfferCount(85), 3);
+  const offers = generateSaleOffers(1000, 85);
+  assert.equal(offers.length, 3);
+  assert.ok(offers.every((o, i) => o >= 700 && o <= 1150 && (i === 0 || o <= offers[i - 1])));
 });

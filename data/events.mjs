@@ -43,14 +43,6 @@ export const EVENTS = [
     freeSeongGolYouth: true, // 0G 성골 유스 확정
   },
   {
-    id: 'promotionRenewalHike',
-    name: '핵심 선수 재계약 인상',
-    type: 'crisis',
-    scope: 'promotionOnly',
-    weekRange: [1, 12],
-    resolver: 'resolvePromotionRenewalHike',
-  },
-  {
     id: 'promotionTransferDemand',
     name: '핵심 선수 이적 요구',
     type: 'crisis',

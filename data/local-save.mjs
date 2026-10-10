@@ -1,12 +1,14 @@
 import { generateStaffOffer } from './staff.mjs';
 
 const KEY = 'fm-roguelike-save';
+// 규칙이 크게 바뀌면(v2: 계약·대륙·역할 폐지, 정원, 판매 오퍼) 이전 규칙으로 진행 중이던 판은 이어할 수 없다. 기록·업적·최고 점수는 따로 저장돼 그대로 남는다.
+export const RULES_VERSION = 2;
 
 // storage를 주입받아 브라우저 localStorage와 테스트용 가짜 스토리지를 둘 다 지원한다.
 // 프라이빗 브라우징 등에서 접근이 막혀도 게임이 멎지 않도록 전부 무시하고 넘어간다.
 export function saveRun(state, storage) {
   try {
-    storage.setItem(KEY, JSON.stringify(state));
+    storage.setItem(KEY, JSON.stringify({ ...state, rulesVersion: RULES_VERSION }));
   } catch {
     // 저장 실패는 무시 — 게임은 메모리 상태로 계속 진행된다
   }
@@ -15,7 +17,9 @@ export function saveRun(state, storage) {
 export function loadRun(storage) {
   try {
     const raw = storage.getItem(KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const { rulesVersion, ...state } = JSON.parse(raw);
+    return rulesVersion === RULES_VERSION ? state : null;
   } catch {
     return null;
   }
@@ -59,11 +63,5 @@ export function withRunDefaults(state, defaultFormation) {
   }
   state.eventTone ??= null; // 구버전 세이브는 이벤트 팝업 정보가 없다 - 안 띄운다
   state.expectationModifier ??= 0; // 구버전 세이브는 이사진 기대치 가감이 없다 - 중립
-  // 계약 시스템 이전 세이브는 선수마다 contractYearsLeft가 없다. 없는 채로
-  // 두면 (undefined ?? 2)는 매번 2로 취급되지만, 명시적으로 채워서 다음
-  // startNewSeason의 -1 계산이 NaN이 되는 일을 막는다.
-  if (state.squad) {
-    state.squad = state.squad.map((p) => ({ ...p, contractYearsLeft: p.contractYearsLeft ?? 2 }));
-  }
   return state;
 }

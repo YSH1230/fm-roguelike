@@ -46,9 +46,9 @@ test('bad 이벤트는 crisisImmune이면 효과 없이 무효화된다', () => 
   assert.match(r.message, /무효/);
 });
 
-test('rivalPoach: 에이스 계약이 1년으로 줄어든다', () => {
+test('rivalPoach: 적응도가 4 깎인다', () => {
   const r = rollSeasonEvent(ctx(), 'summer', seq(0, 0.5), { rivalPoach: 1000 });
-  assert.equal(r.squad.find((p) => p.id === 'b').contractYearsLeft, 1);
+  assert.equal(r.chemistry, ctx().chemistry - 4);
 });
 
 test('injuryAftermath: 한 명의 OVR이 3 깎인다', () => {
@@ -72,16 +72,16 @@ test('ffpAudit: 자금 부족이면 최약체 방출', () => {
   assert.equal(r.squad[0].id, 'b');
 });
 
-test('은퇴 앞둔 레전드는 재계약 불가 표시가 붙는다(무료 영입이라 재계약비가 0원이 되는 버그 방지)', () => {
+test('은퇴 앞둔 레전드는 시즌 후 은퇴 표시가 붙는다', () => {
   const r = rollSeasonEvent(ctx(), 'summer', seq(0, 0.5), { retiringLegend: 1000 });
   const legend = r.squad.at(-1);
-  assert.equal(legend.noRenewal, true);
+  assert.equal(legend.retiresAfterSeason, true);
 });
 
-test('이벤트 풀은 18종이고, 선택형 4종이 섞여 있다', async () => {
+test('이벤트 풀은 20종이고, 선택형 5종이 섞여 있다', async () => {
   const { EVENT_IDS } = await import('../data/season-events.mjs');
-  assert.equal(EVENT_IDS.length, 18);
-  assert.equal(new Set(EVENT_IDS).size, 18);
+  assert.equal(EVENT_IDS.length, 20);
+  assert.equal(new Set(EVENT_IDS).size, 20);
 });
 
 test('최근에 나온 이벤트는 가중치가 낮아져 거의 반복되지 않는다', async () => {
@@ -106,7 +106,7 @@ test('선택형 이벤트: 스폰서 일시금은 지금 자금, 장기 계약�
   assert.equal(long.state.nextGrantBonus, 0.22);
 });
 
-test('선택형 이벤트: 빅클럽 제안 - 보내면 이적료를 받고 떠나고, 붙잡으면 계약이 늘어난다', async () => {
+test('선택형 이벤트: 빅클럽 제안 - 보내면 이적료를 받고 떠나고, 붙잡으면 남는다', async () => {
   const { resolveChoice } = await import('../data/season-events.mjs');
   const c = { id: 'bigClubOffer', payload: { playerId: 'b' } };
   const base = ctx();
@@ -114,10 +114,34 @@ test('선택형 이벤트: 빅클럽 제안 - 보내면 이적료를 받고 떠�
   assert.equal(sold.squad.some((p) => p.id === 'b'), false);
   assert.equal(sold.funds, 1000 + Math.round(10 * 0.85));
   const kept = resolveChoice(c, 1, base);
-  assert.equal(kept.squad.find((p) => p.id === 'b').contractYearsLeft, 3);
+  assert.equal(kept.squad.some((p) => p.id === 'b'), true);
 });
 
 test('전술 분석관 합류: 불화 면제 플래그를 건다', () => {
   const r = rollSeasonEvent(ctx(), 'summer', seq(0, 0.5), { analystJoins: 1000 });
   assert.equal(r.state.harmonyShield, true);
+});
+
+test('출전 요구: 약속하면 OVR +1·적응도 -2, 거절하면 OVR -1', async () => {
+  const { resolveChoice } = await import('../data/season-events.mjs');
+  const c = { id: 'playtimeDemand', payload: { playerId: 'a' } };
+  const base = ctx();
+  const yes = resolveChoice(c, 0, base);
+  assert.equal(yes.squad.find((p) => p.id === 'a').baseOVR, 61);
+  assert.equal(yes.chemistry, base.chemistry - 2);
+  assert.equal(resolveChoice(c, 1, base).squad.find((p) => p.id === 'a').baseOVR, 59);
+});
+
+test('베테랑의 조언: 어린 선수 OVR +1', () => {
+  const sq = [mk('a', 60), mk('b', 80)].map((p, i) => ({ ...p, age: i ? 33 : 20 }));
+  const r = rollSeasonEvent(ctx({ squad: sq }), 'summer', seq(0, 0.5), { mentor: 1000 });
+  assert.equal(r.squad.find((p) => p.id === 'a').baseOVR, 61);
+});
+
+test('감독·스태프가 열리기 전에는 감독 관련 이벤트가 나오지 않는다', () => {
+  for (const id of ['tacticalSeminar', 'analystJoins']) {
+    const r = rollSeasonEvent(ctx({ staffOn: false }), 'summer', seq(0, 0.5), { [id]: 100000 });
+    assert.notEqual(r.id, id);
+  }
+  assert.equal(rollSeasonEvent(ctx(), 'summer', seq(0, 0.5), { analystJoins: 100000 }).id, 'analystJoins');
 });

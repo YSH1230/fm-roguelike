@@ -1,3 +1,4 @@
+import { agePriceMult } from '../engine/aging.mjs';
 import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, BASIC_TAGS, ADVANCED_TAGS, SPECIAL_TRAITS, TRAIT_PRICE_MULT } from '../engine/constants.mjs';
 import { calculatePlayerPrice } from '../engine/economy.mjs';
 import { pick, randomName } from './name-pools.mjs';
@@ -93,7 +94,7 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
     id: `p${String(nextId++).padStart(4, '0')}`,
     name,
     baseOVR,
-    price: Math.round(calculatePlayerPrice(tierId, baseOVR) * (TRAIT_PRICE_MULT[specialTrait] ?? 1)),
+    price: Math.round(calculatePlayerPrice(tierId, baseOVR) * (TRAIT_PRICE_MULT[specialTrait] ?? 1) * agePriceMult(age)),
     age,
     position: pos,
     playstyleTags: withForcedTag(pickPlaystyleTags(tier, pos, rng), forceTag),

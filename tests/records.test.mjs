@@ -83,3 +83,13 @@ test('업적은 40개 이상이고 id가 겹치지 않는다', () => {
   assert.ok(ACHIEVEMENTS.length >= 40);
   assert.equal(new Set(ACHIEVEMENTS.map((a) => a.id)).size, ACHIEVEMENTS.length);
 });
+
+test('특수 성향 도감과 클럽 레전드 업적', async () => {
+  const { recordTrait, recordLegend } = await import('../data/records.mjs');
+  let r = emptyRecords();
+  for (const t of ['starPower', 'superSub', 'journeyman']) r = recordTrait(r, t);
+  assert.ok(unlockedIds(r).includes('trait3'));
+  assert.ok(!unlockedIds(r).includes('trait6'));
+  r = recordLegend(r);
+  assert.ok(unlockedIds(r).includes('legend1'));
+});

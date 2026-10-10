@@ -70,6 +70,8 @@ export const BASE_POINTS_AT_LEAGUE_AVERAGE = 18;
 // basePoints 오캘리브레이션을 운으로 덮는 상황이었다. 기준점을 고친 뒤로는
 // ±20%로도 강등이 충분히 나온다(시장 미사용 15%) — 운의 비중을 다시 낮췄다.
 export const POWER_VARIANCE_RATIO = 0.20;
+// 반기 전술 방향(2시즌 해금): 기대 승점은 같고 기복만 다르다. 공격은 대박 또는 쪽박, 수비는 안정적.
+export const DIRECTION_VARIANCE = { attack: 1.6, balance: 1, defense: 0.45 };
 
 // 스펙 5.1절 "6등급" — OVR 범위와 등급별 전술 태그 칸(기본기 1개는 모두 공통).
 // advancedSlots의 각 칸은 'mid'/'hard'/'any'(보통+어려움)에서 하나를 뽑는다. 끝에 '?'가 붙으면 45% 확률로만 채운다.
@@ -84,18 +86,9 @@ export const PLAYER_TIERS = {
 
 export const POSITIONS = ['GK', 'CB', 'WB', 'DMF', 'CMF', 'AMF', 'W', 'ST'];
 
-// 특수 성향은 역할 슬롯(주장/에이스/조커)에 배정돼야 효과가 난다. 슬롯은 각각 1명.
-// (docs/superpowers/specs/2026-09-30-player-roles-design.md)
-export const ROLE_SLOTS = ['captain', 'ace', 'joker'];
-export const TRAIT_ROLE = {
-  veteranLeader: 'captain', polyglot: 'captain',
-  seongGolYouth: 'ace', hometownHero: 'ace', journeyman: 'ace', starPower: 'ace',
-  superSub: 'joker',
-};
-// 대가(영입가/재계약비 배수). 역할 효과와 별개로 그 태그를 가진 선수에게 늘 붙는다.
-export const TRAIT_PRICE_MULT = { starPower: 2 };
-export const TRAIT_RENEWAL_MULT = { veteranLeader: 1.5, starPower: 2 };
-// 성골 유스 대가: 에이스로 뛴 시즌이 끝나면 이 확률로 이적 요구가 온다(수락 = 자유계약으로 떠남, 거부 = OVR 하락).
+// 대가(영입가 배수). 그 성향을 가진 선수에게 늘 붙는다.
+export const TRAIT_PRICE_MULT = { starPower: 1.5 };
+// 성골 유스 대가: 시즌이 끝나면 이 확률로 이적 요구가 온다(수락 = 자유계약으로 떠남, 거부 = OVR 하락).
 export const SEONGGOL_TRANSFER_DEMAND_CHANCE = 0.3;
 export const SEONGGOL_REJECT_OVR_PENALTY = 3;
 export const HOMETOWN_RELEASE_CHEMISTRY_PENALTY = 8;
@@ -106,7 +99,6 @@ export const SPECIAL_TRAITS = [
   'veteranLeader',
   'superSub',
   'hometownHero',
-  'polyglot',
   'journeyman',
 ];
 
@@ -150,13 +142,21 @@ export const STAFF_PRICE_TABLE = {
   master: [500, 800],
 };
 
+// 선수단 정원: 처음부터 끝까지 22명으로 고정(선발 11 + 벤치 5 + 예비 6). 정원이 차면 영입할 때 내보낼 선수를 고른다.
+export const SQUAD_CAP = 22;
+export const squadCapFor = () => SQUAD_CAP;
+// 판매 등록한 선수가 시장 마감까지 안 팔리면 태업하고 선수단에 돌아온다(그 시즌 끝까지 OVR 하락).
+export const SLUMP_OVR_PENALTY = 3;
+// 클럽 레전드: 한 구단에서 이만큼 뛰고 MVP를 이만큼 받은 선수. 팀 최고 OVR 선수가 시즌당 MVP 2~3번을 받는다(추정)고 보고, 에이스급이 6시즌을 뛰어야 닿도록 잡았다.
+export const LEGEND_MIN_SEASONS = 6;
+export const LEGEND_MIN_MVP = 15;
+// 감독 탭이 열리는 시즌부터 감독 불화 규칙(벌칙·사임)이 발동한다. 그 전에는 선호 태그를 켜면 보너스만 있다.
+export const HARMONY_START_SEASON = 3;
+
 export const COST_MODIFIER_CLAMP_MIN = -0.6; // 할인/할증 가산 합계 하한
 export const COST_MODIFIER_CLAMP_MAX = 0.8; // 할인/할증 가산 합계 상한
 export const WINTER_TAX_RATIO = 0.2; // 겨울 시장 영입비 +20%
 export const WINTER_FUNDS_RATIO = 0.3; // 겨울 시장 진입 시 그 리그 시즌 지급액의 30%를 추가 지급
-
-// 재계약 연장 연수 → 원가 비율. 2년은 1년 2번(60%)보다 싸게 - 오래 묶이는 리스크(하락/노쇠)를 보상한다.
-export const CONTRACT_RENEWAL_RATIO = { 1: 0.24, 2: 0.4 }; // 갱신비가 지급액의 약 45%를 먹어서 20% 낮췄다(이전 0.3 / 0.5)
 
 // 방출 회수율: 즉시 0%, 이적명단(여름/겨울 범위), Week12 데드라인 40%
 export const RELEASE_RECOVERY_IMMEDIATE = 0;
@@ -244,7 +244,6 @@ export const PROMOTION_STAY_FUNDS_RATIO = 0.7;
 
 // 스펙 3절/8절 "이벤트" — 슬라이스 범위: 일반 위기 2 + 일반 기회 3 + 승격 전용 위기 2
 export const PROMOTION_TRANSFER_DEMAND_OVR_PENALTY = 5; // 거부 시 그 시즌 OVR 하락(출발값, 튜닝 대상)
-export const PROMOTION_RENEWAL_HIKE_RATIO = 0.3; // 승격 전용: 재계약 비용 +30%
 export const SPONSORSHIP_FUNDS_BONUS_RATIO = 0.2; // 메인 스폰서십 특수: 시작 자금 +20%
 export const FA_FIRE_SALE_DISCOUNT_RATIO = -0.5; // FA 급매물 등장: 50% 할인
 export const AGENT_BACKLASH_SURCHARGE_RATIO = 0.1; // 에이전트의 뒷공작: 영입비 +10%
@@ -295,10 +294,10 @@ export const PRESTIGE_UCL = { league: 20, playoff: 30, r16: 50, qf: 80, sf: 120,
 export const PRESTIGE_DOUBLE = 150; // 같은 시즌 리그 우승 + 챔피언스리그 우승
 export const PRESTIGE_RETIRE = 200; // 1부 우승 후 은퇴로 커리어를 완결
 
-// 런 점수 등급(런 하나의 점수 기준). 피라미드: 사람처럼 플레이하는 봇 80개 런 기준으로
+// 런 점수 등급(런 하나의 점수 기준). 피라미드: 사람처럼 플레이하는 봇 v2 규칙 300개 런 기준으로(2026-10-10 재측정)
 // D 29% · C 26% · B 19% · A 14% · S 9% · SS 4%가 되도록 잡았다(위로 갈수록 확실히 드물다).
 export const PRESTIGE_GRADES = [
-  { id: 'SS', min: 7000 }, { id: 'S', min: 1400 }, { id: 'A', min: 800 }, { id: 'B', min: 450 }, { id: 'C', min: 180 }, { id: 'D', min: 0 },
+  { id: 'SS', min: 1700 }, { id: 'S', min: 1100 }, { id: 'A', min: 800 }, { id: 'B', min: 550 }, { id: 'C', min: 200 }, { id: 'D', min: 0 },
 ];
 // 칭호(커리어 누적 점수 기준). 올라가기만 한다.
 export const PRESTIGE_TITLES = [

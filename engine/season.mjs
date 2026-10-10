@@ -1,7 +1,7 @@
 import { computeTeamPower, applyVariance } from './team-power.mjs';
 import { convertPowerToPoints, getLeagueTier } from './league.mjs';
 import { applyStableWeekRecovery } from './chemistry.mjs';
-import { BOARD_GOAL_POSITION, BOARD_REWARD_FUNDS_PER_POINT, BOARD_REWARD_FUNDS_CAP, BOARD_REWARD_CHEMISTRY } from './constants.mjs';
+import { DIRECTION_VARIANCE, POWER_VARIANCE_RATIO, BOARD_GOAL_POSITION, BOARD_REWARD_FUNDS_PER_POINT, BOARD_REWARD_FUNDS_CAP, BOARD_REWARD_CHEMISTRY } from './constants.mjs';
 
 // 이적시장 한 주가 지나갈 때: 거래가 있었으면 그대로, 없었으면 적응도 +1 (스펙 6절)
 export function advanceWeek(chemistry, hadTransactionThisWeek) {
@@ -11,11 +11,11 @@ export function advanceWeek(chemistry, hadTransactionThisWeek) {
 // convertPowerToPoints는 38경기(풀시즌) 스케일로 캘리브레이션되어 있으므로,
 // 전/후반기(19경기씩) 각각에 쓸 때는 결과를 절반으로 나눠 스케일을 맞춘다.
 // ponytail: 근사치. 전/후반기 별도 계수가 필요해지면 그때 분리한다.
-export function runHalfSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng = Math.random, coach = null, roles = undefined) {
+export function runHalfSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng = Math.random, coach = null, direction = 'balance') {
   const tier = getLeagueTier(leagueTierId);
   const leagueAverageOVR = (tier.averageOVR[0] + tier.averageOVR[1]) / 2;
-  const basePower = computeTeamPower(lineup, bench, managerTier, chemistry, coach, { leagueTierId, roles });
-  const finalPower = applyVariance(basePower, undefined, rng);
+  const basePower = computeTeamPower(lineup, bench, managerTier, chemistry, coach, { leagueTierId });
+  const finalPower = applyVariance(basePower, POWER_VARIANCE_RATIO * (DIRECTION_VARIANCE[direction] ?? 1), rng);
   return convertPowerToPoints(finalPower, leagueAverageOVR) / 2;
 }
 

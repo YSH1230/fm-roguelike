@@ -14,6 +14,7 @@ export function emptyRecords() {
     bestScore: 0, careerScore: 0, topRuns: [], // 명성 점수: 한 런 최고, 커리어 누적, 내 기록 TOP 10
     longestRun: 0, bestStreak: 0, maxPoints: 0, retired: 0, runsEnded: 0,
     ucl: { league: 0, playoff: 0, r16: 0, qf: 0, sf: 0, final: 0, champion: 0 },
+    traitsSeen: {}, legends: 0, // 만나 본 특수 성향 / 배출한 클럽 레전드 수
     history: [], // 최근 시즌 기록 { season, club, tierId, result, rank, points, ucl }
   };
 }
@@ -38,6 +39,9 @@ export function saveRecords(storage, records) {
 export function recordRunStart(r) {
   return { ...r, runs: r.runs + 1 };
 }
+
+export const recordTrait = (r, id) => ({ ...r, traitsSeen: { ...r.traitsSeen, [id]: true } });
+export const recordLegend = (r) => ({ ...r, legends: (r.legends ?? 0) + 1 });
 
 export function recordPromotion(r) {
   return { ...r, promotions: r.promotions + 1 };
@@ -139,10 +143,15 @@ export const ACHIEVEMENTS = [
   { id: 'double', group: '챔피언스리그', label: '더블', desc: '같은 시즌에 1부 우승과 챔피언스리그 우승을 모두 차지한다', check: (r) => r.doubles >= 1 },
   { id: 'double2', group: '챔피언스리그', label: '더블 왕조', desc: '더블을 누적 2번 달성한다', check: (r) => r.doubles >= 2, progress: (r) => bar(r.doubles, 2) },
   // ---- 명예
-  { id: 'rep150', group: '명예', label: '이름이 알려지다', desc: '한 런에서 명성 점수 450점(B등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 450, progress: (r) => bar(r.bestScore ?? 0, 450) },
+  // ---- 선수(개성 도감 대신)
+  { id: 'trait3', group: '선수', label: '개성파 수집가', desc: '서로 다른 특수 성향 선수를 3종 만난다', check: (r) => Object.keys(r.traitsSeen ?? {}).length >= 3, progress: (r) => bar(Object.keys(r.traitsSeen ?? {}).length, 3) },
+  { id: 'trait6', group: '선수', label: '개성 도감 완성', desc: '특수 성향 선수를 6종 모두 만난다', check: (r) => Object.keys(r.traitsSeen ?? {}).length >= 6, progress: (r) => bar(Object.keys(r.traitsSeen ?? {}).length, 6) },
+  { id: 'legend1', group: '선수', label: '클럽 레전드', desc: '한 구단에서 6시즌 이상, MVP 15회 이상 활약한 선수를 배출한다', check: (r) => (r.legends ?? 0) >= 1, progress: (r) => bar(r.legends ?? 0, 1) },
+  { id: 'legend3', group: '선수', label: '레전드의 산실', desc: '클럽 레전드를 누적 3명 배출한다', check: (r) => (r.legends ?? 0) >= 3, progress: (r) => bar(r.legends ?? 0, 3) },
+  { id: 'rep150', group: '명예', label: '이름이 알려지다', desc: '한 런에서 명성 점수 550점(B등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 550, progress: (r) => bar(r.bestScore ?? 0, 550) },
   { id: 'rep400', group: '명예', label: '감독 명인', desc: '한 런에서 명성 점수 800점(A등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 800, progress: (r) => bar(r.bestScore ?? 0, 800) },
-  { id: 'rep800', group: '명예', label: '살아 있는 전설', desc: '한 런에서 명성 점수 1400점(S등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 1400, progress: (r) => bar(r.bestScore ?? 0, 1400) },
-  { id: 'rep1500', group: '명예', label: '축구사에 남다', desc: '한 런에서 명성 점수 7000점(SS등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 7000, progress: (r) => bar(r.bestScore ?? 0, 7000) },
+  { id: 'rep800', group: '명예', label: '살아 있는 전설', desc: '한 런에서 명성 점수 1100점(S등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 1100, progress: (r) => bar(r.bestScore ?? 0, 1100) },
+  { id: 'rep1500', group: '명예', label: '축구사에 남다', desc: '한 런에서 명성 점수 1700점(SS등급)을 넘긴다', check: (r) => (r.bestScore ?? 0) >= 1700, progress: (r) => bar(r.bestScore ?? 0, 1700) },
 ];
 
 export const unlockedIds = (r) => ACHIEVEMENTS.filter((a) => a.check(r)).map((a) => a.id);

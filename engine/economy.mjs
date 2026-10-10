@@ -4,7 +4,6 @@ import {
   PLAYER_PRICE_TABLE,
   COST_MODIFIER_CLAMP_MIN,
   COST_MODIFIER_CLAMP_MAX,
-  CONTRACT_RENEWAL_RATIO,
   RELEASE_RECOVERY_IMMEDIATE,
   RELEASE_RECOVERY_LISTED_SUMMER,
   RELEASE_RECOVERY_LISTED_WINTER,
@@ -33,11 +32,21 @@ export function applyCostModifiers(basePrice, modifierRatios) {
   return Math.round(basePrice * (1 + clamped));
 }
 
-// 재계약 비용: 1년 연장 30%, 2년 연장 60%
-export function renewalCost(originalPrice, years) {
-  const ratio = CONTRACT_RENEWAL_RATIO[years];
-  if (ratio === undefined) throw new Error(`Unknown renewal years: ${years}`);
-  return Math.round(originalPrice * ratio);
+// 시즌 지급액 배율. 계약(재계약비)을 없애서 생긴 여윳돈을 리그별로 되돌리는 조절판이다. first = 첫 시즌.
+// 시뮬레이션(tools/sim-human.mjs, 환경변수 FS)으로 맞춘다.
+export const FUNDS_SCALE = { first: 1.25, tier5: 0.85, tier4: 0.85, tier3: 0.75, tier2: 0.7, tier1: 0.45 };
+export const fundsScale = (tierId, seasonNumber) => (seasonNumber <= 1 ? FUNDS_SCALE.first : FUNDS_SCALE[tierId] ?? 1);
+
+// 판매 오퍼(2시즌~): 선수 가치(OVR)에 비례해 1~3건. 금액은 기존 판매 범위(여름 50~100%, 겨울 70~110%)에서 굴린다.
+// 오퍼 금액은 현재 시세의 70~115%에서 한 번 정해지고, 다시 뽑지 않는다(재추첨 차익 방지).
+export const SALE_OFFER_RANGE = [0.7, 1.15];
+export function saleOfferCount(baseOVR) {
+  return baseOVR >= 81 ? 3 : baseOVR >= 63 ? 2 : 1;
+}
+export function generateSaleOffers(marketValue, baseOVR, rng = Math.random) {
+  const [lo, hi] = SALE_OFFER_RANGE;
+  return Array.from({ length: saleOfferCount(baseOVR) }, () => Math.round(marketValue * (lo + rng() * (hi - lo))))
+    .sort((a, b) => b - a);
 }
 
 // 방출 3단계 회수 금액. method: 'immediate' | 'listedSummer' | 'listedWinter' | 'deadline'

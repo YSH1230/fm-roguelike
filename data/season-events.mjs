@@ -2,7 +2,7 @@ import { generateProceduralPlayer } from './generate-player.mjs';
 import { resolveFfpAudit } from '../engine/events.mjs';
 import { SPONSORSHIP_FUNDS_BONUS_RATIO, EVENT_CHANCE_SUMMER, EVENT_CHANCE_WINTER } from '../engine/constants.mjs';
 
-// 시즌 이벤트 풀 18종. 두 갈래다.
+// 시즌 이벤트 풀 20종. 두 갈래다.
 //  - 자동 이벤트(EVENTS): apply가 { squad, funds, chemistry, baseFunds, manager }를 받아 바뀐 값과
 //    message("이름: 상세" - UI가 ': '로 제목/상세를 나눈다)를 돌려준다. state는 런 상태에 덧붙일 값.
 //  - 선택형 이벤트(CHOICES): 2지선다. prepare가 선택에 필요한 값(대상 선수, 유망주 등)을 한 번 정해
@@ -11,6 +11,7 @@ import { SPONSORSHIP_FUNDS_BONUS_RATIO, EVENT_CHANCE_SUMMER, EVENT_CHANCE_WINTER
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const RECENT_WEIGHT = 0.15;
 
+const youngestOf = (list) => [...list].sort((a, b) => a.age - b.age)[0];
 const topBy = (squad, key) => [...squad].sort((a, b) => b[key] - a[key])[0];
 
 const EVENTS = [
@@ -51,22 +52,18 @@ const EVENTS = [
     apply: ({ chemistry }) => ({ chemistry: clamp(chemistry - 8, 0, 100), message: '언론의 융단 폭격: 라커룸이 뒤숭숭합니다. 적응도 -8' }),
   },
   {
-    // 무료 영입이라 가격이 0 - 재계약비가 0원이 되지 않게 재계약 불가로 둔다(noRenewal).
+    // 무료 영입. 이번 한 시즌만 뛰고 시즌이 끝나면 은퇴한다(retiresAfterSeason).
     id: 'retiringLegend', name: '은퇴 앞둔 레전드', tone: 'good',
     apply: ({ squad }, rng) => {
-      const legend = { ...generateProceduralPlayer('bigLeaguer', rng), age: 35, price: 0, specialTrait: 'veteranLeader', contractYearsLeft: 1, noRenewal: true };
-      return { squad: [...squad, legend], message: `은퇴 앞둔 레전드: ${legend.name}이(가) 마지막 시즌을 함께합니다(무료 영입, 재계약 불가)` };
+      const legend = { ...generateProceduralPlayer('bigLeaguer', rng), age: 35, price: 0, specialTrait: 'veteranLeader', retiresAfterSeason: true };
+      return { squad: [...squad, legend], message: `은퇴 앞둔 레전드: ${legend.name}이(가) 마지막 시즌을 함께합니다(무료 영입, 시즌 후 은퇴)` };
     },
   },
   {
     id: 'rivalPoach', name: '라이벌의 러브콜', tone: 'bad',
-    apply: ({ squad }) => {
+    apply: ({ squad, chemistry }) => {
       const ace = [...squad].sort((a, b) => b.baseOVR - a.baseOVR)[0];
-      if ((ace.contractYearsLeft ?? 2) <= 1) return { message: `라이벌의 러브콜: ${ace.name}이(가) 흔들렸지만 버텼습니다` };
-      return {
-        squad: squad.map((p) => (p.id === ace.id ? { ...p, contractYearsLeft: 1 } : p)),
-        message: `라이벌의 러브콜: ${ace.name}의 계약이 1년 남은 것으로 조정됐습니다`,
-      };
+      return { chemistry: clamp(chemistry - 4, 0, 100), message: `라이벌의 러브콜: ${ace.name}이(가) 흔들려 라커룸이 뒤숭숭합니다. 적응도 -4` };
     },
   },
   {
@@ -109,6 +106,18 @@ const EVENTS = [
     apply: ({ funds, baseFunds }) => {
       const cost = Math.min(funds, Math.round(baseFunds * 0.06));
       return { funds: funds - cost, message: `훈련장 시설 고장: 수리비 -${cost}G` };
+    },
+  },
+  {
+    id: 'mentor', name: '베테랑의 조언', tone: 'good',
+    apply: ({ squad }) => {
+      const vet = squad.filter((p) => p.age >= 30).sort((a, b) => b.age - a.age)[0];
+      const kid = youngestOf(squad.filter((p) => p.age <= 22));
+      if (!vet || !kid) return { message: '베테랑의 조언: 라커룸이 차분하게 가라앉았습니다' };
+      return {
+        squad: squad.map((p) => (p.id === kid.id ? { ...p, baseOVR: clamp(p.baseOVR + 1, 1, 99) } : p)),
+        message: `베테랑의 조언: ${vet.name}이(가) ${kid.name}을(를) 밤늦게까지 가르쳤습니다. ${kid.name} OVR +1`,
+      };
     },
   },
   {
@@ -156,7 +165,7 @@ const CHOICES = [
         detail: p ? `빅클럽이 ${p.name}(OVR ${p.baseOVR})에게 이적을 제안했습니다.` : '빅클럽이 핵심 선수에게 이적을 제안했습니다.',
         options: [
           { label: '보낸다', hint: p ? `이적료 +${Math.round(p.price * 0.85)}G, 선수단에서 제외` : '이적료를 받고 선수단에서 제외' },
-          { label: '붙잡는다', hint: '계약 1년 연장(무료), 적응도 +3' },
+          { label: '붙잡는다', hint: '잔류, 적응도 +3' },
         ],
       };
     },
@@ -168,9 +177,8 @@ const CHOICES = [
         return { squad: squad.filter((x) => x.id !== p.id), funds: funds + fee, leaving: p, message: `빅클럽의 이적 제안: ${p.name} 이적, 이적료 +${fee}G` };
       }
       return {
-        squad: squad.map((x) => (x.id === p.id ? { ...x, contractYearsLeft: (x.contractYearsLeft ?? 2) + 1 } : x)),
         chemistry: clamp(chemistry + 3, 0, 100),
-        message: `빅클럽의 이적 제안: ${p.name}이(가) 잔류하며 계약이 1년 연장됐습니다. 적응도 +3`,
+        message: `빅클럽의 이적 제안: ${p.name}이(가) 잔류합니다. 적응도 +3`,
       };
     },
   },
@@ -190,6 +198,32 @@ const CHOICES = [
     resolve: ({ squad, funds, baseFunds }, payload, i) => (i === 0
       ? { squad: [...squad, payload.youth], message: `유망주 테스트: ${payload.youth.name} 합류(18세, OVR ${payload.youth.baseOVR})` }
       : { funds: funds + Math.round(baseFunds * 0.04), message: `유망주 테스트: 사양하고 지원금 +${Math.round(baseFunds * 0.04)}G` }),
+  },
+  {
+    id: 'playtimeDemand', name: '출전 요구',
+    prepare: ({ squad }, rng) => {
+      const pool = squad.filter((p) => p.age <= 22);
+      const kid = pool.length ? pool[Math.floor(rng() * pool.length)] : youngest(squad);
+      return { playerId: kid.id };
+    },
+    describe: ({ squad }, payload) => {
+      const p = squad.find((x) => x.id === payload.playerId);
+      return {
+        detail: `${p?.name ?? '어린 선수'}(${p?.age ?? '?'}세)가 더 뛰고 싶다며 면담을 요청했습니다.`,
+        options: [
+          { label: '출전 약속', hint: `${p?.name ?? '선수'} OVR +1, 적응도 -2` },
+          { label: '거절', hint: `${p?.name ?? '선수'} OVR -1` },
+        ],
+      };
+    },
+    resolve: ({ squad, chemistry }, payload, i) => {
+      const p = squad.find((x) => x.id === payload.playerId);
+      if (!p) return { message: '출전 요구: 해당 선수는 이미 선수단에 없습니다' };
+      const bump = (d) => squad.map((x) => (x.id === p.id ? { ...x, baseOVR: clamp(x.baseOVR + d, 1, 99) } : x));
+      return i === 0
+        ? { squad: bump(1), chemistry: clamp(chemistry - 2, 0, 100), message: `출전 요구: ${p.name}에게 기회를 약속했습니다. OVR +1, 적응도 -2` }
+        : { squad: bump(-1), message: `출전 요구: ${p.name}의 요구를 거절했습니다. OVR -1` };
+    },
   },
   {
     id: 'lockerClash', name: '라커룸 갈등',
@@ -215,6 +249,8 @@ const CHOICES = [
 ];
 
 const ALL = [...EVENTS, ...CHOICES];
+// 감독·스태프 탭이 열리기 전(ctx.staffOn === false)에는 감독·불화를 말하는 이벤트를 뽑지 않는다.
+const STAFF_EVENTS = ['tacticalSeminar', 'analystJoins'];
 
 // ctx = { squad, funds, chemistry, baseFunds, crisisImmune, manager, recent }
 // bias = { [eventId]: 가중치 배수 } - 구단 색채가 특정 이벤트를 더 자주 부른다. recent = 최근 나온 이벤트 id들.
@@ -224,7 +260,7 @@ export function rollSeasonEvent(ctx, phase, rng = Math.random, bias = {}) {
   if (rng() >= chance) return none;
 
   const recent = ctx.recent ?? [];
-  const weights = ALL.map((e) => (bias[e.id] ?? 1) * (recent.includes(e.id) ? RECENT_WEIGHT : 1));
+  const weights = ALL.map((e) => (ctx.staffOn === false && STAFF_EVENTS.includes(e.id) ? 0 : (bias[e.id] ?? 1) * (recent.includes(e.id) ? RECENT_WEIGHT : 1)));
   let pick = rng() * weights.reduce((a, b) => a + b, 0);
   const event = ALL.find((_, i) => (pick -= weights[i]) < 0) ?? ALL.at(-1);
 

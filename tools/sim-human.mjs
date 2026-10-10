@@ -12,10 +12,10 @@ import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardRe
 import { applyTransactionDecay } from '../engine/chemistry.mjs';
 import { computeAverageOVR, computeTeamPower } from '../engine/team-power.mjs';
 import { computePlaystyleSynergyBonus } from '../engine/ovr.mjs';
-import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, computeReleaseProceeds, recallFunds, renewalCost } from '../engine/economy.mjs';
+import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, computeReleaseProceeds, recallFunds, generateSaleOffers, FUNDS_SCALE, fundsScale } from '../engine/economy.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier } from '../engine/league.mjs';
 import { optimizeLineup } from '../engine/lineup.mjs';
-import { ageSquad } from '../engine/aging.mjs';
+import { ageSquad, agePriceMult } from '../engine/aging.mjs';
 import { finalLeagueRank } from '../engine/half-results.mjs';
 import { judgeRunOutcome, nextMissedTargetCount } from '../engine/run.mjs';
 import { createUcl, advanceUcl, UCL_REWARDS_FUNDS } from '../engine/champions-league.mjs';
@@ -23,14 +23,14 @@ import {
   CHEMISTRY_START, WINTER_TAX_RATIO, WINTER_FUNDS_RATIO, PROMOTION_STAY_FUNDS_RATIO, SAME_LEAGUE_FUNDS_RATIO,
   STAGNATION_FUNDS_PENALTY_PER_MISS, PLAYSTYLE_TAGS, ADVANCED_TAGS, COACH_UNITS, COACH_CHEMISTRY_DECAY_BY_LEVEL,
   SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_QUALITY_BOOST_BY_LEVEL, SCOUT_TARGETS_BY_LEVEL, MANAGER_PRICE_TABLE, STAFF_PRICE_TABLE,
-  PLAYER_TIERS, PLAYER_PRICE_TABLE, TRAIT_PRICE_MULT, BOARD_DEMAND_REWARD, CHEMISTRY_DECAY_PER_TRANSACTION, POSITIONS,
+  squadCapFor, PLAYER_TIERS, PLAYER_PRICE_TABLE, TRAIT_PRICE_MULT, BOARD_DEMAND_REWARD, CHEMISTRY_DECAY_PER_TRANSACTION, POSITIONS,
 } from '../engine/constants.mjs';
 
+Object.assign(FUNDS_SCALE, JSON.parse(process.env.FS ?? '{}')); // 실험용: FS='{"tier1":0.5}'
 const argv = process.argv.slice(2);
 const N = Number(argv[0] ?? 100);
 const OUT = argv.includes('--out') ? argv[argv.indexOf('--out') + 1] : null;
 const MAX_SEASONS = 25;
-const SQUAD_CAP = 30;
 const BASE_SLOTS = FORMATIONS['4-3-3'].slots;
 const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
 
@@ -42,7 +42,15 @@ const MANAGER_ORDER = ['rookie', 'tactician', 'legendary'];
 const STAFF_ORDER = ['academy', 'proLicense', 'veteran', 'master'];
 const mid = ([a, b]) => Math.round((a + b) / 2);
 
-const toSquad = (c, bought = false) => ({ ...c, acquiredThisSeason: true, boughtThisSeason: bought, inBench: false, contractYearsLeft: 2 });
+const toSquad = (c, bought = false) => ({ ...c, seasonsAtClub: 0, acquiredThisSeason: true, boughtThisSeason: bought, inBench: false });
+
+// 해금 전 태그·특수 성향은 카드에 안 붙는다(ui/app.mjs stripLockedTags와 같은 규칙, 계정이 처음일 때 기준)
+function lockStrip(card, season) {
+  const open = (t) => { const g = PLAYSTYLE_TAGS[t].grade; return g === 'basic' || (g === 'mid' && season >= 2) || (g === 'hard' && season >= 3); };
+  const out = { ...card, playstyleTags: card.playstyleTags.filter(open) };
+  if (card.specialTrait && season < 3) { out.price = Math.round(card.price / (TRAIT_PRICE_MULT[card.specialTrait] ?? 1)); out.specialTrait = null; }
+  return out;
+}
 
 function tierOfOvr(ovr) {
   for (const [id, t] of Object.entries(PLAYER_TIERS)) if (ovr >= t.minOVR && ovr <= t.maxOVR) return id;
@@ -55,7 +63,7 @@ function repricePlayer(p) {
   const range = tier && PLAYER_PRICE_TABLE[tier];
   if (!range) return p;
   const base = Math.min(range[1], Math.max(range[0], calculatePlayerPrice(tier, p.baseOVR)));
-  return { ...p, price: Math.round(base * (TRAIT_PRICE_MULT[p.specialTrait] ?? 1)) };
+  return { ...p, price: Math.round(base * (TRAIT_PRICE_MULT[p.specialTrait] ?? 1) * agePriceMult(p.age)) };
 }
 
 function bestFormationFor(tag) {
@@ -90,7 +98,7 @@ function tagStats(lineup) {
 
 function playCareer() {
   let tierId = 'tier5';
-  let squad = generateStartingSquad().map((p) => ({ ...toSquad(p), contractYearsLeft: Math.random() < 0.5 ? 1 : 2 }));
+  let squad = generateStartingSquad().map((p) => toSquad(lockStrip(p, 1)));
   let manager = { tier: 'rookie', price: mid(MANAGER_PRICE_TABLE.rookie) };
   let coachLevel = 'academy'; let scoutLevel = 'academy';
   let leftover = 0; let proceeds = 0; let listed = [];
@@ -98,7 +106,7 @@ function playCareer() {
   const seasons = []; let reason = 'cap'; let uclTitles = 0;
 
   for (let s = 0; s < MAX_SEASONS; s++) {
-    const base = calculateStartingFunds(getLadderIndex(tierId));
+    const base = calculateStartingFunds(getLadderIndex(tierId)) * fundsScale(tierId, s + 1);
     const ratio = first ? 1 : promotedPending ? PROMOTION_STAY_FUNDS_RATIO : SAME_LEAGUE_FUNDS_RATIO;
     const grant = Math.round(base * ratio * Math.max(0, 1 - missed * STAGNATION_FUNDS_PENALTY_PER_MISS));
     let funds = grant + (first ? 0 : recallFunds(leftover, grant).carried) + proceeds;
@@ -106,15 +114,7 @@ function playCareer() {
     let salesIncome = 0; let staffSpend = 0;
 
     if (!first) {
-      squad = ageSquad(squad).squad.map(repricePlayer).map((p) => ({ ...p, contractYearsLeft: Math.max(0, p.contractYearsLeft - 1), acquiredThisSeason: false, boughtThisSeason: false }));
-      const xi0 = optimizeLineup(squad, BASE_SLOTS, 5);
-      const keepers = new Set([...xi0.xi.filter(Boolean), ...xi0.bench].map((p) => p.id));
-      for (const p of squad.filter((x) => x.contractYearsLeft <= 0).sort((a, b) => b.baseOVR - a.baseOVR)) {
-        const basis = p.price || calculatePlayerPrice(tierOfOvr(p.baseOVR) ?? 'local', p.baseOVR);
-        const cost = renewalCost(basis, 2);
-        if (keepers.has(p.id) && funds >= cost) { funds -= cost; p.contractYearsLeft = 2; }
-      }
-      squad = squad.filter((p) => p.contractYearsLeft > 0);
+      squad = ageSquad(squad).squad.map(repricePlayer).map((p) => ({ ...p, seasonsAtClub: (p.seasonsAtClub ?? 0) + 1, acquiredThisSeason: false, boughtThisSeason: false }));
     }
     first = false;
 
@@ -130,13 +130,15 @@ function playCareer() {
     const startInfo = powerOf(squad, CHEMISTRY_START);
 
     // 감독·스태프 투자(리그별 목표 등급까지, 감독 → 코치 → 스카우터 순)
-    const wantM = MANAGER_ORDER.indexOf(MANAGER_TARGET[tierId]);
+    const staffOpen = s + 1 >= 3; // 감독·스태프는 3시즌부터 열린다
+    const wantM = staffOpen ? MANAGER_ORDER.indexOf(MANAGER_TARGET[tierId]) : -1;
     if (MANAGER_ORDER.indexOf(manager.tier) < wantM) {
       const next = MANAGER_ORDER[MANAGER_ORDER.indexOf(manager.tier) + 1];
       const cost = mid(MANAGER_PRICE_TABLE[next]) + Math.round(manager.price * 0.5);
       if (funds >= cost + 40) { funds -= cost; staffSpend += cost; manager = { tier: next, price: mid(MANAGER_PRICE_TABLE[next]) }; }
     }
     for (const [role, target] of [['coach', COACH_TARGET[tierId]], ['scout', SCOUT_TARGET[tierId]]]) {
+      if (!staffOpen) break;
       const cur = role === 'coach' ? coachLevel : scoutLevel;
       if (STAFF_ORDER.indexOf(cur) >= STAFF_ORDER.indexOf(target)) continue;
       const next = STAFF_ORDER[STAFF_ORDER.indexOf(cur) + 1];
@@ -152,7 +154,10 @@ function playCareer() {
     const optimalAvg = (sq) => { const { xi, bench: b } = optimizeLineup(sq, SLOTS, 5); return computeAverageOVR(xi.filter(Boolean), b); };
 
     for (const phase of ['summer', 'winter']) {
-      if (phase === 'winter') funds += Math.round(base * WINTER_FUNDS_RATIO * 1); // 겨울 지원금
+      if (phase === 'winter') {
+        funds += Math.round(base * WINTER_FUNDS_RATIO * 1); // 겨울 지원금
+        squad = squad.map((p) => ({ ...p, boughtThisSeason: false })); // 여름에 산 선수는 겨울부터 판매 가능
+      }
       for (let w = 0; w < (phase === 'summer' ? 8 : 4); w++) {
         week += 1;
         // 지난주에 낸 판매 등록 정산
@@ -170,18 +175,35 @@ function playCareer() {
         const useTag = caps.tag && !(caps.exclusive && targetPos);
         const size = SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[scoutLevel];
         let pool = generateShopOffer(size, [], Math.random, tierId, useTag ? targetTag : null, useTag ? 1 : 0, caps.position ? targetPos : null, SCOUT_QUALITY_BOOST_BY_LEVEL[scoutLevel], caps.combined)
-          .map((card) => ({ card, price: applyCostModifiers(card.price, phase === 'winter' ? [WINTER_TAX_RATIO] : []) }));
-        let hadTx = false;
+          .map((c0) => { const card = lockStrip(c0, s + 1); return { card, price: applyCostModifiers(card.price, phase === 'winter' ? [WINTER_TAX_RATIO] : []) }; });
+        let hadTx = false; let txCount = 0;
+        const cap = squadCapFor(s + 1);
+        const decayNow = () => { const d = txCount === 0 ? 0 : decay; txCount += 1; hadTx = true; chem = applyTransactionDecay(chem, 1, d); }; // 한 주 첫 거래는 면제
+        // 선수 내보내기: 1시즌은 다음 주 정산, 2시즌부터는 오퍼 중 최고가를 바로 수락(기다림은 모델에 없음)
+        const sellOut = (p) => {
+          squad = squad.filter((x) => x.id !== p.id);
+          const method = phase === 'summer' ? 'listedSummer' : 'listedWinter';
+          if (s === 0) listed.push({ card: p, method, resolveWeek: week + 1 });
+          else { const got = Math.max(...generateSaleOffers(p.price, p.baseOVR)); funds += got; salesIncome += got; }
+        };
+        const spare = () => {
+          const { xi: x0, bench: b0 } = optimizeLineup(squad, SLOTS, 5);
+          const keep = new Set([...x0.filter(Boolean), ...b0].map((p) => p.id));
+          return squad.filter((p) => !keep.has(p.id) && !p.boughtThisSeason).sort((a, b) => a.baseOVR - b.baseOVR);
+        };
         for (;;) {
           const baseAvg = optimalAvg(squad);
+          const full = squad.length >= cap;
+          if (full && !spare().length) break; // 정원이 차고 내보낼 선수도 없다
           const ranked = pool.filter((o) => funds >= o.price)
             .map((o) => ({ ...o, gain: optimalAvg([...squad, toSquad(o.card)]) - baseAvg + progressCredit(squad, o.card, targetTag) }))
             .sort((x, y) => y.gain - x.gain);
           if (!ranked.length || ranked[0].gain <= 0.02) break;
           const best = ranked[0];
-          funds -= best.price; spent += best.price; buys += 1; hadTx = true;
+          if (full) sellOut(spare()[0]); // 교체 영입은 한 건으로 센다
+          funds -= best.price; spent += best.price; buys += 1;
           squad = [...squad, toSquad(best.card, true)];
-          chem = applyTransactionDecay(chem, 1, decay);
+          decayNow();
           pool = pool.filter((o) => o.card !== best.card);
         }
         // 선발·벤치 밖 선수 판매 등록(이번 시즌 영입은 못 판다). 성장 중인 어린 선수 2명까지는 남겨 둔다.
@@ -189,12 +211,19 @@ function playCareer() {
         const used = new Set([...xi.filter(Boolean), ...bn].map((p) => p.id));
         const prospects = new Set([...squad].filter((p) => !used.has(p.id) && p.age <= 20).sort((a, b) => b.baseOVR - a.baseOVR).slice(0, 2).map((p) => p.id));
         for (const p of squad.filter((x) => !used.has(x.id) && !x.boughtThisSeason && !prospects.has(x.id))) {
-          listed.push({ card: p, method: phase === 'summer' ? 'listedSummer' : 'listedWinter', resolveWeek: week + 1 });
-          squad = squad.filter((x) => x.id !== p.id);
-          hadTx = true; chem = applyTransactionDecay(chem, 1, decay);
+          sellOut(p);
+          decayNow();
         }
-        if (squad.length > SQUAD_CAP) squad = [...squad].sort((a, b) => b.baseOVR - a.baseOVR).slice(0, SQUAD_CAP);
         chem = advanceWeek(chem, hadTx);
+      }
+      { // 시장 마감: 정원 초과분은 낮은 OVR 순으로 자동 방출
+        const capNow = squadCapFor(s + 1);
+        if (squad.length > capNow) {
+          const { xi: x1, bench: b1 } = optimizeLineup(squad, SLOTS, 5);
+          const keep = new Set([...x1.filter(Boolean), ...b1].map((p) => p.id));
+          const drop = new Set(squad.filter((p) => !keep.has(p.id)).sort((a, b) => a.baseOVR - b.baseOVR).slice(0, squad.length - capNow).map((p) => p.id));
+          squad = squad.filter((p) => !drop.has(p.id));
+        }
       }
       const info = powerOf(squad, chem);
       lineup = info.lineup; bench = info.bench;
