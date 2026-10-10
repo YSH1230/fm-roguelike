@@ -142,10 +142,9 @@ export const STAFF_PRICE_TABLE = {
   master: [500, 800],
 };
 
-// 선수단 정원: 첫 시즌 22명, 2시즌부터 20명(선발 11 + 벤치 5 + 예비 4). 예비·벤치가 큰 의미가 없어서 줄였다. 정원이 차면 영입할 때 내보낼 선수를 고른다.
-export const SQUAD_CAP_FIRST_SEASON = 22;
-export const SQUAD_CAP = 20;
-export const squadCapFor = (seasonNumber) => (seasonNumber <= 1 ? SQUAD_CAP_FIRST_SEASON : SQUAD_CAP);
+// 선수단 정원: 처음부터 끝까지 22명으로 고정(선발 11 + 벤치 5 + 예비 6). 정원이 차면 영입할 때 내보낼 선수를 고른다.
+export const SQUAD_CAP = 22;
+export const squadCapFor = () => SQUAD_CAP;
 // 판매 등록한 선수가 시장 마감까지 안 팔리면 태업하고 선수단에 돌아온다(그 시즌 끝까지 OVR 하락).
 export const SLUMP_OVR_PENALTY = 3;
 // 클럽 레전드: 한 구단에서 이만큼 뛰고 MVP를 이만큼 받은 선수. 팀 최고 OVR 선수가 시즌당 MVP 2~3번을 받는다(추정)고 보고, 에이스급이 6시즌을 뛰어야 닿도록 잡았다.

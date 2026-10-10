@@ -64,7 +64,6 @@ import {
   SHOP_REROLL_COST,
   SUMMER_MARKET_WEEKS,
   SQUAD_CAP,
-  SQUAD_CAP_FIRST_SEASON,
   SLUMP_OVR_PENALTY,
   LEGEND_MIN_SEASONS,
   LEGEND_MIN_MVP,
@@ -1394,8 +1393,7 @@ function hometownExitPenalty(card) {
   }
 }
 
-// 정원: 계정에서 '정원 20'이 열렸으면 20명, 아니면 22명(입문용).
-const capNow = () => (isUnlocked('cap') ? SQUAD_CAP : SQUAD_CAP_FIRST_SEASON);
+const capNow = () => SQUAD_CAP;
 
 // 한 주의 첫 거래는 적응도가 깎이지 않는다. 교체 영입(영입+내보내기)은 한 건으로 센다.
 function tradeDecay() {
