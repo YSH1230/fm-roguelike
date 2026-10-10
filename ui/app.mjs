@@ -332,7 +332,7 @@ function staffChips(role, level) {
   if (role === 'headCoach') {
     const v = COACH_CHEMISTRY_DECAY_BY_LEVEL[level];
     const units = COACH_UNIT_BONUS_BY_LEVEL[level] ?? [];
-    return chip(v === 0 ? '거래 조직력 유지' : `거래당 조직력 −${v}`, '영입·방출 한 건마다 떨어지는 조직력')
+    return chip(v === 0 ? '거래 조직력 유지' : `거래당 조직력 −${v}`, '영입·판매 등록 한 건마다 떨어지는 조직력')
       + units.map((b, i) => chip(`${['주력', '2순위', '3순위'][i]} +${b}`, '코치가 고른 주력 유닛부터 선수 OVR을 올려 줍니다')).join('');
   }
   const t = SCOUT_TARGETS_BY_LEVEL[level];
@@ -1012,7 +1012,7 @@ function tutorialTick(where) {
     const pick = currentState.shopOffer.find((c) => hasUpgrade([c]));
     showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '지금 선발보다 강한 선수예요. 협상을 눌러 영입해 보세요.', onSkip: tutSkip });
   } else if (step === 2) spotOrSkip('.deal__tags .chip', '선수마다 스타일 태그가 있어요. 같은 태그를 가진 선발이 3명 모이면 그 선수들이 모두 강해져요.', 3);
-  else if (step === 3) spotOrSkip('#chem-info-btn', '조직력은 팀 조직력이에요. 영입·방출을 많이 하면 떨어지고(한 주 첫 거래는 괜찮아요), 거래가 없는 주엔 올라요.', 4);
+  else if (step === 3) spotOrSkip('#chem-info-btn', '조직력은 선수들이 손발을 맞추는 정도예요. 영입·판매를 많이 하면 떨어지고(한 주 첫 거래는 괜찮아요), 거래가 없는 주엔 올라요.', 4);
   else if (step === 4) spotOrSkip('[data-tab="squad"]', `선수단은 최대 ${capNow()}명이에요. 가득 차면 영입할 때 내보낼 선수를 골라야 해요.`, 5);
   else if (step === 5) showSpot({ selector: '[data-tab="tactics"]', text: '전술 탭에서 선발 11명을 볼 수 있어요.', onSkip: tutSkip });
   else if (step === 6) {
@@ -3368,7 +3368,7 @@ function renderMarket(banner = '') {
       <p class="note chem-info" id="chem-info" hidden>
         <b>조직력</b>은 선수들이 얼마나 손발이 맞는지예요. 높을수록 팀 전력이 오르고 낮을수록 깎입니다(지금 ×${chemistryMultiplier(chemistry).toFixed(3)}).<br>
         <b>오르는 때:</b> 거래가 없는 주마다 +1, 팀 컬러 완성 시 매주 +1, 감독 선호 전술 발동, 이사진 목표 초과, 승격.<br>
-        <b>깎이는 때:</b> 영입·방출 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'}. 한 주의 첫 거래는 깎이지 않고, 영입하면서 내보내는 교체는 한 건입니다.<br>
+        <b>깎이는 때:</b> 영입·판매 등록 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'}. 한 주의 첫 거래는 깎이지 않고, 영입하면서 내보내는 교체는 한 건입니다.<br>
         그래서 자주 갈아치울수록 손해, 굵직하게 바꾸고 기다릴수록 이득입니다.
       </p>
     </header>
