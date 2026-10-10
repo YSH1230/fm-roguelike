@@ -1,5 +1,5 @@
 import { growthStage } from './aging.mjs';
-import { PLAYSTYLE_TAGS, SEED_EFFECT, tagAmp, flairBonusFor, COACH_UNITS, COACH_FOCUS_ORDER, COACH_UNIT_BONUS_BY_LEVEL } from './constants.mjs';
+import { PLAYSTYLE_TAGS, SEED_EFFECT, FORMATION_TAG_BONUS, tagAmp, flairBonusFor, COACH_UNITS, COACH_FOCUS_ORDER, COACH_UNIT_BONUS_BY_LEVEL } from './constants.mjs';
 
 // v2: 역할 칸(주장/에이스/조커)과 대륙 시너지는 폐지. 특수 성향은 선발/벤치에 있기만 하면 자동 적용되고,
 // 같은 성향이 여러 명이어도 팀 효과는 중첩되지 않는다. (마지막 roles 인자는 옛 호출부 호환용으로 무시)
@@ -84,9 +84,13 @@ export function computePlaystyleSynergyBonus(lineup, onlyTagId = null) {
   return bonuses;
 }
 
+// 포메이션 궁합: 뛰는 포메이션이 어울리는 태그를 가진 선발은 OVR +1. 라인업 선수에 formationTag가 붙어 온다(ui pickBestXI).
+export const formationTagBonus = (player) => (player.formationTag && player.playstyleTags?.includes(player.formationTag) ? FORMATION_TAG_BONUS : 0);
+
 export function computePlayerFinalOVR(player, lineup, bench, coach = null) {
   return (
     player.baseOVR +
+    formationTagBonus(player) +
     computeSelfTraitBonus(player) +
     flairBonus(player) +
     (computeTeamTraitBonuses(lineup, bench).get(player.id) ?? 0) +
@@ -115,6 +119,8 @@ export function computePlayerBonusBreakdown(player, lineup, bench, coach = null)
   }
   const flair = flairBonus(player);
   if (flair) parts.push({ kind: 'flair', id: 'flair', value: flair });
+  const fmt = formationTagBonus(player);
+  if (fmt) parts.push({ kind: 'formation', id: player.formationTag, value: fmt });
   const coachValue = coachBonusFor(coach, player.position);
   if (coachValue) parts.push({ kind: 'coach', id: 'headCoach', value: coachValue });
   return parts;

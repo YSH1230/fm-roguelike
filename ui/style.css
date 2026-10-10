@@ -2315,3 +2315,5 @@ html[data-theme='kiwi'] .cta--alt:hover { background: var(--gold); color: #000; 
 .chip--seed::after, .ticon--seed::after { top: -4px; right: -3px; min-width: 10px; height: 10px; padding: 0 1px; border-radius: 5px; background: var(--surface-hi); color: var(--turf); border: 1px solid var(--turf); font-size: 7px; line-height: 8px; font-weight: 700; }
 .ticon--named.ticon--seed { padding-right: 8px; }
 .slot .ticon--seed::after { display: none; }
+.formationnote { margin: var(--s2) 0 0; }
+.formationnote span { color: var(--muted); }

@@ -54,10 +54,12 @@ test('튜닝 대상 상수가 노출되어 있다', () => {
   assert.equal(typeof BASE_POINTS_AT_LEAGUE_AVERAGE, 'number');
 });
 
-test('포메이션 8종: 각 11칸이고 쓰는 포지션은 모두 POSITIONS 안에 있다', async () => {
+test('포메이션 6종: 각 11칸이고 쓰는 포지션은 모두 POSITIONS 안에 있다', async () => {
   const { FORMATIONS } = await import('../ui/formations.mjs');
   const { POSITIONS } = await import('../engine/constants.mjs');
-  assert.equal(Object.keys(FORMATIONS).length, 8);
+  assert.equal(Object.keys(FORMATIONS).length, 6);
+  const { TAG_IDS } = await import('../engine/constants.mjs');
+  assert.deepEqual(Object.values(FORMATIONS).map((f) => f.tag).sort(), [...TAG_IDS].sort()); // 포메이션 하나당 태그 하나, 겹치지 않는다
   for (const [id, f] of Object.entries(FORMATIONS)) {
     assert.equal(f.slots.length, 11, id);
     assert.equal(f.coords.length, 11, id);

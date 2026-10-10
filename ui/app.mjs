@@ -43,7 +43,7 @@ import {
 import { applyTransactionDecay, chemistryMultiplier } from '../engine/chemistry.mjs';
 import { computePlayerFinalOVR, computePlayerBonusBreakdown, isSeed, completedTags, COLOR_COMPLETE_CHEMISTRY, COLOR_COMPLETE_VALUE } from '../engine/ovr.mjs';
 import {
-  PLAYSTYLE_TAGS, POSITIONS, TAG_IDS, BASIC_TAGS, TAG_THRESHOLDS, TAG_VALUES, tagAmp, flairBonusFor,
+  PLAYSTYLE_TAGS, FORMATION_TAG_BONUS, POSITIONS, TAG_IDS, BASIC_TAGS, TAG_THRESHOLDS, TAG_VALUES, tagAmp, flairBonusFor,
   STAFF_LEVELS, STAFF_PRICE_TABLE,
 } from '../engine/constants.mjs';
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
@@ -132,7 +132,7 @@ const BENCH_SIZE = 5;
 // 않는다 - 유저가 전술 탭에서 직접 배치한 선수다. benchOverrides도 같은 방식
 // (벤치 슬롯 0~4 -> 선수 id)으로 벤치 구성도 직접 고를 수 있다.
 function pickBestXI(squad, formationId = DEFAULT_FORMATION, manualOverrides = {}, benchOverrides = {}) {
-  const { slots } = FORMATIONS[formationId] ?? FORMATIONS[DEFAULT_FORMATION];
+  const { slots, tag: formationTag } = FORMATIONS[formationId] ?? FORMATIONS[DEFAULT_FORMATION];
   const pool = [...squad];
   const used = new Set();
   const forced = {};
@@ -147,14 +147,14 @@ function pickBestXI(squad, formationId = DEFAULT_FORMATION, manualOverrides = {}
     }
   }
   const lineup = slots.map((pos, i) => {
-    if (forced[i]) return { ...forced[i], slotPosition: pos, offPosition: forced[i].position !== pos };
+    if (forced[i]) return { ...forced[i], slotPosition: pos, offPosition: forced[i].position !== pos, formationTag };
     const byPosition = pool
       .filter((p) => !used.has(p.id) && p.position === pos)
       .sort((a, b) => b.baseOVR - a.baseOVR);
     const pick = byPosition[0];
     if (!pick) return null; // 그 포지션 선수 없음 — 공석
     used.add(pick.id);
-    return { ...pick, slotPosition: pos, offPosition: pick.position !== pos };
+    return { ...pick, slotPosition: pos, offPosition: pick.position !== pos, formationTag };
   });
 
   const forcedBench = {};
@@ -3065,7 +3065,7 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
 // 피치에서 선수 칸을 눌렀을 때: 그 선수가 어떤 케미에서 몇 점 받는지 출처별로.
 function renderBonusDetail(player, lineup, bench, coach) {
   if (!player) return '';
-  const labelOf = { playstyle: TAG_LABELS, self: TRAIT_LABELS, team: TRAIT_LABELS, coach: { headCoach: '수석 코치' } };
+  const labelOf = { playstyle: TAG_LABELS, self: TRAIT_LABELS, team: TRAIT_LABELS, coach: { headCoach: '수석 코치' }, flair: { flair: '개인 특기' }, formation: Object.fromEntries(Object.entries(TAG_LABELS).map(([k, v]) => [k, `${v} 포메이션 궁합`])) };
   const parts = computePlayerBonusBreakdown(player, lineup, bench, coach);
   const total = parts.reduce((s, x) => s + x.value, 0);
   const rows = parts.length
@@ -3428,6 +3428,11 @@ function renderMarket(banner = '') {
             ${Object.keys(FORMATIONS).map((id) => `<button data-formation="${id}" aria-pressed="${id === formationId}">${id}</button>`).join('')}
           </div>
         </div>
+        ${(() => {
+          const ft = FORMATIONS[formationId].tag;
+          const n = lineup.filter((p) => p.playstyleTags?.includes(ft)).length;
+          return `<p class="note formationnote"><b>${esc(TAG_LABELS[ft])}</b> 태그 선발 OVR +${FORMATION_TAG_BONUS} <span>(지금 ${n}명)</span></p>`;
+        })()}
         <div class="tactics__acts">
           <button class="reroll" id="auto-lineup-btn">최적 배치</button>
           <button class="reroll" id="reset-lineup-btn" ${Object.keys(manualOverrides).length || Object.keys(benchOverrides).length ? '' : 'disabled'}>초기화</button>

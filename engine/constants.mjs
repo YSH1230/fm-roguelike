@@ -4,6 +4,8 @@
 // positions는 "그 태그를 가질 수 있는 포지션"이다(선수를 만들 때만 쓴다). 태그는 처음 3종(basic)이 1시즌부터, 나머지 3종(extra)은 2시즌에 열린다.
 export const TAG_THRESHOLDS = [3, 4, 5];
 export const TAG_VALUES = [1, 2, 4];
+// 포메이션이 어울리는 태그(ui/formations.mjs의 tag)를 가진 선발 선수가 받는 OVR 보너스
+export const FORMATION_TAG_BONUS = 1;
 export const SEED_EFFECT = 0.5;
 const withValues = (defs) => Object.fromEntries(
   Object.entries(defs).map(([id, d]) => [id, { ...d, thresholds: TAG_THRESHOLDS, values: TAG_VALUES }])

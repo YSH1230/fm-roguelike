@@ -178,3 +178,13 @@ test('팀 컬러 완성: 같은 태그 선발이 5명 이상이면 완성이다'
   assert.deepEqual(completedTags(four), []);
   assert.deepEqual(completedTags([...four, mk('e', 'press'), mk('f', 'pass')]), ['press']);
 });
+
+test('포메이션 궁합: 어울리는 태그를 가진 선발만 OVR +1, 다른 태그나 벤치는 그대로', async () => {
+  const { formationTagBonus, computePlayerFinalOVR } = await import('../engine/ovr.mjs');
+  const mk = (id, tags, formationTag) => ({ id, name: id, age: 26, baseOVR: 60, position: 'W', playstyleTags: tags, formationTag });
+  assert.equal(formationTagBonus(mk('a', ['dribble'], 'dribble')), 1);
+  assert.equal(formationTagBonus(mk('b', ['pass'], 'dribble')), 0);
+  assert.equal(formationTagBonus(mk('c', ['dribble'], undefined)), 0); // 벤치 선수에는 formationTag가 안 붙는다
+  const a = mk('a', ['dribble'], 'dribble');
+  assert.equal(computePlayerFinalOVR(a, [a], []), computePlayerFinalOVR({ ...a, formationTag: undefined }, [a], []) + 1);
+});
