@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ageSquad, ovrChangeRange, retireChance, bodyAge, playerTrend, agePriceMult,
-  generatePotential, ensurePotential, hasPeaked, LEAP_BONUS, FORCED_RETIRE_AGE,
+  generatePotential, ensurePotential, hasPeaked, LEAP_BONUS, FORCED_RETIRE_AGE, growthStage, PRIME_END_BODY_AGE,
 } from '../engine/aging.mjs';
 
 const mk = (id, age, baseOVR = 60, extra = {}) => ({ id, name: `P${id}`, age, baseOVR, position: 'CMF', ...extra });
@@ -90,4 +90,25 @@ test('추세 화살표와 33세 이상 가격 보정', () => {
   assert.equal(playerTrend({ age: 34, position: 'ST', baseOVR: 70, peakOVR: 70, peakBodyAge: 26 }), '↘');
   assert.equal(agePriceMult(20), 1);
   assert.equal(agePriceMult(34), 0.85);
+});
+
+test('성장 단계: 전성기까지 2년 이상 early, 1년 late, 정점~30 prime, 31+ veteran', () => {
+  const base = { position: 'CMF', baseOVR: 60, peakOVR: 72, peakBodyAge: 27 };
+  assert.equal(growthStage({ ...base, age: 21 }), 'early');
+  assert.equal(growthStage({ ...base, age: 25 }), 'early');
+  assert.equal(growthStage({ ...base, age: 26 }), 'late'); // 몸 나이 26 - CMF는 지연 0
+  assert.equal(growthStage({ ...base, age: 27 }), 'prime');
+  assert.equal(growthStage({ ...base, age: PRIME_END_BODY_AGE - 1 }), 'prime');
+  assert.equal(growthStage({ ...base, age: PRIME_END_BODY_AGE }), 'veteran');
+});
+
+test('전성기는 약 4년: 몸 나이 30까지는 한 시즌에 -1 이상 떨어지지 않고, 베테랑이 되면 더 떨어진다', () => {
+  const at = (age) => ({ id: 'x', name: 'X', age, baseOVR: 70, position: 'CMF', peakOVR: 70, peakBodyAge: 27 });
+  let worstPrime = 0; let worstVet = 0;
+  for (let i = 0; i < 400; i++) {
+    for (const age of [27, 28, 29, 30]) { const n = ageSquad([at(age)], Math.random).squad[0]; if (n) worstPrime = Math.min(worstPrime, n.baseOVR - 70); }
+    const v = ageSquad([at(33)], Math.random).squad[0]; if (v) worstVet = Math.min(worstVet, v.baseOVR - 70);
+  }
+  assert.ok(worstPrime >= -1, `전성기 최악 ${worstPrime}`);
+  assert.ok(worstVet <= -2, `베테랑 최악 ${worstVet}`);
 });

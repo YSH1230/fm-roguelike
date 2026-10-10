@@ -45,9 +45,19 @@ test('잠재력 등급: 올라갈 여지가 없으면 등급이 없고, 같은 �
 test('잠재력 등급: 좋은 스카우터일수록 진짜 등급을 더 자주 맞힌다', () => {
   const hit = (level) => { let ok = 0; const n = 2000; for (let i = 0; i < n; i++) if (potentialGrade({ ...p(i, 70), baseOVR: 60 }, level) === 'A') ok += 1; return ok / n; }; // 진짜는 +10 = A
   assert.ok(hit('master') > hit('academy'));
-  assert.ok(hit('academy') > 0.8); // 폭이 +10이라 아카데미도 대체로 A로 본다
+  assert.ok(hit('academy') > 0.4); // 진짜 +10(A)을 아카데미도 절반쯤은 A로 본다
 });
 
 test('잠재력 등급: 오를 여지가 조금 있으면 "성장 없음"으로 보이지 않는다', () => {
-  for (let i = 0; i < 500; i++) assert.ok(['A', 'B', 'C'].includes(potentialGrade({ ...p(i, 62), baseOVR: 60 }, 'academy')));
+  for (let i = 0; i < 500; i++) assert.ok(['S', 'A', 'B', 'C'].includes(potentialGrade({ ...p(i, 62), baseOVR: 60 }, 'academy')));
+});
+
+test('잠재력 등급: 전성기까지 +12 이상은 S, 그 아래는 A·B·C로 갈린다(최상급 스카우터 기준)', () => {
+  const g = (up) => potentialGrade({ ...p(1, 60 + up), baseOVR: 60 }, 'master');
+  const count = (up) => { const m = {}; for (let i = 0; i < 400; i++) { const x = potentialGrade({ id: `q${i}`, baseOVR: 60, peakOVR: 60 + up }, 'master'); m[x] = (m[x] ?? 0) + 1; } return m; };
+  assert.ok(count(16).S > 300);
+  assert.ok(count(9).A > 200);
+  assert.ok(count(5).B > 200);
+  assert.ok(count(2).C > 250);
+  assert.ok(g(0) === null);
 });

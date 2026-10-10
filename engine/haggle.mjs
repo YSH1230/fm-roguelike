@@ -46,3 +46,30 @@ export function counterAccepted({ raise, score, u }) {
   return raise <= toleranceFor(score, u) * SALE_TOLERANCE_SCALE;
 }
 
+
+// ---- 자유 가격 협상 ----
+// 영입: 구단에는 숨은 하한선(reserve)이 있다. 하한선 이상을 부르면 수락, 조금 모자라면 역제안, 더 모자라면 "조금 더"/"말도 안 돼요".
+//   하한선 = 진짜 시세 × (1 - 받아 줄 폭) × (1 - 마감 압박). 마감이 가까우면 구단이 급해져서 하한선이 내려간다.
+export const BID_MIN_RATIO = 0.55; // 요구액의 55% 아래로는 부를 수 없다
+export const BID_BANDS = { close: 0.04, mid: 0.12 }; // 하한선보다 4% 이내로 모자라면 역제안, 12% 이내면 "조금 더"
+export const deadlinePressure = (weeksLeft) => (weeksLeft <= 0 ? 0.06 : weeksLeft === 1 ? 0.03 : 0); // 시장 마지막 주 6%, 그 전 주 3%
+export const reservePrice = ({ trueValue, score, u, pressure = 0 }) => Math.round(trueValue * (1 - toleranceFor(score, u)) * (1 - pressure));
+
+export function buyBid({ bid, ask, reserve }) {
+  if (bid >= reserve) return { result: 'accept' };
+  const gap = (reserve - bid) / reserve;
+  if (gap <= BID_BANDS.close) return { result: 'counter', counter: Math.min(ask, Math.round(reserve * 1.02)) };
+  return { result: gap <= BID_BANDS.mid ? 'mid' : 'far' };
+}
+
+// 판매: 사는 구단에는 숨은 상한선(max)이 있다. 오퍼 대비 올려 받을 수 있는 폭은 영입 쪽 절반이다(차익 방지).
+export const maxSalePrice = ({ offer, score, u }) => Math.round(offer * (1 + toleranceFor(score, u) * SALE_TOLERANCE_SCALE));
+export function sellBid({ bid, offer, max }) {
+  if (bid <= max) return { result: 'accept' };
+  const gap = (bid - max) / max;
+  if (gap <= BID_BANDS.close) return { result: 'counter', counter: Math.max(offer, Math.round(max * 0.98)) };
+  return { result: gap <= BID_BANDS.mid ? 'mid' : 'far' };
+}
+
+// 부를 때마다 인내심이 줄어든다: 역제안·"조금 더"는 1, "말도 안 돼요"는 2.
+export const patienceCost = (result) => (result === 'far' ? 2 : result === 'accept' ? 0 : 1);

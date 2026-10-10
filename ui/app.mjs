@@ -49,9 +49,9 @@ import {
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
-import { ageSquad, playerTrend, ensurePotential, hasPeaked, bodyAge } from '../engine/aging.mjs';
+import { ageSquad, playerTrend, ensurePotential, hasPeaked, bodyAge, growthStage } from '../engine/aging.mjs';
 import { potentialGrade } from '../engine/scouting.mjs';
-import { HAGGLE_DISCOUNTS, COUNTER_RAISES, counterAccepted, patienceFor, attitudeScore, attitudeLabel, clubBaseAttitude, cardUniform, offerAccepted, moodAfter } from '../engine/haggle.mjs';
+import { BID_MIN_RATIO, buyBid, sellBid, reservePrice, maxSalePrice, deadlinePressure, patienceCost, toleranceFor, patienceFor, attitudeScore, attitudeLabel, clubBaseAttitude, cardUniform, moodAfter } from '../engine/haggle.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait, appearanceOf } from './portrait.mjs';
 import { pixelMatchHtml } from './pixel.mjs';
@@ -235,37 +235,38 @@ function avgAge(players) {
   return players.length ? (players.reduce((sum, p) => sum + p.age, 0) / players.length).toFixed(1) : '-';
 }
 // 시즌 시작 몸값 재계산: 성장한 선수는 비싸지고(갱신비 상승) 노쇠한 선수는 싸진다. GOD 카드와 무료 영입(0G)은 그대로.
-// 잠재력 등급 A/B/C(스카우터: 시장 카드, 코치: 내 선수단). 아직 전성기 전이고 더 오를 여지가 있는 선수만 받는다.
+// 잠재력 등급 S/A/B/C(스카우터: 시장 카드, 코치: 내 선수단). 아직 전성기 전(성장 초반·막바지)이고 더 오를 여지가 있는 선수만 받는다.
 function potentialOf(p, role) {
-  if (!Number.isFinite(p.age) || p.peakOVR == null || hasPeaked(p)) return null;
+  const stage = growthStage(p);
+  if (stage !== 'early' && stage !== 'late') return null;
   return potentialGrade(p, staffLevel(role), role === 'headCoach' ? p.seasonsAtClub ?? 0 : 0);
-}
-
-// 전성기를 이미 지난 선수: 아직 정점(몸 나이 29 미만)이면 "전성기", 그 뒤는 "전성기 지남".
-function peakStatusText(p) {
-  if (!Number.isFinite(p.age) || p.peakOVR == null || !hasPeaked(p)) return '';
-  return bodyAge(p.age, p.position) < 29 ? '전성기' : '전성기 지남';
 }
 
 // 선수단 정리 조언: 선발 추천 / 유망(키울 만함) / 정리 후보. 선발·벤치 구성을 모르는 사람이 판단할 재료.
 function squadAdvice(p, group, xi) {
   if (group === 'xi') return null;
   const grade = potentialOf(p, 'headCoach');
-  const declining = hasPeaked(p) && bodyAge(p.age, p.position) >= 29;
+  const stage = growthStage(p);
   const same = xi.filter((q) => q.position === p.position).map((q) => q.baseOVR);
   if (same.length && p.baseOVR > Math.min(...same)) return { id: 'start', label: '선발 추천', why: `같은 자리 선발보다 강해요(${p.baseOVR} > ${Math.min(...same)})` };
-  if (grade === 'A' || grade === 'B') return { id: 'prospect', label: '유망', why: `성장 ${grade}등급이에요 — 키워서 비싸게 팔 만해요` };
-  if (group === 'reserve' && (declining || !grade)) return { id: 'cut', label: '정리 후보', why: declining ? '베테랑이고 선발·벤치 밖이에요 — 오퍼를 받아 정리해도 좋아요' : '더 오를 여지가 거의 없고 선발·벤치 밖이에요' };
+  if (grade === 'S' || grade === 'A' || grade === 'B') return { id: 'prospect', label: '유망', why: `성장 ${grade}등급이에요 — 키워서 비싸게 팔 만해요` };
+  if (group === 'reserve' && (stage === 'veteran' || !grade && stage !== 'prime')) return { id: 'cut', label: '정리 후보', why: stage === 'veteran' ? '베테랑이고 선발·벤치 밖이에요 — 오퍼를 받아 정리해도 좋아요' : '더 오를 여지가 거의 없고 선발·벤치 밖이에요' };
   return null;
 }
 
-// 성장 한 줄 배지: ↗ 성장 A·B·C(전성기까지 오를 폭의 등급) / ● 전성기 / ● 베테랑. 시장 카드와 선수단이 같은 모양을 쓴다.
+// 성장 한 줄 배지: ↗ 성장 S·A·B·C(초반) / ↗ 막바지(전성기 1년 전) / ● 전성기 / ● 베테랑.
 function growthBadge(p, role) {
   if (!Number.isFinite(p.age) || p.peakOVR == null) return '';
+  const stage = growthStage(p);
   const grade = potentialOf(p, role);
-  if (grade) return `<span class="growth is-up grade-${grade}" title="성장 ${grade}등급: 전성기까지 ${{ A: '크게', B: '꽤', C: '조금' }[grade]} 오를 수 있어요. 대신 태그 효과는 절반(½)만 받아요(${role === 'headScout' ? '스카우터' : '코치'} 추정 · 한 등급 틀릴 수 있어요)">↗ 성장 <b>${grade}</b></span>`;
-  if (peakStatusText(p) === '전성기') return '<span class="growth is-peak" title="지금이 전성기예요. 곧 내려가기 시작합니다">● 전성기</span>';
-  return '<span class="growth is-down" title="경험이 많은 노장이에요. 시간이 지나면 OVR이 서서히 줄어요">● 베테랑</span>';
+  if (grade) {
+    const late = stage === 'late';
+    const who = role === 'headScout' ? '스카우터' : '코치';
+    const half = late ? '곧 전성기예요. 태그 효과는 이미 전부 받아요' : '태그 효과는 절반(½)만 받아요. 전성기가 가까워지면 전부 받아요';
+    return `<span class="growth is-up grade-${grade}" title="성장 ${grade}등급: 전성기까지 ${{ S: '아주 크게', A: '크게', B: '꽤', C: '조금' }[grade]} 오를 수 있어요. ${half}(${who} 추정 · 한 등급 틀릴 수 있어요)">${late ? '↗ 막바지' : '↗ 성장'} <b>${grade}</b></span>`;
+  }
+  if (stage === 'veteran') return '<span class="growth is-down" title="경험이 많은 노장이에요. 시간이 지나면 OVR이 서서히 줄어요">● 베테랑</span>';
+  return '<span class="growth is-peak" title="지금이 전성기예요. 몇 년간 OVR이 거의 유지돼요">● 전성기</span>';
 }
 
 function repricePlayer(p) {
@@ -505,7 +506,7 @@ function tagInfoText(kind, id, seed = false, ovr = 0) {
   if (kind === 'play') {
     return `${TAG_LABELS[id] ?? id} · 같은 태그 ${tagLadderText(TAG_THRESHOLDS, TAG_VALUES)}`
       + (tagAmp(ovr) > 1 ? ` · 높은 등급이라 효과 ×${tagAmp(ovr)}` : '')
-      + (seed ? ' · 성장 중이라 효과 ½(전성기에 닿으면 전부)' : '');
+      + (seed ? ' · 성장 초반이라 효과 ½(전성기가 가까워지면 전부)' : '');
   }
   if (kind === 'flair') return `개인 특기 ${id}: 선발로 뛰면 본인 OVR +${flairBonusFor(ovr)}`;
   return `${TRAIT_LABELS[id] ?? id}: ${TRAIT_EFFECT_DESCRIPTIONS[id] ?? ''}. 대가: ${TRAIT_DOWNSIDE_TEXT[id] ?? ''}`;
@@ -1301,56 +1302,96 @@ function waitForOffers(text, then, ms = 1400) {
 }
 
 // 흥정 창: 깎아 달라는 비율을 고르면 구단이 답한다. 거절하면 인내심이 줄고, 바닥나면 협상이 깨진다.
-function openHaggle(card, note = '') {  // 영입 창: 요구액 그대로 영입 또는 가격 제안
+// 값을 고르는 조절기(슬라이더 + ±1/±5). 영입 협상과 판매 협상이 같이 쓴다.
+function bidHtml({ min, max, value, goLabel, canAfford = () => true }) {
+  return `<div class="bid">
+    <div class="bid__row">
+      <button type="button" class="bid__step" data-bid-step="-5">−5</button><button type="button" class="bid__step" data-bid-step="-1">−1</button>
+      <output class="bid__val n" id="bid-val">${value}<i>G</i></output>
+      <button type="button" class="bid__step" data-bid-step="1">+1</button><button type="button" class="bid__step" data-bid-step="5">+5</button>
+    </div>
+    <input type="range" class="bid__range" id="bid-range" min="${min}" max="${max}" step="1" value="${value}" aria-label="부를 가격">
+    <button class="cta" id="bid-go" ${canAfford(value) ? '' : 'disabled'}>${value}G ${goLabel}</button>
+  </div>`;
+}
+function wireBid(root, { min, max, goLabel, canAfford = () => true, onBid }) {
+  const range = root.querySelector('#bid-range');
+  const val = root.querySelector('#bid-val');
+  const go = root.querySelector('#bid-go');
+  const set = (v) => {
+    v = Math.max(min, Math.min(max, Math.round(v)));
+    range.value = v; val.innerHTML = `${v}<i>G</i>`;
+    go.textContent = `${v}G ${goLabel}`; go.disabled = !canAfford(v);
+  };
+  range.addEventListener('input', () => set(Number(range.value)));
+  root.querySelectorAll('[data-bid-step]').forEach((b) => { b.onclick = () => set(Number(range.value) + Number(b.dataset.bidStep)); });
+  go.onclick = () => onBid(Number(range.value));
+}
+const BID_HINT = { mid: '조금만 더 올려 주세요', far: '말도 안 돼요! 그 가격에는 못 팔아요', counterBuy: (c) => `이 가격이면 팔게요: ${c}G`, finalBuy: (c) => `마지막 제안이에요: ${c}G` };
+
+// 영입 협상: 구단의 숨은 하한선 위로 부르면 수락, 조금 모자라면 역제안, 더 모자라면 "조금 더"/"말도 안 돼요".
+// 부를 때마다 인내심이 줄고, 바닥나면 결렬된다(역제안이 나온 뒤에는 마지막 제안으로 남는다).
+function openHaggle(card, note = '') {
   const root = document.getElementById('eventmodal-root');
   currentState.patience ??= {};
+  currentState.counterOffer ??= {};
+  currentState.bidMemory ??= {};
   const att = sellerAttitude(card.seller);
-  const maxPat = patienceFor(att.score);
-  const pat = currentState.patience[card.id] ?? maxPat;
-  currentState.rejected ??= {};
-  const rejected = currentState.rejected[card.id] ?? 1; // 거절당한 비율 이상은 다시 못 고른다
+  const pat = currentState.patience[card.id] ?? patienceFor(att.score);
   const ask = cardPrice(card);
+  const u = cardUniform(card.id, currentState.telemetryRun ?? '');
+  const endWeek = currentState.phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];
+  const pressure = deadlinePressure(endWeek - currentState.week);
+  const reserve = reservePrice({ trueValue: valuePrice(card, 0), score: att.score, u, pressure });
+  const min = Math.max(1, Math.round(ask * BID_MIN_RATIO));
+  const max = ask - 1;
+  const counter = currentState.counterOffer[card.id] ?? null;
+  const out = pat <= 0; // 인내심이 바닥났지만 마지막 제안이 남은 상태
+  const value = Math.max(min, Math.min(max, currentState.bidMemory[card.id] ?? Math.round(ask * 0.85)));
+  const afford = (v) => currentState.funds >= v;
   root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal eventmodal--goal haggle">
         <div class="eventmodal__kicker">${esc(card.seller)} (태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)})</div>
         <div class="eventmodal__title">${esc(card.name)}</div>
-        <div class="haggle__face" aria-label="인내심 ${pat}">${patienceFace(pat)}</div>
+        <div class="haggle__face" aria-label="인내심 ${Math.max(0, pat)}">${patienceFace(Math.max(0, pat))}</div>
         <p class="eventmodal__detail">${esc(card.seller)}의 요구액은 ${ask}G입니다.</p>
+        ${pressure > 0 ? '<p class="eventmodal__detail haggle__hint">시장 마감이 가까워 구단이 조금 급해요.</p>' : ''}
         ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
-        ${tutStep() >= 0 && !note ? '<p class="eventmodal__detail haggle__hint">처음이라면 아래 "요구액으로 영입"이 가장 안전해요. 더 싸게 사려면 금액을 눌러 제안해 보세요. 거절당하면 얼굴이 굳어져요.</p>' : ''}
-        <button class="cta" id="haggle-ask" ${currentState.funds < ask ? 'disabled' : ''}>요구액 ${ask}G로 영입</button>
-        <div class="dirpick">
-          ${[...HAGGLE_DISCOUNTS].reverse().map((d) => { const price = Math.round(ask * (1 - d)); return `<button class="reroll" data-offer="${d}" ${currentState.funds < price || d >= rejected ? 'disabled' : ''}>${price}G에 제안</button>`; }).join('')}
-        </div>
-        ${rejected < 1 ? '<p class="eventmodal__detail haggle__hint">거절당한 금액보다 낮게는 다시 부를 수 없어요.</p>' : ''}
+        ${tutStep() >= 0 && !note ? '<p class="eventmodal__detail haggle__hint">처음이라면 "요구액으로 영입"이 가장 안전해요. 더 싸게 사려면 아래에서 가격을 정해 제안해 보세요. 구단 표정이 힌트예요.</p>' : ''}
+        <button class="cta" id="haggle-ask" ${afford(ask) ? '' : 'disabled'}>요구액 ${ask}G로 영입</button>
+        ${counter ? `<button class="cta cta--alt" id="haggle-counter" ${afford(counter) ? '' : 'disabled'}>역제안 ${counter}G에 영입</button>` : ''}
+        ${out || max < min ? '' : bidHtml({ min, max, value, goLabel: '제안', canAfford: afford })}
         <button class="reroll" id="haggle-close" style="margin-top:var(--s2);width:100%">그만두기</button>
       </div>
     </div>`;
   document.getElementById('haggle-ask').onclick = () => { root.innerHTML = ''; buyCard(card); };
-  root.querySelectorAll('[data-offer]').forEach((btn) => {
-    btn.onclick = () => thinking(root, () => {
-      const d = Number(btn.dataset.offer);
-      const trueValue = valuePrice(card, 0);
-      const ok = offerAccepted({ ask: card.price, trueValue, discount: d, score: att.score, u: cardUniform(card.id, currentState.telemetryRun ?? '') });
-      if (ok) {
-        root.innerHTML = '';
-        buyCard(card, null, null, Math.round(ask * (1 - d)));
+  document.getElementById('haggle-counter')?.addEventListener('click', () => { root.innerHTML = ''; buyCard(card, null, null, counter); });
+  document.getElementById('haggle-close').onclick = () => { root.innerHTML = ''; };
+  if (out || max < min) return;
+  wireBid(root, {
+    min, max, goLabel: '제안', canAfford: afford,
+    onBid: (bid) => thinking(root, () => {
+      currentState.bidMemory[card.id] = bid;
+      const r = buyBid({ bid, ask, reserve });
+      if (r.result === 'accept') { root.innerHTML = ''; buyCard(card, null, null, bid); return; }
+      const left = pat - patienceCost(r.result);
+      currentState.patience[card.id] = left;
+      if (r.result === 'counter') {
+        currentState.counterOffer[card.id] = r.counter;
+        openHaggle(card, left <= 0 ? BID_HINT.finalBuy(r.counter) : BID_HINT.counterBuy(r.counter));
         return;
       }
-      currentState.patience[card.id] = pat - 1;
-      currentState.rejected[card.id] = d;
-      if (pat - 1 <= 0) {
+      if (left <= 0) {
         root.innerHTML = '';
         setMood(card.seller, 'broken');
         currentState.shopOffer = currentState.shopOffer.filter((c) => c.id !== card.id);
         renderMarket(`${card.seller}와(과) 협상 결렬 - ${card.name}은(는) 다른 구단으로 갔습니다`);
         return;
       }
-      openHaggle(card, '구단이 제안을 거절했습니다');
-    });
+      openHaggle(card, BID_HINT[r.result]);
+    }),
   });
-  document.getElementById('haggle-close').onclick = () => { root.innerHTML = ''; };
 }
 function scoutOfferSize() {
   if (isStaffFreshThisWeek('headScout')) return SHOP_OFFER_SIZE;
@@ -1824,37 +1865,49 @@ function openSale(cardId, index, note = '') {
   if (!l || !offer) return;
   const root = document.getElementById('eventmodal-root');
   currentState.patience ??= {};
-  currentState.rejected ??= {};
+  currentState.counterOffer ??= {};
+  currentState.bidMemory ??= {};
   const key = `sale:${cardId}:${index}`;
   const att = sellerAttitude(offer.club);
-  const maxPat = patienceFor(att.score);
-  const pat = currentState.patience[key] ?? maxPat;
-  const rejected = currentState.rejected[key] ?? Infinity; // 거절당한 비율 이상은 다시 못 고른다
+  const pat = currentState.patience[key] ?? patienceFor(att.score);
+  const max = maxSalePrice({ offer: offer.amount, score: att.score, u: cardUniform(key, currentState.telemetryRun ?? '') });
+  const min = offer.amount + 1;
+  const top = Math.max(min, Math.round(offer.amount * 1.25));
+  const counter = currentState.counterOffer[key] ?? null;
+  const out = pat <= 0;
+  const value = Math.max(min, Math.min(top, currentState.bidMemory[key] ?? Math.round(offer.amount * 1.06)));
   root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal eventmodal--goal haggle">
         <div class="eventmodal__kicker">${esc(offer.club)} (태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)})</div>
         <div class="eventmodal__title">${esc(l.card.name)}</div>
         <p class="eventmodal__detail">${esc(offer.club)}의 제시 금액은 ${offer.amount}G입니다. (${offerDeadlineText(offer)})</p>
-        <div class="haggle__face" aria-label="인내심 ${pat}">${patienceFace(pat)}</div>
+        <div class="haggle__face" aria-label="인내심 ${Math.max(0, pat)}">${patienceFace(Math.max(0, pat))}</div>
         ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
         <button class="cta" id="sale-accept">${offer.amount}G에 판매</button>
-        <div class="dirpick">
-          ${offer.amount > 0 ? COUNTER_RAISES.map((r) => `<button class="reroll" data-raise="${r}" ${r >= rejected ? 'disabled' : ''}>${Math.round(offer.amount * (1 + r))}G 요구</button>`).join('') : ''}
-        </div>
+        ${counter ? `<button class="cta cta--alt" id="sale-counter">역제안 ${counter}G에 판매</button>` : ''}
+        ${out || offer.amount <= 0 ? '' : bidHtml({ min, max: top, value, goLabel: '요구' })}
         <button class="reroll" id="sale-close" style="margin-top:var(--s2);width:100%">그만두기</button>
       </div>
     </div>`;
   document.getElementById('sale-accept').onclick = () => { root.innerHTML = ''; acceptSaleOffer(cardId, index, offer.amount); };
+  document.getElementById('sale-counter')?.addEventListener('click', () => { root.innerHTML = ''; acceptSaleOffer(cardId, index, counter, true); });
   document.getElementById('sale-close').onclick = () => { root.innerHTML = ''; };
-  root.querySelectorAll('[data-raise]').forEach((btn) => {
-    btn.onclick = () => thinking(root, () => {
-      const r = Number(btn.dataset.raise);
-      const ok = counterAccepted({ raise: r, score: att.score, u: cardUniform(key, currentState.telemetryRun ?? '') });
-      if (ok) { root.innerHTML = ''; acceptSaleOffer(cardId, index, Math.round(offer.amount * (1 + r)), true); return; }
-      currentState.patience[key] = pat - 1;
-      currentState.rejected[key] = r;
-      if (pat - 1 <= 0) {
+  if (out || offer.amount <= 0) return;
+  wireBid(root, {
+    min, max: top, goLabel: '요구',
+    onBid: (bid) => thinking(root, () => {
+      currentState.bidMemory[key] = bid;
+      const r = sellBid({ bid, offer: offer.amount, max });
+      if (r.result === 'accept') { root.innerHTML = ''; acceptSaleOffer(cardId, index, bid, true); return; }
+      const left = pat - patienceCost(r.result);
+      currentState.patience[key] = left;
+      if (r.result === 'counter') {
+        currentState.counterOffer[key] = r.counter;
+        openSale(cardId, index, left <= 0 ? `마지막 제안이에요: ${r.counter}G` : `이 가격이면 사겠어요: ${r.counter}G`);
+        return;
+      }
+      if (left <= 0) {
         root.innerHTML = '';
         setMood(offer.club, 'broken');
         l.offers.splice(index, 1);
@@ -1862,8 +1915,8 @@ function openSale(cardId, index, note = '') {
         renderMarket(`${offer.club}이(가) 오퍼를 거뒀습니다`);
         return;
       }
-      openSale(cardId, index, '구단이 요구를 거절했습니다');
-    });
+      openSale(cardId, index, r.result === 'mid' ? '조금만 낮춰 주세요' : '그 가격은 말도 안 돼요');
+    }),
   });
 }
 
@@ -3075,7 +3128,7 @@ function renderChemistryPanel(lineup, bench) {
     const next = tier >= req.length ? `${MEDAL[2]} 완성!` : tier === 0 ? `${req[0] - count}명 더 → ${MEDAL[0]} +${values[0]}` : `${MEDAL[tier - 1]} · ${req[tier] - count}명 더 → ${MEDAL[tier]} +${values[tier]}`;
     return { id, count, tier, req, values, seeds, next };
   }).sort((x, y) => y.count - x.count);
-  const styleRows = `<ul class="stylerows">${rows.map((r) => `<li class="stylerow${r.tier ? ` is-on medal-${r.tier}` : ''}${style?.id === r.id ? ' is-main' : ''}" data-chem-desc="${esc(TAG_LABELS[r.id])} · 같은 태그 ${esc(tagLadderText(r.req, r.values))}${r.seeds ? ` · 성장 중 ${r.seeds}명은 효과 ½` : ''} · ${esc(r.next)}">
+  const styleRows = `<ul class="stylerows">${rows.map((r) => `<li class="stylerow${r.tier ? ` is-on medal-${r.tier}` : ''}${style?.id === r.id ? ' is-main' : ''}" data-chem-desc="${esc(TAG_LABELS[r.id])} · 같은 태그 ${esc(tagLadderText(r.req, r.values))}${r.seeds ? ` · 성장 초반 ${r.seeds}명은 효과 ½` : ''} · ${esc(r.next)}">
       <span class="stylerow__icon">${renderTagIcon(PLAYSTYLE_ICON_PATHS, r.id)}</span>
       <span class="stylerow__name">${esc(TAG_LABELS[r.id])}<small>${esc(r.next)}</small></span>
       <span class="stylerow__gauge" aria-label="${r.count}명">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= r.count ? 'is-on' : ''}${r.req.includes(n) ? ' is-gate' : ''}">${r.req.includes(n) ? n : ''}</i>`).join('')}</span>
@@ -3232,7 +3285,7 @@ function renderMarket(banner = '') {
       const desc = `${TAG_LABELS[t] ?? t} · 같은 태그 ${tagLadderText(req, values)} · 지금 라인업 ${count}명`
         + (reach === 0 ? ' · 영입하면 발동!' : reach > 0 ? ' · 영입하면 강화!' : '')
         + (tagAmp(c.baseOVR) > 1 ? ` · 높은 등급이라 효과 ×${tagAmp(c.baseOVR)}` : '')
-        + (seed ? ' · 성장 중이라 효과 ½(전성기에 닿으면 전부)' : '');
+        + (seed ? ' · 성장 초반이라 효과 ½(전성기가 가까워지면 전부)' : '');
       return `<button type="button" class="chip${lvl ? ` chip--up${lvl}` : ''}${seed ? ' chip--seed' : ''}" data-tag-desc="${esc(desc)}" title="${esc(TAG_LABELS[t] ?? t)}" aria-label="${esc(TAG_LABELS[t] ?? t)}">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}<span class="chip__name">${esc(TAG_LABELS[t] ?? t)}</span>${lvl ? '<b>▲</b>' : ''}</button>`;
     };
     const tags = [
@@ -3268,8 +3321,8 @@ function renderMarket(banner = '') {
         ${compareHtml}
       </div>
       <div class="deal__act">
-        <button class="buy deal__buy" data-buy="${c.id}" ${affordable || (c.seller && funds >= Math.round(price * (1 - HAGGLE_DISCOUNTS[0]))) ? '' : 'disabled'} title="${decayNote}">
-          <span>${affordable || (c.seller && funds >= Math.round(price * (1 - HAGGLE_DISCOUNTS[0]))) ? (c.seller ? '협상' : '영입') : '부족'}</span><b class="n">${price}G</b>
+        <button class="buy deal__buy" data-buy="${c.id}" ${affordable || (c.seller && funds >= Math.round(price * BID_MIN_RATIO)) ? '' : 'disabled'} title="${decayNote}">
+          <span>${affordable || (c.seller && funds >= Math.round(price * BID_MIN_RATIO)) ? (c.seller ? '협상' : '영입') : '부족'}</span><b class="n">${price}G</b>
         </button>
       </div>
       <p class="offer__hint" hidden></p>
@@ -3970,7 +4023,7 @@ function introTick() {
     ['staff', isUnlocked('staff'), '[data-tab="staff"]', '감독·스태프 탭에서 감독과 코치, 스카우터를 바꿀 수 있어요.'],
     ['traits', isUnlocked('traits') && draft && !!document.querySelector('.chip--trait'), '.chip--trait', '특수 성향 선수예요. 성향마다 효과와 대가가 자동으로 붙어요.'],
     ['haggle', draft && loadFlags().tutorialStep < 2 && !!document.querySelector('.deal__buy:not([disabled])'), // 튜토리얼에서 이미 협상을 해 본 사람은 다시 안내하지 않는다
-     '.deal__buy:not([disabled])', '협상을 누르면 구단에 더 낮은 가격을 제안할 수 있어요. 거절당하면 얼굴이 굳어지고, 화가 나면 협상이 깨져 그 선수를 놓쳐요.'],
+     '.deal__buy:not([disabled])', '협상에서는 슬라이더로 원하는 가격을 불러요. 구단이 받아 주거나, 역제안을 하거나, 거절해요. 구단 표정이 힌트고, 너무 낮게 부르면 화가 나서 협상이 깨져요.'],
     ['sale', (currentState.tab === 'draft' || currentState.tab === 'squad') && currentState.listedForSale.length, '.listed', '오퍼가 도착했어요. 눌러서 팔거나 더 높은 금액을 불러 보세요. 오퍼는 시간이 지나면 사라지고, 다 사라지면 태업(OVR -3)해요.'],
   ];
   const next = items.find(([key, when]) => when && !seen[key]);

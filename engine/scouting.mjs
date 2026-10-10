@@ -38,9 +38,9 @@ export function estimatePeak(p, level = 'academy', seasonsKnown = 0) {
 
 // 잠재력 등급(A/B/C): 전성기까지 오를 폭으로 나눈다. 스카우터·코치가 보는 값은 정확하지 않아서
 // 등급이 한 칸 틀릴 수 있다(좋은 등급일수록 덜 틀린다). 같은 선수·같은 등급이면 항상 같은 답이다.
-export const GRADE_CUTS = { A: 7, B: 4, C: 1 }; // 전성기까지 +7 이상 A, +4~6 B, +1~3 C
+export const GRADE_CUTS = { S: 12, A: 7, B: 4, C: 1 }; // 전성기까지 +12 이상 S, +7~11 A, +4~6 B, +1~3 C
 export const GRADE_NOISE = { academy: 3.5, proLicense: 2.5, veteran: 1.8, master: 1.2 };
-const gradeOf = (up) => (up >= GRADE_CUTS.A ? 'A' : up >= GRADE_CUTS.B ? 'B' : up >= GRADE_CUTS.C ? 'C' : null);
+const gradeOf = (up) => (up >= GRADE_CUTS.S ? 'S' : up >= GRADE_CUTS.A ? 'A' : up >= GRADE_CUTS.B ? 'B' : up >= GRADE_CUTS.C ? 'C' : null);
 export function potentialGrade(p, level = 'academy', seasonsKnown = 0) {
   if (p.peakOVR == null) return null;
   const up = p.peakOVR - p.baseOVR;

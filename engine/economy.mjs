@@ -1,5 +1,5 @@
 import { clamp } from './chemistry.mjs';
-import { bodyAge, agePriceMult } from './aging.mjs';
+import { growthStage, agePriceMult } from './aging.mjs';
 import {
   TRAIT_PRICE_MULT,
   PLAYER_TIERS,
@@ -30,9 +30,11 @@ export function calculatePlayerPrice(tierId, baseOVR) {
 // 가격은 "현재 OVR + 전성기까지 남은 성장의 절반"으로 매긴다(유망주 프리미엄). marketNoise는 시장 평가가 전성기를 얼마나
 // 잘못 보는지(생성 때만 ±7% 정도, 시즌 시작 재평가에서는 0). 전성기를 지난 선수는 현재 OVR만 본다.
 export function valuePrice(p, marketNoise = 0) {
-  const growing = p.peakOVR != null && bodyAge(p.age, p.position) < (p.peakBodyAge ?? 27);
+  // 성장 초반은 잠재력을 덜 쳐 줘서 싸고(35%), 막바지는 거의 전성기 값(90%)이다.
+  const stage = growthStage(p);
+  const growing = stage === 'early' || stage === 'late';
   const peak = growing ? Math.min(99, Math.max(p.baseOVR, Math.round(p.peakOVR * (1 + marketNoise)))) : p.baseOVR;
-  const priceOVR = Math.min(94, Math.max(50, Math.round(p.baseOVR + 0.5 * (peak - p.baseOVR))));
+  const priceOVR = Math.min(94, Math.max(50, Math.round(p.baseOVR + (stage === 'late' ? 0.9 : 0.35) * (peak - p.baseOVR))));
   const tier = Object.entries(PLAYER_TIERS).find(([, t]) => priceOVR >= t.minOVR && priceOVR <= t.maxOVR)?.[0] ?? 'local';
   return Math.round(calculatePlayerPrice(tier, priceOVR) * (TRAIT_PRICE_MULT[p.specialTrait] ?? 1) * agePriceMult(p.age));
 }

@@ -1,4 +1,4 @@
-import { hasPeaked } from './aging.mjs';
+import { growthStage } from './aging.mjs';
 import { PLAYSTYLE_TAGS, SEED_EFFECT, tagAmp, flairBonusFor, COACH_UNITS, COACH_FOCUS_ORDER, COACH_UNIT_BONUS_BY_LEVEL } from './constants.mjs';
 
 // v2: 역할 칸(주장/에이스/조커)과 대륙 시너지는 폐지. 특수 성향은 선발/벤치에 있기만 하면 자동 적용되고,
@@ -56,7 +56,7 @@ export function coachBonusFor(coach, position) {
 }
 
 // 성장 중: 전성기 전 선수는 태그 효과를 절반만 받는다(인원 수에는 그대로 센다)
-export const isSeed = (p) => p.peakOVR != null && Number.isFinite(p.age) && !hasPeaked(p);
+export const isSeed = (p) => growthStage(p) === 'early';
 
 // 팀 컬러 완성: 같은 태그를 가진 선발이 5명 이상이면 그 태그의 팀 컬러가 "완성"된다.
 export const COLOR_COMPLETE_COUNT = 5;

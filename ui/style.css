@@ -2296,3 +2296,17 @@ html[data-theme='kiwi'] .start__new--ghost.is-armed { color: var(--debit); borde
 .growth.grade-A { color: var(--gold); }
 .growth.grade-A b { font-size: 1.15em; }
 .growth.grade-C { color: #9bbd9f; }
+
+/* 가격 협상 슬라이더 */
+.bid { display: grid; gap: var(--s3); margin-top: var(--s3); }
+.bid__row { display: grid; grid-template-columns: 44px 44px 1fr 44px 44px; align-items: center; gap: 6px; }
+.bid__step { height: 40px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); color: var(--light); font: 700 var(--fs-body)/1 var(--ui); cursor: pointer; }
+.bid__step:active { background: var(--surface-hi); }
+.bid__val { text-align: center; font-size: 30px; line-height: 1; color: var(--light); }
+.bid__val i { font-style: normal; font-size: var(--fs-label); color: var(--muted); margin-left: 2px; }
+.bid__range { width: 100%; accent-color: var(--turf); height: 28px; }
+.cta--alt { margin-top: var(--s2); }
+html[data-theme='kiwi'] .cta--alt { background: transparent; color: var(--gold); border-color: var(--gold); }
+html[data-theme='kiwi'] .cta--alt:hover { background: var(--gold); color: #000; }
+.growth.grade-S { color: #ff9b3d; box-shadow: 0 0 0 1px #ff9b3d55 inset; }
+.growth.grade-S b { font-size: 1.2em; }

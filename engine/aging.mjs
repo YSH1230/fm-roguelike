@@ -7,6 +7,9 @@
 // 매 시즌 시작에 10%는 도약(변화 +2 추가), 10%는 정체(변화 0 이하)한다.
 
 export const FORCED_RETIRE_AGE = 37;
+// 전성기(약 4년): 정점 이후에도 몸 나이 31이 되기 전까지는 거의 안 떨어진다(0 또는 -1). 그 뒤부터가 베테랑이고, 내리막 곡선은 2년 늦게 시작한다.
+export const PRIME_END_BODY_AGE = 31;
+export const DECLINE_SHIFT = 2;
 export const LEAP_CHANCE = 0.1;
 export const STALL_CHANCE = 0.1;
 export const LEAP_BONUS = 2;
@@ -50,6 +53,15 @@ export function ensurePotential(p, rng = Math.random) {
   return { ...p, ...generatePotential(p.baseOVR, p.age, p.position, rng) };
 }
 export const hasPeaked = (p) => bodyAge(p.age, p.position) >= (p.peakBodyAge ?? 27);
+// 성장 단계: early(전성기까지 2년 이상: 태그 효과 ½·값 싸다) / late(1년 이내: 태그 전부·값은 전성기급) / prime(전성기) / veteran(베테랑).
+export function growthStage(p) {
+  if (!Number.isFinite(p.age) || p.peakOVR == null) return 'prime';
+  const ba = bodyAge(p.age, p.position);
+  const left = (p.peakBodyAge ?? 27) - ba;
+  if (left >= 2) return 'early';
+  if (left === 1) return 'late';
+  return ba >= PRIME_END_BODY_AGE ? 'veteran' : 'prime';
+}
 
 // 새 나이 기준 은퇴 확률: 35세 35%, 36세 60%, 37세 이상 확정
 export function retireChance(newAge) {
@@ -62,7 +74,7 @@ export function retireChance(newAge) {
 // 카드에 붙는 추세 화살표: ↗ 전성기를 향해 오른다 / → 비슷 / ↘ 내려간다
 export function playerTrend(p) {
   const ba = bodyAge(p.age, p.position);
-  if (ba >= 29) return '↘';
+  if (ba >= PRIME_END_BODY_AGE) return '↘';
   if (p.peakOVR != null && ba < (p.peakBodyAge ?? 27) && p.peakOVR - p.baseOVR >= 2) return '↗';
   return '→';
 }
@@ -87,10 +99,10 @@ export function ageSquad(squad, rng = Math.random) {
       // 전성기를 향해: 남은 해로 나눈 만큼 오르고 ±1 흔들린다
       delta = Math.round((p.peakOVR - p.baseOVR) / (p.peakBodyAge - ba)) + (Math.floor(rng() * 3) - 1);
       delta = Math.max(-1, delta);
-    } else if (ba < 29) {
-      delta = -Math.floor(rng() * 2); // 전성기 직후: 0 또는 -1
+    } else if (ba < PRIME_END_BODY_AGE) {
+      delta = -Math.floor(rng() * 2); // 전성기: 0 또는 -1
     } else {
-      const [lo, hi] = ovrChangeRange(p.age, p.position);
+      const [lo, hi] = ovrChangeRange(p.age - DECLINE_SHIFT, p.position);
       delta = lo + Math.floor(rng() * (hi - lo + 1));
     }
     const roll = rng();
