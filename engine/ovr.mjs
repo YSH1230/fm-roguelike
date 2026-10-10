@@ -58,7 +58,7 @@ export function coachBonusFor(coach, position) {
 // 성장 중: 전성기 전 선수는 태그 효과를 절반만 받는다(인원 수에는 그대로 센다)
 export const isSeed = (p) => p.peakOVR != null && Number.isFinite(p.age) && !hasPeaked(p);
 
-// 같은 태그를 가진 선발 수로 문턱을 판정하고, 그 태그를 가진 선발 전원이 보너스를 받는다(씨앗은 절반).
+// 같은 태그를 가진 선발 수로 문턱을 판정하고, 그 태그를 가진 선발 전원이 보너스를 받는다(성장 중은 절반).
 export function computePlaystyleSynergyBonus(lineup, onlyTagId = null) {
   const bonuses = new Map();
   for (const [tagId, tagDef] of Object.entries(PLAYSTYLE_TAGS)) {

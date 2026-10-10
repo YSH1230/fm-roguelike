@@ -3090,7 +3090,7 @@ function renderMarket(banner = '') {
     const price = cardPrice(c);
     const affordable = funds >= price;
     const tier = tierOf(c.baseOVR);
-    // 태그 칩은 아이콘만: 영입하면 발동(▲ 초록)/강화(▲ 금색)되는 태그는 반짝이고, 씨앗(전성기 전)은 연하게 보인다.
+    // 태그 칩은 아이콘만: 영입하면 발동(▲ 초록)/강화(▲ 금색)되는 태그는 반짝이고, 성장 중(전성기 전)은 연하게 보인다.
     // 규칙과 설명은 칩을 눌렀을 때 카드 아래에 뜬다.
     const seed = isSeed(c);
     const chip = (t) => {
