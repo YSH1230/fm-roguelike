@@ -137,3 +137,11 @@ test('베테랑의 조언: 어린 선수 OVR +1', () => {
   const r = rollSeasonEvent(ctx({ squad: sq }), 'summer', seq(0, 0.5), { mentor: 1000 });
   assert.equal(r.squad.find((p) => p.id === 'a').baseOVR, 61);
 });
+
+test('감독·스태프가 열리기 전에는 감독 관련 이벤트가 나오지 않는다', () => {
+  for (const id of ['tacticalSeminar', 'analystJoins']) {
+    const r = rollSeasonEvent(ctx({ staffOn: false }), 'summer', seq(0, 0.5), { [id]: 100000 });
+    assert.notEqual(r.id, id);
+  }
+  assert.equal(rollSeasonEvent(ctx(), 'summer', seq(0, 0.5), { analystJoins: 100000 }).id, 'analystJoins');
+});

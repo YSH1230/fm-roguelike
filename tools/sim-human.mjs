@@ -130,13 +130,15 @@ function playCareer() {
     const startInfo = powerOf(squad, CHEMISTRY_START);
 
     // 감독·스태프 투자(리그별 목표 등급까지, 감독 → 코치 → 스카우터 순)
-    const wantM = MANAGER_ORDER.indexOf(MANAGER_TARGET[tierId]);
+    const staffOpen = s + 1 >= 3; // 감독·스태프는 3시즌부터 열린다
+    const wantM = staffOpen ? MANAGER_ORDER.indexOf(MANAGER_TARGET[tierId]) : -1;
     if (MANAGER_ORDER.indexOf(manager.tier) < wantM) {
       const next = MANAGER_ORDER[MANAGER_ORDER.indexOf(manager.tier) + 1];
       const cost = mid(MANAGER_PRICE_TABLE[next]) + Math.round(manager.price * 0.5);
       if (funds >= cost + 40) { funds -= cost; staffSpend += cost; manager = { tier: next, price: mid(MANAGER_PRICE_TABLE[next]) }; }
     }
     for (const [role, target] of [['coach', COACH_TARGET[tierId]], ['scout', SCOUT_TARGET[tierId]]]) {
+      if (!staffOpen) break;
       const cur = role === 'coach' ? coachLevel : scoutLevel;
       if (STAFF_ORDER.indexOf(cur) >= STAFF_ORDER.indexOf(target)) continue;
       const next = STAFF_ORDER[STAFF_ORDER.indexOf(cur) + 1];

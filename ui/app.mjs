@@ -63,7 +63,6 @@ import {
   SHOP_OFFER_SIZE,
   SHOP_REROLL_COST,
   SUMMER_MARKET_WEEKS,
-  HARMONY_START_SEASON,
   squadCapFor,
   SLUMP_OVR_PENALTY,
   LEGEND_MIN_SEASONS,
@@ -425,7 +424,7 @@ function applyManagerTacticalHarmony(lineup) {
   const { manager } = currentState;
   const { tier } = playstyleTagProgress(manager.tacticalTag, lineup);
   const tagLabel = TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag;
-  if (currentState.seasonNumber < HARMONY_START_SEASON) return ''; // 감독 탭이 열리기 전에는 불화도 보너스도 없다(처음 하는 사람이 모르는 규칙에 휘둘리지 않게)
+  if (!isUnlocked('staff')) return ''; // 감독 탭이 열리기 전에는 불화도 보너스도 없다(처음 하는 사람이 모르는 규칙에 휘둘리지 않게)
   if (tier === 0) {
     if (currentState.harmonyShield) {
       currentState.harmonyShield = false;
@@ -441,7 +440,7 @@ function applyManagerTacticalHarmony(lineup) {
     return `${base} (한 번 더 이어지면 감독이 사임합니다)`;
   }
   currentState.harmonyStreak = 0;
-  const bonus = manager.trait === 'tacticalPurist' ? MANAGER_HARMONY_BONUS * 2 : MANAGER_HARMONY_BONUS;
+  const bonus = mgrTrait(manager) === 'tacticalPurist' ? MANAGER_HARMONY_BONUS * 2 : MANAGER_HARMONY_BONUS;
   currentState.chemistry = Math.min(100, currentState.chemistry + bonus);
   return `전술 완성: ${manager.name} 감독이 선호하는 전술(${tagLabel})이 라인업에서 발동했습니다. 적응도 +${bonus}`;
 }
@@ -899,9 +898,9 @@ function startRun(club) {
   // 초기 정비기(Week 1~3) 이벤트: 자금·스쿼드가 바뀔 수 있다.
   // 위기 관리형 감독은 위기 이벤트(FFP 긴급 감사)를 무효화한다.
   // 헤어드라이어: 영입 즉시 적응도 +20
-  const startChemistry = manager.trait === 'hairdryer' ? Math.min(100, CHEMISTRY_START + 20) : CHEMISTRY_START;
+  const startChemistry = mgrTrait(manager) === 'hairdryer' ? Math.min(100, CHEMISTRY_START + 20) : CHEMISTRY_START;
   const rolled = rollSeasonEvent(
-    { squad: rawSquad, funds: baseFunds, chemistry: startChemistry, baseFunds, crisisImmune: manager.trait === 'crisisManager', manager, recent: [] },
+    { staffOn: isUnlocked('staff'), squad: rawSquad, funds: baseFunds, chemistry: startChemistry, baseFunds, crisisImmune: mgrTrait(manager) === 'crisisManager', manager, recent: [] },
     'summer'
   );
   const { funds, chemistry, message: eventMessage } = rolled;
@@ -1150,12 +1149,13 @@ function renderCareerIntro() {
       <p class="note">승점은 전/후반기 합산입니다. 안전권을 넘기지 못하면 해임, 목표를 3시즌 연속 못 넘기면 경질됩니다.</p>
       ${club.weakness ? `<p class="note">약점: ${esc(club.weakness)}. 이 약점을 염두에 두고 시즌을 준비하세요.</p>` : ''}
     </div>
-    <div class="panel">
+    ${isUnlocked('staff') ? `<div class="panel">
       <div class="panel__head"><h2>감독</h2></div>
       <p class="staffline">
         <span>감독 <b>${esc(manager.name)}</b> ${MANAGER_TIER_LABELS[manager.tier] ?? manager.tier}${manager.trait ? ` / ${MANAGER_TRAIT_LABELS[manager.trait] ?? manager.trait}` : ''}</span>
       </p>
-    </div>
+    </div>`
+    : ''}
     </details>
   `, '<button class="cta" id="start-season-btn">시즌 시작</button>');
 
@@ -1168,6 +1168,10 @@ function renderCareerIntro() {
 // 수석 스카우터 등급에 따른 매주 매물 수 (스펙 5.3절: 3→4→4→5)
 // 이번 주에 막 교체한 스태프는 아직 효과가 없다(스펙: "교체한 주는 신규
 // 스태프 효과 미발동, 소급 없음") - 기본값으로 취급한다.
+// 감독·스태프 탭이 열리기(3시즌) 전에는 감독 성향과 스태프 등급 효과가 없다. 보이지 않는 규칙에 휘둘리지 않게.
+const mgrTrait = (m) => (isUnlocked('staff') ? m?.trait : null);
+const staffLevel = (role) => (isUnlocked('staff') ? currentState.staff[role].level : 'academy');
+
 function isStaffFreshThisWeek(role) {
   return currentState.staff[role].hiredWeek === currentState.week;
 }
@@ -1175,7 +1179,7 @@ function isStaffFreshThisWeek(role) {
 // 스카우터 목표(태그/포지션): 이번 주 새로 영입한 스카우터가 아니면 등급이 허락하는 목표를 매주 1장씩 보장받는다.
 function scoutCaps() {
   if (isStaffFreshThisWeek('headScout')) return SCOUT_TARGETS_BY_LEVEL.academy;
-  return SCOUT_TARGETS_BY_LEVEL[currentState.staff.headScout.level] ?? SCOUT_TARGETS_BY_LEVEL.academy;
+  return SCOUT_TARGETS_BY_LEVEL[staffLevel('headScout')] ?? SCOUT_TARGETS_BY_LEVEL.academy;
 }
 function scoutTargetSlots() {
   return scoutCaps().tag && currentState.scoutTargetTag ? 1 : 0;
@@ -1199,19 +1203,19 @@ function stripLockedTags(card) {
 function newShopOffer() {
   const slots = scoutTargetSlots();
   const position = scoutCaps().position ? currentState.scoutTargetPos ?? null : null;
-  const boost = isStaffFreshThisWeek('headScout') ? 0 : SCOUT_QUALITY_BOOST_BY_LEVEL[currentState.staff.headScout.level] ?? 0;
+  const boost = isStaffFreshThisWeek('headScout') ? 0 : SCOUT_QUALITY_BOOST_BY_LEVEL[staffLevel('headScout')] ?? 0;
   return generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId,
     slots ? currentState.scoutTargetTag : null, slots, position, boost, scoutCaps().combined).map(stripLockedTags);
 }
 function scoutOfferSize() {
   if (isStaffFreshThisWeek('headScout')) return SHOP_OFFER_SIZE;
-  return SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[currentState.staff.headScout.level] ?? SHOP_OFFER_SIZE;
+  return SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[staffLevel('headScout')] ?? SHOP_OFFER_SIZE;
 }
 
 // 스카우터 등급이 높을수록 다시 뽑기 비용이 싸진다
 function rerollCost() {
   if (isStaffFreshThisWeek('headScout')) return SHOP_REROLL_COST;
-  return Math.round(SHOP_REROLL_COST * (1 - (SCOUT_REROLL_DISCOUNT_BY_LEVEL[currentState.staff.headScout.level] ?? 0)));
+  return Math.round(SHOP_REROLL_COST * (1 - (SCOUT_REROLL_DISCOUNT_BY_LEVEL[staffLevel('headScout')] ?? 0)));
 }
 
 // 스펙 2절: 시즌마다 자금을 지급하고, 남은 돈은 그 위에 이월한다(상한 30%).
@@ -1253,8 +1257,8 @@ function grantSeasonFunds() {
 function applySeasonEvent(phase) {
   const r = rollSeasonEvent(
     {
-      squad: currentState.squad, funds: currentState.funds, chemistry: currentState.chemistry,
-      baseFunds: seasonBaseGrant(), crisisImmune: currentState.manager.trait === 'crisisManager',
+      staffOn: isUnlocked('staff'), squad: currentState.squad, funds: currentState.funds, chemistry: currentState.chemistry,
+      baseFunds: seasonBaseGrant(), crisisImmune: mgrTrait(currentState.manager) === 'crisisManager',
       manager: currentState.manager, recent: currentState.eventHistory ?? [],
     },
     phase,
@@ -1336,7 +1340,7 @@ function startNewSeason() {
     banner += `. 승격 실패 누적 ${currentState.missedTargetCount}회로 시즌 자금 -${cut}%`;
   }
   // 장기 집권형: 같은 구단 잔류 시즌마다 적응도 시작값 +3
-  if (currentState.manager.trait === 'longTermReign') {
+  if (mgrTrait(currentState.manager) === 'longTermReign') {
     currentState.chemistry = Math.min(100, currentState.chemistry + 3);
     banner += ' (장기 집권형: 적응도 +3)';
   }
@@ -1356,7 +1360,7 @@ function cardPrice(card) {
   if (currentState.phase === 'winter') modifiers.push(WINTER_TAX_RATIO);
   // 화술의 달인: 감독 선호 전술 태그 카드는 영입비 -30%
   const { manager } = currentState;
-  if (manager.trait === 'silverTongue' && card.playstyleTags.includes(manager.tacticalTag)) {
+  if (mgrTrait(manager) === 'silverTongue' && card.playstyleTags.includes(manager.tacticalTag)) {
     modifiers.push(-0.3);
   }
   return applyCostModifiers(card.price, modifiers);
@@ -1366,10 +1370,10 @@ function cardPrice(card) {
 // 스펙 5.3절: 중복 적용하지 않고 더 강한 쪽(하락폭이 작은 쪽)만 쓴다.
 function transactionDecayAmount() {
   const managerReduced =
-    currentState.manager.trait === 'reboundArchitect'
+    mgrTrait(currentState.manager) === 'reboundArchitect'
       ? CHEMISTRY_DECAY_PER_TRANSACTION / 2
       : CHEMISTRY_DECAY_PER_TRANSACTION;
-  const coachLevel = currentState.staff.headCoach.level;
+  const coachLevel = staffLevel('headCoach');
   const coachReduced = isStaffFreshThisWeek('headCoach')
     ? CHEMISTRY_DECAY_PER_TRANSACTION
     : COACH_CHEMISTRY_DECAY_BY_LEVEL[coachLevel] ?? CHEMISTRY_DECAY_PER_TRANSACTION;
@@ -1726,6 +1730,7 @@ function nextWeek() {
 // 수석 코치 효과(등급 + 주력 유닛). 엔진의 coach 인자로 들어가 선수 OVR에 유닛 보너스로 더해진다.
 function coachFor() {
   const c = currentState.staff.headCoach;
+  if (!isUnlocked('staff')) return { level: 'academy', focus: 'midfield' }; // 감독·스태프 탭이 열리기 전에는 효과도 없다
   return { level: c.level, focus: c.focus ?? 'midfield' };
 }
 
@@ -1850,7 +1855,7 @@ function enterWinterMarket() {
   const halfSafe = tier.safePoints / 2;
   const halfTarget = tier.targetPoints / 2;
   if (
-    manager.trait === 'firefighter' &&
+    mgrTrait(manager) === 'firefighter' &&
     currentState.firstHalfPoints >= halfSafe &&
     currentState.firstHalfPoints < halfTarget
   ) {
@@ -2315,7 +2320,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
 
   // 보드진의 신임: 해임 조건 1회 면제(사용 후 소멸)
   let boardTrustMessage = '';
-  if (result === 'relegation' && manager.trait === 'boardTrust' && !currentState.boardTrustUsed) {
+  if (result === 'relegation' && mgrTrait(manager) === 'boardTrust' && !currentState.boardTrustUsed) {
     currentState.boardTrustUsed = true;
     result = 'safe';
     boardTrustMessage = '<div class="banner banner--alert">보드진의 신임 발동. 해임을 면했습니다. 이 효과는 소멸합니다.</div>';
@@ -3066,13 +3071,14 @@ function renderMarket(banner = '') {
             ? `<p class="note note--warn">⚠ 포지션 공백: ${missing.join('·')} 자리에 선수가 없습니다. 시즌을 시작하면 유스가 긴급 콜업됩니다 - 이적시장에서 미리 보강하세요.</p>`
             : '';
         })()}
-        <div class="tactics__manager" style="--tier:var(--${MANAGER_TIER_COLOR[manager.tier] ?? 't-local'})">
+        ${isUnlocked('staff') ? `        <div class="tactics__manager" style="--tier:var(--${MANAGER_TIER_COLOR[manager.tier] ?? 't-local'})">
           ${renderPortrait(manager, { size: 40 })}
           <div>
             <div class="player__name">${esc(manager.name)} 감독</div>
             <div class="player__meta">${MANAGER_TIER_LABELS[manager.tier] ?? manager.tier}${manager.trait ? ` · ${MANAGER_TRAIT_LABELS[manager.trait] ?? manager.trait}` : ''} · ${TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag}</div>
           </div>
-        </div>
+        </div>`
+        : ''}
         ${renderPitch(slotted, formationId, club.kit, { interactive: true, selectedSlot: currentState.selectedSlot, finalOVR, activeTags })}
         <div class="benchstrip">
           <span class="benchstrip__label">벤치</span>

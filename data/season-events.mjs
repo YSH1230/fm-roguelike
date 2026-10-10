@@ -249,6 +249,8 @@ const CHOICES = [
 ];
 
 const ALL = [...EVENTS, ...CHOICES];
+// 감독·스태프 탭이 열리기 전(ctx.staffOn === false)에는 감독·불화를 말하는 이벤트를 뽑지 않는다.
+const STAFF_EVENTS = ['tacticalSeminar', 'analystJoins'];
 
 // ctx = { squad, funds, chemistry, baseFunds, crisisImmune, manager, recent }
 // bias = { [eventId]: 가중치 배수 } - 구단 색채가 특정 이벤트를 더 자주 부른다. recent = 최근 나온 이벤트 id들.
@@ -258,7 +260,7 @@ export function rollSeasonEvent(ctx, phase, rng = Math.random, bias = {}) {
   if (rng() >= chance) return none;
 
   const recent = ctx.recent ?? [];
-  const weights = ALL.map((e) => (bias[e.id] ?? 1) * (recent.includes(e.id) ? RECENT_WEIGHT : 1));
+  const weights = ALL.map((e) => (ctx.staffOn === false && STAFF_EVENTS.includes(e.id) ? 0 : (bias[e.id] ?? 1) * (recent.includes(e.id) ? RECENT_WEIGHT : 1)));
   let pick = rng() * weights.reduce((a, b) => a + b, 0);
   const event = ALL.find((_, i) => (pick -= weights[i]) < 0) ?? ALL.at(-1);
 
