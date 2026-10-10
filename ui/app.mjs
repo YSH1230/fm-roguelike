@@ -425,8 +425,8 @@ function applyManagerTacticalHarmony(lineup) {
   const { manager } = currentState;
   const { tier } = playstyleTagProgress(manager.tacticalTag, lineup);
   const tagLabel = TAG_LABELS[manager.tacticalTag] ?? manager.tacticalTag;
+  if (currentState.seasonNumber < HARMONY_START_SEASON) return ''; // 감독 탭이 열리기 전에는 불화도 보너스도 없다(처음 하는 사람이 모르는 규칙에 휘둘리지 않게)
   if (tier === 0) {
-    if (currentState.seasonNumber < HARMONY_START_SEASON) return ''; // 감독 탭이 열리기 전에는 벌칙도 사임도 없다
     if (currentState.harmonyShield) {
       currentState.harmonyShield = false;
       return `감독과의 불화 면제: 전술 분석관이 ${manager.name} 감독과의 갈등을 막아 줬습니다`;
