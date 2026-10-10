@@ -3083,6 +3083,8 @@ function renderMarket(banner = '') {
     return members.reduce((sum, p) => sum + finalOVR.get(p.id), 0) / members.length;
   };
   const teamPower = computeTeamPower(lineup, bench, manager.tier, chemistry, coachFor(), powerExtras());
+  // 조직력이 전력에 주는 몫: 시작값(60)과 비교한 차이
+  const chemDelta = teamPower - computeTeamPower(lineup, bench, manager.tier, CHEMISTRY_START, coachFor(), powerExtras());
 
   const weekStart = phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0];
   const dots = Array.from({ length: maxWeek - weekStart + 1 }, (_, i) => {
@@ -3342,6 +3344,7 @@ function renderMarket(banner = '') {
         <div class="res__item res__item--btn" id="chem-info-btn" role="button" tabindex="0">
           <span class="res__label">조직력 <i class="res__hint">ⓘ</i></span>
           <span class="res__val n">${chemistry.toFixed(1)}</span>
+          <i class="res__best chemdelta${chemDelta < -0.05 ? ' is-neg' : chemDelta > 0.05 ? ' is-pos' : ''}">전력 ${chemDelta >= 0 ? '+' : '−'}${Math.abs(chemDelta).toFixed(1)}</i>
           <div class="chembar${chemistry < 40 ? ' is-low' : ''}"><i style="width:${Math.min(100, chemistry)}%"></i></div>
         </div>
         <div class="res__item res__item--score" title="이번 런의 명성 점수">
@@ -3364,7 +3367,7 @@ function renderMarket(banner = '') {
       </p>
       <p class="note chem-info" id="chem-info" hidden>
         <b>조직력</b>은 선수들이 얼마나 손발이 맞는지예요. 높을수록 팀 전력이 오르고 낮을수록 깎입니다(지금 ×${chemistryMultiplier(chemistry).toFixed(3)}).<br>
-        <b>오르는 때:</b> 영입·방출이 없는 주마다 +1, 전술 완성, 승격.<br>
+        <b>오르는 때:</b> 거래가 없는 주마다 +1, 팀 컬러 완성 시 매주 +1, 감독 선호 전술 발동, 이사진 목표 초과, 승격.<br>
         <b>깎이는 때:</b> 영입·방출 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'}. 한 주의 첫 거래는 깎이지 않고, 영입하면서 내보내는 교체는 한 건입니다.<br>
         그래서 자주 갈아치울수록 손해, 굵직하게 바꾸고 기다릴수록 이득입니다.
       </p>

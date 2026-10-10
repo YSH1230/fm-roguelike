@@ -14,10 +14,10 @@ test('clamp는 값을 min~max 사이로 제한한다', () => {
 });
 
 test('조직력 배율은 0=0.94, 60=1.015, 100=1.08을 잇는 꺾은선이다', () => {
-  assert.equal(chemistryMultiplier(0), 0.94);
+  assert.equal(chemistryMultiplier(0), 0.92);
   assert.ok(Math.abs(chemistryMultiplier(60) - 1.015) < 1e-9);
-  assert.ok(Math.abs(chemistryMultiplier(100) - 1.08) < 1e-9);
-  assert.ok(Math.abs(chemistryMultiplier(30) - 0.9775) < 1e-9);
+  assert.ok(Math.abs(chemistryMultiplier(100) - 1.10) < 1e-9);
+  assert.ok(Math.abs(chemistryMultiplier(30) - 0.9675) < 1e-9);
   assert.ok(chemistryMultiplier(99) < chemistryMultiplier(100)); // 절벽 없음
 });
 

@@ -2134,3 +2134,5 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .chip--flair i { font-style: normal; margin-right: 3px; }
 .ticon--flair { color: var(--gold); font-style: normal; font-size: 12px; }
 .stylecomplete { color: var(--gold); font-weight: 700; }
+.chemdelta.is-pos { color: var(--turf); }
+.chemdelta.is-neg { color: var(--debit); }
