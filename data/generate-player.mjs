@@ -1,5 +1,5 @@
 import { generatePotential } from '../engine/aging.mjs';
-import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, TAG_IDS, SPECIAL_TRAITS, TRAIT_PRICE_MULT } from '../engine/constants.mjs';
+import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, TAG_IDS, FLAIR_BY_POSITION, FLAIR_MIN_OVR, SPECIAL_TRAITS, TRAIT_PRICE_MULT } from '../engine/constants.mjs';
 import { valuePrice } from '../engine/economy.mjs';
 import { pick, randomName } from './name-pools.mjs';
 
@@ -52,16 +52,10 @@ function withForcedTag(tags, forceTag) {
   return tags.length > 1 ? [tags[0], forceTag, ...tags.slice(2)] : [...tags, forceTag];
 }
 
-// 그 포지션이 가질 수 있는 태그 중에서 1개 + 등급이 허락하는 만큼 더 뽑는다(중복 없음).
+// 그 포지션이 가질 수 있는 태그 중에서 1개(모든 선수가 태그 1개다).
 function pickPlaystyleTags(tier, position, rng) {
   const allowed = TAG_IDS.filter((t) => PLAYSTYLE_TAGS[t].positions.includes(position));
-  const tags = [pick(allowed, rng)];
-  for (const chance of tier.extraTagChances) {
-    if (rng() >= chance) continue;
-    const rest = allowed.filter((t) => !tags.includes(t));
-    if (rest.length) tags.push(pick(rest, rng));
-  }
-  return tags;
+  return [pick(allowed, rng)];
 }
 
 // 로컬~레전더리 절차적 생성 (GOD은 data/god-players.mjs 참고, 여기서 생성 안 함)
@@ -92,6 +86,7 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
     name,
     baseOVR,
     ...pot,
+    flair: baseOVR >= FLAIR_MIN_OVR ? FLAIR_BY_POSITION[pos] : null, // 월드클래스 이상의 개인 특기
     price: valuePrice({ baseOVR, age, position: pos, specialTrait, ...pot }, marketNoise),
     age,
     position: pos,

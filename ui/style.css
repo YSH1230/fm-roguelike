@@ -2128,3 +2128,14 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .chip--seed, .ticon--seed { opacity: 0.55; border-style: dashed; }
 .tag--seed { opacity: 0.6; border-style: dashed; }
 .stylebadge { text-align: center; margin: var(--s2) 0; color: var(--gold); font-weight: 700; }
+
+/* 태그 연결선, 개인 특기 */
+.pitch__links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.pitch__links { filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.35)); }
+.pitch__links line { stroke-width: 4; stroke-linecap: round; opacity: 0.95; vector-effect: non-scaling-stroke; stroke-dasharray: 100; stroke-dashoffset: 0; animation: linkdraw 900ms var(--ease) both; }
+@keyframes linkdraw { from { stroke-dashoffset: 100; } }
+@media (prefers-reduced-motion: reduce) { .pitch__links line { animation: none; } }
+.pitch .slot { z-index: 1; }
+.chip--flair { color: var(--gold); border-color: var(--gold); }
+.chip--flair i { font-style: normal; margin-right: 3px; }
+.ticon--flair { color: var(--gold); font-style: normal; font-size: 12px; }

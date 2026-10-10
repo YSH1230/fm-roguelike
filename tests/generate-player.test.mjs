@@ -20,14 +20,14 @@ test('생성된 선수의 OVR은 등급 범위 안에 있다', () => {
   }
 });
 
-test('생성된 선수의 태그 수는 등급 규칙과 일치한다(local 1개, 탑클래스 2개, 레전더리 3개)', () => {
+test('모든 선수는 태그가 1개이고 그 포지션이 가질 수 있는 태그다, 월드클래스 이상만 개인 특기를 가진다', () => {
   const rng = seededRng(2);
-  for (const [tier, n] of [['local', 1], ['topClass', 2], ['legendary', 3]]) {
+  for (const tier of ['local', 'bigLeaguer', 'topClass', 'worldClass', 'legendary']) {
     for (let i = 0; i < 30; i++) {
       const p = generateProceduralPlayer(tier, rng);
-      assert.equal(p.playstyleTags.length, n, tier);
-      assert.equal(new Set(p.playstyleTags).size, n); // 중복 없음
-      assert.ok(p.playstyleTags.every((t) => PLAYSTYLE_TAGS[t].positions.includes(p.position)), '그 포지션이 가질 수 있는 태그만');
+      assert.equal(p.playstyleTags.length, 1, tier);
+      assert.ok(PLAYSTYLE_TAGS[p.playstyleTags[0]].positions.includes(p.position), '그 포지션이 가질 수 있는 태그만');
+      assert.equal(Boolean(p.flair), p.baseOVR >= 81, `${tier} 특기`);
     }
   }
 });

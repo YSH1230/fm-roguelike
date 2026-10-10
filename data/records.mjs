@@ -14,7 +14,7 @@ export function emptyRecords() {
     bestScore: 0, careerScore: 0, topRuns: [], // 명성 점수: 한 런 최고, 커리어 누적, 내 기록 TOP 10
     longestRun: 0, bestStreak: 0, maxPoints: 0, retired: 0, runsEnded: 0,
     ucl: { league: 0, playoff: 0, r16: 0, qf: 0, sf: 0, final: 0, champion: 0 },
-    traitsSeen: {}, legends: 0, // 만나 본 특수 성향 / 배출한 클럽 레전드 수
+    styleTitles: {}, traitsSeen: {}, legends: 0, // 만나 본 특수 성향 / 배출한 클럽 레전드 수
     history: [], // 최근 시즌 기록 { season, club, tierId, result, rank, points, ucl }
   };
 }
@@ -41,6 +41,7 @@ export function recordRunStart(r) {
 }
 
 export const recordTrait = (r, id) => ({ ...r, traitsSeen: { ...r.traitsSeen, [id]: true } });
+export const recordStyleTitle = (r, styleId) => ({ ...r, styleTitles: { ...(r.styleTitles ?? {}), [styleId]: ((r.styleTitles ?? {})[styleId] ?? 0) + 1 } });
 export const recordLegend = (r) => ({ ...r, legends: (r.legends ?? 0) + 1 });
 
 export function recordPromotion(r) {
@@ -143,6 +144,10 @@ export const ACHIEVEMENTS = [
   { id: 'double', group: '챔피언스리그', label: '더블', desc: '같은 시즌에 1부 우승과 챔피언스리그 우승을 모두 차지한다', check: (r) => r.doubles >= 1 },
   { id: 'double2', group: '챔피언스리그', label: '더블 왕조', desc: '더블을 누적 2번 달성한다', check: (r) => r.doubles >= 2, progress: (r) => bar(r.doubles, 2) },
   // ---- 명예
+  // ---- 스타일(팀 컬러): 같은 스타일로 우승을 쌓는 장기 목표
+  { id: 'style1', group: '스타일', label: '내 스타일의 우승', desc: '팀 스타일을 갖춘 채 리그 우승을 한다', check: (r) => Object.values(r.styleTitles ?? {}).some((n) => n >= 1), progress: (r) => bar(Math.max(0, ...Object.values(r.styleTitles ?? {})), 1) },
+  { id: 'style3', group: '스타일', label: '스타일의 왕조', desc: '같은 팀 스타일로 리그 우승을 3번 한다', check: (r) => Object.values(r.styleTitles ?? {}).some((n) => n >= 3), progress: (r) => bar(Math.max(0, ...Object.values(r.styleTitles ?? {})), 3) },
+  { id: 'style6', group: '스타일', label: '모든 색의 챔피언', desc: '6가지 팀 스타일로 모두 리그 우승을 한다', check: (r) => Object.keys(r.styleTitles ?? {}).length >= 6, progress: (r) => bar(Object.keys(r.styleTitles ?? {}).length, 6) },
   // ---- 선수(개성 도감 대신)
   { id: 'trait3', group: '선수', label: '개성파 수집가', desc: '서로 다른 특수 성향 선수를 3종 만난다', check: (r) => Object.keys(r.traitsSeen ?? {}).length >= 3, progress: (r) => bar(Object.keys(r.traitsSeen ?? {}).length, 3) },
   { id: 'trait6', group: '선수', label: '개성 도감 완성', desc: '특수 성향 선수를 6종 모두 만난다', check: (r) => Object.keys(r.traitsSeen ?? {}).length >= 6, progress: (r) => bar(Object.keys(r.traitsSeen ?? {}).length, 6) },

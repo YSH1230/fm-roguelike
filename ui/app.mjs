@@ -10,7 +10,7 @@ if (UCL_DEMO) {
 import { buildStartClubOffers, buildLeagueRivals } from '../data/clubs.mjs';
 import { saveRun, loadRun, clearRun, withRunDefaults } from '../data/local-save.mjs';
 import {
-  loadRecords, saveRecords, recordRunStart, recordTrait, recordLegend, recordPromotion, recordSeason, recordUcl, recordRunEnd,
+  loadRecords, saveRecords, recordRunStart, recordTrait, recordLegend, recordStyleTitle, recordPromotion, recordSeason, recordUcl, recordRunEnd,
   uclReached, ACHIEVEMENTS, unlockedIds, newlyUnlocked,
 } from '../data/records.mjs';
 import { generateSquadPool, generateStartingSquad, generateEmergencyYouth } from '../data/generate-player.mjs';
@@ -43,7 +43,7 @@ import {
 import { applyTransactionDecay, chemistryMultiplier } from '../engine/chemistry.mjs';
 import { computePlayerFinalOVR, computePlayerBonusBreakdown, isSeed } from '../engine/ovr.mjs';
 import {
-  PLAYSTYLE_TAGS, POSITIONS, TAG_IDS, BASIC_TAGS, TAG_THRESHOLDS, TAG_VALUES,
+  PLAYSTYLE_TAGS, POSITIONS, TAG_IDS, BASIC_TAGS, TAG_THRESHOLDS, TAG_VALUES, tagAmp, flairBonusFor,
   STAFF_LEVELS, STAFF_PRICE_TABLE,
 } from '../engine/constants.mjs';
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
@@ -480,21 +480,24 @@ function playerTagsHtml(p) {
 }
 
 // 선수의 태그를 아이콘 한 줄로(플레이스타일 → 대륙 → 특수). active에 든 태그는 초록(지금 보너스 중).
-function tagInfoText(kind, id, seed = false) {
+function tagInfoText(kind, id, seed = false, ovr = 0) {
   if (kind === 'play') {
     return `${TAG_LABELS[id] ?? id}: ${TAG_DESC[id] ?? ''}. ${tagLadderText(TAG_THRESHOLDS, TAG_VALUES)}`
+      + (tagAmp(ovr) > 1 ? ` · 높은 등급이라 효과 ×${tagAmp(ovr)}` : '')
       + (seed ? ' · 성장 중: 전성기 전이라 효과가 절반이에요(전성기에 닿으면 완성).' : '');
   }
+  if (kind === 'flair') return `개인 특기 ${id}: 선발로 뛰면 본인 OVR +${flairBonusFor(ovr)}`;
   return `${TRAIT_LABELS[id] ?? id}: ${TRAIT_EFFECT_DESCRIPTIONS[id] ?? ''}. 대가: ${TRAIT_DOWNSIDE_TEXT[id] ?? ''}`;
 }
 // 선수의 태그를 아이콘 한 줄로(플레이스타일 → 대륙 → 특수). active에 든 태그는 초록(지금 보너스 중).
 // 눌러서 설명을 볼 수 있게 data-tag-info에 문장을 싣는다(선수단 탭에서 처리).
 function tagIconsHtml(p, active = null) {
   const on = (id) => (active && active.has(id) ? ' is-on' : '');
-  const btn = (kind, id) => `data-tag-info="${esc(tagInfoText(kind, id, isSeed(p)))}" role="button" tabindex="0"`;
+  const btn = (kind, id) => `data-tag-info="${esc(tagInfoText(kind, id, isSeed(p), p.baseOVR))}" role="button" tabindex="0"`;
   const play = (p.playstyleTags ?? []).map((t) => `<i class="ticon${isSeed(p) ? ' ticon--seed' : ''}${on(t)}" title="${esc(TAG_LABELS[t] ?? t)}" ${btn('play', t)}>${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}</i>`).join('');
   const trait = p.specialTrait ? `<i class="ticon ticon--trait" title="${esc(TRAIT_LABELS[p.specialTrait] ?? '')}" ${btn('trait', p.specialTrait)}>${renderTagIcon(TRAIT_ICON_PATHS, p.specialTrait)}</i>` : '';
-  return `<span class="ticons">${play}${trait}</span>`;
+  const flair = p.flair ? `<i class="ticon ticon--flair" title="${esc(p.flair)}" ${btn('flair', p.flair)}>★</i>` : '';
+  return `<span class="ticons">${play}${trait}${flair}</span>`;
 }
 
 function esc(text) {
@@ -782,7 +785,7 @@ function renderRecords() {
   const r = loadRecords(localStorage);
   const have = new Set(unlockedIds(r));
   const stat = (label, value) => `<div class="recstat"><span>${label}</span><b class="n">${value}</b></div>`;
-  const groups = ['커리어', '리그', '챔피언스리그', '선수', '명예'];
+  const groups = ['커리어', '리그', '챔피언스리그', '스타일', '선수', '명예'];
   const achHtml = groups.map((g) => `
     <h3 class="chemgroup__title">${g}</h3>
     <ul class="ach">
@@ -2563,6 +2566,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const styleNow = teamStyle(lineup);
   currentState.styleSeasons ??= {};
   if (styleNow) currentState.styleSeasons[styleNow.id] = (currentState.styleSeasons[styleNow.id] ?? 0) + 1;
+  if (styleNow && result === 'champion') updateRecords((r) => recordStyleTitle(r, styleNow.id)); // 스타일별 우승 기록(장기 업적)
   if (outcome.ended) {
     // 같은 클릭에서 보드진의 신임이 발동하고도 목표 미달로 경질될 수 있다.
     // 그 경우에도 성향이 발동했다는 사실은 알려야 한다.
@@ -2844,6 +2848,27 @@ function renderPromotionTransferDemand(keyPlayer) {
 // interactive면 각 칸이 클릭 가능한 data-slot을 달고 나온다(전술 탭 전용 -
 // 결산 화면 등 읽기 전용 피치에는 안 준다).
 // finalOVR: playerId -> 케미 보너스가 붙은 최종 OVR (전술 탭에서만 넘어온다).
+// 같은 태그가 발동한(3명 이상) 선수들을 같은 색 선으로 잇는다. 가까운 선수끼리 한 줄로 이어 "팀으로 묶였다"를 보여 준다.
+const TAG_COLORS = { pass: '#4db3ff', dribble: '#ff9a3d', physical: '#ff5d5d', press: '#d4ff3a', counter: '#ff5de0', buildup: '#3df0d0' };
+function pitchLinksSvg(slotted, coords) {
+  const by = {};
+  slotted.forEach((p, i) => { if (p) for (const t of p.playstyleTags ?? []) (by[t] ??= []).push(i); });
+  const lines = [];
+  for (const [t, idxs] of Object.entries(by)) {
+    if (idxs.length < TAG_THRESHOLDS[0]) continue;
+    const left = idxs.map((i) => [8 + coords[i][0] * 0.84, 7 + coords[i][1] * 0.86]);
+    let cur = left.splice(left.indexOf(left.reduce((m, q) => (q[0] <= m[0] ? q : m))), 1)[0];
+    while (left.length) {
+      let bi = 0; let bd = Infinity;
+      left.forEach((q, k) => { const d = (q[0] - cur[0]) ** 2 + (q[1] - cur[1]) ** 2; if (d < bd) { bd = d; bi = k; } });
+      const nx = left.splice(bi, 1)[0];
+      lines.push(`<line x1="${cur[0].toFixed(1)}" y1="${cur[1].toFixed(1)}" x2="${nx[0].toFixed(1)}" y2="${nx[1].toFixed(1)}" stroke="${TAG_COLORS[t] ?? '#fff'}" pathLength="100"/>`);
+      cur = nx;
+    }
+  }
+  return lines.length ? `<svg class="pitch__links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${lines.join('')}</svg>` : '';
+}
+
 function renderPitch(slotted, formationId, kit, { interactive = false, selectedSlot = null, finalOVR = null, activeTags = null } = {}) {
   const { slots, coords } = FORMATIONS[formationId];
   const chips = slots.map((pos, i) => {
@@ -2879,7 +2904,7 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
   const note = off
     ? `<p class="note"><b>금색 점선</b> ${off}명은 주 포지션이 아닌 자리에 섰습니다.</p>`
     : '';
-  return `<div class="pitch${interactive ? ' pitch--interactive' : ''}">${chips}</div>${note}`;
+  return `<div class="pitch${interactive ? ' pitch--interactive' : ''}">${pitchLinksSvg(slotted, coords)}${chips}</div>${note}`;
 }
 
 // 피치에서 선수 칸을 눌렀을 때: 그 선수가 어떤 케미에서 몇 점 받는지 출처별로.
@@ -3099,11 +3124,13 @@ function renderMarket(banner = '') {
       const lvl = reach < 0 ? 0 : reach === 0 ? 1 : 2;
       const desc = `${TAG_LABELS[t] ?? t}: ${TAG_DESC[t]}. 지금 라인업 ${count}명. ${tagLadderText(req, values)}`
         + (reach === 0 ? ' · 영입하면 발동!' : reach > 0 ? ' · 영입하면 강화!' : '')
-        + (seed ? ' · 성장 중: 전성기 전이라 효과가 절반이에요' : '');
+        + (tagAmp(c.baseOVR) > 1 ? ` · 높은 등급이라 효과 ×${tagAmp(c.baseOVR)}` : '')
+      + (seed ? ' · 성장 중: 전성기 전이라 효과가 절반이에요' : '');
       return `<button type="button" class="chip${lvl ? ` chip--up${lvl}` : ''}${seed ? ' chip--seed' : ''}" data-tag-desc="${esc(desc)}" title="${esc(TAG_LABELS[t] ?? t)}" aria-label="${esc(TAG_LABELS[t] ?? t)}">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}${lvl ? '<b>▲</b>' : ''}</button>`;
     };
     const tags = [
       ...c.playstyleTags.map(chip),
+      c.flair ? `<button type="button" class="chip chip--flair" data-tag-desc="${esc(tagInfoText('flair', c.flair, false, c.baseOVR))}" title="${esc(c.flair)}"><i>★</i><b>${esc(c.flair)}</b></button>` : '',
       c.specialTrait ? `<button type="button" class="chip chip--trait" data-tag-desc="${esc(`${TRAIT_LABELS[c.specialTrait]}: ${TRAIT_EFFECT_DESCRIPTIONS[c.specialTrait]}. 대가: ${TRAIT_DOWNSIDE_TEXT[c.specialTrait]}`)}" title="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}" aria-label="${esc(TRAIT_LABELS[c.specialTrait] ?? '')}">${renderTagIcon(TRAIT_ICON_PATHS, c.specialTrait)}</button>` : '',
     ].join('');
     // 같은 자리 비교: 이 선수가 들어가면 밀려날 선발(그 포지션 중 가장 약한 선수)과 개인 OVR만 견준다.

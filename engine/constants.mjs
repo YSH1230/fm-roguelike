@@ -63,15 +63,24 @@ export const POWER_VARIANCE_RATIO = 0.20;
 // 반기 전술 방향(2시즌 해금): 기대 승점은 같고 기복만 다르다. 공격은 대박 또는 쪽박, 수비는 안정적.
 export const DIRECTION_VARIANCE = { attack: 1.6, balance: 1, defense: 0.45 };
 
-// 6등급 - OVR 범위와 태그 개수. 태그는 기본 1개이고, extraTagChances의 각 값은 추가 태그 한 칸을 채울 확률이다
-// (local 1개 / 빅리거 1~2개 / 탑클래스 2개 / 월드클래스 2~3개 / 레전더리 3개).
+// 6등급 - OVR 범위. 모든 선수는 태그가 1개다(팀 컬러를 모으기 쉽게). 높은 등급의 이점은 개수가 아니라
+// 태그 효과 증폭(TAG_AMP)과 월드클래스 이상의 개인 특기(FLAIR)다.
 export const PLAYER_TIERS = {
-  local: { minOVR: 50, maxOVR: 62, extraTagChances: [] },
-  bigLeaguer: { minOVR: 63, maxOVR: 72, extraTagChances: [0.35] },
-  topClass: { minOVR: 73, maxOVR: 80, extraTagChances: [1] },
-  worldClass: { minOVR: 81, maxOVR: 87, extraTagChances: [1, 0.3] },
-  legendary: { minOVR: 88, maxOVR: 94, extraTagChances: [1, 1] },
+  local: { minOVR: 50, maxOVR: 62 },
+  bigLeaguer: { minOVR: 63, maxOVR: 72 },
+  topClass: { minOVR: 73, maxOVR: 80 },
+  worldClass: { minOVR: 81, maxOVR: 87 },
+  legendary: { minOVR: 88, maxOVR: 94 },
   // god는 전 세계 2명, 개별 수작업 카드 — data/god-players.mjs 참고, 여기서 생성 안 함
+};
+// 태그 효과 증폭: 본인이 받는 태그 보너스에 곱한다(OVR 기준 등급).
+export const TAG_AMP = [{ minOVR: 88, amp: 2 }, { minOVR: 81, amp: 1.5 }, { minOVR: 73, amp: 1.25 }];
+export const tagAmp = (ovr) => TAG_AMP.find((t) => ovr >= t.minOVR)?.amp ?? 1;
+// 개인 특기: 월드클래스(81+)는 본인 OVR +2, 레전더리(88+)는 +3. 이름은 포지션마다 다르다.
+export const FLAIR_MIN_OVR = 81;
+export const flairBonusFor = (ovr) => (ovr >= 88 ? 3 : ovr >= FLAIR_MIN_OVR ? 2 : 0);
+export const FLAIR_BY_POSITION = {
+  GK: '거미손', CB: '철벽', WB: '오버래퍼', DMF: '방패', CMF: '엔진', AMF: '플레이메이커', W: '드리블러', ST: '해결사',
 };
 
 export const POSITIONS = ['GK', 'CB', 'WB', 'DMF', 'CMF', 'AMF', 'W', 'ST'];

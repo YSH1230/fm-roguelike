@@ -150,3 +150,23 @@ test('베테랑 리더는 선발에만 있으면 어린 선수를 올리고, 중
   assert.equal(computePlayerFinalOVR(young, [l1, l2, young], []), young.baseOVR + 3);
   assert.equal(computePlayerFinalOVR(young, [young], [l1]), young.baseOVR); // 벤치 리더는 효과 없음
 });
+
+test('등급이 높을수록 태그 효과가 증폭된다(×1 / 1.25 / 1.5 / 2)', async () => {
+  const { tagAmp } = await import('../engine/constants.mjs');
+  assert.equal(tagAmp(60), 1);
+  assert.equal(tagAmp(75), 1.25);
+  assert.equal(tagAmp(85), 1.5);
+  assert.equal(tagAmp(92), 2);
+  const mk = (id, ovr) => makePlayer({ id, baseOVR: ovr, position: 'CMF', playstyleTags: ['pass'] });
+  const b = computePlaystyleSynergyBonus([mk('a', 60), mk('b', 85), mk('c', 92)]); // 3명 -> +1
+  assert.equal(b.get('a'), 1);
+  assert.equal(b.get('b'), 1.5);
+  assert.equal(b.get('c'), 2);
+});
+
+test('개인 특기: 월드클래스 +2, 레전더리 +3, 특기가 없으면 0', () => {
+  const lineup = [];
+  assert.equal(computePlayerFinalOVR(makePlayer({ id: 'w', baseOVR: 85, flair: '해결사' }), lineup, []), 87);
+  assert.equal(computePlayerFinalOVR(makePlayer({ id: 'l', baseOVR: 92, flair: '해결사' }), lineup, []), 95);
+  assert.equal(computePlayerFinalOVR(makePlayer({ id: 'n', baseOVR: 85, flair: null }), lineup, []), 85);
+});
