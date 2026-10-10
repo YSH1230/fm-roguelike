@@ -50,7 +50,7 @@ import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
 import { ageSquad, playerTrend, ensurePotential, hasPeaked, bodyAge } from '../engine/aging.mjs';
 import { estimatePeak } from '../engine/scouting.mjs';
-import { HAGGLE_DISCOUNTS, patienceFor, attitudeScore, attitudeLabel, clubBaseAttitude, cardUniform, offerAccepted, moodAfter } from '../engine/haggle.mjs';
+import { HAGGLE_DISCOUNTS, COUNTER_RAISES, counterAccepted, patienceFor, attitudeScore, attitudeLabel, clubBaseAttitude, cardUniform, offerAccepted, moodAfter } from '../engine/haggle.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait, appearanceOf } from './portrait.mjs';
 import { pixelMatchHtml } from './pixel.mjs';
@@ -1680,32 +1680,92 @@ function returnGodToPool(card) {
 // 방출 3단계 (스펙 7절): 즉시(0%) / 이적 명단(1주 소모, 여름·겨울 범위 회수율) / Week12 데드라인(40%, 소모 없음)
 // 2시즌부터는 등록하면 오퍼가 오고(기다리면 새 오퍼로 바뀜), 마감까지 안 팔리면 태업한다.
 function listPlayer(card) {
-  if (!isUnlocked('offers')) hometownExitPenalty(card); // 오퍼 방식은 실제로 팔릴 때 적용(태업 복귀 땐 벌 없음)
-  const method = currentState.phase === 'summer' ? 'listedSummer' : 'listedWinter';
-  // 겨울 이적명단은 당해 영입 선수를 받지 않는다 (스펙 7절)
+  // 팔리면 적응도 벌(지역 영웅·레전드)은 실제로 팔릴 때 적용한다(태업 복귀 땐 벌 없음)
   if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
-  const entry = { card, method, resolveWeek: currentState.week + 1 };
-  if (isUnlocked('offers')) entry.offers = generateSaleOffers(card.price, card.baseOVR);
-  currentState.listedForSale.push(entry);
+  // 구매 구단들이 오퍼를 낸다. 오퍼마다 만료(1~3주)가 있어서 오래 끌면 사라지고, 다 사라지면 태업한다.
+  const names = buildLeagueRivals(currentState.leagueTierId, 12).map((c) => c.name);
+  const offers = generateSaleOffers(card.price, card.baseOVR).map((amount) => ({
+    club: names[Math.floor(Math.random() * names.length)], amount, expires: currentState.week + 1 + Math.floor(Math.random() * 3),
+  }));
+  currentState.listedForSale.push({ card, offers });
+  return offers;
 }
 
 function listForSale(card) {
   if (card.boughtThisSeason) return;
-  listPlayer(card);
+  const offers = listPlayer(card);
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay());
-  renderMarket();
+  renderMarket(`${card.name}에 대한 오퍼가 ${offers.length}건 도착했습니다 - 선수단 탭에서 확인하세요`);
 }
 
-function acceptSaleOffer(cardId, amount) {
+function acceptSaleOffer(cardId, index, amount, viaCounter = false) {
   const l = currentState.listedForSale.find((x) => x.card.id === cardId);
-  if (!l || !l.offers?.includes(amount)) return;
+  const offer = l?.offers[index];
+  if (!l || !offer) return;
   currentState.listedForSale = currentState.listedForSale.filter((x) => x !== l);
   returnGodToPool(l.card);
   hometownExitPenalty(l.card);
+  if (!viaCounter) setMood(offer.club, 'asking'); // 제시한 금액 그대로 팔면 그 구단은 기분이 좋다
   currentState.funds += amount;
   currentState.seasonTrack.income += amount;
-  renderMarket(`${l.card.name} 이적 확정: ${amount}G`);
+  renderMarket(`${l.card.name}이(가) ${offer.club}(으)로 이적했습니다: ${amount}G`);
+}
+
+// 판매 협상 창: 오퍼 금액으로 팔거나 더 높은 금액을 불러 본다. 거절당하면 인내심이 줄고, 바닥나면 그 구단이 오퍼를 거둔다.
+function openSale(cardId, index, note = '') {
+  const l = currentState.listedForSale.find((x) => x.card.id === cardId);
+  const offer = l?.offers[index];
+  if (!l || !offer) return;
+  const root = document.getElementById('eventmodal-root');
+  currentState.patience ??= {};
+  currentState.rejected ??= {};
+  const key = `sale:${cardId}:${index}`;
+  const att = sellerAttitude(offer.club);
+  const maxPat = patienceFor(att.score);
+  const pat = currentState.patience[key] ?? maxPat;
+  const rejected = currentState.rejected[key] ?? Infinity; // 거절당한 비율 이상은 다시 못 고른다
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--goal haggle">
+        <div class="eventmodal__kicker">${esc(offer.club)} · 태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)}</div>
+        <div class="eventmodal__title">${esc(l.card.name)}</div>
+        <p class="eventmodal__detail">${esc(offer.club)}의 제시 금액은 ${offer.amount}G입니다.</p>
+        <div class="haggle__face" aria-label="인내심 ${pat}">${patienceFace(pat)}</div>
+        ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
+        <button class="cta" id="sale-accept">${offer.amount}G에 판매</button>
+        <div class="dirpick">
+          ${offer.amount > 0 ? COUNTER_RAISES.map((r) => `<button class="reroll" data-raise="${r}" ${r >= rejected ? 'disabled' : ''}>${Math.round(offer.amount * (1 + r))}G 요구</button>`).join('') : ''}
+        </div>
+        <button class="reroll" id="sale-close" style="margin-top:var(--s2);width:100%">그만두기</button>
+      </div>
+    </div>`;
+  document.getElementById('sale-accept').onclick = () => { root.innerHTML = ''; acceptSaleOffer(cardId, index, offer.amount); };
+  document.getElementById('sale-close').onclick = () => { root.innerHTML = ''; };
+  root.querySelectorAll('[data-raise]').forEach((btn) => {
+    btn.onclick = () => {
+      const r = Number(btn.dataset.raise);
+      const ok = counterAccepted({ raise: r, score: att.score, u: cardUniform(key, currentState.telemetryRun ?? '') });
+      if (ok) { root.innerHTML = ''; acceptSaleOffer(cardId, index, Math.round(offer.amount * (1 + r)), true); return; }
+      currentState.patience[key] = pat - 1;
+      currentState.rejected[key] = r;
+      if (pat - 1 <= 0) {
+        root.innerHTML = '';
+        setMood(offer.club, 'broken');
+        l.offers.splice(index, 1);
+        if (!l.offers.length) returnToSquadSlumped(l);
+        renderMarket(`${offer.club}이(가) 오퍼를 거뒀습니다`);
+        return;
+      }
+      openSale(cardId, index, '구단이 요구를 거절했습니다');
+    };
+  });
+}
+
+// 오퍼가 모두 사라졌거나 시장이 끝난 선수는 태업하며 선수단에 돌아온다.
+function returnToSquadSlumped(l) {
+  currentState.listedForSale = currentState.listedForSale.filter((x) => x !== l);
+  currentState.squad = [...currentState.squad, { ...l.card, baseOVR: Math.max(1, l.card.baseOVR - SLUMP_OVR_PENALTY), slump: SLUMP_OVR_PENALTY, boughtThisSeason: false }];
 }
 
 // 이벤트·유스 콜업·태업 복귀로 정원을 넘으면 시장 마감 때 선발·벤치가 아닌 낮은 OVR부터 자동 방출한다(긴급 유스는 제외).
@@ -1740,25 +1800,18 @@ function releaseDeadline(card) {
 function resolveListedSales() {
   const marketOver = (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1])
     || (currentState.phase === 'winter' && currentState.week > WINTER_MARKET_WEEKS[1]);
-  const slumpMessages = [];
-  // 오퍼 방식(2시즌~): 시장이 끝날 때까지 안 팔리면 태업하고 복귀
-  currentState.listedForSale = currentState.listedForSale.flatMap((l) => {
-    if (!l.offers) return [l];
-    if (!marketOver) return [l]; // 오퍼는 등록할 때 한 번 정해지고 바뀌지 않는다
-    currentState.squad = [...currentState.squad, { ...l.card, baseOVR: Math.max(1, l.card.baseOVR - SLUMP_OVR_PENALTY), slump: SLUMP_OVR_PENALTY, boughtThisSeason: false }];
-    slumpMessages.push(`${l.card.name} 태업(안 팔려서 복귀, OVR -${SLUMP_OVR_PENALTY})`);
-    return [];
-  });
-  const due = currentState.listedForSale.filter((l) => !l.offers && l.resolveWeek === currentState.week);
-  currentState.listedForSale = currentState.listedForSale.filter((l) => l.offers || l.resolveWeek !== currentState.week);
-  const messages = due.map((l) => {
-    returnGodToPool(l.card); // 정산이 끝나면 선수단 밖으로 완전히 나간 것
-    const proceeds = computeReleaseProceeds(l.card.price, l.method);
-    currentState.funds += proceeds;
-    currentState.seasonTrack.income += proceeds;
-    return `${l.card.name} 방출 완료: ${proceeds}G 회수`;
-  });
-  return [...messages, ...slumpMessages].join(' / ');
+  const messages = [];
+  for (const l of [...currentState.listedForSale]) {
+    const before = l.offers.length;
+    l.offers = l.offers.filter((o) => o.expires >= currentState.week); // 만료된 오퍼는 사라진다
+    if (marketOver || !l.offers.length) {
+      returnToSquadSlumped(l);
+      messages.push(`${l.card.name} 태업(${marketOver ? '시장이 끝나' : '오퍼가 모두 사라져'} 복귀, OVR -${SLUMP_OVR_PENALTY})`);
+    } else if (l.offers.length < before) {
+      messages.push(`${l.card.name}의 오퍼 ${before - l.offers.length}건이 만료됐습니다`);
+    }
+  }
+  return messages.join(' / ');
 }
 
 // 주차가 넘어갔다는 걸 알려주는 짧은 화면 플래시. 시장 화면은 통째로
@@ -3176,17 +3229,17 @@ function renderMarket(banner = '') {
     + sqSection('벤치', 'bench', bench, 'bench')
     + sqSection('예비', 'reserve', reservePlayers, 'reserve');
 
-  const listedHtml = listedForSale
-    .map((l) => (l.offers
-      ? `<li class="offerrow"><span>${esc(l.card.name)}${l.card.paidPrice ? `<small> 산 값 ${l.card.paidPrice}G</small>` : ''}</span><span class="offerrow__btns">${l.offers.map((a) => `<button class="act act--main" data-accept="${l.card.id}:${a}"><b>${a}G</b></button>`).join('')}</span></li>`
-      : `<li><span>${esc(l.card.name)}</span><span><b>${l.resolveWeek}</b>주차 정산</span></li>`))
-    .join('') + (listedForSale.some((l) => l.offers) ? '<li class="listed__hint">오퍼는 바뀌지 않습니다. 시장 마감까지 안 팔리면 태업(OVR -3)</li>' : '');
+  const listedHtml = listedForSale.map((l) => `<li class="offerlist">
+      <div class="offerlist__head">${esc(l.card.name)}${l.card.paidPrice ? `<small> 산 값 ${l.card.paidPrice}G</small>` : ''}</div>
+      ${l.offers.map((o, i) => `<button class="offerrow2" data-sale="${l.card.id}:${i}"><span>${esc(o.club)} ${attitudeFace(sellerAttitude(o.club).label)}</span><b class="n">${o.amount}G</b><small>${Math.max(0, o.expires - currentState.week + 1)}주 남음</small></button>`).join('')}
+    </li>`).join('') + (listedForSale.length ? '<li class="listed__hint">오퍼는 시간이 지나면 사라지고, 다 사라지거나 시장이 끝나면 태업(OVR -3)해요</li>' : '');
 
   const draftSub = isUnlocked('staff') ? currentState.draftSub ?? 'players' : 'players';
   const boardDemandCard = currentState.boardDemand ? getDemand(currentState.boardDemand.cardId) : null;
   const bodies = {
     draft: `
       <section class="panel tabpanel">
+        ${listedForSale.length ? `<button class="offerchip" data-goto-squad>받은 오퍼 ${listedForSale.reduce((n, l) => n + l.offers.length, 0)}건 ▸</button>` : ''}
         <div class="subtabs" role="tablist">
           <button type="button" role="tab" data-draft-sub="players" aria-selected="${draftSub === 'players'}">선수 <i>${shopOffer.length}</i></button>
           ${isUnlocked('staff') ? `<button type="button" role="tab" data-draft-sub="manager" aria-selected="${draftSub === 'manager'}">감독</button>
@@ -3354,7 +3407,7 @@ function renderMarket(banner = '') {
     ${banner ? `<div class="banner">${esc(banner)}</div>` : ''}
 
     <div class="tabs" role="tablist">
-      ${visibleTabs().map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${t.label}${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>` : ''}${t.id === 'squad' ? `<span class="tab__count${squad.length > capNow() ? ' tab__count--warn' : ''}">${squad.length}/${capNow()}</span>` : ''}</button>`).join('')}
+      ${visibleTabs().map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${t.label}${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>` : ''}${t.id === 'squad' ? `<span class="tab__count${squad.length > capNow() ? ' tab__count--warn' : ''}">${squad.length}/${capNow()}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}</button>`).join('')}
     </div>
     ${bodies[tab]}
   `, `<button class="cta" id="next-week-btn">${week === maxWeek ? (phase === 'summer' ? '전반기 시작' : '후반기 시작') : '다음 주로'}</button>`);
@@ -3367,6 +3420,7 @@ function renderMarket(banner = '') {
     while (demandText.scrollWidth > demandText.clientWidth && fs > 10) { fs -= 0.5; demandText.style.fontSize = `${fs}px`; }
   }
 
+  document.querySelector('[data-goto-squad]')?.addEventListener('click', () => { currentState.tab = 'squad'; renderMarket(); });
   for (const t of visibleTabs()) {
     document.querySelector(`[data-tab="${t.id}"]`).onclick = () => {
       currentState.tab = t.id;
@@ -3590,10 +3644,10 @@ function renderMarket(banner = '') {
     });
     document.querySelectorAll('[data-swap-in]').forEach((btn) => { btn.onclick = () => swapIntoLineup(btn.dataset.swapIn); });
     document.querySelectorAll('[data-swap-out]').forEach((btn) => { btn.onclick = () => swapOutOfLineup(btn.dataset.swapOut); });
-    document.querySelectorAll('[data-accept]').forEach((btn) => {
+    document.querySelectorAll('[data-sale]').forEach((btn) => {
       btn.onclick = () => {
-        const i = btn.dataset.accept.lastIndexOf(':');
-        acceptSaleOffer(btn.dataset.accept.slice(0, i), Number(btn.dataset.accept.slice(i + 1)));
+        const i2 = btn.dataset.sale.lastIndexOf(':');
+        openSale(btn.dataset.sale.slice(0, i2), Number(btn.dataset.sale.slice(i2 + 1)));
       };
     });
   }
@@ -3809,7 +3863,7 @@ function introTick() {
     ['staff', isUnlocked('staff'), '[data-tab="staff"]', '감독·스태프 탭이 열렸어요. 감독과 코치, 스카우터를 여기서 바꿀 수 있어요.'],
     ['traits', isUnlocked('traits') && draft && !!document.querySelector('.chip--trait'), '.chip--trait', '특수 성향 선수예요. 성향마다 효과와 대가가 자동으로 붙어요.'],
     ['haggle', draft && !!document.querySelector('.deal__buy:not([disabled])'), '.deal__buy:not([disabled])', '협상을 누르면 구단에 더 낮은 가격을 제안할 수 있어요. 거절당하면 얼굴이 굳어지고, 화가 나면 협상이 깨져 그 선수를 놓쳐요.'],
-    ['sale', currentState.tab === 'squad' && currentState.listedForSale.some((l) => l.offers), '.listed', '오퍼가 도착했어요. 하나를 수락해서 파세요. 마감까지 안 팔면 태업(OVR -3)해요.'],
+    ['sale', currentState.tab === 'squad' && currentState.listedForSale.length, '.listed', '오퍼가 도착했어요. 눌러서 팔거나 더 높은 금액을 불러 보세요. 오퍼는 시간이 지나면 사라지고, 다 사라지면 태업(OVR -3)해요.'],
   ];
   const next = items.find(([key, when]) => when && !seen[key]);
   if (next) showSpot({ selector: next[2], text: next[3], ...once(next[0]) });

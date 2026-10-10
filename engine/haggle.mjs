@@ -36,3 +36,13 @@ export function offerAccepted({ ask, trueValue, discount, score, u }) {
 
 // 그 구단과의 거래 결과가 기분에 미치는 영향
 export const moodAfter = (mood, event) => Math.max(MOOD_MIN, Math.min(MOOD_MAX, mood + (event === 'broken' ? -1 : event === 'asking' ? 1 : 0)));
+
+// ---- 판매 협상: 구매 구단이 낸 오퍼에 "더 불러보기" ----
+// 올려 달라는 비율(오퍼 대비). 구매자는 사는 쪽이라 파는 쪽 협상보다 폭이 절반이다(차익 방지).
+export const COUNTER_RAISES = [0.05, 0.1, 0.15];
+export const SALE_TOLERANCE_SCALE = 0.5;
+// 구단의 태도 점수(유연할수록 후하다)와 카드별 고정값으로, 오퍼 대비 올려 달라는 비율을 받아 주는지
+export function counterAccepted({ raise, score, u }) {
+  return raise <= toleranceFor(score, u) * SALE_TOLERANCE_SCALE;
+}
+

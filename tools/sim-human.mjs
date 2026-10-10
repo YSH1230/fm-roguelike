@@ -16,7 +16,7 @@ import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, compu
 import { getLeagueTier, getLadderIndex, getNextTier } from '../engine/league.mjs';
 import { optimizeLineup } from '../engine/lineup.mjs';
 import { ageSquad, ensurePotential } from '../engine/aging.mjs';
-import { patienceFor, offerAccepted } from '../engine/haggle.mjs';
+import { patienceFor, offerAccepted, counterAccepted } from '../engine/haggle.mjs';
 import { finalLeagueRank } from '../engine/half-results.mjs';
 import { judgeRunOutcome, nextMissedTargetCount } from '../engine/run.mjs';
 import { createUcl, advanceUcl, UCL_REWARDS_FUNDS } from '../engine/champions-league.mjs';
@@ -180,9 +180,22 @@ function playCareer() {
         // 선수 내보내기: 1시즌은 다음 주 정산, 2시즌부터는 오퍼 중 최고가를 바로 수락(기다림은 모델에 없음)
         const sellOut = (p) => {
           squad = squad.filter((x) => x.id !== p.id);
-          const method = phase === 'summer' ? 'listedSummer' : 'listedWinter';
-          if (s === 0) listed.push({ card: p, method, resolveWeek: week + 1 });
-          else { const got = Math.max(...generateSaleOffers(p.price, p.baseOVR)); funds += got; salesIncome += got; }
+          const offers = generateSaleOffers(p.price, p.baseOVR).sort((a, b) => b - a);
+          // 판매 협상: 구매 구단이 유연하면 +10%→+5%를 불러 본다. 인내심이 바닥나면 그 오퍼는 사라지고 다음 오퍼로 간다.
+          const sc = [-1, 0, 1][Math.floor(Math.random() * 3)];
+          const u = Math.random();
+          let got = offers[0] ?? 0;
+          if (sc >= 1 && got > 0) {
+            let pat = patienceFor(sc); let withdrawn = false;
+            for (const r of [0.1, 0.05]) {
+              if (counterAccepted({ raise: r, score: sc, u })) { got = Math.round(got * (1 + r)); break; }
+              pat -= 1;
+              if (pat <= 0) { withdrawn = true; break; }
+            }
+            if (withdrawn) got = offers[1] ?? null;
+          }
+          if (got === null) { squad = [...squad, { ...p, baseOVR: Math.max(1, p.baseOVR - 3) }]; return; } // 오퍼가 다 사라지면 태업 복귀
+          funds += got; salesIncome += got;
         };
         const spare = () => {
           const { xi: x0, bench: b0 } = optimizeLineup(squad, SLOTS, 5);

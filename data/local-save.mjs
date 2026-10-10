@@ -63,5 +63,12 @@ export function withRunDefaults(state, defaultFormation) {
   }
   state.eventTone ??= null; // 구버전 세이브는 이벤트 팝업 정보가 없다 - 안 띄운다
   state.expectationModifier ??= 0; // 구버전 세이브는 이사진 기대치 가감이 없다 - 중립
+  // 판매 오퍼는 { club, amount, expires } 형식이다. 숫자였던 옛 오퍼는 만료 없는 오퍼로 바꾼다.
+  if (state.listedForSale) {
+    state.listedForSale = state.listedForSale.map((l) => ({
+      ...l,
+      offers: (l.offers ?? []).map((o) => (typeof o === 'number' ? { club: '구단', amount: o, expires: 999 } : o)),
+    }));
+  }
   return state;
 }

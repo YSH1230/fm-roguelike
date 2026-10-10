@@ -18,7 +18,7 @@ test('처음엔 아무것도 열려 있지 않고 튜토리얼은 0단계다', (
 test('시즌에 도달하면 그 시즌까지의 기능이 열리고, 한 번만 새로 열린다', () => {
   const s = fakeStorage();
   assert.deepEqual(unlockForSeason(1, s), []);
-  assert.deepEqual(unlockForSeason(2, s).sort(), ['board', 'direction', 'mid', 'offers']);
+  assert.deepEqual(unlockForSeason(2, s).sort(), ['board', 'direction', 'mid']);
   assert.deepEqual(unlockForSeason(2, s), []); // 이미 열림
   assert.deepEqual(unlockForSeason(3, s).sort(), ['hard', 'staff', 'traits']);
   assert.equal(isUnlocked('hard', loadFlags(s)), true);
