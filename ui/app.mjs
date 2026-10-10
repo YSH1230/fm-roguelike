@@ -608,7 +608,7 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     const gained = myPts - (round > 1 ? pointsOf.get('me')[round - 2] : baseOf.get('me'));
     const verdict = gained >= 3 ? '승' : gained >= 1 ? '무' : '패';
     const moveText = move > 0 ? `▲${move}` : move < 0 ? `▼${-move}` : '';
-    // 승리한 라운드마다 선발 중 한 명이 MVP(OVR이 높을수록 잘 뽑힌다)
+    // 승리한 라운드마다 선발 중 한 명이 MVP(포지션 무관, OVR이 높을수록 조금 더 잘 뽑힌다)
     const mvp = gained >= 3 ? pickMvp() : null;
     // 운명의 라운드: 시즌 막판 승격선·강등선 근처
     const fate = second && round >= N - 2 && ((!ctx.isTop && rank >= 2 && rank <= 5) || (rank >= 15 && rank <= 18));
