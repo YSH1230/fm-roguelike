@@ -2112,3 +2112,4 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .tab__dot { display: inline-block; width: 8px; height: 8px; margin-left: 4px; border-radius: 50%; background: var(--turf); vertical-align: middle; }
 .offerchip { width: 100%; margin-bottom: var(--s2); padding: 8px 12px; background: color-mix(in srgb, var(--turf) 18%, var(--night)); border: 1px solid var(--turf); border-radius: var(--r-sm); color: var(--turf); font: inherit; font-weight: 700; text-align: left; }
 .listed li.offerlist { display: grid; justify-content: stretch; padding: var(--s2); }
+.offerrow2 small.is-last { color: var(--debit); font-weight: 700; }

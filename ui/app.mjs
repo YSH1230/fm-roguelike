@@ -242,10 +242,10 @@ function peakRangeText(p, role) {
   return e ? (e.lo === e.hi ? `${e.lo}` : `${e.lo}~${e.hi}`) : '';
 }
 
-// 전성기를 이미 지난 선수: 아직 정점(몸 나이 29 미만)이면 "전성기", 그 뒤는 "하락기".
+// 전성기를 이미 지난 선수: 아직 정점(몸 나이 29 미만)이면 "전성기", 그 뒤는 "전성기 지남".
 function peakStatusText(p) {
   if (!Number.isFinite(p.age) || p.peakOVR == null || !hasPeaked(p)) return '';
-  return bodyAge(p.age, p.position) < 29 ? '전성기' : '하락기';
+  return bodyAge(p.age, p.position) < 29 ? '전성기' : '전성기 지남';
 }
 
 function repricePlayer(p) {
@@ -1251,9 +1251,8 @@ function openHaggle(card, note = '') {  // 영입 창: 요구액 그대로 영�
   root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal eventmodal--goal haggle">
-        <div class="eventmodal__kicker">${esc(card.seller)} · 태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)}</div>
+        <div class="eventmodal__kicker">${esc(card.seller)} (태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)})</div>
         <div class="eventmodal__title">${esc(card.name)}</div>
-        <p class="eventmodal__detail">${esc(card.seller)}의 요구액은 ${ask}G입니다.</p>
         <div class="haggle__face" aria-label="인내심 ${pat}">${patienceFace(pat)}</div>
         ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
         <button class="cta" id="haggle-ask" ${currentState.funds < ask ? 'disabled' : ''}>요구액 ${ask}G로 영입</button>
@@ -1677,7 +1676,7 @@ function returnGodToPool(card) {
   if (god) currentState.availableGodPlayers = [...currentState.availableGodPlayers, god];
 }
 
-// 방출 3단계 (스펙 7절): 즉시(0%) / 이적 명단(1주 소모, 여름·겨울 범위 회수율) / Week12 데드라인(40%, 소모 없음)
+// 판매: 판매 등록 → 구매 구단들의 오퍼(기한 있음) → 수락하거나 더 불러 보기. 안 팔리면 태업.
 // 2시즌부터는 등록하면 오퍼가 오고(기다리면 새 오퍼로 바뀜), 마감까지 안 팔리면 태업한다.
 function listPlayer(card) {
   // 팔리면 적응도 벌(지역 영웅·레전드)은 실제로 팔릴 때 적용한다(태업 복귀 땐 벌 없음)
@@ -1696,7 +1695,7 @@ function listForSale(card) {
   if (card.boughtThisSeason) return;
   const offers = listPlayer(card);
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay());
-  renderMarket(`${card.name}에 대한 오퍼가 ${offers.length}건 도착했습니다 - 선수단 탭에서 확인하세요`);
+  renderMarket(`${card.name}에 대한 오퍼가 ${offers.length}건 도착했습니다. 기한 ${Math.max(...offers.map((o) => o.expires)) - currentState.week + 1}주까지 - 선수단 탭에서 확인하세요`);
 }
 
 function acceptSaleOffer(cardId, index, amount, viaCounter = false) {
@@ -1713,6 +1712,10 @@ function acceptSaleOffer(cardId, index, amount, viaCounter = false) {
 }
 
 // 판매 협상 창: 오퍼 금액으로 팔거나 더 높은 금액을 불러 본다. 거절당하면 인내심이 줄고, 바닥나면 그 구단이 오퍼를 거둔다.
+// 오퍼 기한: 남은 주(이번 주 포함). 마지막 주는 강조한다.
+const offerWeeksLeft = (offer) => Math.max(1, offer.expires - currentState.week + 1);
+const offerDeadlineText = (offer) => (offerWeeksLeft(offer) === 1 ? '오퍼 기한: 이번 주까지' : `오퍼 기한: ${offerWeeksLeft(offer)}주 남음`);
+
 function openSale(cardId, index, note = '') {
   const l = currentState.listedForSale.find((x) => x.card.id === cardId);
   const offer = l?.offers[index];
@@ -1728,9 +1731,9 @@ function openSale(cardId, index, note = '') {
   root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal eventmodal--goal haggle">
-        <div class="eventmodal__kicker">${esc(offer.club)} · 태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)}</div>
+        <div class="eventmodal__kicker">${esc(offer.club)} (태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)})</div>
         <div class="eventmodal__title">${esc(l.card.name)}</div>
-        <p class="eventmodal__detail">${esc(offer.club)}의 제시 금액은 ${offer.amount}G입니다.</p>
+        <p class="eventmodal__detail">${offerDeadlineText(offer)}</p>
         <div class="haggle__face" aria-label="인내심 ${pat}">${patienceFace(pat)}</div>
         ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
         <button class="cta" id="sale-accept">${offer.amount}G에 판매</button>
@@ -1784,17 +1787,6 @@ function enforceSquadCap() {
   out.forEach(returnGodToPool);
   currentState.squad = currentState.squad.filter((p) => !ids.has(p.id));
   return out.length ? `정원 초과로 방출: ${out.map((p) => p.name).join(', ')}` : '';
-}
-
-function releaseDeadline(card) {
-  if (card.boughtThisSeason) return;
-  hometownExitPenalty(card);
-  currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
-  returnGodToPool(card);
-  const proceeds = computeReleaseProceeds(card.price, 'deadline');
-  currentState.funds += proceeds;
-  currentState.seasonTrack.income += proceeds;
-  renderMarket();
 }
 
 function resolveListedSales() {
@@ -3042,7 +3034,6 @@ function renderMarket(banner = '') {
   const { club, manager, staff, squad, funds, chemistry, eventMessage, eventTone, shopOffer, phase, week, listedForSale } = currentState;
   const maxWeek = phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];
   const phaseLabel = phase === 'summer' ? '여름 이적시장' : '겨울 이적시장';
-  const isDeadlineWeek = phase === 'winter' && week === WINTER_MARKET_WEEKS[1];
   const formationId = currentFormation();
   const tab = visibleTabs().some((t) => t.id === currentState.tab) ? currentState.tab : 'draft';
   const manualOverrides = currentState.manualOverrides ?? {};
@@ -3134,8 +3125,8 @@ function renderMarket(banner = '') {
       </div>
       <div class="deal__body">
         <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세${playerTrend(c)}</span></div>
-        ${c.seller ? `<div class="deal__seller">${esc(c.seller)} · 태도 <b class="att att--${sellerAttitude(c.seller).label}">${sellerAttitude(c.seller).label}</b> ${attitudeFace(sellerAttitude(c.seller).label)}</div>` : ''}
-        ${peakRangeText(c, 'headScout') ? `<div class="deal__peak">전성기 <b class="n">${peakRangeText(c, 'headScout')}</b> <small>추정</small></div>` : peakStatusText(c) ? `<div class="deal__peak"><b>${peakStatusText(c)}</b>${peakStatusText(c) === '전성기' ? ' <small>지금이 정점</small>' : ' <small>내려가는 중</small>'}</div>` : ''}
+        ${c.seller ? `<div class="deal__seller">${esc(c.seller)} (태도 <b class="att att--${sellerAttitude(c.seller).label}">${sellerAttitude(c.seller).label}</b> ${attitudeFace(sellerAttitude(c.seller).label)})</div>` : ''}
+        ${peakRangeText(c, 'headScout') ? `<div class="deal__peak">전성기 <b class="n">${peakRangeText(c, 'headScout')}</b> <small>추정</small></div>` : peakStatusText(c) ? `<div class="deal__peak"><b>${peakStatusText(c)}</b>${peakStatusText(c) === '전성기' ? ' <small>지금이 정점</small>' : ''}</div>` : ''}
         <div class="deal__tags">${tags}</div>
         ${compareHtml}
       </div>
@@ -3208,12 +3199,11 @@ function renderMarket(banner = '') {
       </div>
       <div class="srow__side"><i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
-        ${peakRangeText(p, 'headCoach') ? `<span class="srow__paid">전성기 <b class="n">${peakRangeText(p, 'headCoach')}</b> 추정</span>` : peakStatusText(p) ? `<span class="srow__paid"><b>${peakStatusText(p)}</b>${peakStatusText(p) === '전성기' ? ' 지금이 정점' : ' 내려가는 중'}</span>` : ''}
+        ${peakRangeText(p, 'headCoach') ? `<span class="srow__paid">전성기 <b class="n">${peakRangeText(p, 'headCoach')}</b> 추정</span>` : peakStatusText(p) ? `<span class="srow__paid"><b>${peakStatusText(p)}</b>${peakStatusText(p) === '전성기' ? ' 지금이 정점' : ''}</span>` : ''}
         ${(currentState.mvpSeasons?.[p.id] || p.seasonsAtClub) ? `<span class="srow__paid">${p.seasonsAtClub ? `${p.seasonsAtClub + 1}시즌째` : ''}${currentState.mvpSeasons?.[p.id] ? ` · 시즌 MVP ${currentState.mvpSeasons[p.id]}회` : ''}${isLegend(p) ? ' · 팔면 적응도 -' + HOMETOWN_RELEASE_CHEMISTRY_PENALTY : ''}</span>` : ''}
         ${p.paidPrice ? `<span class="srow__paid">산 값 <b class="n">${p.paidPrice}G</b> · 시세 <b class="n">${p.price}G</b> <em class="${p.price > p.paidPrice ? 'up' : p.price < p.paidPrice ? 'down' : 'flat'}">${p.price >= p.paidPrice ? '+' : ''}${p.price - p.paidPrice}</em></span>` : p.price ? `<span class="srow__paid">시세 <b class="n">${p.price}G</b></span>` : ''}
         ${swap}
         <button class="act" data-release-listed="${p.id}" ${locked ? `disabled ${lockTitle}` : 'title="1주 뒤 정산"'}>판매 등록</button>
-        ${isDeadlineWeek ? `<button class="act act--warn" data-release-deadline="${p.id}" ${locked ? `disabled ${lockTitle}` : 'title="원가의 40% 회수"'}>데드라인 방출</button>` : ''}
       </div>
     </li>`;
   };
@@ -3231,7 +3221,7 @@ function renderMarket(banner = '') {
 
   const listedHtml = listedForSale.map((l) => `<li class="offerlist">
       <div class="offerlist__head">${esc(l.card.name)}${l.card.paidPrice ? `<small> 산 값 ${l.card.paidPrice}G</small>` : ''}</div>
-      ${l.offers.map((o, i) => `<button class="offerrow2" data-sale="${l.card.id}:${i}"><span>${esc(o.club)} ${attitudeFace(sellerAttitude(o.club).label)}</span><b class="n">${o.amount}G</b><small>${Math.max(0, o.expires - currentState.week + 1)}주 남음</small></button>`).join('')}
+      ${l.offers.map((o, i) => `<button class="offerrow2" data-sale="${l.card.id}:${i}"><span>${esc(o.club)} ${attitudeFace(sellerAttitude(o.club).label)}</span><b class="n">${o.amount}G</b><small class="${offerWeeksLeft(o) === 1 ? 'is-last' : ''}">${offerWeeksLeft(o) === 1 ? '이번 주까지' : `${offerWeeksLeft(o)}주 남음`}</small></button>`).join('')}
     </li>`).join('') + (listedForSale.length ? '<li class="listed__hint">오퍼는 시간이 지나면 사라지고, 다 사라지거나 시장이 끝나면 태업(OVR -3)해요</li>' : '');
 
   const draftSub = isUnlocked('staff') ? currentState.draftSub ?? 'players' : 'players';
@@ -3374,7 +3364,7 @@ function renderMarket(banner = '') {
         선수 영입 <b>−${track.spent.toLocaleString('ko-KR')}G</b> ·
         방출/판매 수입 <b>+${track.income.toLocaleString('ko-KR')}G</b> ·
         그 밖(겨울 지원금·이벤트 등) <b>${otherFlow >= 0 ? '+' : '−'}${Math.abs(otherFlow).toLocaleString('ko-KR')}G</b><br>
-        <b>이적 손익 ${net >= 0 ? '+' : '−'}${Math.abs(net).toLocaleString('ko-KR')}G</b> (수입 − 영입 지출). 이적 명단은 1주 뒤 일부, 12주 데드라인 방출은 원가의 40%를 돌려받습니다.
+        <b>이적 손익 ${net >= 0 ? '+' : '−'}${Math.abs(net).toLocaleString('ko-KR')}G</b> (수입 − 영입 지출). 선수는 판매 등록 뒤 오퍼를 받아 팝니다(오퍼 기한이 지나거나 시장이 끝나면 태업).
       </p>
       <p class="note chem-info" id="chem-info" hidden>
         <b>적응도 = 팀 조직력.</b> 높을수록 팀 전력이 오르고 낮을수록 깎입니다(지금 ×${chemistryMultiplier(chemistry).toFixed(3)}).<br>
@@ -3629,11 +3619,6 @@ function renderMarket(banner = '') {
       document.querySelector(`[data-release-listed="${p.id}"]`).onclick = () => {
         confirmRelease(p.id, `${p.name} 이적 명단에 올리시겠습니까?`, () => listForSale(p), banner);
       };
-      if (isDeadlineWeek) {
-        document.querySelector(`[data-release-deadline="${p.id}"]`).onclick = () => {
-          confirmRelease(p.id, `${p.name} 데드라인 방출하시겠습니까? (원가 40% 회수)`, () => releaseDeadline(p), banner);
-        };
-      }
     }
     // 선수 행을 누르면 관리 버튼(판매 등록/방출)이 펼쳐진다.
     document.querySelectorAll('.squad .srow[data-row]:not(.srow--gap)').forEach((row) => {
