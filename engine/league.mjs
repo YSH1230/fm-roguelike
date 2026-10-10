@@ -59,16 +59,16 @@ const LEAGUE_TIERS = {
   // 2000판 실측: 우승 22.3% / 승격 28.1% / 안전 47.1% / 강등 2.6%
   tier5: { label: '5부', averageOVR: [44, 52], safePoints: 38, targetPoints: 68, championPoints: 80 },
   // 2000판 실측: 우승 10.8% / 승격 22.7% / 안전 56.5% / 강등 9.9%
-  tier4: { label: '4부', averageOVR: [52, 60], safePoints: 40, targetPoints: 73, championPoints: 86 },
+  tier4: { label: '4부', averageOVR: [51, 59], safePoints: 40, targetPoints: 73, championPoints: 86 },
   // 2000판 실측: 우승 8.8% / 승격 17.3% / 안전 54.6% / 강등 19.3%
-  tier3: { label: '3부', averageOVR: [57, 64], safePoints: 42, targetPoints: 76, championPoints: 89 },
+  tier3: { label: '3부', averageOVR: [56, 64], safePoints: 42, targetPoints: 76, championPoints: 89 },
   // 2000판 실측: 우승 7.0% / 승격 11.8% / 안전 52.3% / 강등 28.8%
-  tier2: { label: '2부', averageOVR: [63, 71], safePoints: 44, targetPoints: 79, championPoints: 91 },
+  tier2: { label: '2부', averageOVR: [62, 70], safePoints: 44, targetPoints: 79, championPoints: 91 },
   // 2000판 실측: 우승 4.3% / 승격 12.7% / 안전 49.5% / 강등 33.6%
   // 상위 4개 리그가 4부 우승률 10% 아래 좁은 띠에 몰려 있어서, 우승률 순서를
   // 지키면 1부는 4~5%가 상한이다. championPoints 88~89로는 1부 우승률이 2부와
   // 오차 범위 안에서 겹쳐(6.6% vs 5.9%) 순서가 판마다 뒤집혔다. 91로 벌렸다.
-  tier1: { label: '1부', averageOVR: [71, 79], safePoints: 46, targetPoints: 82, championPoints: 95 },
+  tier1: { label: '1부', averageOVR: [69, 77], safePoints: 46, targetPoints: 82, championPoints: 95 },
 };
 
 // 낮은 리그부터. 사다리 순서는 엔진이 소유한다.

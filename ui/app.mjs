@@ -2848,27 +2848,6 @@ function renderPromotionTransferDemand(keyPlayer) {
 // interactive면 각 칸이 클릭 가능한 data-slot을 달고 나온다(전술 탭 전용 -
 // 결산 화면 등 읽기 전용 피치에는 안 준다).
 // finalOVR: playerId -> 케미 보너스가 붙은 최종 OVR (전술 탭에서만 넘어온다).
-// 같은 태그가 발동한(3명 이상) 선수들을 같은 색 선으로 잇는다. 가까운 선수끼리 한 줄로 이어 "팀으로 묶였다"를 보여 준다.
-const TAG_COLORS = { pass: '#4db3ff', dribble: '#ff9a3d', physical: '#ff5d5d', press: '#d4ff3a', counter: '#ff5de0', buildup: '#3df0d0' };
-function pitchLinksSvg(slotted, coords) {
-  const by = {};
-  slotted.forEach((p, i) => { if (p) for (const t of p.playstyleTags ?? []) (by[t] ??= []).push(i); });
-  const lines = [];
-  for (const [t, idxs] of Object.entries(by)) {
-    if (idxs.length < TAG_THRESHOLDS[0]) continue;
-    const left = idxs.map((i) => [8 + coords[i][0] * 0.84, 7 + coords[i][1] * 0.86]);
-    let cur = left.splice(left.indexOf(left.reduce((m, q) => (q[0] <= m[0] ? q : m))), 1)[0];
-    while (left.length) {
-      let bi = 0; let bd = Infinity;
-      left.forEach((q, k) => { const d = (q[0] - cur[0]) ** 2 + (q[1] - cur[1]) ** 2; if (d < bd) { bd = d; bi = k; } });
-      const nx = left.splice(bi, 1)[0];
-      lines.push(`<line x1="${cur[0].toFixed(1)}" y1="${cur[1].toFixed(1)}" x2="${nx[0].toFixed(1)}" y2="${nx[1].toFixed(1)}" stroke="${TAG_COLORS[t] ?? '#fff'}" pathLength="100"/>`);
-      cur = nx;
-    }
-  }
-  return lines.length ? `<svg class="pitch__links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${lines.join('')}</svg>` : '';
-}
-
 function renderPitch(slotted, formationId, kit, { interactive = false, selectedSlot = null, finalOVR = null, activeTags = null } = {}) {
   const { slots, coords } = FORMATIONS[formationId];
   const chips = slots.map((pos, i) => {
@@ -2904,7 +2883,7 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
   const note = off
     ? `<p class="note"><b>금색 점선</b> ${off}명은 주 포지션이 아닌 자리에 섰습니다.</p>`
     : '';
-  return `<div class="pitch${interactive ? ' pitch--interactive' : ''}">${pitchLinksSvg(slotted, coords)}${chips}</div>${note}`;
+  return `<div class="pitch${interactive ? ' pitch--interactive' : ''}">${chips}</div>${note}`;
 }
 
 // 피치에서 선수 칸을 눌렀을 때: 그 선수가 어떤 케미에서 몇 점 받는지 출처별로.
