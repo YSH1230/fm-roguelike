@@ -41,7 +41,7 @@ import {
   noOfferChance,
 } from '../engine/economy.mjs';
 import { applyTransactionDecay, chemistryMultiplier } from '../engine/chemistry.mjs';
-import { computePlayerFinalOVR, computePlayerBonusBreakdown, isSeed } from '../engine/ovr.mjs';
+import { computePlayerFinalOVR, computePlayerBonusBreakdown, isSeed, completedTags, COLOR_COMPLETE_CHEMISTRY, COLOR_COMPLETE_VALUE } from '../engine/ovr.mjs';
 import {
   PLAYSTYLE_TAGS, POSITIONS, TAG_IDS, BASIC_TAGS, TAG_THRESHOLDS, TAG_VALUES, tagAmp, flairBonusFor,
   STAFF_LEVELS, STAFF_PRICE_TABLE,
@@ -1705,7 +1705,9 @@ function listPlayer(card) {
   }
   // 구매 구단들이 오퍼를 낸다. 오퍼마다 만료(1~3주)가 있어서 오래 끌면 사라지고, 다 사라지면 태업한다.
   const names = buildLeagueRivals(currentState.leagueTierId, 12).map((c) => c.name);
-  const offers = generateSaleOffers(card.price, card.baseOVR).map((amount) => ({
+  const lineupBefore = pickBestXI([...currentState.squad, card], currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
+  const colorBoost = completedTags(lineupBefore).some((t) => card.playstyleTags.includes(t)) ? COLOR_COMPLETE_VALUE : 1; // 팀 컬러 완성: 그 태그 선수는 값이 오른다
+  const offers = generateSaleOffers(Math.round(card.price * colorBoost), card.baseOVR).map((amount) => ({
     club: names[Math.floor(Math.random() * names.length)], amount, expires: currentState.week + 1 + Math.floor(Math.random() * 3),
   }));
   currentState.listedForSale.push({ card, offers });
@@ -1871,6 +1873,9 @@ function askDirection(onPick) {
 
 function nextWeek() {
   currentState.chemistry = advanceWeek(currentState.chemistry, currentState.transactedThisWeek);
+  // 팀 컬러가 완성돼 있으면 거래와 상관없이 적응도 +1
+  const xi = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
+  if (completedTags(xi).length) currentState.chemistry = Math.min(100, currentState.chemistry + COLOR_COMPLETE_CHEMISTRY);
   currentState.transactedThisWeek = false;
   currentState.justBoughtIds = []; // NEW 표시는 산 주에만 - 다음 주로 넘어가면 지운다
   currentState.week += 1;
@@ -2986,6 +2991,7 @@ function renderChemistryPanel(lineup, bench) {
   return `<div class="panel">
     <div class="panel__head"><h2>팀 스타일</h2><span class="panel__count stylename">${style ? esc(style.name) : '아직 없음'}</span></div>
     ${styleRows}
+    ${completedTags(lineup).length ? `<p class="note stylecomplete">팀 컬러 완성 · 적응도 매주 +${COLOR_COMPLETE_CHEMISTRY} · 그 태그 선수의 판매 오퍼 +${Math.round((COLOR_COMPLETE_VALUE - 1) * 100)}%</p>` : '<p class="note">같은 태그 5명이 모이면 팀 컬러가 완성돼요(적응도와 판매 오퍼 보너스).</p>'}
     ${traitSection}
     <p class="note" id="chem-desc"></p>
   </div>`;

@@ -170,3 +170,11 @@ test('개인 특기: 월드클래스 +2, 레전더리 +3, 특기가 없으면 0'
   assert.equal(computePlayerFinalOVR(makePlayer({ id: 'l', baseOVR: 92, flair: '해결사' }), lineup, []), 95);
   assert.equal(computePlayerFinalOVR(makePlayer({ id: 'n', baseOVR: 85, flair: null }), lineup, []), 85);
 });
+
+test('팀 컬러 완성: 같은 태그 선발이 5명 이상이면 완성이다', async () => {
+  const { completedTags } = await import('../engine/ovr.mjs');
+  const mk = (id, tag) => makePlayer({ id, playstyleTags: [tag] });
+  const four = ['a', 'b', 'c', 'd'].map((i) => mk(i, 'press'));
+  assert.deepEqual(completedTags(four), []);
+  assert.deepEqual(completedTags([...four, mk('e', 'press'), mk('f', 'pass')]), ['press']);
+});
