@@ -3,9 +3,9 @@ import {
   MANAGER_TRAITS,
   HIGH_TIER_RESTRICTED_TRAITS,
   MANAGER_PRICE_TABLE,
-  ADVANCED_TAGS,
   BASIC_TAGS,
-  PLAYSTYLE_TAGS,
+  EXTRA_TAGS,
+  TAG_IDS,
   CONTINENT_TAGS,
 } from '../engine/constants.mjs';
 import { randomInRange } from '../engine/economy.mjs';
@@ -13,11 +13,10 @@ import { pick, randomName } from './name-pools.mjs';
 
 let nextId = 1;
 
-// 선호 전술 태그: 루키는 기본기만(초반 상점에도 흔해서 불화가 안 난다), 택티션은 기본기 70% / 보통 30%,
-// 레전더리는 보통·어려움. 어려운 태그는 낮은 등급 선수에게 없어서 낮은 등급 감독에게는 안 준다.
+// 선호 전술 태그: 루키는 처음 3종(초반 상점에도 흔해서 불화가 안 난다), 택티션은 3종 70% / 나머지 3종 30%, 레전더리는 6종 전부.
 function pickTacticalTag(tierId, rng) {
-  if (tierId === 'legendary') return pick(ADVANCED_TAGS, rng);
-  if (tierId === 'tactician' && rng() < 0.3) return pick(ADVANCED_TAGS.filter((t) => PLAYSTYLE_TAGS[t].grade === 'mid'), rng);
+  if (tierId === 'legendary') return pick(TAG_IDS, rng);
+  if (tierId === 'tactician' && rng() < 0.3) return pick(EXTRA_TAGS, rng);
   return pick(BASIC_TAGS, rng);
 }
 

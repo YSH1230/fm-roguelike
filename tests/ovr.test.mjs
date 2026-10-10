@@ -79,33 +79,31 @@ test('슈퍼 서브는 벤치에 있으면 선발 전원 +1, 여러 명이어도
   assert.equal(computeTeamTraitBonuses([starter], []).get('starter') ?? 0, 0);
 });
 
-test('플레이스타일 시너지: 문턱 3/4/5명에서 어려움 태그는 +4/+9/+15, 5명 넘어도 최대값', () => {
-  const make = (n) => Array.from({ length: n }, (_, i) => makePlayer({ id: `p${i}`, position: 'ST', playstyleTags: ['gegenpressing'] }));
+test('플레이스타일 시너지: 문턱 3/4/5명에서 +2/+4/+7, 5명 넘어도 최대값(포지션 무관)', () => {
+  const pos = ['ST', 'CMF', 'W', 'AMF', 'DMF', 'CMF', 'ST'];
+  const make = (n) => Array.from({ length: n }, (_, i) => makePlayer({ id: `p${i}`, position: pos[i], playstyleTags: ['press'] }));
   assert.equal(computePlaystyleSynergyBonus(make(2)).get('p0') ?? 0, 0);
-  assert.equal(computePlaystyleSynergyBonus(make(3)).get('p0'), 4);
-  assert.equal(computePlaystyleSynergyBonus(make(4)).get('p0'), 9);
-  assert.equal(computePlaystyleSynergyBonus(make(5)).get('p0'), 15);
-  assert.equal(computePlaystyleSynergyBonus(make(7)).get('p0'), 15);
+  assert.equal(computePlaystyleSynergyBonus(make(3)).get('p0'), 2);
+  assert.equal(computePlaystyleSynergyBonus(make(4)).get('p0'), 4);
+  assert.equal(computePlaystyleSynergyBonus(make(5)).get('p0'), 7);
+  assert.equal(computePlaystyleSynergyBonus(make(7)).get('p0'), 7);
 });
 
-test('기본기 태그는 약하다(+1/+2/+3)', () => {
-  const make = (n) => Array.from({ length: n }, (_, i) => makePlayer({ id: `p${i}`, position: 'CB', playstyleTags: ['pass'] }));
-  assert.equal(computePlaystyleSynergyBonus(make(3)).get('p0'), 1);
-  assert.equal(computePlaystyleSynergyBonus(make(6)).get('p0'), 2);
+test('씨앗: 전성기 전 선수는 효과가 절반이고 인원에는 그대로 센다, 개화(전성기 도달)하면 100%', () => {
+  const seed = (id) => makePlayer({ id, position: 'CMF', age: 20, playstyleTags: ['pass'], peakOVR: 75, peakBodyAge: 26 });
+  const bloom = (id) => makePlayer({ id, position: 'CMF', age: 28, playstyleTags: ['pass'], peakOVR: 70, peakBodyAge: 26 });
+  const b = computePlaystyleSynergyBonus([seed('a'), seed('b'), bloom('c')]); // 3명 -> +2
+  assert.equal(b.get('a'), 1); // 씨앗은 절반
+  assert.equal(b.get('c'), 2); // 개화는 전부
+  assert.equal(computePlaystyleSynergyBonus([seed('a'), seed('b')]).size, 0); // 2명이면 발동 안 함
 });
 
-test('플레이스타일 시너지: 3명이면 첫 값, 대상 포지션 보유자에게만', () => {
+test('태그가 다른 선수끼리는 합쳐지지 않는다', () => {
   const lineup = [
-    makePlayer({ id: 'a', position: 'ST', playstyleTags: ['gegenpressing'] }),
-    makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] }),
-    makePlayer({ id: 'c', position: 'CMF', playstyleTags: ['gegenpressing'] }),
-    makePlayer({ id: 'd', position: 'GK', playstyleTags: [] }),
+    makePlayer({ id: 'a', playstyleTags: ['pass'] }), makePlayer({ id: 'b', playstyleTags: ['pass'] }),
+    makePlayer({ id: 'c', playstyleTags: ['dribble'] }), makePlayer({ id: 'd', playstyleTags: ['physical'] }),
   ];
-  const bonuses = computePlaystyleSynergyBonus(lineup);
-  assert.equal(bonuses.get('a'), 4);
-  assert.equal(bonuses.get('b'), 4);
-  assert.equal(bonuses.get('c'), 4);
-  assert.equal(bonuses.get('d') ?? 0, 0);
+  assert.equal(computePlaystyleSynergyBonus(lineup).size, 0);
 });
 
 test('computePlayerFinalOVR은 baseOVR에 모든 가산을 합산한다', () => {
@@ -113,35 +111,35 @@ test('computePlayerFinalOVR은 baseOVR에 모든 가산을 합산한다', () => 
     id: 'a',
     baseOVR: 70,
     position: 'ST',
-    playstyleTags: ['gegenpressing'],
+    playstyleTags: ['press'],
     specialTrait: 'journeyman',
     acquiredThisSeason: true,
   });
-  const teammate1 = makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] });
-  const teammate2 = makePlayer({ id: 'c', position: 'CMF', playstyleTags: ['gegenpressing'] });
+  const teammate1 = makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['press'] });
+  const teammate2 = makePlayer({ id: 'c', position: 'CMF', playstyleTags: ['press'] });
   const lineup = [player, teammate1, teammate2];
-  // 70 (base) + 8 (저니맨) + 4 (게겐프레싱 3명 시너지) = 82
-  assert.equal(computePlayerFinalOVR(player, lineup, []), 82);
+  // 70 (base) + 8 (저니맨) + 2 (압박 3명 시너지) = 80
+  assert.equal(computePlayerFinalOVR(player, lineup, []), 80);
 });
 
 test('같은 태그 보유자가 3명 미만이면 보너스가 없다', () => {
   const lineup = [
-    makePlayer({ id: 'a', position: 'ST', playstyleTags: ['gegenpressing'] }),
-    makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] }),
+    makePlayer({ id: 'a', position: 'ST', playstyleTags: ['press'] }),
+    makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['press'] }),
   ];
   assert.equal(computePlaystyleSynergyBonus(lineup).get('a') ?? 0, 0);
 });
 
 test('출처별 상승 내역의 합은 최종 OVR - baseOVR과 같다', () => {
   const lineup = [
-    makePlayer({ id: 'a', position: 'CMF', baseOVR: 60, age: 20, playstyleTags: ['tikiTaka'] }),
-    makePlayer({ id: 'b', position: 'AMF', baseOVR: 60, playstyleTags: ['tikiTaka'] }),
-    makePlayer({ id: 'c', position: 'CMF', baseOVR: 60, playstyleTags: ['tikiTaka'], specialTrait: 'veteranLeader', age: 34 }),
+    makePlayer({ id: 'a', position: 'CMF', baseOVR: 60, age: 20, playstyleTags: ['pass'] }),
+    makePlayer({ id: 'b', position: 'AMF', baseOVR: 60, playstyleTags: ['pass'] }),
+    makePlayer({ id: 'c', position: 'CMF', baseOVR: 60, playstyleTags: ['pass'], specialTrait: 'veteranLeader', age: 34 }),
   ];
   const parts = computePlayerBonusBreakdown(lineup[0], lineup, []);
   const sum = parts.reduce((s, x) => s + x.value, 0);
   assert.equal(sum, computePlayerFinalOVR(lineup[0], lineup, []) - 60);
-  assert.deepEqual(parts.map((x) => x.id).sort(), ['tikiTaka', 'veteranLeader']);
+  assert.deepEqual(parts.map((x) => x.id).sort(), ['pass', 'veteranLeader']);
 });
 
 test('베테랑 리더는 선발에만 있으면 어린 선수를 올리고, 중복해도 +3 한 번', () => {
@@ -150,13 +148,4 @@ test('베테랑 리더는 선발에만 있으면 어린 선수를 올리고, 중
   const young = makePlayer({ id: 'young', age: 20 });
   assert.equal(computePlayerFinalOVR(young, [l1, l2, young], []), young.baseOVR + 3);
   assert.equal(computePlayerFinalOVR(young, [young], [l1]), young.baseOVR); // 벤치 리더는 효과 없음
-});
-
-test('문턱은 수혜 포지션에 선 보유자만 센다 - 포지션 밖 보유자는 인원에도 안 들어간다', () => {
-  const lineup = [
-    makePlayer({ id: 'a', position: 'ST', playstyleTags: ['gegenpressing'] }),
-    makePlayer({ id: 'b', position: 'CMF', playstyleTags: ['gegenpressing'] }),
-    makePlayer({ id: 'c', position: 'GK', playstyleTags: ['gegenpressing'] }), // 대상 포지션 아님
-  ];
-  assert.equal(computePlaystyleSynergyBonus(lineup).get('a') ?? 0, 0); // 3명처럼 보여도 실제 수혜자는 2명
 });

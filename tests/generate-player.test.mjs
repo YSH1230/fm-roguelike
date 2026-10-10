@@ -20,14 +20,16 @@ test('생성된 선수의 OVR은 등급 범위 안에 있다', () => {
   }
 });
 
-test('생성된 선수의 플레이스타일 태그 수는 등급 규칙과 일치한다', () => {
+test('생성된 선수의 태그 수는 등급 규칙과 일치한다(local 1개, 탑클래스 2개, 레전더리 3개)', () => {
   const rng = seededRng(2);
-  const legendary = generateProceduralPlayer('legendary', rng);
-  assert.equal(legendary.playstyleTags.length, 1 + PLAYER_TIERS.legendary.advancedSlots.length);
-  assert.equal(PLAYSTYLE_TAGS[legendary.playstyleTags[0]].grade, 'basic');
-  assert.ok(PLAYSTYLE_TAGS[legendary.playstyleTags[0]].positions.includes(legendary.position));
-  assert.equal(PLAYSTYLE_TAGS[legendary.playstyleTags[1]].grade, 'hard');
-  assert.equal(new Set(legendary.playstyleTags).size, legendary.playstyleTags.length); // 중복 없음
+  for (const [tier, n] of [['local', 1], ['topClass', 2], ['legendary', 3]]) {
+    for (let i = 0; i < 30; i++) {
+      const p = generateProceduralPlayer(tier, rng);
+      assert.equal(p.playstyleTags.length, n, tier);
+      assert.equal(new Set(p.playstyleTags).size, n); // 중복 없음
+      assert.ok(p.playstyleTags.every((t) => PLAYSTYLE_TAGS[t].positions.includes(p.position)), '그 포지션이 가질 수 있는 태그만');
+    }
+  }
 });
 
 test('성골 유스가 아니면 isDraftedYouth는 false다', () => {

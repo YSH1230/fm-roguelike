@@ -12,17 +12,18 @@ import {
   BASE_POINTS_AT_LEAGUE_AVERAGE,
 } from '../engine/constants.mjs';
 
-// 11-A 밸런스 패치로 스펙 초안 수치보다 상향됨(engine/constants.mjs 주석 참고) -
-// 이 테스트는 "8종/5종이 있고 각 태그 요구 인원(3/5명)은 그대로"라는 구조를
-// 고정하는 용도지, 보너스 절댓값을 스펙에 못박는 용도가 아니다.
-test('플레이스타일 태그 11종의 구조(포지션·등급별 보너스)가 유지된다', () => {
-  assert.equal(Object.keys(PLAYSTYLE_TAGS).length, 11);
-  assert.ok(PLAYSTYLE_TAGS.gegenpressing.positions.includes('DMF'));
-  assert.ok(PLAYSTYLE_TAGS.tikiTaka.positions.includes('AMF'));
-  assert.deepEqual(PLAYSTYLE_TAGS.totalFootball.positions, ['WB', 'CMF', 'DMF']);
+test('플레이스타일 태그 6종: 한 층, 모두 같은 문턱(3/4/5명)과 값(+2/+4/+7)', () => {
+  assert.deepEqual(Object.keys(PLAYSTYLE_TAGS).sort(), ['buildup', 'counter', 'dribble', 'pass', 'physical', 'press']);
   for (const tag of Object.values(PLAYSTYLE_TAGS)) {
-    assert.equal(tag.values.length, 3);
-    assert.ok(tag.values[1] > tag.values[0] && tag.values[2] > tag.values[1], '문턱이 높을수록 보너스가 커야 한다');
+    assert.deepEqual(tag.thresholds, [3, 4, 5]);
+    assert.deepEqual(tag.values, [2, 4, 7]);
+  }
+});
+
+test('모든 포지션은 가질 수 있는 태그가 3개 이상이다(선수 생성이 막히지 않게)', () => {
+  for (const pos of ['GK', 'CB', 'WB', 'DMF', 'CMF', 'AMF', 'W', 'ST']) {
+    const n = Object.values(PLAYSTYLE_TAGS).filter((d) => d.positions.includes(pos)).length;
+    assert.ok(n >= 3, `${pos} 가능한 태그 ${n}개`);
   }
 });
 
@@ -64,12 +65,3 @@ test('포메이션 8종: 각 11칸이고 쓰는 포지션은 모두 POSITIONS �
   }
 });
 
-test('모든 보통·어려움 태그는 어떤 포메이션에서든 최소 3슬롯, 한 포메이션 이상에서 5슬롯 이상이 된다', async () => {
-  const { FORMATIONS } = await import('../ui/formations.mjs');
-  for (const [tag, def] of Object.entries(PLAYSTYLE_TAGS)) {
-    if (def.grade === 'basic') continue;
-    const counts = Object.values(FORMATIONS).map((f) => f.slots.filter((p) => def.positions.includes(p)).length);
-    assert.ok(Math.min(...counts) >= 3, tag + ' 최소 슬롯');
-    assert.ok(Math.max(...counts) >= 5, tag + ' 최대 슬롯');
-  }
-});

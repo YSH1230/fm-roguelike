@@ -1,4 +1,5 @@
-import { PLAYSTYLE_TAGS, COACH_UNITS, COACH_FOCUS_ORDER, COACH_UNIT_BONUS_BY_LEVEL } from './constants.mjs';
+import { hasPeaked } from './aging.mjs';
+import { PLAYSTYLE_TAGS, SEED_EFFECT, COACH_UNITS, COACH_FOCUS_ORDER, COACH_UNIT_BONUS_BY_LEVEL } from './constants.mjs';
 
 // v2: 역할 칸(주장/에이스/조커)과 대륙 시너지는 폐지. 특수 성향은 선발/벤치에 있기만 하면 자동 적용되고,
 // 같은 성향이 여러 명이어도 팀 효과는 중첩되지 않는다. (마지막 roles 인자는 옛 호출부 호환용으로 무시)
@@ -54,15 +55,19 @@ export function coachBonusFor(coach, position) {
   return i >= 0 ? bonuses[i] ?? 0 : 0;
 }
 
+// 씨앗: 전성기 전 선수는 태그 효과를 절반만 받는다(인원 수에는 그대로 센다)
+export const isSeed = (p) => p.peakOVR != null && Number.isFinite(p.age) && !hasPeaked(p);
+
+// 같은 태그를 가진 선발 수로 문턱을 판정하고, 그 태그를 가진 선발 전원이 보너스를 받는다(씨앗은 절반).
 export function computePlaystyleSynergyBonus(lineup, onlyTagId = null) {
   const bonuses = new Map();
   for (const [tagId, tagDef] of Object.entries(PLAYSTYLE_TAGS)) {
     if (onlyTagId && tagId !== onlyTagId) continue;
-    const holders = lineup.filter((p) => p.playstyleTags.includes(tagId) && tagDef.positions.includes(p.position));
+    const holders = lineup.filter((p) => p.playstyleTags.includes(tagId));
     if (holders.length < tagDef.thresholds[0]) continue;
     const value = tieredValue(holders.length, tagDef.thresholds, tagDef.values);
     for (const p of holders) {
-      bonuses.set(p.id, (bonuses.get(p.id) ?? 0) + value);
+      bonuses.set(p.id, (bonuses.get(p.id) ?? 0) + value * (isSeed(p) ? SEED_EFFECT : 1));
     }
   }
   return bonuses;

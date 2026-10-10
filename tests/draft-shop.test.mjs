@@ -45,7 +45,7 @@ test('GOD 카드는 1부가 아니면 절대 안 뜬다', () => {
 });
 
 test('스카우터 목표 태그: 맨 앞 N장이 그 태그를 달고, 그 태그를 받는 포지션이다', () => {
-  for (const tag of ['counterAttack', 'tikiTaka']) {
+  for (const tag of ['counter', 'press']) {
     for (let i = 0; i < 50; i++) {
       const offer = generateShopOffer(4, [], Math.random, 'tier3', tag, 2);
       assert.equal(offer.length, 4);
@@ -57,21 +57,16 @@ test('스카우터 목표 태그: 맨 앞 N장이 그 태그를 달고, 그 태�
   }
 });
 
-test('스카우터 목표 태그: 5부에서 어려운 태그는 월드클래스 이상으로 올려 뽑는다', () => {
-  const [card] = generateShopOffer(3, [], Math.random, 'tier5', 'tikiTaka', 1);
-  assert.ok(card.playstyleTags.includes('tikiTaka'));
-  assert.ok(card.baseOVR >= 81);
-});
-
-test('목표 태그가 기본기면 보장 없이 평소 매물이다', () => {
+test('목표 태그는 처음 3종이어도 맨 앞 카드에 보장된다', () => {
   const offer = generateShopOffer(3, [], Math.random, 'tier5', 'pass', 3);
   assert.equal(offer.length, 3);
+  assert.ok(offer.every((c) => c.playstyleTags.includes('pass')));
 });
 
 test('스카우터 목표 포지션: 태그 보장 카드 다음 한 장이 그 포지션 선수다', () => {
   for (let i = 0; i < 50; i++) {
-    const offer = generateShopOffer(4, [], Math.random, 'tier3', 'tikiTaka', 1, 'GK');
-    assert.ok(offer[0].playstyleTags.includes('tikiTaka'));
+    const offer = generateShopOffer(4, [], Math.random, 'tier3', 'press', 1, 'GK');
+    assert.ok(offer[0].playstyleTags.includes('press'));
     assert.equal(offer[1].position, 'GK');
   }
   // 태그 없이 포지션만: 첫 장이 그 포지션
@@ -90,8 +85,8 @@ test('스카우터 상위 등급 확률: 값이 클수록 톱클래스 이상 �
 
 test('마스터 스카우터: 태그와 포지션을 동시에 만족하는 카드 1장이 맨 앞에 나온다', () => {
   for (let i = 0; i < 50; i++) {
-    const offer = generateShopOffer(4, [], Math.random, 'tier3', 'tikiTaka', 1, 'AMF', 0, true);
-    assert.ok(offer[0].playstyleTags.includes('tikiTaka'));
+    const offer = generateShopOffer(4, [], Math.random, 'tier3', 'press', 1, 'AMF', 0, true);
+    assert.ok(offer[0].playstyleTags.includes('press'));
     assert.equal(offer[0].position, 'AMF');
     assert.equal(offer.length, 4);
   }

@@ -36,15 +36,10 @@ function tierPool(tierId, boost = 0) {
 // 등장해도 목록에서 빼지 않는다 - 실제로 "영입"할 때만 소모(ui/app.mjs에서 처리).
 // tierId: 지금 뛰는 리그 등급. 안 넘기면 가장 관대한 tier1 분포를 쓴다
 // (구버전 호출부·유닛 테스트 호환용 기본값 - 실제 게임은 항상 넘긴다).
-// 그 태그를 달 수 있는 등급(engine/constants.mjs PLAYER_TIERS의 advancedSlots 기준): 보통은 빅리거~, 어려움은 월드클래스~.
-const TARGET_ELIGIBLE_TIERS = { mid: ['bigLeaguer', 'topClass', 'worldClass', 'legendary'], hard: ['worldClass', 'legendary'] };
-
-// 스카우터 목표 태그 카드: 이 리그 상점 분포에서 그 태그를 달 수 있는 등급만 가중 추첨한다.
-// 이 리그에 그런 등급이 없으면(5부의 어려운 태그 등) 가장 낮은 가능 등급으로 올려 뽑는다 - 비싸서 못 사는 건 의도.
+// 스카우터 목표 태그 카드: 이 리그 상점 분포의 등급으로 뽑되, 그 태그를 달 수 있는 포지션으로 만든다.
 function targetedCard(tag, tierId, rng, position = null) {
-  const eligible = TARGET_ELIGIBLE_TIERS[PLAYSTYLE_TAGS[tag].grade];
-  const pool = tierPool(tierId).filter((t) => eligible.includes(t));
-  const tier = pool.length ? pool[Math.floor(rng() * pool.length)] : eligible[0];
+  const pool = tierPool(tierId);
+  const tier = pool[Math.floor(rng() * pool.length)];
   return generateProceduralPlayer(tier, rng, position, tag);
 }
 
@@ -58,7 +53,7 @@ export function generateShopOffer(size, availableGods = [], rng = Math.random, t
   // 똑같이 뜰 수 있었다(local 카드들 사이에 OVR 88+ 카드가 섞이는 위화감).
   const godEligible = tierId === 'tier1' && availableGods.length > 0;
   return Array.from({ length: size }, (_, i) => {
-    if (targetTag && i < targetSlots && PLAYSTYLE_TAGS[targetTag]?.grade !== 'basic') return targetedCard(targetTag, tierId, rng, combined ? targetPosition : null);
+    if (targetTag && i < targetSlots && PLAYSTYLE_TAGS[targetTag]) return targetedCard(targetTag, tierId, rng, combined ? targetPosition : null);
     if (targetPosition && !(combined && targetTag && targetSlots) && i === (targetTag ? targetSlots : 0)) {
       return generateProceduralPlayer(pool[Math.floor(rng() * pool.length)], rng, targetPosition);
     }

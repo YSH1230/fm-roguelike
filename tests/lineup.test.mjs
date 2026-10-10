@@ -18,7 +18,7 @@ test('포지션을 지키면서 OVR 높은 선수를 넣는다', () => {
 });
 
 test('케미 문턱을 넘기는 조합이면 OVR이 조금 낮은 선수도 고른다', () => {
-  const tiki = ['tikiTaka'];
+  const tiki = ['pass'];
   const squad = [mk('gk', 'GK', 60), mk('cb1', 'CB', 60), mk('cb2', 'CB', 60),
     mk('c1', 'CMF', 60, { playstyleTags: tiki }), mk('c2', 'CMF', 60, { playstyleTags: tiki }),
     mk('c3', 'CMF', 62), // 태그 없음(OVR만 +2)

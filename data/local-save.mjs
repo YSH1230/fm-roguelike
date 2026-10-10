@@ -1,8 +1,8 @@
 import { generateStaffOffer } from './staff.mjs';
 
 const KEY = 'fm-roguelike-save';
-// 규칙이 크게 바뀌면(v2: 계약·대륙·역할 폐지, 정원, 판매 오퍼) 이전 규칙으로 진행 중이던 판은 이어할 수 없다. 기록·업적·최고 점수는 따로 저장돼 그대로 남는다.
-export const RULES_VERSION = 2;
+// 규칙이 크게 바뀌면(v2: 계약·대륙·역할 폐지, 정원, 판매 오퍼 / v3: 태그 6종·전성기) 이전 규칙으로 진행 중이던 판은 이어할 수 없다. 기록·업적·최고 점수는 따로 저장돼 그대로 남는다.
+export const RULES_VERSION = 3;
 
 // storage를 주입받아 브라우저 localStorage와 테스트용 가짜 스토리지를 둘 다 지원한다.
 // 프라이빗 브라우징 등에서 접근이 막혀도 게임이 멎지 않도록 전부 무시하고 넘어간다.

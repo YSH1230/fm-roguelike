@@ -1,38 +1,28 @@
-// 플레이스타일 태그 11종: 기본기(basic) 3 + 보통(mid) 4 + 어려움(hard) 4.
-// - 기본기: 모든 선수가 포지션에 맞는 것 1개를 가진다. 흔한 만큼 보너스는 작다("개인 능력" 느낌).
-// - 보통/어려움: 중상급 이상 선수만 가진다. 어려울수록 선수가 드물고 보너스가 크다.
-// 보너스는 그 태그의 수혜 포지션에 서 있는 보유자만 받고, 문턱도 그런 보유자만 센다(센 사람 = 받는 사람).
-// 포지션은 현실 근거(어떤 역할이 그 전술의 주인공인가)와 8개 포메이션에서의 공평성(태그마다 4~5슬롯 안팎)으로 정했다.
-// 문턱은 기본기 3/6/9명, 보통·어려움 3/4/5명. 값은 문턱 순서대로 values[i].
-const GRADE_THRESHOLDS = { basic: [3, 6, 9], mid: [3, 4, 5], hard: [3, 4, 5] };
-const GRADE_VALUES = { basic: [1, 2, 3], mid: [2, 4, 7], hard: [4, 9, 15] };
+// 플레이스타일 태그 6종, 등급 없이 한 층. 규칙은 하나다:
+//   같은 태그를 가진 선발이 3명이면 +2, 4명이면 +4, 5명 이상이면 +7 - 그 태그를 가진 선발 전원이 받는다(포지션 제한 없음).
+// 씨앗: 아직 전성기에 닿지 않은 선수는 태그 효과를 절반만 받는다(인원 수에는 그대로 센다). 전성기에 닿으면 "개화"해서 100%.
+// positions는 "그 태그를 가질 수 있는 포지션"이다(선수를 만들 때만 쓴다). 태그는 처음 3종(basic)이 1시즌부터, 나머지 3종(extra)은 2시즌에 열린다.
+export const TAG_THRESHOLDS = [3, 4, 5];
+export const TAG_VALUES = [2, 4, 7];
+export const SEED_EFFECT = 0.5;
 const withValues = (defs) => Object.fromEntries(
-  Object.entries(defs).map(([id, d]) => [id, { ...d, thresholds: GRADE_THRESHOLDS[d.grade], values: GRADE_VALUES[d.grade] }])
+  Object.entries(defs).map(([id, d]) => [id, { ...d, thresholds: TAG_THRESHOLDS, values: TAG_VALUES }])
 );
 export const PLAYSTYLE_TAGS = withValues({
-  pass: { grade: 'basic', positions: ['GK', 'CB', 'DMF', 'CMF', 'AMF'] }, // 패스 선호
-  dribble: { grade: 'basic', positions: ['WB', 'W', 'AMF', 'ST'] }, // 개인기 선호
-  physical: { grade: 'basic', positions: ['GK', 'CB', 'DMF', 'ST'] }, // 피지컬(몸싸움·제공권)
-  longBallKickAndRush: { grade: 'mid', positions: ['ST', 'CB', 'GK'] }, // 골킥·후방 롱패스와 타깃 ST
-  falseFullBack: { grade: 'mid', positions: ['WB', 'CB'] }, // 변형 3백
-  buildUpFromBack: { grade: 'mid', positions: ['GK', 'CB', 'DMF'] }, // 후방 빌드업
-  counterAttack: { grade: 'mid', positions: ['W', 'ST', 'WB'] }, // 선수비 후역습
-  gegenpressing: { grade: 'hard', positions: ['ST', 'W', 'CMF', 'DMF'] }, // 전방 압박 + 볼 회수
-  falseNine: { grade: 'hard', positions: ['ST', 'AMF', 'CMF', 'W'] }, // 가짜 9번과 침투 자원
-  tikiTaka: { grade: 'hard', positions: ['CMF', 'AMF', 'DMF', 'W'] },
-  totalFootball: { grade: 'hard', positions: ['WB', 'CMF', 'DMF'] },
+  pass: { group: 'basic', positions: ['GK', 'CB', 'DMF', 'CMF', 'AMF'] }, // 패스 플레이: 점유형
+  dribble: { group: 'basic', positions: ['WB', 'W', 'AMF', 'ST', 'CMF'] }, // 돌파: 개인기로 뚫기
+  physical: { group: 'basic', positions: ['GK', 'CB', 'DMF', 'CMF', 'ST'] }, // 몸싸움: 피지컬
+  press: { group: 'extra', positions: ['ST', 'W', 'CMF', 'DMF', 'AMF'] }, // 전방 압박
+  counter: { group: 'extra', positions: ['WB', 'W', 'ST', 'AMF', 'CMF'] }, // 역습
+  buildup: { group: 'extra', positions: ['GK', 'CB', 'WB', 'DMF', 'CMF'] }, // 후방 빌드업
 });
-export const BASIC_TAGS = Object.keys(PLAYSTYLE_TAGS).filter((t) => PLAYSTYLE_TAGS[t].grade === 'basic');
-export const ADVANCED_TAGS = Object.keys(PLAYSTYLE_TAGS).filter((t) => PLAYSTYLE_TAGS[t].grade !== 'basic');
+export const TAG_IDS = Object.keys(PLAYSTYLE_TAGS);
+export const BASIC_TAGS = TAG_IDS.filter((t) => PLAYSTYLE_TAGS[t].group === 'basic');
+export const EXTRA_TAGS = TAG_IDS.filter((t) => PLAYSTYLE_TAGS[t].group === 'extra');
 
-// 스펙 5.1절 "대륙 태그 5종" 표 — 포지션 무관, 5개 권역 동일 수치.
-// 위 플레이스타일과 같은 이유로 상향(3/5 → 5/8).
+// 이름 풀을 고르는 5개 권역(게임 규칙에는 쓰이지 않는다 - 대륙 시너지는 폐지).
 export const CONTINENT_TAGS = {
-  europe: { tier3: 3, tier5: 5 },
-  southAmerica: { tier3: 3, tier5: 5 },
-  africa: { tier3: 3, tier5: 5 },
-  asiaOceania: { tier3: 3, tier5: 5 },
-  northCentralAmerica: { tier3: 3, tier5: 5 },
+  europe: {}, southAmerica: {}, africa: {}, asiaOceania: {}, northCentralAmerica: {},
 };
 
 // 스펙 5.2절 "배율" — 루키/택티션/레전더리/GOD
@@ -73,14 +63,14 @@ export const POWER_VARIANCE_RATIO = 0.20;
 // 반기 전술 방향(2시즌 해금): 기대 승점은 같고 기복만 다르다. 공격은 대박 또는 쪽박, 수비는 안정적.
 export const DIRECTION_VARIANCE = { attack: 1.6, balance: 1, defense: 0.45 };
 
-// 스펙 5.1절 "6등급" — OVR 범위와 등급별 전술 태그 칸(기본기 1개는 모두 공통).
-// advancedSlots의 각 칸은 'mid'/'hard'/'any'(보통+어려움)에서 하나를 뽑는다. 끝에 '?'가 붙으면 45% 확률로만 채운다.
+// 6등급 - OVR 범위와 태그 개수. 태그는 기본 1개이고, extraTagChances의 각 값은 추가 태그 한 칸을 채울 확률이다
+// (local 1개 / 빅리거 1~2개 / 탑클래스 2개 / 월드클래스 2~3개 / 레전더리 3개).
 export const PLAYER_TIERS = {
-  local: { minOVR: 50, maxOVR: 62, advancedSlots: [] },
-  bigLeaguer: { minOVR: 63, maxOVR: 72, advancedSlots: ['mid?'] },
-  topClass: { minOVR: 73, maxOVR: 80, advancedSlots: ['mid'] },
-  worldClass: { minOVR: 81, maxOVR: 87, advancedSlots: ['any'] },
-  legendary: { minOVR: 88, maxOVR: 94, advancedSlots: ['hard', 'any'] },
+  local: { minOVR: 50, maxOVR: 62, extraTagChances: [] },
+  bigLeaguer: { minOVR: 63, maxOVR: 72, extraTagChances: [0.35] },
+  topClass: { minOVR: 73, maxOVR: 80, extraTagChances: [1] },
+  worldClass: { minOVR: 81, maxOVR: 87, extraTagChances: [1, 0.3] },
+  legendary: { minOVR: 88, maxOVR: 94, extraTagChances: [1, 1] },
   // god는 전 세계 2명, 개별 수작업 카드 — data/god-players.mjs 참고, 여기서 생성 안 함
 };
 

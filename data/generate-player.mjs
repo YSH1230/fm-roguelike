@@ -1,5 +1,5 @@
 import { generatePotential } from '../engine/aging.mjs';
-import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, BASIC_TAGS, ADVANCED_TAGS, SPECIAL_TRAITS, TRAIT_PRICE_MULT } from '../engine/constants.mjs';
+import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, TAG_IDS, SPECIAL_TRAITS, TRAIT_PRICE_MULT } from '../engine/constants.mjs';
 import { valuePrice } from '../engine/economy.mjs';
 import { pick, randomName } from './name-pools.mjs';
 
@@ -52,20 +52,14 @@ function withForcedTag(tags, forceTag) {
   return tags.length > 1 ? [tags[0], forceTag, ...tags.slice(2)] : [...tags, forceTag];
 }
 
-const ADVANCED_MAYBE_CHANCE = 0.45;
-
-// 기본기 1개(그 포지션이 보너스 대상인 것 중) + 등급이 허락하는 전술 태그.
+// 그 포지션이 가질 수 있는 태그 중에서 1개 + 등급이 허락하는 만큼 더 뽑는다(중복 없음).
 function pickPlaystyleTags(tier, position, rng) {
-  const tags = [pick(BASIC_TAGS.filter((t) => PLAYSTYLE_TAGS[t].positions.includes(position)), rng)];
-  // 그 포지션이 보너스를 받는 태그를 우선 뽑는다(받을 수 없는 태그는 인원만 채우는 함정). 없으면 등급 → 전체 순으로 완화.
-  const usable = (t) => !tags.includes(t) && PLAYSTYLE_TAGS[t].positions.includes(position);
-  for (const rawSlot of tier.advancedSlots) {
-    if (rawSlot.endsWith('?') && rng() >= ADVANCED_MAYBE_CHANCE) continue;
-    const slot = rawSlot.replace('?', '');
-    const gradeOk = (t) => slot === 'any' || PLAYSTYLE_TAGS[t].grade === slot;
-    const pool = [ADVANCED_TAGS.filter((t) => usable(t) && gradeOk(t)), ADVANCED_TAGS.filter(usable), ADVANCED_TAGS.filter((t) => !tags.includes(t))]
-      .find((p) => p.length);
-    tags.push(pick(pool, rng));
+  const allowed = TAG_IDS.filter((t) => PLAYSTYLE_TAGS[t].positions.includes(position));
+  const tags = [pick(allowed, rng)];
+  for (const chance of tier.extraTagChances) {
+    if (rng() >= chance) continue;
+    const rest = allowed.filter((t) => !tags.includes(t));
+    if (rest.length) tags.push(pick(rest, rng));
   }
   return tags;
 }

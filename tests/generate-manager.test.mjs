@@ -29,10 +29,10 @@ test('god 등급은 생성 불가(수작업 카드만 존재)', () => {
   assert.throws(() => generateProceduralManager('god'));
 });
 
-test('선호 전술 태그 등급: 루키는 기본기만, 택티션은 기본기·보통, 레전더리는 보통·어려움', async () => {
+test('선호 전술 태그: 루키는 처음 3종, 택티션은 처음 3종·나머지 3종, 레전더리는 6종 전부', async () => {
   const { PLAYSTYLE_TAGS } = await import('../engine/constants.mjs');
-  const grades = (tier) => new Set(Array.from({ length: 300 }, () => PLAYSTYLE_TAGS[generateProceduralManager(tier).tacticalTag].grade));
-  assert.deepEqual([...grades('rookie')], ['basic']);
-  assert.deepEqual([...grades('tactician')].sort(), ['basic', 'mid']);
-  assert.deepEqual([...grades('legendary')].sort(), ['hard', 'mid']);
+  const groups = (tier) => new Set(Array.from({ length: 400 }, () => PLAYSTYLE_TAGS[generateProceduralManager(tier).tacticalTag].group));
+  assert.deepEqual([...groups('rookie')], ['basic']);
+  assert.deepEqual([...groups('tactician')].sort(), ['basic', 'extra']);
+  assert.deepEqual([...groups('legendary')].sort(), ['basic', 'extra']);
 });
