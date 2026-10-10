@@ -38,6 +38,7 @@ import {
   computeReleaseProceeds,
   generateSaleOffers,
   valuePrice,
+  noOfferChance,
 } from '../engine/economy.mjs';
 import { applyTransactionDecay, chemistryMultiplier } from '../engine/chemistry.mjs';
 import { computePlayerFinalOVR, computePlayerBonusBreakdown } from '../engine/ovr.mjs';
@@ -1254,6 +1255,7 @@ function openHaggle(card, note = '') {  // 영입 창: 요구액 그대로 영�
         <div class="eventmodal__kicker">${esc(card.seller)} (태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)})</div>
         <div class="eventmodal__title">${esc(card.name)}</div>
         <div class="haggle__face" aria-label="인내심 ${pat}">${patienceFace(pat)}</div>
+        <p class="eventmodal__detail">${esc(card.seller)}의 요구액은 ${ask}G입니다.</p>
         ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
         <button class="cta" id="haggle-ask" ${currentState.funds < ask ? 'disabled' : ''}>요구액 ${ask}G로 영입</button>
         <div class="dirpick">
@@ -1682,6 +1684,12 @@ function listPlayer(card) {
   // 팔리면 적응도 벌(지역 영웅·레전드)은 실제로 팔릴 때 적용한다(태업 복귀 땐 벌 없음)
   if (currentState.phase === 'winter') currentState.seasonTrack.winterTransactions += 1;
   currentState.squad = currentState.squad.filter((p) => p.id !== card.id);
+  // 안 팔리는 선수는 오퍼가 한 건도 안 온다 - 자유계약으로 떠난다(태업 없이 선수단에서 사라짐).
+  if (Math.random() < noOfferChance(card)) {
+    returnGodToPool(card);
+    hometownExitPenalty(card);
+    return [];
+  }
   // 구매 구단들이 오퍼를 낸다. 오퍼마다 만료(1~3주)가 있어서 오래 끌면 사라지고, 다 사라지면 태업한다.
   const names = buildLeagueRivals(currentState.leagueTierId, 12).map((c) => c.name);
   const offers = generateSaleOffers(card.price, card.baseOVR).map((amount) => ({
@@ -1695,6 +1703,7 @@ function listForSale(card) {
   if (card.boughtThisSeason) return;
   const offers = listPlayer(card);
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay());
+  if (!offers.length) { renderMarket(`${card.name}에 대한 오퍼가 한 건도 없었습니다. 자유계약으로 팀을 떠납니다`); return; }
   renderMarket(`${card.name}에 대한 오퍼가 ${offers.length}건 도착했습니다. 기한 ${Math.max(...offers.map((o) => o.expires)) - currentState.week + 1}주까지 - 선수단 탭에서 확인하세요`);
 }
 
@@ -1733,7 +1742,7 @@ function openSale(cardId, index, note = '') {
       <div class="eventmodal eventmodal--goal haggle">
         <div class="eventmodal__kicker">${esc(offer.club)} (태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)})</div>
         <div class="eventmodal__title">${esc(l.card.name)}</div>
-        <p class="eventmodal__detail">${offerDeadlineText(offer)}</p>
+        <p class="eventmodal__detail">${esc(offer.club)}의 제시 금액은 ${offer.amount}G입니다. (${offerDeadlineText(offer)})</p>
         <div class="haggle__face" aria-label="인내심 ${pat}">${patienceFace(pat)}</div>
         ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
         <button class="cta" id="sale-accept">${offer.amount}G에 판매</button>
@@ -3126,7 +3135,7 @@ function renderMarket(banner = '') {
       <div class="deal__body">
         <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세${playerTrend(c)}</span></div>
         ${c.seller ? `<div class="deal__seller">${esc(c.seller)} (태도 <b class="att att--${sellerAttitude(c.seller).label}">${sellerAttitude(c.seller).label}</b> ${attitudeFace(sellerAttitude(c.seller).label)})</div>` : ''}
-        ${peakRangeText(c, 'headScout') ? `<div class="deal__peak">전성기 <b class="n">${peakRangeText(c, 'headScout')}</b> <small>추정</small></div>` : peakStatusText(c) ? `<div class="deal__peak"><b>${peakStatusText(c)}</b>${peakStatusText(c) === '전성기' ? ' <small>지금이 정점</small>' : ''}</div>` : ''}
+        ${peakRangeText(c, 'headScout') ? `<div class="deal__peak">전성기 <b class="n">${peakRangeText(c, 'headScout')}</b> <small>추정</small></div>` : peakStatusText(c) ? `<div class="deal__peak"><b>${peakStatusText(c)}</b></div>` : ''}
         <div class="deal__tags">${tags}</div>
         ${compareHtml}
       </div>
@@ -3199,7 +3208,7 @@ function renderMarket(banner = '') {
       </div>
       <div class="srow__side"><i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
-        ${peakRangeText(p, 'headCoach') ? `<span class="srow__paid">전성기 <b class="n">${peakRangeText(p, 'headCoach')}</b> 추정</span>` : peakStatusText(p) ? `<span class="srow__paid"><b>${peakStatusText(p)}</b>${peakStatusText(p) === '전성기' ? ' 지금이 정점' : ''}</span>` : ''}
+        ${peakRangeText(p, 'headCoach') ? `<span class="srow__paid">전성기 <b class="n">${peakRangeText(p, 'headCoach')}</b> 추정</span>` : peakStatusText(p) ? `<span class="srow__paid"><b>${peakStatusText(p)}</b></span>` : ''}
         ${(currentState.mvpSeasons?.[p.id] || p.seasonsAtClub) ? `<span class="srow__paid">${p.seasonsAtClub ? `${p.seasonsAtClub + 1}시즌째` : ''}${currentState.mvpSeasons?.[p.id] ? ` · 시즌 MVP ${currentState.mvpSeasons[p.id]}회` : ''}${isLegend(p) ? ' · 팔면 적응도 -' + HOMETOWN_RELEASE_CHEMISTRY_PENALTY : ''}</span>` : ''}
         ${p.paidPrice ? `<span class="srow__paid">산 값 <b class="n">${p.paidPrice}G</b> · 시세 <b class="n">${p.price}G</b> <em class="${p.price > p.paidPrice ? 'up' : p.price < p.paidPrice ? 'down' : 'flat'}">${p.price >= p.paidPrice ? '+' : ''}${p.price - p.paidPrice}</em></span>` : p.price ? `<span class="srow__paid">시세 <b class="n">${p.price}G</b></span>` : ''}
         ${swap}

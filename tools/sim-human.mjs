@@ -12,7 +12,7 @@ import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardRe
 import { applyTransactionDecay } from '../engine/chemistry.mjs';
 import { computeAverageOVR, computeTeamPower } from '../engine/team-power.mjs';
 import { computePlaystyleSynergyBonus } from '../engine/ovr.mjs';
-import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, computeReleaseProceeds, recallFunds, generateSaleOffers, valuePrice, FUNDS_SCALE, fundsScale } from '../engine/economy.mjs';
+import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, computeReleaseProceeds, recallFunds, generateSaleOffers, noOfferChance, valuePrice, FUNDS_SCALE, fundsScale } from '../engine/economy.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier } from '../engine/league.mjs';
 import { optimizeLineup } from '../engine/lineup.mjs';
 import { ageSquad, ensurePotential } from '../engine/aging.mjs';
@@ -180,6 +180,7 @@ function playCareer() {
         // 선수 내보내기: 1시즌은 다음 주 정산, 2시즌부터는 오퍼 중 최고가를 바로 수락(기다림은 모델에 없음)
         const sellOut = (p) => {
           squad = squad.filter((x) => x.id !== p.id);
+          if (Math.random() < noOfferChance(p)) return; // 오퍼가 없으면 자유계약으로 떠난다(수입 없음)
           const offers = generateSaleOffers(p.price, p.baseOVR).sort((a, b) => b - a);
           // 판매 협상: 구매 구단이 유연하면 +10%→+5%를 불러 본다. 인내심이 바닥나면 그 오퍼는 사라지고 다음 오퍼로 간다.
           const sc = [-1, 0, 1][Math.floor(Math.random() * 3)];
