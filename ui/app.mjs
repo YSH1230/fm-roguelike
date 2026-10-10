@@ -966,7 +966,7 @@ function startRun(club) {
   currentState.shopOffer = newShopOffer();
   currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id, currentState.leagueTierId);
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
-  if (!loadFlags().tutorialDone) ensureUpgradeOffer();
+  if (loadRecords(localStorage).runs <= 1) ensureUpgradeOffer(); // 계정의 첫 런에서만(튜토리얼을 건너뛰어도 보장)
   renderNaming();
 }
 
@@ -1394,7 +1394,7 @@ function hometownExitPenalty(card) {
   }
 }
 
-// 정원: 계정에서 '정원 24'가 열렸으면 24명, 아니면 26명(입문용).
+// 정원: 계정에서 '정원 20'이 열렸으면 20명, 아니면 22명(입문용).
 const capNow = () => (isUnlocked('cap') ? SQUAD_CAP : SQUAD_CAP_FIRST_SEASON);
 
 // 한 주의 첫 거래는 적응도가 깎이지 않는다. 교체 영입(영입+내보내기)은 한 건으로 센다.
@@ -1622,12 +1622,17 @@ function acceptSaleOffer(cardId, amount) {
 }
 
 // 이벤트·유스 콜업·태업 복귀로 정원을 넘으면 시장 마감 때 선발·벤치가 아닌 낮은 OVR부터 자동 방출한다(긴급 유스는 제외).
-function enforceSquadCap() {
+// 정원을 넘으면 선발·벤치가 아닌 낮은 OVR부터 내보낼 선수 목록(긴급 유스는 제외).
+function capOverflow() {
   const over = currentState.squad.filter((p) => !p.emergencyYouth).length - capNow();
-  if (over <= 0) return '';
+  if (over <= 0) return [];
   const { lineup, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   const keep = new Set([...lineup, ...bench].map((p) => p.id));
-  const out = currentState.squad.filter((p) => !p.emergencyYouth && !keep.has(p.id)).sort((a, b) => a.baseOVR - b.baseOVR).slice(0, over);
+  return currentState.squad.filter((p) => !p.emergencyYouth && !keep.has(p.id)).sort((a, b) => a.baseOVR - b.baseOVR).slice(0, over);
+}
+
+function enforceSquadCap() {
+  const out = capOverflow();
   const ids = new Set(out.map((p) => p.id));
   out.forEach(returnGodToPool);
   currentState.squad = currentState.squad.filter((p) => !ids.has(p.id));
@@ -2831,6 +2836,23 @@ function confirmRelease(playerId, question, onConfirm, banner) {
   row.querySelector('[data-confirm-no]').onclick = () => renderMarket(banner);
 }
 
+// 정원을 넘긴 채로 시장을 마치려 하면 누가 나가는지 미리 알린다.
+function showCapWarning(over, onProceed, onCancel) {
+  const root = document.getElementById('eventmodal-root');
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--bad">
+        <div class="eventmodal__kicker">정원 초과</div>
+        <div class="eventmodal__title">${over.length}명이 방출됩니다</div>
+        <p class="eventmodal__detail">정원 ${capNow()}명을 넘어서 선발·벤치 밖 낮은 OVR부터 내보냅니다: ${esc(over.map((p) => `${p.name}(${p.baseOVR})`).join(', '))}</p>
+        <button class="cta" id="cap-proceed">그대로 시작</button>
+        <button class="reroll" id="cap-cancel" style="margin-top:var(--s2);width:100%">돌아가서 정리하기</button>
+      </div>
+    </div>`;
+  document.getElementById('cap-proceed').onclick = () => { root.innerHTML = ''; onProceed(); };
+  document.getElementById('cap-cancel').onclick = () => { root.innerHTML = ''; onCancel(); };
+}
+
 // 포지션이 비어 있는 채로 경기를 시작하려 하면 먼저 알린다. 그대로 가면
 // 능력치가 가장 낮은 무명 유스(태그 없음)가 빈자리를 채운다.
 function showLineupWarning(missing, onProceed, onCancel) {
@@ -3475,11 +3497,16 @@ function renderMarket(banner = '') {
     const enteringSim = week === maxWeek; // 전/후반기 시뮬레이션은 renderSimulating이 따로 연출한다
     if (enteringSim) {
       const missing = missingPositions(currentState.squad, currentFormation());
+      const proceed = () => {
+        const over = capOverflow();
+        if (over.length) { showCapWarning(over, () => nextWeek(), () => renderMarket(banner)); return; }
+        nextWeek();
+      };
       if (missing.length) {
-        showLineupWarning(missing, () => nextWeek(), () => renderMarket(banner));
+        showLineupWarning(missing, proceed, () => renderMarket(banner));
         return;
       }
-      nextWeek();
+      proceed();
     } else {
       flashWeekTransition(`${week + 1}주차`, nextWeek);
     }
