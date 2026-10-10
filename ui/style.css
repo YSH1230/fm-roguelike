@@ -1527,7 +1527,7 @@ button:not(:disabled):active { transform: scale(0.98); }
 .coachfocus button[aria-pressed='true'] { background: var(--turf); border-color: var(--turf); color: var(--night); }
 .coachfocus small { flex-basis: 100%; color: var(--gold); font-size: var(--fs-micro); }
 
-/* 시즌 중에도 보이는 이사진 목표 띠(자금·적응도 아래) */
+/* 시즌 중에도 보이는 이사진 목표 띠(자금·조직력 아래) */
 .goalstrip {
   display: flex; flex-wrap: wrap; gap: 2px var(--s3); margin-top: var(--s2); padding: 5px var(--s2);
   font-size: var(--fs-micro); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm);

@@ -42,7 +42,7 @@ function runSimulation(tierId, managerTier, chemistry, runs = 100) {
   const safeRate =
     pointsResults.filter((p) => p >= tier.safePoints).length / pointsResults.length;
 
-  console.log(`--- ${tierId} / 감독:${managerTier} / 적응도:${chemistry} (${runs}회) ---`);
+  console.log(`--- ${tierId} / 감독:${managerTier} / 조직력:${chemistry} (${runs}회) ---`);
   console.log(`승점 평균: ${avg.toFixed(1)}, 최소: ${min.toFixed(1)}, 최대: ${max.toFixed(1)}`);
   console.log(`안전 승점(${tier.safePoints}) 이상 달성률: ${(safeRate * 100).toFixed(1)}%`);
 }

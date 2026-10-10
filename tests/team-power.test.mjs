@@ -32,12 +32,12 @@ test('computeAverageOVR은 11명의 최종 OVR 평균을 낸다(태그 없는 �
   assert.equal(computeAverageOVR(lineup, []), 70);
 });
 
-test('computeTeamMultiplier는 감독 배율 × 적응도 배율이고 캡을 넘지 않는다', () => {
-  // god(1.26) × 적응도 100(1.08) = 1.361 이지만 캡(1.30)에서 잘린다
+test('computeTeamMultiplier는 감독 배율 × 조직력 배율이고 캡을 넘지 않는다', () => {
+  // god(1.26) × 조직력 100(1.08) = 1.361 이지만 캡(1.30)에서 잘린다
   const top = computeTeamMultiplier('god', 100);
   assert.ok(Math.abs(top - 1.30) < 1e-9);
 
-  // rookie(1.00) × 적응도 60(1.015)
+  // rookie(1.00) × 조직력 60(1.015)
   const plain = computeTeamMultiplier('rookie', 60);
   assert.ok(Math.abs(plain - 1.015) < 1e-9);
 });

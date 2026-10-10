@@ -5,7 +5,7 @@
 //  - 16강/8강/4강은 2경기 합계(시드 높은 팀이 2차전 홈), 결승은 중립 단판. 합계 동률이면 승부차기.
 // 경기는 팀 파워에 변동(applyVariance)과 홈 이점(+HOME_POWER)을 줘서 굴린다. 상대 세기는 tier1 평균
 // (79~86) 위쪽으로 잡은 추정값이라 tune-ladder처럼 실측하면 더 정확해진다.
-// 상대 개성: 플레이 스타일(경기 득점 흐름에 영향)과 "원정팀의 무덤"(내 팀이 그곳 원정이면 적응도 절반).
+// 상대 개성: 플레이 스타일(경기 득점 흐름에 영향)과 "원정팀의 무덤"(내 팀이 그곳 원정이면 조직력 절반).
 // ponytail: 경기 결과는 파워 비교(+무승부 문턱)로만 정한다. 선수 단위 시뮬은 없다.
 import { applyVariance } from './team-power.mjs';
 
@@ -123,7 +123,7 @@ export function createUcl(myPower, rng = Math.random, { myPowerAway = null } = {
   const table = Object.fromEntries(teams.map((t) => [t.id, { p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, form: [] }]));
   return {
     teams, table, stage: 'league', day: 0, leg: 1,
-    myPowerAway: myPowerAway ?? myPower * 0.97, // 원정팀의 무덤에서 적응도가 절반이 된 전력
+    myPowerAway: myPowerAway ?? myPower * 0.97, // 원정팀의 무덤에서 조직력가 절반이 된 전력
     pots: [0, 1, 2, 3].map((p) => byStrength.slice(p * 9, p * 9 + 9)),
     fixtures: buildLeagueSchedule(byStrength, rng),
     ties: [], // 현재 토너먼트 라운드의 대진: { a(시드 높은 팀), b, legs: [{ga,gb}], winner, pens }
@@ -156,7 +156,7 @@ function record(state, h, a, m) {
   else { H.d += 1; A.d += 1; H.p += 1; A.p += 1; push(H, 'D'); push(A, 'D'); }
 }
 
-// 내 팀이 이 경기에서 쓰는 전력(원정팀의 무덤이면 적응도가 절반인 전력)
+// 내 팀이 이 경기에서 쓰는 전력(원정팀의 무덤이면 조직력가 절반인 전력)
 function powerFor(state, id, opponentId, isHome) {
   if (id !== 'me') return teamOf(state, id).power;
   const fortressAway = !isHome && teamOf(state, opponentId).fortress;

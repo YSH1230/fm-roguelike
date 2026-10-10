@@ -33,12 +33,12 @@ export const MANAGER_TIER_MULTIPLIER = {
   god: 1.26,
 };
 
-// 스펙 6절 "적응도(팀 조직력)"
+// 스펙 6절 "조직력(팀 조직력)"
 export const CHEMISTRY_START = 60;
 export const CHEMISTRY_DECAY_PER_TRANSACTION = 2;
 export const CHEMISTRY_RECOVERY_PER_STABLE_WEEK = 1;
 
-// 적응도 -> 팀 전력 배율 꺾은선(적응도, 배율). 예전엔 96 이상에서 ×1.12로
+// 조직력 -> 팀 전력 배율 꺾은선(조직력, 배율). 예전엔 96 이상에서 ×1.12로
 // 절벽처럼 뛰었지만 12주 시장 안에 96은 사실상 못 넘어서 체감이 없었다.
 // 시작값(60)에서 예전과 거의 같은 ×1.015로 맞춰 리그 밸런스를 안 흔든다.
 export const CHEMISTRY_CURVE = [[0, 0.94], [60, 1.015], [100, 1.08]];
@@ -46,7 +46,7 @@ export const CHEMISTRY_CURVE = [[0, 0.94], [60, 1.015], [100, 1.08]];
 // 스펙 12절 "미확정 사항" — 시뮬레이터로 조정할 튜닝 상수.
 // 여기서는 브레인스토밍에서 제시된 출발값을 그대로 코드 상수로 둔다.
 export const TEAM_MULTIPLIER_CAP = 1.30;
-// 이 공식은 teamPower(감독·적응도 배율이 곱해진 수치)를 리그 평균 "생 OVR"과
+// 이 공식은 teamPower(감독·조직력 배율이 곱해진 수치)를 리그 평균 "생 OVR"과
 // 바로 뺀다 — 구조상 모든 팀이 리그 평균보다 10점 이상 높게 나온다. 그래서
 // basePoints 42는 무조건 상향 보정이 됐고, 12주 이적시장에서 자금을 전부 쓰는
 // 플레이어는 우승 확률 58%가 나왔다(sim 실측).
@@ -113,7 +113,7 @@ export const MANAGER_TRAITS = [
   'longTermReign', // 장기 집권형
   'tacticalPurist', // 전술 원리주의자
 ];
-// 헤어드라이어는 적응도 +20을 즉시 주는 고배율급 효과라 낮은 등급 감독에만 배치
+// 헤어드라이어는 조직력 +20을 즉시 주는 고배율급 효과라 낮은 등급 감독에만 배치
 export const HIGH_TIER_RESTRICTED_TRAITS = ['hairdryer'];
 
 // 스펙 5.3절 "스태프" — 4단계 등급, 선수/감독보다 약함
@@ -180,7 +180,7 @@ export const SHOP_REROLL_COST = 50;
 
 // 스펙 5.3절 "스태프" 효과표
 export const COACH_CHEMISTRY_DECAY_BY_LEVEL = { academy: 1.5, proLicense: 1, veteran: 0.5, master: 0 };
-// 수석 코치의 유닛 보너스(적응도 하락 완화와 별개): 코치가 고른 "주력 유닛"부터 차례로 그 유닛 선수에게 OVR을 더한다.
+// 수석 코치의 유닛 보너스(조직력 하락 완화와 별개): 코치가 고른 "주력 유닛"부터 차례로 그 유닛 선수에게 OVR을 더한다.
 // 등급이 높을수록 더 많은 유닛에 더 크게. 예전 전력 배율(×1.01/1.025/1.04)과 비슷한 크기로 맞췄다.
 // 순서: COACH_FOCUS_ORDER[주력] = [주력, 2순위, 3순위]. 유닛 크기가 달라(4-3-3 수비 5 / 중원 3 / 공격 3) 포메이션에 따라 유불리가 생긴다.
 export const COACH_UNITS = { defense: ['GK', 'CB', 'WB'], midfield: ['DMF', 'CMF', 'AMF'], attack: ['W', 'ST'] };
@@ -235,7 +235,7 @@ export const PROMOTION_TRANSFER_DEMAND_CHANCE = 0.5;
 export const SUMMER_MARKET_WEEKS = [1, 8];
 export const WINTER_MARKET_WEEKS = [9, 12];
 
-// 스펙 8절 "승격 보상" — 적응도 상승 속도 2배는 슬라이스에서 생략(별도 시즌 플래그 필요), 나머지 둘만 적용
+// 스펙 8절 "승격 보상" — 조직력 상승 속도 2배는 슬라이스에서 생략(별도 시즌 플래그 필요), 나머지 둘만 적용
 export const PROMOTION_CHEMISTRY_BONUS = 5;
 // 스쿼드를 유지한 채 승격한 첫 시즌의 지급액 비율(예전엔 +10% 보너스). 이미 키운
 // 스쿼드에 새 리그 지급액을 그대로 주면 돈이 남아돌아 계산 없이 사고팔 수 있었다.
@@ -265,7 +265,7 @@ export const REPUTATION_DOUBLE = 100; // 같은 시즌 1부 우승 + 챔피언�
 
 // 이사진 시즌 목표(승점) - 안전선과 승격선 사이 어디쯤에 둘지(0=안전선, 1=승격선).
 // 초과 달성한 승점 1점당 다음 시즌 지급액의 1.5%(상한 30%)를 보너스로 주고,
-// 한 점이라도 넘기면 적응도도 올려준다.
+// 한 점이라도 넘기면 조직력도 올려준다.
 export const BOARD_GOAL_POSITION = 0.6;
 export const BOARD_REWARD_FUNDS_PER_POINT = 0.015;
 export const BOARD_REWARD_FUNDS_CAP = 0.3;

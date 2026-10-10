@@ -3,7 +3,7 @@ import { convertPowerToPoints, getLeagueTier } from './league.mjs';
 import { applyStableWeekRecovery } from './chemistry.mjs';
 import { DIRECTION_VARIANCE, POWER_VARIANCE_RATIO, BOARD_GOAL_POSITION, BOARD_REWARD_FUNDS_PER_POINT, BOARD_REWARD_FUNDS_CAP, BOARD_REWARD_CHEMISTRY } from './constants.mjs';
 
-// 이적시장 한 주가 지나갈 때: 거래가 있었으면 그대로, 없었으면 적응도 +1 (스펙 6절)
+// 이적시장 한 주가 지나갈 때: 거래가 있었으면 그대로, 없었으면 조직력 +1 (스펙 6절)
 export function advanceWeek(chemistry, hadTransactionThisWeek) {
   return hadTransactionThisWeek ? chemistry : applyStableWeekRecovery(chemistry);
 }

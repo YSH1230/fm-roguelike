@@ -60,7 +60,7 @@ export const isSeed = (p) => p.peakOVR != null && Number.isFinite(p.age) && !has
 
 // 팀 컬러 완성: 같은 태그를 가진 선발이 5명 이상이면 그 태그의 팀 컬러가 "완성"된다.
 export const COLOR_COMPLETE_COUNT = 5;
-export const COLOR_COMPLETE_CHEMISTRY = 1; // 완성된 주마다 적응도 +1(거래가 있어도)
+export const COLOR_COMPLETE_CHEMISTRY = 1; // 완성된 주마다 조직력 +1(거래가 있어도)
 export const COLOR_COMPLETE_VALUE = 1.05; // 그 태그를 가진 선수의 판매 오퍼 +5%
 export function completedTags(lineup) {
   return Object.keys(PLAYSTYLE_TAGS).filter((t) => lineup.filter((p) => p.playstyleTags.includes(t)).length >= COLOR_COMPLETE_COUNT);

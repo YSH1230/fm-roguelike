@@ -46,7 +46,7 @@ test('bad 이벤트는 crisisImmune이면 효과 없이 무효화된다', () => 
   assert.match(r.message, /무효/);
 });
 
-test('rivalPoach: 적응도가 4 깎인다', () => {
+test('rivalPoach: 조직력가 4 깎인다', () => {
   const r = rollSeasonEvent(ctx(), 'summer', seq(0, 0.5), { rivalPoach: 1000 });
   assert.equal(r.chemistry, ctx().chemistry - 4);
 });
@@ -122,7 +122,7 @@ test('전술 분석관 합류: 불화 면제 플래그를 건다', () => {
   assert.equal(r.state.harmonyShield, true);
 });
 
-test('출전 요구: 약속하면 OVR +1·적응도 -2, 거절하면 OVR -1', async () => {
+test('출전 요구: 약속하면 OVR +1·조직력 -2, 거절하면 OVR -1', async () => {
   const { resolveChoice } = await import('../data/season-events.mjs');
   const c = { id: 'playtimeDemand', payload: { playerId: 'a' } };
   const base = ctx();

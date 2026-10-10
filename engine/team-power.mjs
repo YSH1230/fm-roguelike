@@ -13,7 +13,7 @@ export function computeAverageOVR(lineup, bench, coach = null) {
   return total / lineup.length;
 }
 
-// extras: { leagueTierId } - 리그가 기대하는 감독 대비 배율. 없으면(옛 호출) 감독 × 적응도만 곱한다.
+// extras: { leagueTierId } - 리그가 기대하는 감독 대비 배율. 없으면(옛 호출) 감독 × 조직력만 곱한다.
 // 수석 코치 효과는 선수 OVR에 유닛 보너스로 이미 들어가 있다(engine/ovr.mjs coachBonusFor).
 export function computeTeamMultiplier(managerTier, chemistry, extras = {}) {
   const expected = extras.leagueTierId ? LEAGUE_EXPECTED_MANAGER[extras.leagueTierId] ?? 1 : 1;

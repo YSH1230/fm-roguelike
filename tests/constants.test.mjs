@@ -42,7 +42,7 @@ test('감독 등급 배율이 스펙과 일치한다', () => {
   assert.equal(MANAGER_TIER_MULTIPLIER.god, 1.26);
 });
 
-test('적응도 기본 상수가 스펙과 일치한다', () => {
+test('조직력 기본 상수가 스펙과 일치한다', () => {
   assert.equal(CHEMISTRY_START, 60);
   assert.equal(CHEMISTRY_DECAY_PER_TRANSACTION, 2);
   assert.equal(CHEMISTRY_RECOVERY_PER_STABLE_WEEK, 1);

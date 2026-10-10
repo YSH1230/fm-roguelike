@@ -45,11 +45,11 @@ const EVENTS = [
   },
   {
     id: 'pressPraise', name: '언론의 호평', tone: 'good',
-    apply: ({ chemistry }) => ({ chemistry: clamp(chemistry + 8, 0, 100), message: '언론의 호평: 팀 분위기가 좋아졌습니다. 적응도 +8' }),
+    apply: ({ chemistry }) => ({ chemistry: clamp(chemistry + 8, 0, 100), message: '언론의 호평: 팀 분위기가 좋아졌습니다. 조직력 +8' }),
   },
   {
     id: 'pressCriticism', name: '언론의 융단 폭격', tone: 'bad',
-    apply: ({ chemistry }) => ({ chemistry: clamp(chemistry - 8, 0, 100), message: '언론의 융단 폭격: 라커룸이 뒤숭숭합니다. 적응도 -8' }),
+    apply: ({ chemistry }) => ({ chemistry: clamp(chemistry - 8, 0, 100), message: '언론의 융단 폭격: 라커룸이 뒤숭숭합니다. 조직력 -8' }),
   },
   {
     // 무료 영입. 이번 한 시즌만 뛰고 시즌이 끝나면 은퇴한다(retiresAfterSeason).
@@ -63,7 +63,7 @@ const EVENTS = [
     id: 'rivalPoach', name: '라이벌의 러브콜', tone: 'bad',
     apply: ({ squad, chemistry }) => {
       const ace = [...squad].sort((a, b) => b.baseOVR - a.baseOVR)[0];
-      return { chemistry: clamp(chemistry - 4, 0, 100), message: `라이벌의 러브콜: ${ace.name}이(가) 흔들려 라커룸이 뒤숭숭합니다. 적응도 -4` };
+      return { chemistry: clamp(chemistry - 4, 0, 100), message: `라이벌의 러브콜: ${ace.name}이(가) 흔들려 라커룸이 뒤숭숭합니다. 조직력 -4` };
     },
   },
   {
@@ -82,7 +82,7 @@ const EVENTS = [
     apply: ({ squad, chemistry, manager }) => {
       const tag = manager?.tacticalTag;
       const holders = squad.filter((p) => tag && p.playstyleTags.includes(tag));
-      if (!holders.length) return { chemistry: clamp(chemistry + 5, 0, 100), message: '전술 세미나: 감독의 특강으로 팀이 하나가 됩니다. 적응도 +5' };
+      if (!holders.length) return { chemistry: clamp(chemistry + 5, 0, 100), message: '전술 세미나: 감독의 특강으로 팀이 하나가 됩니다. 조직력 +5' };
       const best = topBy(holders, 'baseOVR');
       return {
         squad: squad.map((p) => (p.id === best.id ? { ...p, baseOVR: Math.min(99, p.baseOVR + 2) } : p)),
@@ -98,7 +98,7 @@ const EVENTS = [
     id: 'localFestival', name: '지역 축제 초청', tone: 'good',
     apply: ({ funds, chemistry, baseFunds }) => {
       const gift = Math.round(baseFunds * 0.05);
-      return { funds: funds + gift, chemistry: clamp(chemistry + 3, 0, 100), message: `지역 축제 초청: 지원금 +${gift}G, 적응도 +3` };
+      return { funds: funds + gift, chemistry: clamp(chemistry + 3, 0, 100), message: `지역 축제 초청: 지원금 +${gift}G, 조직력 +3` };
     },
   },
   {
@@ -127,7 +127,7 @@ const EVENTS = [
       return {
         squad: squad.map((p) => (p.id === target.id ? { ...p, baseOVR: Math.max(1, p.baseOVR - 1) } : p)),
         chemistry: clamp(chemistry - 4, 0, 100),
-        message: `선수 SNS 논란: ${target.name}의 부적절한 게시물로 분위기가 가라앉았습니다. 적응도 -4, OVR -1`,
+        message: `선수 SNS 논란: ${target.name}의 부적절한 게시물로 분위기가 가라앉았습니다. 조직력 -4, OVR -1`,
       };
     },
   },
@@ -165,7 +165,7 @@ const CHOICES = [
         detail: p ? `빅클럽이 ${p.name}(OVR ${p.baseOVR})에게 이적을 제안했습니다.` : '빅클럽이 핵심 선수에게 이적을 제안했습니다.',
         options: [
           { label: '보낸다', hint: p ? `이적료 +${Math.round(p.price * 0.85)}G, 선수단에서 제외` : '이적료를 받고 선수단에서 제외' },
-          { label: '붙잡는다', hint: '잔류, 적응도 +3' },
+          { label: '붙잡는다', hint: '잔류, 조직력 +3' },
         ],
       };
     },
@@ -178,7 +178,7 @@ const CHOICES = [
       }
       return {
         chemistry: clamp(chemistry + 3, 0, 100),
-        message: `빅클럽의 이적 제안: ${p.name}이(가) 잔류합니다. 적응도 +3`,
+        message: `빅클럽의 이적 제안: ${p.name}이(가) 잔류합니다. 조직력 +3`,
       };
     },
   },
@@ -211,7 +211,7 @@ const CHOICES = [
       return {
         detail: `${p?.name ?? '어린 선수'}(${p?.age ?? '?'}세)가 더 뛰고 싶다며 면담을 요청했습니다.`,
         options: [
-          { label: '출전 약속', hint: `${p?.name ?? '선수'} OVR +1, 적응도 -2` },
+          { label: '출전 약속', hint: `${p?.name ?? '선수'} OVR +1, 조직력 -2` },
           { label: '거절', hint: `${p?.name ?? '선수'} OVR -1` },
         ],
       };
@@ -221,7 +221,7 @@ const CHOICES = [
       if (!p) return { message: '출전 요구: 해당 선수는 이미 선수단에 없습니다' };
       const bump = (d) => squad.map((x) => (x.id === p.id ? { ...x, baseOVR: clamp(x.baseOVR + d, 1, 99) } : x));
       return i === 0
-        ? { squad: bump(1), chemistry: clamp(chemistry - 2, 0, 100), message: `출전 요구: ${p.name}에게 기회를 약속했습니다. OVR +1, 적응도 -2` }
+        ? { squad: bump(1), chemistry: clamp(chemistry - 2, 0, 100), message: `출전 요구: ${p.name}에게 기회를 약속했습니다. OVR +1, 조직력 -2` }
         : { squad: bump(-1), message: `출전 요구: ${p.name}의 요구를 거절했습니다. OVR -1` };
     },
   },
@@ -234,16 +234,16 @@ const CHOICES = [
       return {
         detail: `${vet?.name ?? '베테랑'}(${vet?.age ?? '?'}세)과 ${rookie?.name ?? '신예'}(${rookie?.age ?? '?'}세)가 훈련 중 충돌했습니다. 누구 편을 들까요?`,
         options: [
-          { label: '베테랑 편', hint: `적응도 +6, ${rookie?.name ?? '신예'} OVR -1` },
-          { label: '신예 편', hint: `${rookie?.name ?? '신예'} OVR +2, 적응도 -4` },
+          { label: '베테랑 편', hint: `조직력 +6, ${rookie?.name ?? '신예'} OVR -1` },
+          { label: '신예 편', hint: `${rookie?.name ?? '신예'} OVR +2, 조직력 -4` },
         ],
       };
     },
     resolve: ({ squad, chemistry }, payload, i) => {
       const rookie = squad.find((p) => p.id === payload.rookieId);
       const bump = (delta) => squad.map((p) => (p.id === payload.rookieId ? { ...p, baseOVR: clamp(p.baseOVR + delta, 1, 99) } : p));
-      if (i === 0) return { squad: rookie ? bump(-1) : squad, chemistry: clamp(chemistry + 6, 0, 100), message: '라커룸 갈등: 베테랑 편을 들어 분위기가 안정됐습니다. 적응도 +6' };
-      return { squad: rookie ? bump(2) : squad, chemistry: clamp(chemistry - 4, 0, 100), message: `라커룸 갈등: 신예 편을 들었습니다. ${rookie?.name ?? '신예'} OVR +2, 적응도 -4` };
+      if (i === 0) return { squad: rookie ? bump(-1) : squad, chemistry: clamp(chemistry + 6, 0, 100), message: '라커룸 갈등: 베테랑 편을 들어 분위기가 안정됐습니다. 조직력 +6' };
+      return { squad: rookie ? bump(2) : squad, chemistry: clamp(chemistry - 4, 0, 100), message: `라커룸 갈등: 신예 편을 들었습니다. ${rookie?.name ?? '신예'} OVR +2, 조직력 -4` };
     },
   },
 ];
