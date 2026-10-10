@@ -55,7 +55,10 @@ export function showSpot({ selector, text, ok = null, onOk = null, onSkip = null
   const loop = () => {
     if (!state) return;
     if (!document.body.contains(target)) { clearSpot(); return; }
-    place();
+    // 협상 같은 창이 위에 열려 있는 동안은 안내를 숨긴다(안 그러면 창을 가려서 누를 수 없다)
+    const covered = !!document.querySelector('#eventmodal-root .eventmodal');
+    el.style.display = covered ? 'none' : '';
+    if (!covered) place();
     state.raf = requestAnimationFrame(loop);
   };
   state = { el, raf: 0 };

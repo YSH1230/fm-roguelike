@@ -2182,3 +2182,28 @@ html[data-theme='kiwi'] .start__new--ghost:hover { background: transparent; colo
 html[data-theme='kiwi'] .start__new--ghost.is-armed { color: var(--debit); border-color: var(--debit); background: color-mix(in srgb, var(--debit) 14%, #000); }
 .club--resume { border-color: var(--turf); }
 .haggle__hint { font-size: var(--fs-label); color: var(--muted); margin: var(--s2) 0 0; }
+
+/* 팀 스타일: 같은 태그 선발 수를 5칸 게이지로(3·4·5칸에 발동 인원 숫자), 오른쪽은 지금 받는 보너스 */
+.stylerow { grid-template-columns: 28px minmax(0, 1fr) auto 34px; }
+.stylerow__name { display: grid; line-height: 1.2; }
+.stylerow__name small { font-size: var(--fs-micro); color: var(--muted); font-weight: 400; }
+.stylerow.is-on .stylerow__name small { color: var(--gold); }
+.stylerow__gauge { display: inline-flex; gap: 2px; }
+.stylerow__gauge i { width: 17px; height: 20px; border-radius: 3px; background: var(--line-soft); border: 1px solid var(--line); font-style: normal; font-size: 10px; line-height: 18px; text-align: center; color: var(--muted-dim); }
+.stylerow__gauge i.is-on { background: var(--turf); border-color: var(--turf); color: #04120a; font-weight: 700; }
+.stylerow.is-main .stylerow__gauge i.is-on { background: var(--gold); border-color: var(--gold); }
+.stylerow__bonus { text-align: right; font-size: var(--fs-l); color: var(--light); }
+.stylerow:not(.is-on) .stylerow__bonus { color: var(--muted-dim); }
+
+/* 오퍼·협상 답을 기다리는 연출 */
+.waitveil { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(0, 0, 0, 0.72); }
+.waitveil__box { display: grid; gap: var(--s3); justify-items: center; font-size: var(--fs-m); color: var(--light); }
+.waitveil__dots { display: inline-flex; gap: 6px; }
+.waitveil__dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--turf); animation: waitdot 900ms var(--ease) infinite; }
+.waitveil__dots i:nth-child(2) { animation-delay: 150ms; }
+.waitveil__dots i:nth-child(3) { animation-delay: 300ms; }
+@keyframes waitdot { 0%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
+.haggle__face.is-thinking { animation: thinkwobble 700ms ease-in-out infinite; }
+@keyframes thinkwobble { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+.haggle__note.is-thinking { color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .waitveil__dots i, .haggle__face.is-thinking { animation: none; } }

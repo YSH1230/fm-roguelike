@@ -1269,6 +1269,24 @@ function setMood(name, event) {
   currentState.clubMood[name] = moodAfter(currentState.clubMood[name] ?? 0, event);
 }
 
+// 구단이 답하기 전 잠깐 생각하는 연출(바로 답이 나오면 긴장감이 없다)
+function thinking(root, then, ms = 1000) {
+  root.querySelectorAll('button').forEach((b) => { b.disabled = true; });
+  const face = root.querySelector('.haggle__face');
+  if (face) { face.textContent = '🤔'; face.classList.add('is-thinking'); }
+  root.querySelector('.eventmodal__detail')?.insertAdjacentHTML('afterend', '<p class="eventmodal__detail haggle__note is-thinking">생각하는 중…</p>');
+  setTimeout(then, ms);
+}
+
+// 판매 등록 직후: 오퍼가 모이는 동안 잠깐 기다리게 한다
+function waitForOffers(text, then, ms = 1400) {
+  const el = document.createElement('div');
+  el.className = 'waitveil';
+  el.innerHTML = `<div class="waitveil__box"><b>${esc(text)}</b><span class="waitveil__dots"><i></i><i></i><i></i></span></div>`;
+  document.body.appendChild(el);
+  setTimeout(() => { el.remove(); then(); }, ms);
+}
+
 // 흥정 창: 깎아 달라는 비율을 고르면 구단이 답한다. 거절하면 인내심이 줄고, 바닥나면 협상이 깨진다.
 function openHaggle(card, note = '') {  // 영입 창: 요구액 그대로 영입 또는 가격 제안
   const root = document.getElementById('eventmodal-root');
@@ -1287,6 +1305,7 @@ function openHaggle(card, note = '') {  // 영입 창: 요구액 그대로 영�
         <div class="haggle__face" aria-label="인내심 ${pat}">${patienceFace(pat)}</div>
         <p class="eventmodal__detail">${esc(card.seller)}의 요구액은 ${ask}G입니다.</p>
         ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
+        ${tutStep() >= 0 && !note ? '<p class="eventmodal__detail haggle__hint">처음이라면 아래 "요구액으로 영입"이 가장 안전해요. 더 싸게 사려면 금액을 눌러 제안해 보세요. 거절당하면 얼굴이 굳어져요.</p>' : ''}
         <button class="cta" id="haggle-ask" ${currentState.funds < ask ? 'disabled' : ''}>요구액 ${ask}G로 영입</button>
         <div class="dirpick">
           ${[...HAGGLE_DISCOUNTS].reverse().map((d) => { const price = Math.round(ask * (1 - d)); return `<button class="reroll" data-offer="${d}" ${currentState.funds < price || d >= rejected ? 'disabled' : ''}>${price}G에 제안</button>`; }).join('')}
@@ -1297,7 +1316,7 @@ function openHaggle(card, note = '') {  // 영입 창: 요구액 그대로 영�
     </div>`;
   document.getElementById('haggle-ask').onclick = () => { root.innerHTML = ''; buyCard(card); };
   root.querySelectorAll('[data-offer]').forEach((btn) => {
-    btn.onclick = () => {
+    btn.onclick = () => thinking(root, () => {
       const d = Number(btn.dataset.offer);
       const trueValue = valuePrice(card, 0);
       const ok = offerAccepted({ ask: card.price, trueValue, discount: d, score: att.score, u: cardUniform(card.id, currentState.telemetryRun ?? '') });
@@ -1316,7 +1335,7 @@ function openHaggle(card, note = '') {  // 영입 창: 요구액 그대로 영�
         return;
       }
       openHaggle(card, '구단이 제안을 거절했습니다');
-    };
+    });
   });
   document.getElementById('haggle-close').onclick = () => { root.innerHTML = ''; };
 }
@@ -1735,8 +1754,11 @@ function listPlayer(card) {
 function listForSale(card) {
   if (card.boughtThisSeason) return;
   const offers = listPlayer(card);
-  if (!offers.length) { currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay()); renderMarket(`${card.name}에 대한 오퍼가 한 건도 없었습니다. 자유계약으로 팀을 떠납니다`); return; }
-  renderMarket(`${card.name}에 대한 오퍼가 ${offers.length}건 도착했습니다. 기한 ${Math.max(...offers.map((o) => o.expires)) - currentState.week + 1}주까지 - 선수단 탭에서 확인하세요`);
+  if (!offers.length) currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay());
+  waitForOffers(`${card.name}의 오퍼를 알아보는 중`, () => {
+    if (!offers.length) { renderMarket(`${card.name}에 대한 오퍼가 한 건도 없었습니다. 자유계약으로 팀을 떠납니다`); return; }
+    renderMarket(`${card.name}에 대한 오퍼가 ${offers.length}건 도착했습니다. 기한 ${Math.max(...offers.map((o) => o.expires)) - currentState.week + 1}주까지 - 선수단 탭에서 확인하세요`);
+  });
 }
 
 function acceptSaleOffer(cardId, index, amount, viaCounter = false) {
@@ -1788,7 +1810,7 @@ function openSale(cardId, index, note = '') {
   document.getElementById('sale-accept').onclick = () => { root.innerHTML = ''; acceptSaleOffer(cardId, index, offer.amount); };
   document.getElementById('sale-close').onclick = () => { root.innerHTML = ''; };
   root.querySelectorAll('[data-raise]').forEach((btn) => {
-    btn.onclick = () => {
+    btn.onclick = () => thinking(root, () => {
       const r = Number(btn.dataset.raise);
       const ok = counterAccepted({ raise: r, score: att.score, u: cardUniform(key, currentState.telemetryRun ?? '') });
       if (ok) { root.innerHTML = ''; acceptSaleOffer(cardId, index, Math.round(offer.amount * (1 + r)), true); return; }
@@ -1803,7 +1825,7 @@ function openSale(cardId, index, note = '') {
         return;
       }
       openSale(cardId, index, '구단이 요구를 거절했습니다');
-    };
+    });
   });
 }
 
@@ -2977,14 +2999,14 @@ function renderChemistryPanel(lineup, bench) {
   const rows = ids.map((id) => {
     const { count, tier, req, values } = playstyleTagProgress(id, lineup);
     const seeds = lineup.filter((p) => p.playstyleTags.includes(id) && isSeed(p)).length;
-    const next = tier >= req.length ? '최대' : `${req[tier] - count}명 더 → +${values[tier]}`;
+    const next = tier >= req.length ? '완성' : `${req[tier] - count}명 더 → +${values[tier]}`;
     return { id, count, tier, req, values, seeds, next };
   }).sort((x, y) => y.count - x.count);
   const styleRows = `<ul class="stylerows">${rows.map((r) => `<li class="stylerow${r.tier ? ' is-on' : ''}${style?.id === r.id ? ' is-main' : ''}" data-chem-desc="${esc(TAG_LABELS[r.id])}: ${esc(TAG_DESC[r.id])}. ${esc(tagLadderText(r.req, r.values))}${r.seeds ? ` · 성장 중 ${r.seeds}명은 효과가 절반` : ''} — 다음: ${esc(r.next)}">
       <span class="stylerow__icon">${renderTagIcon(PLAYSTYLE_ICON_PATHS, r.id)}</span>
-      <span class="stylerow__name">${esc(TAG_LABELS[r.id])}</span>
-      <span class="stylerow__pips">${r.req.map((n, k) => `<i class="${r.count >= n ? 'is-full' : ''}"></i>`).join('')}</span>
-      <b class="stylerow__count n">${r.count}명${r.tier ? ` · +${r.values[r.tier - 1]}` : ''}</b>
+      <span class="stylerow__name">${esc(TAG_LABELS[r.id])}<small>${r.tier >= r.req.length ? '완성!' : esc(r.next)}</small></span>
+      <span class="stylerow__gauge" aria-label="${r.count}명">${[1, 2, 3, 4, 5].map((n) => `<i class="${n <= r.count ? 'is-on' : ''}${r.req.includes(n) ? ' is-gate' : ''}">${r.req.includes(n) ? n : ''}</i>`).join('')}</span>
+      <b class="stylerow__bonus n">${r.tier ? `+${r.values[r.tier - 1]}` : '–'}</b>
     </li>`).join('')}</ul>`;
 
   // 특수 태그는 지금 뛰는 선발+벤치(16명)만 본다 - 그 밖의 선수는 이번 주
@@ -3856,7 +3878,8 @@ function introTick() {
     ['mid', isUnlocked('mid') && draft && !!document.querySelector('.deal__tags .chip'), '.deal__tags .chip', '태그 3종이 더 열렸어요. 전방 압박, 역습, 후방 빌드업 선수도 나와요.'],
     ['staff', isUnlocked('staff'), '[data-tab="staff"]', '감독·스태프 탭이 열렸어요. 감독과 코치, 스카우터를 여기서 바꿀 수 있어요.'],
     ['traits', isUnlocked('traits') && draft && !!document.querySelector('.chip--trait'), '.chip--trait', '특수 성향 선수예요. 성향마다 효과와 대가가 자동으로 붙어요.'],
-    ['haggle', draft && !!document.querySelector('.deal__buy:not([disabled])'), '.deal__buy:not([disabled])', '협상을 누르면 구단에 더 낮은 가격을 제안할 수 있어요. 거절당하면 얼굴이 굳어지고, 화가 나면 협상이 깨져 그 선수를 놓쳐요.'],
+    ['haggle', draft && loadFlags().tutorialStep < 2 && !!document.querySelector('.deal__buy:not([disabled])'), // 튜토리얼에서 이미 협상을 해 본 사람은 다시 안내하지 않는다
+     '.deal__buy:not([disabled])', '협상을 누르면 구단에 더 낮은 가격을 제안할 수 있어요. 거절당하면 얼굴이 굳어지고, 화가 나면 협상이 깨져 그 선수를 놓쳐요.'],
     ['sale', currentState.tab === 'squad' && currentState.listedForSale.length, '.listed', '오퍼가 도착했어요. 눌러서 팔거나 더 높은 금액을 불러 보세요. 오퍼는 시간이 지나면 사라지고, 다 사라지면 태업(OVR -3)해요.'],
   ];
   const next = items.find(([key, when]) => when && !seen[key]);
