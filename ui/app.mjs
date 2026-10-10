@@ -483,7 +483,7 @@ function playerTagsHtml(p) {
 function tagInfoText(kind, id, seed = false) {
   if (kind === 'play') {
     return `${TAG_LABELS[id] ?? id}: ${TAG_DESC[id] ?? ''}. ${tagLadderText(TAG_THRESHOLDS, TAG_VALUES)}`
-      + (seed ? ' · 씨앗: 전성기 전이라 효과가 절반이에요(전성기에 닿으면 개화).' : '');
+      + (seed ? ' · 성장 중: 전성기 전이라 효과가 절반이에요(전성기에 닿으면 완성).' : '');
   }
   return `${TRAIT_LABELS[id] ?? id}: ${TRAIT_EFFECT_DESCRIPTIONS[id] ?? ''}. 대가: ${TRAIT_DOWNSIDE_TEXT[id] ?? ''}`;
 }
@@ -2947,7 +2947,7 @@ function renderChemistryPanel(lineup, bench) {
     const next = tier >= req.length ? '최대' : `${req[tier] - count}명 더 → +${values[tier]}`;
     return { id, count, tier, req, values, seeds, next };
   }).sort((x, y) => y.count - x.count);
-  const styleRows = `<ul class="stylerows">${rows.map((r) => `<li class="stylerow${r.tier ? ' is-on' : ''}${style?.id === r.id ? ' is-main' : ''}" data-chem-desc="${esc(TAG_LABELS[r.id])}: ${esc(TAG_DESC[r.id])}. ${esc(tagLadderText(r.req, r.values))}${r.seeds ? ` · 씨앗 ${r.seeds}명은 효과가 절반` : ''} — 다음: ${esc(r.next)}">
+  const styleRows = `<ul class="stylerows">${rows.map((r) => `<li class="stylerow${r.tier ? ' is-on' : ''}${style?.id === r.id ? ' is-main' : ''}" data-chem-desc="${esc(TAG_LABELS[r.id])}: ${esc(TAG_DESC[r.id])}. ${esc(tagLadderText(r.req, r.values))}${r.seeds ? ` · 성장 중 ${r.seeds}명은 효과가 절반` : ''} — 다음: ${esc(r.next)}">
       <span class="stylerow__icon">${renderTagIcon(PLAYSTYLE_ICON_PATHS, r.id)}</span>
       <span class="stylerow__name">${esc(TAG_LABELS[r.id])}</span>
       <span class="stylerow__pips">${r.req.map((n, k) => `<i class="${r.count >= n ? 'is-full' : ''}"></i>`).join('')}</span>
@@ -3099,7 +3099,7 @@ function renderMarket(banner = '') {
       const lvl = reach < 0 ? 0 : reach === 0 ? 1 : 2;
       const desc = `${TAG_LABELS[t] ?? t}: ${TAG_DESC[t]}. 지금 라인업 ${count}명. ${tagLadderText(req, values)}`
         + (reach === 0 ? ' · 영입하면 발동!' : reach > 0 ? ' · 영입하면 강화!' : '')
-        + (seed ? ' · 씨앗: 전성기 전이라 효과가 절반이에요' : '');
+        + (seed ? ' · 성장 중: 전성기 전이라 효과가 절반이에요' : '');
       return `<button type="button" class="chip${lvl ? ` chip--up${lvl}` : ''}${seed ? ' chip--seed' : ''}" data-tag-desc="${esc(desc)}" title="${esc(TAG_LABELS[t] ?? t)}" aria-label="${esc(TAG_LABELS[t] ?? t)}">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}${lvl ? '<b>▲</b>' : ''}</button>`;
     };
     const tags = [

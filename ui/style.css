@@ -2114,7 +2114,7 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .listed li.offerlist { display: grid; justify-content: stretch; padding: var(--s2); }
 .offerrow2 small.is-last { color: var(--debit); font-weight: 700; }
 
-/* 태그 6종: 팀 스타일 패널, 씨앗 표시 */
+/* 태그 6종: 팀 스타일 패널, 성장 중 표시 */
 .stylename { color: var(--turf); font-weight: 700; }
 .stylerows { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .stylerow { display: grid; grid-template-columns: 28px 1fr auto auto; align-items: center; gap: var(--s2); padding: 8px 10px; background: var(--surface-hi); border-left: 3px solid var(--line); opacity: 0.75; cursor: pointer; }
