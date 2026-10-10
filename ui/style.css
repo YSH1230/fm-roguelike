@@ -2136,3 +2136,48 @@ html[data-theme='kiwi'] .pitch::before, html[data-theme='kiwi'] .pitch::after { 
 .stylecomplete { color: var(--gold); font-weight: 700; }
 .chemdelta.is-pos { color: var(--turf); }
 .chemdelta.is-neg { color: var(--debit); }
+
+/* ===== v6: 가독성 정리 (화면 점검 1차) ===== */
+html { color-scheme: dark; scrollbar-width: thin; scrollbar-color: #33401f #000; }
+::selection { background: #d4ff0044; color: var(--light); }
+/* 상단 자원: 조직력 라벨이 한 글자씩 꺾이던 문제 - 라벨은 줄바꿈 금지, 값과 전력 효과는 세로로 쌓는다 */
+.res { gap: var(--s4); flex-wrap: nowrap; }
+.res__item { flex: 0 0 auto; white-space: nowrap; }
+.res__item--score { flex: 0 0 auto; }
+.res__stack { display: flex; flex-direction: column; gap: 2px; }
+.res__stack .res__best { line-height: 1; }
+/* 작은 한글 버튼은 두꺼운 표제 서체 대신 본문 서체 굵게 - 획이 뭉개지지 않게 */
+.reroll, .tab, .tab__count, .deal__buy span, .formations button, .skiplink { font-family: var(--ui); font-weight: 700; letter-spacing: 0; }
+.tactics__acts .reroll { font-family: var(--ui); font-weight: 700; font-size: 14px; letter-spacing: 0; }
+.formations button { font-family: var(--num); font-weight: 400; }
+.skiplink { display: block; margin: var(--s3) auto 0; padding: var(--s2) var(--s3); background: none; border: 0; color: var(--muted); font-size: var(--fs-body); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.skiplink:hover { color: var(--light); }
+/* 타이틀: 제목은 위, 시작 버튼은 엄지가 닿는 아래 */
+.start { display: flex; flex-direction: column; min-height: 100svh; }
+.start .clubs { margin-top: auto; }
+/* 영입 카드: 선수 이름이 잘리지 않게(두 줄까지), 구단·태도는 한 덩어리로 */
+.deal__top { flex-wrap: wrap; row-gap: 0; }
+.deal__name { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.15; overflow-wrap: anywhere; }
+.deal__seller { display: flex; flex-wrap: wrap; column-gap: 6px; line-height: 1.3; }
+.deal__seller .att, .deal__seller { overflow-wrap: normal; }
+.skiplink { font-weight: 400; }
+@media (max-width: 380px) {
+  .offer.deal { grid-template-columns: 56px 1fr auto; gap: 8px; padding: 8px; }
+  .deal .pcard { width: 56px; }
+  .deal__buy { min-width: 54px; padding: var(--s2); }
+}
+
+.deal__att { white-space: nowrap; }
+.deal .pcard__pos { font-size: 11px; }
+.deal .pcard__tier { font-size: 10px; }
+/* 넓은 화면: 폰 폭 열을 은은한 경계로 감싼다(검은 여백에 둥둥 뜨지 않게) */
+@media (min-width: 700px) {
+  body { background: radial-gradient(120% 80% at 50% 0%, #0b140a 0%, #000 70%); }
+  #screen, header.topbar { box-shadow: 0 0 0 1px #16200f; }
+}
+.start { min-height: calc(100svh - 84px); }
+/* 이어할 런이 있으면 주인공은 '이어하기', 새 런은 보조 */
+html[data-theme='kiwi'] .start__new--ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); font-family: var(--ui); font-weight: 700; font-size: 15px; letter-spacing: 0; }
+html[data-theme='kiwi'] .start__new--ghost:hover { background: transparent; color: var(--light); border-color: var(--muted-dim); }
+html[data-theme='kiwi'] .start__new--ghost.is-armed { color: var(--debit); border-color: var(--debit); background: color-mix(in srgb, var(--debit) 14%, #000); }
+.club--resume { border-color: var(--turf); }

@@ -672,7 +672,7 @@ function renderStoryIntro() {
       <p class="story__skip" style="animation-delay:${STORY_LINES.length * 900}ms">탭하여 계속</p>
     </div>
   `);
-  document.getElementById('story-screen').onclick = () => renderClubButtons();
+  document.getElementById('story-screen').onclick = () => { markSeen('story'); renderClubButtons(); };
 }
 
 // ---------- 역대 기록 / 업적 / 트로피 ----------
@@ -871,11 +871,11 @@ ${(() => {
           <small>${tp.next ? `다음 칭호 ${esc(tp.next)}까지 ${tp.remaining}점` : '최고 칭호'}</small>
         </div>`;
       })()}
-      <button class="reroll start__records" id="records-btn">🏆 기록 · 업적</button>
+      <button class="reroll start__records" id="records-btn">기록 · 업적</button>
       ${telemetryConfigured() ? `<p class="note start__telemetry">플레이 통계가 익명으로 수집됩니다(이름 등 개인정보 없음). <button type="button" class="linkbtn" id="telemetry-toggle">${telemetryOn() ? '끄기' : '켜기'}</button></p>` : ''}
       <div class="clubs">
         ${resume}
-        <button class="cta start__new" id="new-run-btn">${saved ? '새 런 시작' : '시작하기'}</button>
+        <button class="cta start__new${saved ? ' start__new--ghost' : ''}" id="new-run-btn">${saved ? '새 런 시작' : '시작하기'}</button>
       </div>
       <p class="start__copy">© 2026 유시헌 · 모든 권리 보유</p>
     </div>
@@ -890,7 +890,19 @@ ${(() => {
     currentState = withRunDefaults(saved, DEFAULT_FORMATION); // 구버전 세이브 호환
     if (currentState.ucl) renderUcl(); else renderMarket();
   });
-  document.getElementById('new-run-btn').onclick = () => startRun(clubs.find((c) => c.klass === 'mid') ?? clubs[0]); // 내 구단은 직접 꾸민다
+  const newBtn = document.getElementById('new-run-btn');
+  let armed = false;
+  newBtn.onclick = () => {
+    // 이어할 런이 있으면 실수로 날리지 않게 한 번 더 누르게 한다
+    if (saved && !armed) {
+      armed = true;
+      newBtn.textContent = '정말 새로 시작? 진행 중인 런이 사라져요';
+      newBtn.classList.add('is-armed');
+      setTimeout(() => { armed = false; newBtn.textContent = '새 런 시작'; newBtn.classList.remove('is-armed'); }, 4000);
+      return;
+    }
+    startRun(clubs.find((c) => c.klass === 'mid') ?? clubs[0]); // 내 구단은 직접 꾸민다
+  };
 }
 
 let currentState = null;
@@ -898,7 +910,12 @@ let currentState = null;
 function startRun(club) {
   updateRecords(recordRunStart);
   const baseFunds = Math.round(calculateStartingFunds(0) * club.startingFundsMultiplier * fundsScale('tier5', 1));
-  const rawSquad = generateStartingSquad().map(toSquadPlayer).map(stripLockedTags);
+  // 시작 선발이 이미 같은 태그 5명(팀 컬러 완성)이면 보상이 공짜가 되니, 그런 조합은 다시 뽑는다
+  let rawSquad;
+  for (let tries = 0; tries < 30; tries++) {
+    rawSquad = generateStartingSquad().map(toSquadPlayer).map(stripLockedTags);
+    if (!completedTags(pickBestXI(rawSquad).lineup).length) break;
+  }
   // 시작 감독은 루키(배율 ×1.00) - 예전엔 택티션(×1.05)이라 시작하자마자
   // 공짜 보너스가 붙어서, 시장을 한 번도 안 만져도(12주 내내 "다음 주로"만
   // 눌러도) 5부에서 77%가 잔류했다(직접 실측). "바닥에서 시작한다"는
@@ -989,7 +1006,7 @@ function tutSet(step) {
 }
 function tutSkip() {
   const step = tutStep();
-  updateFlags((f) => { f.tutorialDone = true; return f; });
+  updateFlags((f) => { f.tutorialDone = true; f.seen.haggle = true; f.seen.sale = true; return f; }); // 건너뛰기는 처음 만나는 기능 안내까지 건너뛴다
   track('tutorial', { skip: step });
   clearSpot();
 }
@@ -1034,7 +1051,6 @@ function renderNaming() {
   let kit = club.kit;
   setScreen(`
     <div class="verdict">
-      <div class="verdict__label">내 구단</div>
       <div class="verdict__result" style="color:var(--light);font-size:var(--fs-title)">구단을 만들어 보세요</div>
       <div id="crest-preview" class="naming__crest">${renderCrest({ ...club, kit }, { size: 72 })}</div>
     </div>
@@ -1043,7 +1059,7 @@ function renderNaming() {
       <label class="naming__field"><span>구단 이름</span><input id="club-input" maxlength="20" autocomplete="off" value="${esc(club.name)}"></label>
       <div class="naming__kits" role="group" aria-label="유니폼 색">${KIT_CHOICES.map((k) => `<button type="button" class="kitdot${k === kit ? ' is-on' : ''}" data-kit="${k}" style="--kit:${k}" aria-label="유니폼 색 ${k}"></button>`).join('')}</div>
     </div>
-  `, '<button class="cta" id="naming-next">다음</button><button class="reroll" id="naming-skip" style="margin-top:var(--s2);width:100%">건너뛰기</button>');
+  `, '<button class="cta" id="naming-next">다음</button><button class="skiplink" id="naming-skip">기본값으로 시작</button>');
   document.querySelectorAll('[data-kit]').forEach((b) => {
     b.onclick = () => {
       kit = b.dataset.kit;
@@ -1164,7 +1180,7 @@ function renderCareerIntro() {
         <li><span>시작 팀 전력</span><b>${teamPower.toFixed(1)}</b></li>
       </ul>
       <p class="note"><b>이사진 목표 ${currentBoardGoal()}점.</b> ${BOARD_RULE_TEXT}</p>
-      <p class="note">승점은 전/후반기 합산입니다. 안전권을 넘기지 못하면 해임, 목표를 3시즌 연속 못 넘기면 경질됩니다.</p>
+      <p class="note">승점은 전/후반기 합산입니다. 잔류선을 못 넘기면 바로 해임, 승격하지 못한 시즌이 3번 쌓이면 경질됩니다.</p>
       ${club.weakness ? `<p class="note">약점: ${esc(club.weakness)}. 이 약점을 염두에 두고 시즌을 준비하세요.</p>` : ''}
     </div>
     ${isUnlocked('staff') ? `<div class="panel">
@@ -1233,7 +1249,7 @@ function newShopOffer() {
 // 카드마다 내놓는 구단(리그 구단 이름)을 붙인다. GOD 카드는 흥정 없이 고정가라 구단을 안 붙인다.
 function withSeller(card) {
   if (card.id?.startsWith('god-')) return card;
-  const names = buildLeagueRivals(currentState?.leagueTierId ?? 'tier5', 12).map((c) => c.name);
+  const names = buildLeagueRivals(currentState?.leagueTierId ?? 'tier5', 12).map((c) => c.name).filter((n) => n !== currentState?.club?.name);
   return { ...card, seller: names[Math.floor(Math.random() * names.length)] };
 }
 
@@ -1886,7 +1902,7 @@ function nextWeek() {
   currentState.transactedThisWeek = false;
   currentState.justBoughtIds = []; // NEW 표시는 산 주에만 - 다음 주로 넘어가면 지운다
   currentState.week += 1;
-  const saleMessage = [resolveListedSales(), chemMessage].filter(Boolean).join(' / ');
+  const saleMessage = resolveListedSales();
 
   if (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1]) {
     askDirection(() => runFirstHalf(saleMessage));
@@ -1899,7 +1915,7 @@ function nextWeek() {
   currentState.shopOffer = newShopOffer();
   currentState.managerOffer = generateManagerOffer(3, Math.random, currentState.manager?.id, currentState.leagueTierId);
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
-  renderMarket(saleMessage);
+  renderMarket([saleMessage, chemMessage].filter(Boolean).join(' / '));
 }
 
 // 수석 코치 효과(등급 + 주력 유닛). 엔진의 coach 인자로 들어가 선수 OVR에 유닛 보너스로 더해진다.
@@ -2625,7 +2641,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   } else {
     const left = MISSED_TARGET_LIMIT - currentState.missedTargetCount;
     closingHtml = left <= 2
-      ? `<p class="note"><b>목표 미달 ${currentState.missedTargetCount}회.</b> ${left}회 더 미달하면 해임됩니다.</p>`
+      ? `<p class="note"><b>승격 실패 누적 ${currentState.missedTargetCount}회.</b> ${left}회 더 쌓이면 해임됩니다(승격하면 0으로 돌아가요).</p>`
       : '';
     // 1부는 더 올라갈 데가 없어서 목표를 달성해도 승격 버튼이 안 나온다.
     // 아무 설명이 없으면 왜 제자리인지 알 수 없다.
@@ -3139,7 +3155,7 @@ function renderMarket(banner = '') {
       compareHtml = `<div class="deal__cmp is-empty">${c.position} 공석 · 바로 선발</div>`;
     } else {
       const diff = c.baseOVR - sameSlot.baseOVR;
-      compareHtml = `<div class="deal__cmp"><span>현재 ${c.position} <b class="n">${sameSlot.baseOVR}</b></span><em class="${diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat'} n">${diff > 0 ? '▲' : diff < 0 ? '▼' : '='}${Math.abs(diff)}</em></div>`;
+      compareHtml = `<div class="deal__cmp"><span>내 선발 ${c.position} <b class="n">${sameSlot.baseOVR}</b></span><em class="${diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat'} n">${diff > 0 ? '▲' : diff < 0 ? '▼' : '='}${Math.abs(diff)}</em></div>`;
     }
     const decayNote = decay > 0 ? `조직력 −${decay}` : '';
     return `<li class="offer deal" data-row="${c.id}" data-tier="${tier}" style="--tier:var(--t-${tier})">
@@ -3150,7 +3166,7 @@ function renderMarket(banner = '') {
       </div>
       <div class="deal__body">
         <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세${playerTrend(c)}</span></div>
-        ${c.seller ? `<div class="deal__seller">${esc(c.seller)} (태도 <b class="att att--${sellerAttitude(c.seller).label}">${sellerAttitude(c.seller).label}</b> ${attitudeFace(sellerAttitude(c.seller).label)})</div>` : ''}
+        ${c.seller ? `<div class="deal__seller"><span>${esc(c.seller)}</span><span class="deal__att">태도 <b class="att att--${sellerAttitude(c.seller).label}">${sellerAttitude(c.seller).label}</b> ${attitudeFace(sellerAttitude(c.seller).label)}</span></div>` : ''}
         ${peakRangeText(c, 'headScout') ? `<div class="deal__peak">전성기 <b class="n">${peakRangeText(c, 'headScout')}</b> <small>추정</small></div>` : peakStatusText(c) ? `<div class="deal__peak"><b>${peakStatusText(c)}</b></div>` : ''}
         <div class="deal__tags">${tags}</div>
         ${compareHtml}
@@ -3350,8 +3366,8 @@ function renderMarket(banner = '') {
         </div>
         <div class="res__item res__item--btn" id="chem-info-btn" role="button" tabindex="0">
           <span class="res__label">조직력 <i class="res__hint">ⓘ</i></span>
-          <span class="res__val n">${chemistry.toFixed(1)}</span>
-          <i class="res__best chemdelta${chemDelta < -0.05 ? ' is-neg' : chemDelta > 0.05 ? ' is-pos' : ''}">전력 ${chemDelta >= 0 ? '+' : '−'}${Math.abs(chemDelta).toFixed(1)}</i>
+          <span class="res__stack"><span class="res__val n">${chemistry.toFixed(1)}</span>
+          <i class="res__best chemdelta${chemDelta < -0.05 ? ' is-neg' : chemDelta > 0.05 ? ' is-pos' : ''}">전력 ${chemDelta >= 0 ? '+' : '−'}${Math.abs(chemDelta).toFixed(1)}</i></span>
           <div class="chembar${chemistry < 40 ? ' is-low' : ''}"><i style="width:${Math.min(100, chemistry)}%"></i></div>
         </div>
         <div class="res__item res__item--score" title="이번 런의 명성 점수">
@@ -3854,6 +3870,8 @@ if (UCL_DEMO) {
   currentState.ucl.teams[0].name = currentState.club.name;
   currentState.ucl.teams[0].kit = currentState.club.kit;
   renderUcl();
+} else if (loadFlags().seen.story) {
+  renderClubButtons(); // 오프닝은 처음 한 번만 - 다시 오는 사람은 바로 타이틀(이어하기)로
 } else {
   renderStoryIntro();
 }
