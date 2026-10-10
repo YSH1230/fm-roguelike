@@ -2181,3 +2181,4 @@ html[data-theme='kiwi'] .start__new--ghost { background: transparent; color: var
 html[data-theme='kiwi'] .start__new--ghost:hover { background: transparent; color: var(--light); border-color: var(--muted-dim); }
 html[data-theme='kiwi'] .start__new--ghost.is-armed { color: var(--debit); border-color: var(--debit); background: color-mix(in srgb, var(--debit) 14%, #000); }
 .club--resume { border-color: var(--turf); }
+.haggle__hint { font-size: var(--fs-label); color: var(--muted); margin: var(--s2) 0 0; }

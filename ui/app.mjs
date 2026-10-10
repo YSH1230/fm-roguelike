@@ -1289,8 +1289,9 @@ function openHaggle(card, note = '') {  // 영입 창: 요구액 그대로 영�
         ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
         <button class="cta" id="haggle-ask" ${currentState.funds < ask ? 'disabled' : ''}>요구액 ${ask}G로 영입</button>
         <div class="dirpick">
-          ${HAGGLE_DISCOUNTS.map((d) => { const price = Math.round(ask * (1 - d)); return `<button class="reroll" data-offer="${d}" ${currentState.funds < price || d >= rejected ? 'disabled' : ''}>${price}G에 제안</button>`; }).join('')}
+          ${[...HAGGLE_DISCOUNTS].reverse().map((d) => { const price = Math.round(ask * (1 - d)); return `<button class="reroll" data-offer="${d}" ${currentState.funds < price || d >= rejected ? 'disabled' : ''}>${price}G에 제안</button>`; }).join('')}
         </div>
+        ${rejected < 1 ? '<p class="eventmodal__detail haggle__hint">거절당한 금액보다 낮게는 다시 부를 수 없어요.</p>' : ''}
         <button class="reroll" id="haggle-close" style="margin-top:var(--s2);width:100%">그만두기</button>
       </div>
     </div>`;
