@@ -1041,10 +1041,10 @@ function startRun(club) {
 }
 
 // ---------- 튜토리얼(모두에게 한 번, 건너뛸 수 있다) ----------
-// 0 목표 → 1 영입 → 2 태그 → 3 조직력 → 4 정원 → 5 전술 탭 → 6 전술 화면 → 7 명성 → 8 다음 주로 → 9 전반기 결산 → 끝
+// 0 목표 → 1 영입 → 2 태그 → 3 조직력 → 4 정원 → 5 전술 탭 → 6 전술 화면 → 7 포메이션 → 8 팀 스타일 → 9 선수단 탭 → 10 선수단 조언 → 11 감독·스태프 탭 → 12 감독 패널 → 13 명성 → 14 다음 주로 → 15 전반기 결산 → 끝
 const tutStep = () => { const f = loadFlags(); return f.tutorialDone ? -1 : f.tutorialStep; };
 function tutSet(step) {
-  updateFlags((f) => { f.tutorialStep = step; if (step > 9) f.tutorialDone = true; return f; });
+  updateFlags((f) => { f.tutorialStep = step; if (step > 15) f.tutorialDone = true; return f; });
   track('tutorial', { step });
 }
 function tutSkip() {
@@ -1061,11 +1061,11 @@ function tutorialTick(where) {
   // 대상이 화면에 없으면 그 단계는 건너뛴다
   const spotOrSkip = (selector, text, next) => { if (!showSpot({ selector, text, ...ok(next) })) { tutSet(next); tutorialTick(where); } };
   if (where === 'intro') {
-    if (step === 0) showSpot({ selector: '.goalline', text: '이 승점 밑으로 떨어지면 해임이에요. 우선 이 위로 버티는 게 목표예요.', ...ok(1) });
+    if (step === 0) showSpot({ selector: '.goalline', text: '당신은 이 구단의 임시 감독이에요. 첫 시즌을 이 승점 위로 마치면 정식 감독이 돼요. 우선 이 위로 버티는 게 목표예요.', ...ok(1) });
     return;
   }
   if (where === 'half') {
-    showSpot({ selector: '.verdict', text: '전반기 결산이에요. 목표 페이스와 비교해 보고, 겨울 시장에서 보강하세요.', ...ok(10) });
+    showSpot({ selector: '.verdict', text: '전반기 결산이에요. 목표 페이스와 비교해 보고, 겨울 시장에서 보강하세요. 선수 평점은 아래 라인업에 나와요.', ...ok(16) });
     return;
   }
   const onTactics = currentState.tab === 'tactics';
@@ -1080,9 +1080,23 @@ function tutorialTick(where) {
     if (onTactics) showSpot({ selector: '.pitch', text: '선발은 자동으로 정해져요. 선수를 눌러 직접 바꿀 수도 있어요.', ...ok(7) });
     else { tutSet(5); tutorialTick(where); }
   } else if (step === 7) {
-    if (onTactics) { currentState.tab = 'draft'; renderMarket(); return; }
-    spotOrSkip('.res__item--score', '명성은 이번 판의 점수예요. 승격·우승 같은 성적으로 쌓이고, 판이 끝나면 D부터 SS까지 등급이 매겨져요.', 8);
-  } else if (step === 8) showSpot({ selector: '#next-week-btn', text: '다음 주로 넘기면 시즌이 진행돼요. 8주 뒤 전반기가 시작됩니다.', onSkip: tutSkip });
+    if (onTactics) spotOrSkip('.formations', '포메이션마다 어울리는 태그가 하나씩 있어요. 그 태그를 가진 선발은 OVR +1이에요. 선수단에 맞는 포메이션을 골라 보세요.', 8);
+    else { tutSet(5); tutorialTick(where); }
+  } else if (step === 8) {
+    if (onTactics) spotOrSkip('.stylerows', '같은 태그 선발이 3명이면 브론즈, 4명 실버, 5명 골드예요. 칸이 찰수록 팀 스타일이 강해져요.', 9);
+    else { tutSet(5); tutorialTick(where); }
+  } else if (step === 9) showSpot({ selector: '[data-tab="squad"]', text: '선수단 탭에서 선수를 관리해요. 눌러 볼까요?', onSkip: tutSkip });
+  else if (step === 10) {
+    if (currentState.tab === 'squad') spotOrSkip(document.querySelector('.advicebar') ? '.advicebar' : '.srow', '선발 추천·유망·정리 후보 칩이 누구를 키우고 누구를 팔지 알려 줘요. 선수를 누르면 판매 등록도 할 수 있어요.', 11);
+    else { tutSet(9); tutorialTick(where); }
+  } else if (step === 11) showSpot({ selector: '[data-tab="staff"]', text: '감독·스태프 탭이에요. 눌러 볼까요?', onSkip: tutSkip });
+  else if (step === 12) {
+    if (currentState.tab === 'staff') spotOrSkip('.mgrpanel', '정식 감독이 되면 전술 철학을 골라요. 코치는 어린 선수의 성장을, 스카우터는 영입과 협상을 도와요. 승격할 때마다 철학이 깊어져요.', 13);
+    else { tutSet(11); tutorialTick(where); }
+  } else if (step === 13) {
+    if (currentState.tab !== 'draft') { currentState.tab = 'draft'; renderMarket(); return; }
+    spotOrSkip('.res__item--score', '명성은 이번 판의 점수예요. 승격·우승 같은 성적으로 쌓이고, 판이 끝나면 D부터 SS까지 등급이 매겨져요.', 14);
+  } else if (step === 14) showSpot({ selector: '#next-week-btn', text: '다음 주로 넘기면 시즌이 진행돼요. 8주 뒤 전반기가 시작됩니다.', onSkip: tutSkip });
   else clearSpot();
 }
 
@@ -3515,6 +3529,8 @@ function renderMarket(banner = '') {
     document.querySelector(`[data-tab="${t.id}"]`).onclick = () => {
       currentState.tab = t.id;
       if (tutStep() === 5 && t.id === 'tactics') tutSet(6);
+      if (tutStep() === 9 && t.id === 'squad') tutSet(10);
+      if (tutStep() === 11 && t.id === 'staff') tutSet(12);
       renderMarket(banner);
     };
   }
@@ -3725,7 +3741,7 @@ function renderMarket(banner = '') {
     };
   });
   document.getElementById('next-week-btn').onclick = () => {
-    if (tutStep() === 8) tutSet(9);
+    if (tutStep() === 14) tutSet(15);
     clearSpot();
     const enteringSim = week === maxWeek; // 전/후반기 시뮬레이션은 renderSimulating이 따로 연출한다
     if (enteringSim) {
@@ -3936,3 +3952,6 @@ if (UCL_DEMO) {
 } else {
   renderStoryIntro();
 }
+
+// 확인용 훅(#dev): 감독 장면(철학·라커룸 토크)을 바로 띄워 본다. 일반 플레이에는 영향이 없다.
+if (location.hash.includes('dev')) window.__dev = { runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
