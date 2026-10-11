@@ -27,13 +27,6 @@ export const CONTINENT_TAGS = {
   europe: {}, southAmerica: {}, africa: {}, asiaOceania: {}, northCentralAmerica: {},
 };
 
-// 스펙 5.2절 "배율" — 루키/택티션/레전더리/GOD
-export const MANAGER_TIER_MULTIPLIER = {
-  rookie: 1.00,
-  tactician: 1.07,
-  legendary: 1.16,
-  god: 1.26,
-};
 
 // 스펙 6절 "조직력(팀 조직력)"
 export const CHEMISTRY_START = 60;
@@ -103,20 +96,6 @@ export const SPECIAL_TRAITS = [
   'journeyman',
 ];
 
-// 스펙 5.2절 "감독 세부 성향 8종" — GOD은 전 세계 2명, 개별 수작업(data/god-managers.mjs)
-export const MANAGER_TIERS = ['rookie', 'tactician', 'legendary'];
-export const MANAGER_TRAITS = [
-  'hairdryer', // 헤어드라이어 — 루키/택티션 한정 (아래 참고)
-  'boardTrust', // 보드진의 신임
-  'silverTongue', // 화술의 달인
-  'reboundArchitect', // 리빌딩 장인
-  'firefighter', // 소방수
-  'crisisManager', // 위기 관리형
-  'longTermReign', // 장기 집권형
-  'tacticalPurist', // 전술 원리주의자
-];
-// 헤어드라이어는 조직력 +20을 즉시 주는 고배율급 효과라 낮은 등급 감독에만 배치
-export const HIGH_TIER_RESTRICTED_TRAITS = ['hairdryer'];
 
 // 스펙 5.3절 "스태프" — 4단계 등급, 선수/감독보다 약함
 export const STAFF_LEVELS = ['academy', 'proLicense', 'veteran', 'master'];
@@ -128,13 +107,6 @@ export const PLAYER_PRICE_TABLE = {
   topClass: [120, 300],
   worldClass: [300, 700],
   legendary: [700, 1600],
-};
-// 선수 가격표의 절반 수준. 감독 이적은 시장 거래가 아니라 계약 해지금(바이아웃)
-// 구조라 톱급 선수 이적료보다 확실히 싸다 — 현실 고증.
-export const MANAGER_PRICE_TABLE = {
-  rookie: [10, 30],
-  tactician: [80, 200],
-  legendary: [400, 800],
 };
 export const STAFF_PRICE_TABLE = {
   academy: [20, 50],
@@ -152,7 +124,6 @@ export const SLUMP_OVR_PENALTY = 3;
 export const LEGEND_MIN_SEASONS = 5;
 export const LEGEND_MIN_MVP = 2;
 // 감독 탭이 열리는 시즌부터 감독 불화 규칙(벌칙·사임)이 발동한다. 그 전에는 선호 태그를 켜면 보너스만 있다.
-export const HARMONY_START_SEASON = 2; // 감독 선호 전술 검사는 2시즌부터(첫 시즌은 규칙을 익히는 시간)
 
 export const COST_MODIFIER_CLAMP_MIN = -0.6; // 할인/할증 가산 합계 하한
 export const COST_MODIFIER_CLAMP_MAX = 0.8; // 할인/할증 가산 합계 상한
@@ -182,17 +153,22 @@ export const SHOP_REROLL_COST = 50;
 
 // 스펙 5.3절 "스태프" 효과표
 export const COACH_CHEMISTRY_DECAY_BY_LEVEL = { academy: 1.5, proLicense: 1, veteran: 0.5, master: 0 };
-// 수석 코치의 유닛 보너스(조직력 하락 완화와 별개): 코치가 고른 "주력 유닛"부터 차례로 그 유닛 선수에게 OVR을 더한다.
-// 등급이 높을수록 더 많은 유닛에 더 크게. 예전 전력 배율(×1.01/1.025/1.04)과 비슷한 크기로 맞췄다.
-// 순서: COACH_FOCUS_ORDER[주력] = [주력, 2순위, 3순위]. 유닛 크기가 달라(4-3-3 수비 5 / 중원 3 / 공격 3) 포메이션에 따라 유불리가 생긴다.
-export const COACH_UNITS = { defense: ['GK', 'CB', 'WB'], midfield: ['DMF', 'CMF', 'AMF'], attack: ['W', 'ST'] };
-export const COACH_UNIT_LABELS = { defense: '수비', midfield: '중원', attack: '공격' };
-export const COACH_FOCUS_ORDER = {
-  defense: ['defense', 'midfield', 'attack'],
-  midfield: ['midfield', 'defense', 'attack'],
-  attack: ['attack', 'midfield', 'defense'],
+// 수석 코치의 육성: 성장 단계(초반·막바지) 선수는 시즌마다 chance 확률로 OVR이 +1 더 오르고, 정체(성장이 멈춤) 확률은 stall로 줄어든다.
+export const COACH_GROWTH_BY_LEVEL = {
+  academy: { chance: 0, stall: 0.10 },
+  proLicense: { chance: 0.3, stall: 0.08 },
+  veteran: { chance: 0.6, stall: 0.06 },
+  master: { chance: 1, stall: 0.04 },
 };
-export const COACH_UNIT_BONUS_BY_LEVEL = { academy: [], proLicense: [2], veteran: [3, 1], master: [4, 2, 1] };
+// 스카우터가 협상 슬라이더에 보여 주는 "구단 하한선 추정 구간": half = 구간 반폭(하한선 대비 비율), hit = 진짜 하한선이 구간 안에 있을 확률.
+export const SCOUT_HAGGLE_HINT_BY_LEVEL = {
+  academy: null,
+  proLicense: { half: 0.12, hit: 0.7 },
+  veteran: { half: 0.07, hit: 0.8 },
+  master: { half: 0.03, hit: 0.85 },
+};
+// 스카우터 목표 지정 칸 수: 칸마다 태그 또는 포지션 하나를 정해 두면 매주 그 조건의 카드를 1장씩 보장한다.
+export const SCOUT_TARGET_SLOTS_BY_LEVEL = { academy: 0, proLicense: 1, veteran: 2, master: 3 };
 
 // 리그별 스태프·감독 시장에 나오는 등급. 5부에 마스터 코치나 레전더리 감독이 있는 건 비현실적이다.
 export const STAFF_LEVELS_BY_TIER = {
@@ -202,29 +178,13 @@ export const STAFF_LEVELS_BY_TIER = {
   tier2: ['academy', 'proLicense', 'veteran', 'master'],
   tier1: ['academy', 'proLicense', 'veteran', 'master'],
 };
-export const MANAGER_OFFER_WEIGHTS_BY_TIER = {
-  tier5: { rookie: 85, tactician: 15, legendary: 0 },
-  tier4: { rookie: 65, tactician: 30, legendary: 5 },
-  tier3: { rookie: 45, tactician: 40, legendary: 15 },
-  tier2: { rookie: 25, tactician: 45, legendary: 30 },
-  tier1: { rookie: 10, tactician: 40, legendary: 50 },
-};
 // 리그가 "이 정도 감독은 있어야 한다"고 기대하는 감독 배율. 감독 배율을 이 값으로
 // 나눈 값이 실제로 곱해진다 - 상위 리그에서 루키 감독을 유지하면 그만큼 손해.
-export const LEAGUE_EXPECTED_MANAGER = { tier5: 1.0, tier4: 1.02, tier3: 1.05, tier2: 1.09, tier1: 1.14 };
 // 스카우터 능력 4가지: 매물 장수 / 상위 등급 카드 확률 / 다시 뽑기 할인 / 목표 지정(매주 보장 카드).
 export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 4, veteran: 4, master: 4 };
 // 톱클래스 이상 카드가 나올 가중치 배율 증가분(리그에 없는 등급은 그대로 0).
 export const SCOUT_QUALITY_BOOST_BY_LEVEL = { academy: 0, proLicense: 0.25, veteran: 0.5, master: 0.9 };
 export const SCOUT_REROLL_DISCOUNT_BY_LEVEL = { academy: 0, proLicense: 0.2, veteran: 0.35, master: 0.5 };
-// 목표 지정: tag = 목표 태그 카드(보통·어려움 태그) 1장, position = 목표 포지션 선수 1장을 매주 보장한다.
-// exclusive면 둘 중 하나만 고른다(베테랑). combined(마스터)면 둘을 동시에 설정하고, 둘을 함께 만족하는 카드 1장을 보장한다.
-export const SCOUT_TARGETS_BY_LEVEL = {
-  academy: { tag: false, position: false, exclusive: false, combined: false },
-  proLicense: { tag: true, position: false, exclusive: false, combined: false },
-  veteran: { tag: true, position: true, exclusive: true, combined: false },
-  master: { tag: true, position: true, exclusive: false, combined: true },
-};
 
 // GOD 카드(선수)가 상점에 뜰 확률 — 전 세계 2명뿐이라 극희귀. 1부 상점에서만
 // 굴린다(data/draft-shop.mjs) - 하부리그에 최상위 카드가 섞이면 위화감이 크다.

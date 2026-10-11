@@ -13,7 +13,7 @@ function makePlayer(overrides = {}) {
 
 test('runFullSeason은 전/후반기 승점 합이 전체 승점과 같다', () => {
   const lineup = Array.from({ length: 11 }, (_, i) => makePlayer({ id: `p${i}` }));
-  const result = runFullSeason(lineup, [], 'rookie', 55, 'tier5', () => 0.5); // 변동 없음(중간값)
+  const result = runFullSeason(lineup, [], 55, 'tier5', () => 0.5); // 변동 없음(중간값)
   assert.ok(Math.abs(result.totalPoints - (result.firstHalf + result.secondHalf)) < 0.001);
 });
 
@@ -37,7 +37,7 @@ test('반기 전술 방향: 같은 난수에서 수비는 변동이 작고 공�
   const { runHalfSeason } = await import('../engine/season.mjs');
   const mk = (i) => ({ id: `p${i}`, baseOVR: 60, age: 25, position: 'CMF', playstyleTags: [], continentTag: null, specialTrait: null, seasonsAtClub: 0 });
   const xi = Array.from({ length: 11 }, (_, i) => mk(i));
-  const at = (r) => (dir) => runHalfSeason(xi, [], 'rookie', 60, 'tier5', () => r, null, dir);
+  const at = (r) => (dir) => runHalfSeason(xi, [], 60, 'tier5', () => r, null, dir);
   const hi = at(1); const lo = at(0);
   const spread = (dir) => hi(dir) - lo(dir);
   assert.ok(spread('defense') < spread('balance') && spread('balance') < spread('attack'));

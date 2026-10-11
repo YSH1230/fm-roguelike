@@ -11,12 +11,13 @@ export function advanceWeek(chemistry, hadTransactionThisWeek) {
 // convertPowerToPoints는 38경기(풀시즌) 스케일로 캘리브레이션되어 있으므로,
 // 전/후반기(19경기씩) 각각에 쓸 때는 결과를 절반으로 나눠 스케일을 맞춘다.
 // ponytail: 근사치. 전/후반기 별도 계수가 필요해지면 그때 분리한다.
-export function runHalfSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng = Math.random, coach = null, direction = 'balance') {
+// fx: 감독 특기 효과, pointsBonus: 이번 반기에 더해지는 특기 승점(후반기 강자·언더독의 기적).
+export function runHalfSeason(lineup, bench, chemistry, leagueTierId, rng = Math.random, fx = null, direction = 'balance', pointsBonus = 0) {
   const tier = getLeagueTier(leagueTierId);
   const leagueAverageOVR = (tier.averageOVR[0] + tier.averageOVR[1]) / 2;
-  const basePower = computeTeamPower(lineup, bench, managerTier, chemistry, coach, { leagueTierId });
+  const basePower = computeTeamPower(lineup, bench, chemistry, fx);
   const finalPower = applyVariance(basePower, POWER_VARIANCE_RATIO * (DIRECTION_VARIANCE[direction] ?? 1), rng);
-  return convertPowerToPoints(finalPower, leagueAverageOVR) / 2;
+  return convertPowerToPoints(finalPower, leagueAverageOVR) / 2 + pointsBonus;
 }
 
 // pointsModifier: 구단별 이사진 기대치 가감(data/clubs.mjs). 튜닝된 리그
@@ -33,9 +34,9 @@ export function judgeSeasonResult(totalPoints, leagueTierId, pointsModifier = 0)
 // 않고 같은 스쿼드로 전/후반기만 계산). 실제 게임(ui/app.mjs)은 12주
 // 이적시장을 진행하면서 runHalfSeason을 두 번 직접 호출하므로 이 함수를
 // 쓰지 않는다 — 밸런스 시뮬레이터 등 "매매 없이 빠르게 결과만" 볼 때를 위해 남겨둔다.
-export function runFullSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng = Math.random) {
-  const firstHalf = runHalfSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng);
-  const secondHalf = runHalfSeason(lineup, bench, managerTier, chemistry, leagueTierId, rng);
+export function runFullSeason(lineup, bench, chemistry, leagueTierId, rng = Math.random) {
+  const firstHalf = runHalfSeason(lineup, bench, chemistry, leagueTierId, rng);
+  const secondHalf = runHalfSeason(lineup, bench, chemistry, leagueTierId, rng);
   const totalPoints = firstHalf + secondHalf;
   return { firstHalf, secondHalf, totalPoints, result: judgeSeasonResult(totalPoints, leagueTierId) };
 }

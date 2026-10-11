@@ -1,28 +1,22 @@
 import { computePlayerFinalOVR } from './ovr.mjs';
 import { chemistryMultiplier, clamp } from './chemistry.mjs';
-import {
-  MANAGER_TIER_MULTIPLIER, TEAM_MULTIPLIER_CAP, POWER_VARIANCE_RATIO,
-  LEAGUE_EXPECTED_MANAGER,
-} from './constants.mjs';
+import { TEAM_MULTIPLIER_CAP, POWER_VARIANCE_RATIO } from './constants.mjs';
 
-export function computeAverageOVR(lineup, bench, coach = null) {
+// fx = 감독 특기 효과(engine/specialties.mjs). 감독 NPC는 없다 - 전력은 선발 평균 OVR(특기·태그 보너스 포함) × 조직력 배율이다.
+export function computeAverageOVR(lineup, bench, fx = null) {
   const total = lineup.reduce(
-    (sum, player) => sum + computePlayerFinalOVR(player, lineup, bench, coach),
+    (sum, player) => sum + computePlayerFinalOVR(player, lineup, bench, fx),
     0
   );
   return total / lineup.length;
 }
 
-// extras: { leagueTierId } - 리그가 기대하는 감독 대비 배율. 없으면(옛 호출) 감독 × 조직력만 곱한다.
-// 수석 코치 효과는 선수 OVR에 유닛 보너스로 이미 들어가 있다(engine/ovr.mjs coachBonusFor).
-export function computeTeamMultiplier(managerTier, chemistry, extras = {}) {
-  const expected = extras.leagueTierId ? LEAGUE_EXPECTED_MANAGER[extras.leagueTierId] ?? 1 : 1;
-  const raw = (MANAGER_TIER_MULTIPLIER[managerTier] / expected) * chemistryMultiplier(chemistry);
-  return clamp(raw, 0, TEAM_MULTIPLIER_CAP);
+export function computeTeamMultiplier(chemistry) {
+  return clamp(chemistryMultiplier(chemistry), 0, TEAM_MULTIPLIER_CAP);
 }
 
-export function computeTeamPower(lineup, bench, managerTier, chemistry, coach = null, extras = {}) {
-  return computeAverageOVR(lineup, bench, coach) * computeTeamMultiplier(managerTier, chemistry, extras);
+export function computeTeamPower(lineup, bench, chemistry, fx = null) {
+  return computeAverageOVR(lineup, bench, fx) * computeTeamMultiplier(chemistry);
 }
 
 export function applyVariance(power, varianceRatio = POWER_VARIANCE_RATIO, randomFn = Math.random) {

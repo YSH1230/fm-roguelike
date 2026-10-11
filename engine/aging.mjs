@@ -1,3 +1,4 @@
+import { COACH_GROWTH_BY_LEVEL } from './constants.mjs';
 // 나이에 따른 시즌별 OVR 변화와 은퇴. 새 시즌이 시작될 때 선수단 전원에게 한 번 적용한다.
 // 어린 선수는 크고, 서른 줄부터 서서히 꺾이고, 30대 중반은 급격히 떨어진다. 그래서 같은
 // 선수를 계속 끌고 갈 수 없고(노쇠화 + 은퇴), 선수단은 주기적으로 갈린다.
@@ -84,21 +85,26 @@ export function agePriceMult(age) {
   return age >= 33 ? 0.85 : 1;
 }
 
-export function ageSquad(squad, rng = Math.random) {
+// coachLevel: 수석 코치 등급(성장 단계 선수의 성장 +1 확률과 정체 확률). 결과의 coachHelped는 코치 덕에 +1 더 오른 선수들.
+export function ageSquad(squad, rng = Math.random, coachLevel = 'academy') {
   const kept = [];
   const changes = [];
   const retired = [];
   const peaked = [];
+  const coachHelped = [];
+  const cg = COACH_GROWTH_BY_LEVEL[coachLevel] ?? COACH_GROWTH_BY_LEVEL.academy;
   for (const raw of squad) {
     const p = ensurePotential(raw, rng);
     const newAge = p.age + 1;
     if (p.retiresAfterSeason || rng() < retireChance(bodyAge(newAge, p.position))) { retired.push({ id: p.id, name: p.name, age: newAge, baseOVR: p.baseOVR }); continue; }
     const ba = bodyAge(p.age, p.position);
     let delta;
+    let helped = false;
     if (ba < p.peakBodyAge) {
       // 전성기를 향해: 남은 해로 나눈 만큼 오르고 ±1 흔들린다
       delta = Math.round((p.peakOVR - p.baseOVR) / (p.peakBodyAge - ba)) + (Math.floor(rng() * 3) - 1);
       delta = Math.max(-1, delta);
+      if (cg.chance > 0 && rng() < cg.chance) { delta += 1; helped = true; }
     } else if (ba < PRIME_END_BODY_AGE) {
       delta = -Math.floor(rng() * 2); // 전성기: 0 또는 -1
     } else {
@@ -106,13 +112,15 @@ export function ageSquad(squad, rng = Math.random) {
       delta = lo + Math.floor(rng() * (hi - lo + 1));
     }
     const roll = rng();
-    const kind = roll < LEAP_CHANCE ? 'leap' : roll < LEAP_CHANCE + STALL_CHANCE ? 'stall' : null;
+    const stallChance = ba < p.peakBodyAge ? cg.stall : STALL_CHANCE; // 코치는 성장 단계 선수의 정체 확률을 줄인다
+    const kind = roll < LEAP_CHANCE ? 'leap' : roll < LEAP_CHANCE + stallChance ? 'stall' : null;
     if (kind === 'leap') delta += LEAP_BONUS;
     else if (kind === 'stall') delta = Math.min(delta, 0);
     const next = Math.min(99, Math.max(1, p.baseOVR + delta));
     kept.push({ ...p, age: newAge, baseOVR: next });
     if (ba < p.peakBodyAge && bodyAge(newAge, p.position) >= p.peakBodyAge) peaked.push({ id: p.id, name: p.name, age: newAge, ovr: next });
-    if (next !== p.baseOVR) changes.push({ id: p.id, name: p.name, age: newAge, from: p.baseOVR, to: next, delta: next - p.baseOVR, kind });
+    if (next !== p.baseOVR) changes.push({ id: p.id, name: p.name, age: newAge, from: p.baseOVR, to: next, delta: next - p.baseOVR, kind, coach: helped });
+    if (helped && kind !== 'stall') coachHelped.push({ id: p.id, name: p.name });
   }
-  return { squad: kept, changes, retired, peaked };
+  return { squad: kept, changes, retired, peaked, coachHelped };
 }

@@ -3,7 +3,7 @@ import { resolveFfpAudit } from '../engine/events.mjs';
 import { SPONSORSHIP_FUNDS_BONUS_RATIO, EVENT_CHANCE_SUMMER, EVENT_CHANCE_WINTER } from '../engine/constants.mjs';
 
 // 시즌 이벤트 풀 20종. 두 갈래다.
-//  - 자동 이벤트(EVENTS): apply가 { squad, funds, chemistry, baseFunds, manager }를 받아 바뀐 값과
+//  - 자동 이벤트(EVENTS): apply가 { squad, funds, chemistry, baseFunds }를 받아 바뀐 값과
 //    message("이름: 상세" - UI가 ': '로 제목/상세를 나눈다)를 돌려준다. state는 런 상태에 덧붙일 값.
 //  - 선택형 이벤트(CHOICES): 2지선다. prepare가 선택에 필요한 값(대상 선수, 유망주 등)을 한 번 정해
 //    저장 가능한 payload로 돌려주고, describe/resolve가 그 payload로 화면과 결과를 만든다.
@@ -76,24 +76,7 @@ const EVENTS = [
       };
     },
   },
-  // ---- 새 자동 이벤트: 태그·감독과 이어지는 것 2종 + 일상 3종
-  {
-    id: 'tacticalSeminar', name: '전술 세미나', tone: 'good',
-    apply: ({ squad, chemistry, manager }) => {
-      const tag = manager?.tacticalTag;
-      const holders = squad.filter((p) => tag && p.playstyleTags.includes(tag));
-      if (!holders.length) return { chemistry: clamp(chemistry + 5, 0, 100), message: '전술 세미나: 감독의 특강으로 팀이 하나가 됩니다. 조직력 +5' };
-      const best = topBy(holders, 'baseOVR');
-      return {
-        squad: squad.map((p) => (p.id === best.id ? { ...p, baseOVR: Math.min(99, p.baseOVR + 2) } : p)),
-        message: `전술 세미나: 감독의 특강으로 ${best.name}이(가) 전술을 깨쳤습니다. OVR +2`,
-      };
-    },
-  },
-  {
-    id: 'analystJoins', name: '전술 분석관 합류', tone: 'good',
-    apply: () => ({ state: { harmonyShield: true }, message: '전술 분석관 합류: 다음 감독 불화 검사에서 불화가 나도 페널티와 누적이 면제됩니다' }),
-  },
+  // ---- 새 자동 이벤트: 일상 3종
   {
     id: 'localFestival', name: '지역 축제 초청', tone: 'good',
     apply: ({ funds, chemistry, baseFunds }) => {
@@ -249,10 +232,8 @@ const CHOICES = [
 ];
 
 const ALL = [...EVENTS, ...CHOICES];
-// 감독·스태프 탭이 열리기 전(ctx.staffOn === false)에는 감독·불화를 말하는 이벤트를 뽑지 않는다.
-const STAFF_EVENTS = ['tacticalSeminar', 'analystJoins'];
 
-// ctx = { squad, funds, chemistry, baseFunds, crisisImmune, manager, recent }
+// ctx = { squad, funds, chemistry, baseFunds, recent }
 // bias = { [eventId]: 가중치 배수 } - 구단 색채가 특정 이벤트를 더 자주 부른다. recent = 최근 나온 이벤트 id들.
 export function rollSeasonEvent(ctx, phase, rng = Math.random, bias = {}) {
   const none = { id: null, tone: null, message: '', squad: ctx.squad, funds: ctx.funds, chemistry: ctx.chemistry, state: {}, choice: null };
@@ -260,16 +241,13 @@ export function rollSeasonEvent(ctx, phase, rng = Math.random, bias = {}) {
   if (rng() >= chance) return none;
 
   const recent = ctx.recent ?? [];
-  const weights = ALL.map((e) => (ctx.staffOn === false && STAFF_EVENTS.includes(e.id) ? 0 : (bias[e.id] ?? 1) * (recent.includes(e.id) ? RECENT_WEIGHT : 1)));
+  const weights = ALL.map((e) => (bias[e.id] ?? 1) * (recent.includes(e.id) ? RECENT_WEIGHT : 1));
   let pick = rng() * weights.reduce((a, b) => a + b, 0);
   const event = ALL.find((_, i) => (pick -= weights[i]) < 0) ?? ALL.at(-1);
 
   const choice = CHOICES.find((c) => c.id === event.id);
   if (choice) {
     return { ...none, id: event.id, tone: 'choice', message: `${event.name}`, choice: { id: choice.id, payload: choice.prepare(ctx, rng) } };
-  }
-  if (event.tone === 'bad' && ctx.crisisImmune) {
-    return { ...none, id: event.id, tone: 'good', message: `${event.name}: 위기 관리형 감독이 무효화했습니다` };
   }
   const out = event.apply(ctx, rng);
   return {

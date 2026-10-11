@@ -37,26 +37,23 @@ function tierPool(tierId, boost = 0) {
 // tierId: 지금 뛰는 리그 등급. 안 넘기면 가장 관대한 tier1 분포를 쓴다
 // (구버전 호출부·유닛 테스트 호환용 기본값 - 실제 게임은 항상 넘긴다).
 // 스카우터 목표 태그 카드: 이 리그 상점 분포의 등급으로 뽑되, 그 태그를 달 수 있는 포지션으로 만든다.
-function targetedCard(tag, tierId, rng, position = null) {
-  const pool = tierPool(tierId);
+function targetedCard(tag, tierId, rng, position = null, pool = tierPool(tierId)) {
   const tier = pool[Math.floor(rng() * pool.length)];
   return generateProceduralPlayer(tier, rng, position, tag);
 }
 
-// targetTag/targetSlots: 스카우터가 매주 맨 앞 targetSlots장을 목표 태그 카드로 보장한다.
-// targetPosition: 태그 보장 카드 다음 한 장을 그 포지션 선수로 보장한다(베테랑 이상 스카우터).
+// targets: 스카우터가 매주 맨 앞에서부터 한 칸에 한 장씩 보장하는 목표 카드들. 칸 하나는 { tag?, position? } - 태그만, 포지션만, 둘 다 가능하다(둘 다면 둘을 함께 만족하는 카드 1장).
 // qualityBoost: 스카우터가 올려 주는 상위 등급 확률.
-// combined: 태그와 포지션을 동시에 만족하는 카드 1장(마스터). 한쪽만 정했으면 그쪽 카드 1장.
-export function generateShopOffer(size, availableGods = [], rng = Math.random, tierId = 'tier1', targetTag = null, targetSlots = 0, targetPosition = null, qualityBoost = 0, combined = false) {
+export function generateShopOffer(size, availableGods = [], rng = Math.random, tierId = 'tier1', targets = [], qualityBoost = 0) {
   const pool = tierPool(tierId, qualityBoost);
   // GOD 카드는 1부에서만 굴린다 - 예전엔 리그 무관 고정 확률이라 5부 상점에도
   // 똑같이 뜰 수 있었다(local 카드들 사이에 OVR 88+ 카드가 섞이는 위화감).
   const godEligible = tierId === 'tier1' && availableGods.length > 0;
   return Array.from({ length: size }, (_, i) => {
-    if (targetTag && i < targetSlots && PLAYSTYLE_TAGS[targetTag]) return targetedCard(targetTag, tierId, rng, combined ? targetPosition : null);
-    if (targetPosition && !(combined && targetTag && targetSlots) && i === (targetTag ? targetSlots : 0)) {
-      return generateProceduralPlayer(pool[Math.floor(rng() * pool.length)], rng, targetPosition);
-    }
+    const t = targets[i];
+    const tag = t?.tag && PLAYSTYLE_TAGS[t.tag] ? t.tag : null;
+    const position = t?.position ?? null;
+    if (tag || position) return targetedCard(tag, tierId, rng, position, pool);
     if (godEligible && rng() < GOD_PLAYER_SHOP_CHANCE) {
       return availableGods[Math.floor(rng() * availableGods.length)];
     }

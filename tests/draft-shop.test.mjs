@@ -44,10 +44,10 @@ test('GOD 카드는 1부가 아니면 절대 안 뜬다', () => {
   assert.ok(tier1Offer.some((c) => c.id === 'god-1'), '1부에서는 GOD 카드가 뜰 수 있어야 한다');
 });
 
-test('스카우터 목표 태그: 맨 앞 N장이 그 태그를 달고, 그 태그를 받는 포지션이다', () => {
+test('스카우터 목표 태그: 목표 칸마다 그 태그를 달고, 그 태그를 받는 포지션이다', () => {
   for (const tag of ['counter', 'press']) {
     for (let i = 0; i < 50; i++) {
-      const offer = generateShopOffer(4, [], Math.random, 'tier3', tag, 2);
+      const offer = generateShopOffer(4, [], Math.random, 'tier3', [{ tag }, { tag }]);
       assert.equal(offer.length, 4);
       for (const c of offer.slice(0, 2)) {
         assert.ok(c.playstyleTags.includes(tag));
@@ -57,37 +57,30 @@ test('스카우터 목표 태그: 맨 앞 N장이 그 태그를 달고, 그 태�
   }
 });
 
-test('목표 태그는 처음 3종이어도 맨 앞 카드에 보장된다', () => {
-  const offer = generateShopOffer(3, [], Math.random, 'tier5', 'pass', 3);
+test('목표 태그는 처음 3종이어도 보장된다', () => {
+  const offer = generateShopOffer(3, [], Math.random, 'tier5', [{ tag: 'pass' }, { tag: 'pass' }, { tag: 'pass' }]);
   assert.equal(offer.length, 3);
   assert.ok(offer.every((c) => c.playstyleTags.includes('pass')));
 });
 
-test('스카우터 목표 포지션: 태그 보장 카드 다음 한 장이 그 포지션 선수다', () => {
+test('스카우터 목표 칸: 태그 칸, 포지션 칸을 섞어 여러 개 둘 수 있다', () => {
   for (let i = 0; i < 50; i++) {
-    const offer = generateShopOffer(4, [], Math.random, 'tier3', 'press', 1, 'GK');
+    const offer = generateShopOffer(4, [], Math.random, 'tier3', [{ tag: 'press' }, { position: 'GK' }, { tag: 'counter', position: 'AMF' }]);
     assert.ok(offer[0].playstyleTags.includes('press'));
     assert.equal(offer[1].position, 'GK');
+    assert.ok(offer[2].playstyleTags.includes('counter'));
+    assert.equal(offer[2].position, 'AMF');
+    assert.equal(offer.length, 4);
   }
-  // 태그 없이 포지션만: 첫 장이 그 포지션
-  assert.equal(generateShopOffer(3, [], Math.random, 'tier4', null, 0, 'ST')[0].position, 'ST');
+  assert.equal(generateShopOffer(3, [], Math.random, 'tier4', [{ position: 'ST' }])[0].position, 'ST');
 });
 
 test('스카우터 상위 등급 확률: 값이 클수록 톱클래스 이상 카드가 더 자주 나온다', () => {
   const topShare = (boost) => {
     let top = 0; let n = 0;
-    for (let i = 0; i < 4000; i++) for (const c of generateShopOffer(3, [], Math.random, 'tier4', null, 0, null, boost)) { n++; if (c.baseOVR >= 73) top++; }
+    for (let i = 0; i < 4000; i++) for (const c of generateShopOffer(3, [], Math.random, 'tier4', [], boost)) { n++; if (c.baseOVR >= 73) top++; }
     return top / n;
   };
   const base = topShare(0);
   assert.ok(topShare(0.9) > base * 1.4, '마스터 스카우터는 상위 카드가 눈에 띄게 많아야 한다');
-});
-
-test('마스터 스카우터: 태그와 포지션을 동시에 만족하는 카드 1장이 맨 앞에 나온다', () => {
-  for (let i = 0; i < 50; i++) {
-    const offer = generateShopOffer(4, [], Math.random, 'tier3', 'press', 1, 'AMF', 0, true);
-    assert.ok(offer[0].playstyleTags.includes('press'));
-    assert.equal(offer[0].position, 'AMF');
-    assert.equal(offer.length, 4);
-  }
 });

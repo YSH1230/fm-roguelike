@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   PLAYSTYLE_TAGS,
   CONTINENT_TAGS,
-  MANAGER_TIER_MULTIPLIER,
   CHEMISTRY_START,
   CHEMISTRY_DECAY_PER_TRANSACTION,
   CHEMISTRY_RECOVERY_PER_STABLE_WEEK,
@@ -33,13 +32,6 @@ test('대륙 태그 5종은 모두 같은 수치를 쓴다(포지션 무관)', (
   for (const tag of rest) {
     assert.deepEqual(tag, first);
   }
-});
-
-test('감독 등급 배율이 스펙과 일치한다', () => {
-  assert.equal(MANAGER_TIER_MULTIPLIER.rookie, 1.00);
-  assert.equal(MANAGER_TIER_MULTIPLIER.tactician, 1.07);
-  assert.equal(MANAGER_TIER_MULTIPLIER.legendary, 1.16);
-  assert.equal(MANAGER_TIER_MULTIPLIER.god, 1.26);
 });
 
 test('조직력 기본 상수가 스펙과 일치한다', () => {
