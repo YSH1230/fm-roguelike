@@ -2317,3 +2317,31 @@ html[data-theme='kiwi'] .cta--alt:hover { background: var(--gold); color: #000; 
 .slot .ticon--seed::after { display: none; }
 .formationnote { margin: var(--s2) 0 0; }
 .formationnote span { color: var(--muted); }
+
+/* ===== 감독 특기 / 감독 패널 / 스카우터 목표 칸 / 협상 힌트 ===== */
+.spec { display: grid; gap: 4px; text-align: left; padding: var(--s3); border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--light); cursor: pointer; width: 100%; font-family: var(--ui); }
+button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
+.spec--own { cursor: default; }
+.spec__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s2); }
+.spec__name { font-size: var(--fs-m); font-weight: 700; color: var(--gold); }
+.spec__lv { font-style: normal; font-size: var(--fs-label); font-weight: 700; color: var(--turf); }
+.spec__blurb { font-size: var(--fs-body); color: var(--muted); }
+.spec__fx { font-size: var(--fs-body); font-weight: 600; }
+.spec__need { color: var(--muted-dim); font-size: var(--fs-micro); }
+.specpick__list { display: grid; gap: var(--s2); margin: var(--s3) 0; }
+.specpick__note { font-size: var(--fs-label); color: var(--muted); }
+.speclist { list-style: none; margin: var(--s2) 0; padding: 0; display: grid; gap: var(--s2); }
+.mgrpanel { margin-bottom: var(--s4); }
+.mgrpanel__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s2); font-size: var(--fs-m); }
+.mgrpanel__head span { font-size: var(--fs-label); color: var(--muted); }
+.mgrpanel__head b.n { color: var(--turf); }
+.specline { display: flex; align-items: baseline; gap: var(--s2); width: 100%; margin: var(--s2) 0; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--light); text-align: left; cursor: pointer; font-family: var(--ui); }
+.specline b { color: var(--gold); font-size: var(--fs-label); white-space: nowrap; }
+.specline span { font-size: var(--fs-label); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scoutslot { display: inline-flex; gap: 4px; margin-right: 6px; }
+.scoutbar { flex-wrap: wrap; row-gap: 6px; }
+.bid__track { position: relative; display: grid; align-items: center; }
+.bid__track .bid__range { position: relative; z-index: 1; background: transparent; }
+.bid__zone { position: absolute; top: 50%; height: 10px; transform: translateY(-50%); background: color-mix(in srgb, var(--gold) 38%, transparent); border-radius: 5px; pointer-events: none; }
+.bid__hint { color: var(--gold); font-size: var(--fs-label); text-align: center; }
+.agingbox__coach { margin: 4px 0 6px; font-size: var(--fs-label); color: var(--turf); }
