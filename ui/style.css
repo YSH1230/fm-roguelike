@@ -2345,3 +2345,16 @@ button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
 .bid__zone { position: absolute; top: 50%; height: 10px; transform: translateY(-50%); background: color-mix(in srgb, var(--gold) 38%, transparent); border-radius: 5px; pointer-events: none; }
 .bid__hint { color: var(--gold); font-size: var(--fs-label); text-align: center; }
 .agingbox__coach { margin: 4px 0 6px; font-size: var(--fs-label); color: var(--turf); }
+
+/* 라커룸 토크 / 철학 카드 */
+.spec__line { font-size: var(--fs-body); font-style: italic; color: var(--light); }
+.spec__tone { font-style: normal; font-size: var(--fs-micro); font-weight: 700; padding: 2px 6px; border-radius: 999px; border: 1px solid currentColor; }
+.spec__tone.is-safe { color: var(--turf); }
+.spec__tone.is-risky { color: #ff9b3d; }
+.stancebox { display: grid; gap: 4px; margin: var(--s2) 0; padding: var(--s3); border: 1px dashed var(--line); border-radius: 8px; background: var(--surface); font-size: var(--fs-body); }
+.stancebox b { color: var(--gold); }
+.stancebox span { color: var(--muted); font-size: var(--fs-label); }
+.stancebox ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.stancebox li { font-size: var(--fs-label); padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.stancebox li.is-good { color: var(--turf); }
+.stancebox li.is-bad { color: #f0928a; }

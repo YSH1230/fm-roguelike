@@ -74,19 +74,20 @@ test('applyVariance는 randomFn 결과에 따라 ±ratio 범위로 조정한다'
   assert.equal(applyVariance(100, 0.05, () => 0.5), 100); // 중간값(변화 없음)
 });
 
-test('감독 특기 효과: 태그 스승·포메이션 궁합·철벽 수비·스타 군단이 선발 OVR에 더해진다', async () => {
+test('철학 효과: 태그 철학·포메이션 궁합·철벽 수비가 선발 OVR에 더해진다', async () => {
   const { computePlayerFinalOVR } = await import('../engine/ovr.mjs');
-  const { specialtyEffects, pickSpecialty } = await import('../engine/specialties.mjs');
+  const { specialtyEffects } = await import('../engine/specialties.mjs');
   const mk = (id, position, tags = []) => ({ id, name: id, baseOVR: 60, age: 27, position, playstyleTags: tags, specialTrait: null, slotPosition: position });
   const lineup = [mk('gk', 'GK'), mk('cb', 'CB'), mk('dm', 'DMF'), mk('st', 'ST', ['dribble']), mk('w1', 'W', ['dribble']), mk('w2', 'W', ['dribble'])];
-  const none = specialtyEffects([]);
+  const none = specialtyEffects(null);
   const p = (id) => lineup.find((x) => x.id === id);
   assert.equal(computePlayerFinalOVR(p('cb'), lineup, [], none), 60);
   // 철벽 수비 Lv1: 골키퍼·수비수·수비형 미드필더 +1, 공격수는 그대로
-  const cat = specialtyEffects(pickSpecialty([], 'catenaccio'));
-  assert.deepEqual(['gk', 'cb', 'dm', 'st'].map((id) => computePlayerFinalOVR(p(id), lineup, [], cat)), [61, 61, 61, 60 + (computePlayerFinalOVR(p('st'), lineup, [], none) - 60)]);
+  const cat = specialtyEffects({ id: 'catenaccio', level: 1 });
+  assert.deepEqual(['gk', 'cb', 'dm'].map((id) => computePlayerFinalOVR(p(id), lineup, [], cat)), [61, 61, 61]);
+  assert.equal(computePlayerFinalOVR(p('st'), lineup, [], cat), computePlayerFinalOVR(p('st'), lineup, [], none));
   // 낭만 공격수 Lv1: 돌파 태그 선수 3명이 +2씩(보유자 3명 = 첫 문턱)
-  const rom = specialtyEffects(pickSpecialty([], 'romantic'));
+  const rom = specialtyEffects({ id: 'romantic', level: 1 });
   const base = computePlayerFinalOVR(p('w1'), lineup, [], none);
   assert.equal(computePlayerFinalOVR(p('w1'), lineup, [], rom), base + 2);
   assert.equal(computePlayerFinalOVR(p('cb'), lineup, [], rom), 60);

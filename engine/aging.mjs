@@ -86,7 +86,8 @@ export function agePriceMult(age) {
 }
 
 // coachLevel: 수석 코치 등급(성장 단계 선수의 성장 +1 확률과 정체 확률). 결과의 coachHelped는 코치 덕에 +1 더 오른 선수들.
-export function ageSquad(squad, rng = Math.random, coachLevel = 'academy') {
+// opts.extraGrowth: 라커룸 토크 등으로 성장 단계 선수의 "+1 더" 확률을 더하거나(+) 성장을 깎는다(−). opts.vetRelief: 베테랑 하락을 완화(+1)하거나 악화(−1).
+export function ageSquad(squad, rng = Math.random, coachLevel = 'academy', opts = {}) {
   const kept = [];
   const changes = [];
   const retired = [];
@@ -104,12 +105,15 @@ export function ageSquad(squad, rng = Math.random, coachLevel = 'academy') {
       // 전성기를 향해: 남은 해로 나눈 만큼 오르고 ±1 흔들린다
       delta = Math.round((p.peakOVR - p.baseOVR) / (p.peakBodyAge - ba)) + (Math.floor(rng() * 3) - 1);
       delta = Math.max(-1, delta);
-      if (cg.chance > 0 && rng() < cg.chance) { delta += 1; helped = true; }
+      const chance = Math.min(1, Math.max(0, cg.chance + Math.max(0, opts.extraGrowth ?? 0)));
+      if (chance > 0 && rng() < chance) { delta += 1; helped = true; }
+      if ((opts.extraGrowth ?? 0) < 0 && rng() < -opts.extraGrowth) delta -= 1; // 성장을 깎는 토크
     } else if (ba < PRIME_END_BODY_AGE) {
       delta = -Math.floor(rng() * 2); // 전성기: 0 또는 -1
     } else {
       const [lo, hi] = ovrChangeRange(p.age - DECLINE_SHIFT, p.position);
       delta = lo + Math.floor(rng() * (hi - lo + 1));
+      if (opts.vetRelief) delta = opts.vetRelief > 0 ? Math.min(0, delta + 1) : delta - 1; // 베테랑 헌정/세대교체 토크
     }
     const roll = rng();
     const stallChance = ba < p.peakBodyAge ? cg.stall : STALL_CHANCE; // 코치는 성장 단계 선수의 정체 확률을 줄인다

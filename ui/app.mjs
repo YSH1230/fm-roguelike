@@ -49,7 +49,10 @@ import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
 import { ageSquad, playerTrend, ensurePotential, hasPeaked, bodyAge, growthStage } from '../engine/aging.mjs';
 import { potentialGrade, haggleHint } from '../engine/scouting.mjs';
-import { SPECIALTIES, MAX_SPECIALTIES, drawSpecialtyChoices, pickSpecialty, specialtyEffects, specialtyLevel, tenureChemistry } from '../engine/specialties.mjs';
+import {
+  PHILOSOPHIES, MAX_PHILOSOPHY_LEVEL, drawPhilosophyChoices, levelUpPhilosophy, philosophyText,
+  TALKS, drawTalkChoices, rollTalkOutcome, describeTalkFx, specialtyEffects,
+} from '../engine/specialties.mjs';
 import { BID_MIN_RATIO, buyBid, sellBid, reservePrice, maxSalePrice, deadlinePressure, patienceCost, toleranceFor, patienceFor, attitudeScore, attitudeLabel, clubBaseAttitude, cardUniform, moodAfter } from '../engine/haggle.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
 import { renderPortrait, appearanceOf } from './portrait.mjs';
@@ -184,24 +187,14 @@ function currentFormation() {
 
 // 이사진이 이번 시즌 요구하는 승점(안전선~승격선 사이). 리그와 구단 기대치만으로
 // 정해지니 따로 저장하지 않고 필요할 때 계산한다.
-// 감독 특기 효과(engine/specialties.mjs). 엔진 계산 곳곳에 이 한 객체를 넘긴다.
+// 감독 효과(engine/specialties.mjs): 전술 철학(영구) + 이번 시즌 라커룸 토크. 엔진 계산 곳곳에 이 한 객체를 넘긴다.
 function fx() {
-  return specialtyEffects(currentState?.specialties);
+  return specialtyEffects(currentState?.philosophy, currentState?.stance?.fx);
 }
-// 반기 승점에 더해지는 특기 보너스: 후반기 강자(후반기), 언더독의 기적(승격한 첫 시즌의 두 반기)
+// 반기 승점에 더해지는 라커룸 토크 보너스(승부수 선언 등)
 function halfBonus(half) {
   const f = fx();
-  return (half === 2 ? f.secondHalfPoints : 0) + (currentState.promotedThisSeason ? f.promotedPointsPerHalf : 0);
-}
-// 시즌 시작(여름)과 겨울 시작에 붙는 특기 조직력(헤어드라이어, 구단의 아버지). 배너에 붙일 문구를 돌려준다.
-function specialtyStartBoost(summer) {
-  const f = fx();
-  let add = f.startChemistry + (summer ? tenureChemistry(f, currentState.seasonNumber) : 0);
-  if (!add) return '';
-  const before = currentState.chemistry;
-  currentState.chemistry = Math.min(100, before + add);
-  add = currentState.chemistry - before;
-  return add > 0 ? ` 감독 특기 효과: 조직력 +${add}.` : '';
+  return half === 2 ? f.pointsSecond : f.pointsFirst;
 }
 function currentBoardGoal() {
   return boardGoalPoints(effectiveTier(currentState.leagueTierId));
@@ -379,59 +372,136 @@ function draftStaffHtml(funds) {
     }).join('')}</ul>`).join('');
 }
 
-// ---------- 감독 특기 ----------
-// 특기 한 장: 이름, 레벨, 한 줄 소개, 효과(레벨별), 태그형은 "필요" 힌트. pick이면 선택 카드, 아니면 내 특기 목록 카드.
-function specialtyCardHtml(id, level, { upgrade = false } = {}) {
-  const sp = SPECIALTIES[id];
-  const need = sp.kind === 'tag' && sp.tag ? `<small class="spec__need">필요: ${esc(TAG_LABELS[sp.tag])} 태그 선수 3명 이상</small>` : (sp.id === 'starHandler' || id === 'starHandler' ? '<small class="spec__need">필요: 개인 특기 선수(월드클래스 이상)</small>' : '');
-  return `<span class="spec__head"><b class="spec__name">${esc(sp.name)}</b><i class="spec__lv">${upgrade ? `Lv${level - 1} → Lv${level}` : `Lv${level}`}</i></span>
-    <span class="spec__blurb">${esc(sp.blurb)}</span>
-    <span class="spec__fx">${esc(sp.lv[level - 1])}</span>${need}`;
+// ---------- 감독: 전술 철학(영구) + 라커룸 토크(시즌 단위) ----------
+// 철학 카드: 이름, 대사, 한 줄 소개, 레벨별 효과. nextLevel이면 "Lv1 → Lv2" 강화 표시.
+function philosophyCardHtml(id, level, { from = 0 } = {}) {
+  const p = PHILOSOPHIES[id];
+  const need = p.kind === 'tag' ? `<small class="spec__need">필요: ${esc(TAG_LABELS[p.tag])} 태그 선수 3명 이상</small>` : '';
+  return `<span class="spec__head"><b class="spec__name">${esc(p.name)}</b><i class="spec__lv">${from ? `Lv${from} → Lv${level}` : `Lv${level}`}</i></span>
+    <span class="spec__line">${esc(p.line)}</span>
+    <span class="spec__blurb">${esc(p.blurb)}</span>
+    <span class="spec__fx">${esc(philosophyText(id, level))}</span>${need}`;
 }
 
-// 특기 3택1 창(정식 임명, 승격). onDone은 고른 뒤에 부른다.
-function showSpecialtyPick({ kicker, title, detail = '', firstPick = false }, onDone) {
+// 정식 임명: 철학 3택1
+function showPhilosophyPick(onDone) {
   const root = document.getElementById('eventmodal-root');
-  const choices = drawSpecialtyChoices(currentState.specialties, Math.random, { firstPick });
-  if (!choices.length) { onDone(); return; }
+  const choices = drawPhilosophyChoices();
   root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal eventmodal--goal specpick">
-        <div class="eventmodal__kicker">${esc(kicker)}</div>
-        <div class="eventmodal__title">${esc(title)}</div>
-        ${detail ? `<p class="eventmodal__detail">${esc(detail)}</p>` : ''}
-        <div class="specpick__list">${choices.map((c, i) => `<button class="spec" data-spec="${i}">${specialtyCardHtml(c.id, c.level, { upgrade: c.upgrade })}</button>`).join('')}</div>
-        <p class="eventmodal__detail specpick__note">특기는 최대 ${MAX_SPECIALTIES}개까지 모을 수 있어요. 이미 가진 특기가 나오면 강화(Lv2)돼요.</p>
+        <div class="eventmodal__kicker">정식 임명 · 기자회견</div>
+        <div class="eventmodal__title">"이 팀은 어떤 축구를 하게 됩니까?"</div>
+        <p class="eventmodal__detail">첫 시즌을 버텨 낸 당신에게 이사진이 정식 감독 자리를 맡겼어요. 당신의 전술 철학을 고르세요. 승격할 때마다 철학이 한 단계씩 깊어져요(최대 Lv${MAX_PHILOSOPHY_LEVEL}).</p>
+        <div class="specpick__list">${choices.map((id, i) => `<button class="spec" data-phil="${i}">${philosophyCardHtml(id, 1)}</button>`).join('')}</div>
       </div>
     </div>`;
-  root.querySelectorAll('[data-spec]').forEach((b) => {
+  root.querySelectorAll('[data-phil]').forEach((b) => {
     b.onclick = () => {
-      const c = choices[Number(b.dataset.spec)];
-      currentState.specialties = pickSpecialty(currentState.specialties, c.id);
+      const id = choices[Number(b.dataset.phil)];
+      currentState.philosophy = { id, level: 1 };
       root.innerHTML = '';
-      track('specialty', { id: c.id, lv: c.level, s: currentState.seasonNumber });
+      track('philosophy', { id, s: currentState.seasonNumber });
       onDone();
     };
   });
 }
 
-// 전술 탭 한 줄 요약: 가진 특기 이름들(누르면 감독·스태프 탭)
-function specSummaryHtml() {
-  const owned = currentState.specialties ?? [];
-  const label = owned.length ? owned.map((o) => `${SPECIALTIES[o.id].name}${o.level > 1 ? ` Lv${o.level}` : ''}`).join(' · ') : '아직 없음 (정식 감독이 되면 고를 수 있어요)';
-  return `<button type="button" class="specline" id="spec-line"><b>${currentState.appointed ? '감독' : '임시 감독'} 특기</b><span>${esc(label)}</span></button>`;
+// 승격: 철학이 한 단계 깊어진다(자동)
+function showPhilosophyLevelUp(onDone) {
+  const ph = currentState.philosophy;
+  if (!ph || ph.level >= MAX_PHILOSOPHY_LEVEL) { onDone(); return; }
+  const before = ph.level;
+  currentState.philosophy = levelUpPhilosophy(ph);
+  const root = document.getElementById('eventmodal-root');
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--goal specpick">
+        <div class="eventmodal__kicker">승격 · 전술 노트</div>
+        <div class="eventmodal__title">철학이 깊어졌어요</div>
+        <p class="eventmodal__detail">승격을 이끈 전술에 확신이 생겼어요. 전술 노트에 한 줄을 더합니다.</p>
+        <div class="specpick__list"><div class="spec spec--own">${philosophyCardHtml(ph.id, before + 1, { from: before })}</div></div>
+        <button class="cta" id="phil-ok">확인</button>
+      </div>
+    </div>`;
+  document.getElementById('phil-ok').onclick = () => { root.innerHTML = ''; onDone(); };
 }
 
-// 감독·스태프 탭 맨 위: 내 감독 상태와 가진 특기
+const TALK_TONE = { safe: '안정적', risky: '모험적' };
+// 라커룸 토크 장면: 3장 중 하나. 반응은 고르고 나서 정해지므로 카드에는 장면 이름과 대사, 분위기만 보인다.
+function showTalkPick(kind, onDone) {
+  const root = document.getElementById('eventmodal-root');
+  const choices = drawTalkChoices(kind);
+  const isStart = kind === 'start';
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--goal specpick">
+        <div class="eventmodal__kicker">라커룸 토크 · ${isStart ? '시즌 시작' : '시즌 마무리'}</div>
+        <div class="eventmodal__title">${isStart ? '선수들이 라커룸에서 당신을 바라본다' : '시즌이 끝났다. 라커룸이 조용하다'}</div>
+        <p class="eventmodal__detail">${isStart ? '이번 시즌, 어떤 말로 시작할까요? 선수들이 어떻게 받아들일지는 말해 봐야 알아요.' : '한 해를 어떤 말로 마무리할까요? 이 말은 오프시즌에 영향을 줘요.'}</p>
+        <div class="specpick__list">${choices.map((id, i) => `<button class="spec" data-talk="${i}"><span class="spec__head"><b class="spec__name">${esc(TALKS[kind][id].name)}</b><i class="spec__tone is-${TALKS[kind][id].tone}">${TALK_TONE[TALKS[kind][id].tone]}</i></span><span class="spec__line">${esc(TALKS[kind][id].line)}</span></button>`).join('')}</div>
+      </div>
+    </div>`;
+  root.querySelectorAll('[data-talk]').forEach((b) => {
+    b.onclick = () => {
+      const id = choices[Number(b.dataset.talk)];
+      const outcome = rollTalkOutcome(kind, id);
+      track('talk', { k: kind, id, s: currentState.seasonNumber });
+      showTalkResult(outcome, onDone);
+    };
+  });
+}
+
+// 토크 결과: 선수들의 반응과 장점·단점
+function showTalkResult(outcome, onDone) {
+  const root = document.getElementById('eventmodal-root');
+  const lines = describeTalkFx(outcome.fx);
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--goal specpick">
+        <div class="eventmodal__kicker">라커룸 토크 결과</div>
+        <div class="eventmodal__title">${esc(outcome.name)}</div>
+        <p class="eventmodal__detail">${esc(outcome.text)}</p>
+        <ul class="buyres__list">${lines.map((l) => `<li class="buyres__row is-${l.good ? 'good' : 'bad'}"><i></i><span>${esc(l.text)}</span></li>`).join('')}</ul>
+        <button class="cta" id="talk-ok">확인</button>
+      </div>
+    </div>`;
+  document.getElementById('talk-ok').onclick = () => {
+    root.innerHTML = '';
+    if (outcome.kind === 'start') {
+      currentState.stance = outcome;
+      if (outcome.fx.chemNow) currentState.chemistry = Math.max(0, Math.min(100, currentState.chemistry + outcome.fx.chemNow));
+    } else {
+      currentState.offseason = outcome;
+    }
+    onDone();
+  };
+}
+
+// 전술 탭 한 줄 요약
+function specSummaryHtml() {
+  const ph = currentState.philosophy;
+  const label = ph ? `${PHILOSOPHIES[ph.id].name} Lv${ph.level}${currentState.stance ? ` · 토크 ${currentState.stance.name}` : ''}` : '아직 없음 (정식 감독이 되면 고를 수 있어요)';
+  return `<button type="button" class="specline" id="spec-line"><b>${currentState.appointed ? '감독' : '임시 감독'} 철학</b><span>${esc(label)}</span></button>`;
+}
+
+// 감독·스태프 탭 맨 위: 내 감독 상태, 전술 철학, 이번 시즌 라커룸 토크
 function managerPanelHtml(specDelta = 0) {
-  const owned = currentState.specialties ?? [];
+  const ph = currentState.philosophy;
   const appointed = currentState.appointed;
-  const next = !appointed ? '첫 시즌이 끝나고 잔류하면 정식 감독이 되고, 이때 첫 특기를 골라요.'
-    : owned.length >= MAX_SPECIALTIES ? '특기를 다 모았어요. 더 고르면 강화(Lv2)만 나와요.'
-    : getNextTier(currentState.leagueTierId) ? '승격할 때마다 특기를 하나 더 골라요.' : '1부에 올랐어요. 더 이상 승격 보상은 없어요.';
+  const hasNext = getNextTier(currentState.leagueTierId);
+  const next = !appointed ? '첫 시즌이 끝나고 잔류하면 정식 감독이 돼요. 이때 전술 철학을 골라요.'
+    : !ph ? ''
+    : ph.level >= MAX_PHILOSOPHY_LEVEL ? '철학이 가장 깊어졌어요.'
+    : hasNext ? `승격하면 철학이 Lv${ph.level + 1}로 깊어져요(${philosophyText(ph.id, ph.level + 1)}).` : '1부예요. 더 이상 승격은 없어요.';
+  const stance = currentState.stance;
+  const stanceLines = stance ? describeTalkFx(stance.fx) : [];
+  const off = currentState.offseason;
   return `<div class="mgrpanel">
-    <div class="mgrpanel__head"><b>${appointed ? '정식 감독' : '임시 감독'}</b><span>특기 ${owned.length}/${MAX_SPECIALTIES}${owned.length ? ` · 지금 전력 <b class="n">+${specDelta.toFixed(1)}</b>` : ''}</span></div>
-    ${owned.length ? `<ul class="speclist">${owned.map((o) => `<li class="spec spec--own">${specialtyCardHtml(o.id, o.level)}</li>`).join('')}</ul>` : '<p class="note">아직 특기가 없어요.</p>'}
+    <div class="mgrpanel__head"><b>${appointed ? '정식 감독' : '임시 감독'}</b><span>${ph ? `지금 전력 <b class="n">+${specDelta.toFixed(1)}</b>` : ''}</span></div>
+    ${ph ? `<div class="spec spec--own">${philosophyCardHtml(ph.id, ph.level)}</div>` : '<p class="note">아직 전술 철학이 없어요.</p>'}
+    ${stance ? `<div class="stancebox"><b>이번 시즌 라커룸 토크 · ${esc(stance.name)}</b><span>${esc(stance.text)}</span><ul>${stanceLines.map((l) => `<li class="is-${l.good ? 'good' : 'bad'}">${esc(l.text)}</li>`).join('')}</ul></div>` : ''}
+    ${off ? `<div class="stancebox"><b>지난 시즌 마무리 토크 · ${esc(off.name)}</b><span>다음 시즌 시작에 반영돼요.</span></div>` : ''}
     <p class="note">${esc(next)}</p>
   </div>`;
 }
@@ -937,10 +1007,11 @@ function startRun(club) {
     doubles: 0, // 더블 횟수
     prestige: { total: 0, rows: {}, combo: 0, titleStreak: 0, beat: false }, // 명성 점수(이번 런)
     missedTargetCount: 0, // 기대 목표 미달 누적 (스펙 2절: 3회면 해임)
-    specialties: [], // 감독 특기 [{ id, level }] - 정식 임명 때 1개, 승격마다 1개(최대 5)
+    philosophy: null, // 전술 철학 { id, level } - 정식 임명 때 고르고 승격마다 한 단계씩 깊어진다(Lv5까지)
+    stance: null, // 이번 시즌 라커룸 토크 반응 { name, text, fx } (시즌 시작에 고른다, 누적 없음)
+    offseason: null, // 시즌 마무리 토크 반응(다음 시즌 시작·노화·지급액에 반영)
     appointed: false, // 정식 감독이 됐는지(첫 시즌은 임시 감독)
     probationUsed: false, // 첫 시즌 강등권이어도 한 번은 해임 없이 연장
-    promotedThisSeason: false, // 승격한 첫 시즌(언더독의 기적)
     seasonNumber: 1,
     startedAt: Date.now(), // 첫 영입까지 걸린 시간 통계용
     telemetryRun: Math.random().toString(36).slice(2, 8),
@@ -1275,11 +1346,11 @@ function openHaggle(card, note = '') {
   currentState.counterOffer ??= {};
   currentState.bidMemory ??= {};
   const att = sellerAttitude(card.seller);
-  const pat = currentState.patience[card.id] ?? (patienceFor(att.score) + fx().patienceBonus); // 시장의 달인 Lv2: 인내심 +1
+  const pat = currentState.patience[card.id] ?? Math.max(1, patienceFor(att.score) + fx().patienceBonus); // 라커룸 토크가 인내심을 바꾼다
   const ask = cardPrice(card);
   const u = cardUniform(card.id, currentState.telemetryRun ?? '');
   const endWeek = currentState.phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];
-  const pressure = deadlinePressure(endWeek - currentState.week) * fx().pressureMult; // 시장의 달인: 마감 압박 2배
+  const pressure = deadlinePressure(endWeek - currentState.week);
   const reserve = reservePrice({ trueValue: valuePrice(card, 0), score: att.score, u, pressure });
   const min = Math.max(1, Math.round(ask * BID_MIN_RATIO));
   const max = ask - 1;
@@ -1361,7 +1432,7 @@ function grantSeasonFunds() {
   // 승격 못 하고 같은 리그에 눌러앉을수록(목표 미달 누적) 이사진이 지갑을
   // 닫는다. 승격하면 missedTargetCount가 0으로 리셋되니 이 페널티도 같이 풀린다.
   const stagnationPenalty = Math.max(0, 1 - currentState.missedTargetCount * STAGNATION_FUNDS_PENALTY_PER_MISS);
-  const grant = Math.round(promoted * stagnationPenalty * (1 + (currentState.nextGrantBonus ?? 0)));
+  const grant = Math.round(promoted * stagnationPenalty * (1 + (currentState.nextGrantBonus ?? 0)) * (currentState.offseason?.fx.grantMult ?? 1));
   currentState.nextGrantBonus = 0;
   currentState.promotionFundsBonusPending = false;
   // 이월은 "구단 잔류 시"만, 그것도 작게. 남은 돈 중 상한을 넘는 몫은 구단이 운영 명분으로 회수한다.
@@ -1448,7 +1519,11 @@ function startNewSeason() {
   // 가격 재계산은 나이를 먹은 뒤(아래 aged) 한 번에 한다.
   // 나이 한 살: 어린 선수는 크고 서른 줄부터 떨어지며, 은퇴할 선수는 떠난다. 변화는 브리핑 팝업에서 알린다.
   const preAge = new Map(currentState.squad.map((p) => [p.id, p]));
-  const aged = ageSquad(currentState.squad.map((p) => (p.slump ? { ...p, baseOVR: p.baseOVR + p.slump, slump: 0 } : p)), Math.random, staffLevel('headCoach'));
+  const offFx = currentState.offseason?.fx ?? {};
+  const aged = ageSquad(currentState.squad.map((p) => (p.slump ? { ...p, baseOVR: p.baseOVR + p.slump, slump: 0 } : p)), Math.random, staffLevel('headCoach'), {
+    extraGrowth: (currentState.stance?.fx.growthBoost ?? 0) + (offFx.youthGrowth ?? 0), // 격려(시즌)·세대교체(마무리) 토크
+    vetRelief: offFx.vetRelief ?? 0,
+  });
   currentState.squad = aged.squad.map(repricePlayer); // OVR이 바뀌었으니 몸값(재계약비·판매가)도 현재 OVR 기준으로 다시 매긴다
   // 오래 뛴 선수(3시즌 이상)나 클럽 레전드가 은퇴하면 따로 인사한다.
   const tribute = aged.retired.map((r) => preAge.get(r.id)).filter((p) => p && ((p.seasonsAtClub ?? 0) >= 3 || isLegend(p)))
@@ -1463,8 +1538,9 @@ function startNewSeason() {
     const cut = Math.round(currentState.missedTargetCount * STAGNATION_FUNDS_PENALTY_PER_MISS * 100);
     banner += `. 승격 실패 누적 ${currentState.missedTargetCount}회로 시즌 자금 -${cut}%`;
   }
-  // 감독 특기: 구단의 아버지(이 구단 시즌 수 × +2), 헤어드라이어(여름 시작)
-  banner += specialtyStartBoost(true);
+  // 지난 시즌 마무리 토크의 시작 조직력
+  const offs = currentState.offseason;
+  if (offs?.fx.nextStartChem) { currentState.chemistry = Math.max(0, Math.min(100, currentState.chemistry + offs.fx.nextStartChem)); banner += ` 마무리 토크(${offs.name}): 조직력 ${offs.fx.nextStartChem > 0 ? '+' : '−'}${Math.abs(offs.fx.nextStartChem)}.`; }
   // 1부는 리그와 별개로 챔피언스리그가 병행된다 - 시즌 목표에 그 사실을 못 박아둔다.
   if (currentState.leagueTierId === 'tier1') {
     banner += '. 이번 시즌 목표: 리그 우승 + 챔피언스리그';
@@ -1473,16 +1549,17 @@ function startNewSeason() {
   currentState.pendingTransferDemand = null;
   const fundsReport = currentState.fundsReport ?? null;
   currentState.seasonBriefing = { tribute, transferDemand, aging: agingReport, fundsReport, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}, currentState.leagueTierId).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
-  renderMarket(banner);
+  currentState.offseason = null; // 마무리 토크는 이번 시작에 반영했다
+  currentState.stance = null; // 지난 시즌 라커룸 토크는 끝났다 - 새 토크를 고른다
+  startTalkThen(() => renderMarket(banner));
 }
 
-// 영입가: 윈터 택스, 감독 특기(시장의 달인 −7/−12%, 젊은 피 조련사는 성장 초반 선수 추가 할인)가 가산된다.
+// 영입가: 윈터 택스와 라커룸 토크(시장 선언 등)가 가산된다.
 function cardPrice(card) {
   const modifiers = [];
   if (currentState.phase === 'winter') modifiers.push(WINTER_TAX_RATIO);
   const f = fx();
-  if (f.buyDiscount) modifiers.push(-f.buyDiscount);
-  if (f.growthBuyDiscount && growthStage(card) === 'early') modifiers.push(-f.growthBuyDiscount);
+  if (f.buyDiscount) modifiers.push(-f.buyDiscount); // 라커룸 토크(시장 선언 등). 음수 할인이면 비싸진다
   return applyCostModifiers(card.price, modifiers);
 }
 
@@ -1494,7 +1571,7 @@ function transactionDecayAmount() {
     : COACH_CHEMISTRY_DECAY_BY_LEVEL[coachLevel] ?? CHEMISTRY_DECAY_PER_TRANSACTION;
   const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   const captainRelief = lineup.some((p) => p.specialTrait === 'veteranLeader' && p.age >= 33) ? 1 : 0;
-  return Math.max(0, coachReduced - captainRelief);
+  return Math.max(0, (coachReduced - captainRelief) * fx().txDecayMult); // 호통 토크: 거래 벌칙 2배
 }
 
 // 지역 영웅 대가: 방출·판매하면 팬이 반발해 팀 조직력이 깎인다.
@@ -1713,8 +1790,7 @@ function listPlayer(card) {
   const names = buildLeagueRivals(currentState.leagueTierId, 12).map((c) => c.name);
   const lineupBefore = pickBestXI([...currentState.squad, card], currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
   const colorBoost = completedTags(lineupBefore).some((t) => card.playstyleTags.includes(t)) ? COLOR_COMPLETE_VALUE : 1; // 팀 컬러 완성: 그 태그 선수는 값이 오른다
-  const growthBoost = growthStage(card) === 'early' ? 1 + fx().growthSaleBonus : 1; // 젊은 피 조련사
-  const offers = generateSaleOffers(Math.round(card.price * colorBoost * growthBoost), card.baseOVR).map((amount) => ({
+  const offers = generateSaleOffers(Math.round(card.price * colorBoost * fx().saleMult), card.baseOVR).map((amount) => ({
     club: names[Math.floor(Math.random() * names.length)], amount, expires: currentState.week + 1 + Math.floor(Math.random() * 3),
   }));
   currentState.listedForSale.push({ card, offers });
@@ -1898,7 +1974,9 @@ function nextWeek() {
   const chemBefore = currentState.chemistry;
   const gains = [];
   currentState.chemistry = advanceWeek(currentState.chemistry, currentState.transactedThisWeek);
-  if (!currentState.transactedThisWeek) gains.push(`거래 없음 +${CHEMISTRY_RECOVERY_PER_STABLE_WEEK}`);
+  const recDelta = !currentState.transactedThisWeek ? fx().recoveryDelta : 0; // 전권 위임 토크: 회복이 느려진다
+  if (recDelta) currentState.chemistry = Math.max(0, Math.min(100, currentState.chemistry + recDelta));
+  if (!currentState.transactedThisWeek) gains.push(`거래 없음 +${Math.max(0, CHEMISTRY_RECOVERY_PER_STABLE_WEEK + recDelta)}`);
   // 팀 컬러가 완성돼 있으면 거래와 상관없이 조직력 +1
   const xi = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
   if (completedTags(xi).length) { currentState.chemistry = Math.min(100, currentState.chemistry + COLOR_COMPLETE_CHEMISTRY); gains.push(`팀 컬러 +${COLOR_COMPLETE_CHEMISTRY}`); }
@@ -2070,8 +2148,6 @@ function enterWinterMarket() {
   currentState.funds += winterGrant;
   applySeasonEvent('winter');
   let banner = `겨울 이적시장이 시작됩니다(윈터 택스 +${WINTER_TAX_RATIO * 100}%). 겨울 지원금 +${winterGrant}G.`;
-
-  banner += specialtyStartBoost(false); // 헤어드라이어: 겨울 시작 조직력
 
   renderMarket(banner);
 }
@@ -2462,7 +2538,7 @@ function telemetrySnapshot() {
     const power = computeTeamPower(lineup, bench, currentState.chemistry, fx());
     return {
       run: currentState.telemetryRun, s: currentState.seasonNumber, tier: currentState.leagueTierId, club: currentState.club?.id, // 입력한 이름은 보내지 않고 기본 구단 id만
-      fm: fid, spec: (currentState.specialties ?? []).map((x) => `${x.id}:${x.level}`).join(','), pow: Math.round(power * 10) / 10,
+      fm: fid, spec: currentState.philosophy ? `${currentState.philosophy.id}:${currentState.philosophy.level}` : '', talk: currentState.stance?.name ?? '', pow: Math.round(power * 10) / 10,
       avg: Math.round(lineup.reduce((x, p) => x + p.baseOVR, 0) / Math.max(1, lineup.length) * 10) / 10,
       chem: Math.round(currentState.chemistry), funds: currentState.funds, squad: currentState.squad.length,
       dem: currentState.boardDemand?.cardId ?? null,
@@ -2554,7 +2630,6 @@ function runSecondHalfAndFinish(saleMessage = '') {
   }, { table: seasonTable, rivals, second: true, isTop });
 
   function finishSeasonRender() {
-  currentState.promotedThisSeason = false; // 승격 첫 시즌 보너스(언더독의 기적)는 이 시즌으로 끝
   // 명성 점수: 이번 시즌 성적을 점수로 바꿔 더한다(요구 달성은 아래에서 판정되면 이어서 더한다)
   const pst = prestigeState();
   const seasonPts = seasonPrestige({ tierId: currentState.leagueTierId, result, points: totalPoints, safePoints: tier.safePoints, combo: pst.combo, titleStreak: pst.titleStreak });
@@ -2699,15 +2774,16 @@ function runSecondHalfAndFinish(saleMessage = '') {
   function wireFinalActions() {
   document.getElementById('retire-btn')?.addEventListener('click', () => renderRunEnd('victory', totalPoints, '', null));
   const survivedSeason = result !== 'relegation'; // 수습 연장(강등권이었지만 해임 안 됨)이면 아직 정식 임명이 아니다
+  const wasAppointed = currentState.appointed; // 이번 시즌 시작부터 정식 감독이었는지(마무리 라커룸 토크는 그때부터)
   document.getElementById('promote-btn')?.addEventListener('click', () => {
     updateRecords(recordPromotion);
     const nextTier = getNextTier(currentState.leagueTierId);
     currentState.chemistry = Math.min(100, currentState.chemistry + PROMOTION_CHEMISTRY_BONUS);
     currentState.promotionFundsBonusPending = true; // 지급 시점(startNewSeason)에 반영
-    // 정식 임명(처음이면) → 승격 특기 → 다음 리그
-    maybeAppoint(survivedSeason, () => promotionPick(() => promoteToNextTier(nextTier)));
+    // 정식 임명(처음이면) → 철학 한 단계 강화 → 마무리 라커룸 토크 → 다음 리그
+    maybeAppoint(survivedSeason, () => showPhilosophyLevelUp(() => endTalkThen(wasAppointed, () => promoteToNextTier(nextTier))));
   });
-  document.getElementById('continue-btn')?.addEventListener('click', () => maybeAppoint(survivedSeason, startNewSeason));
+  document.getElementById('continue-btn')?.addEventListener('click', () => maybeAppoint(survivedSeason, () => endTalkThen(wasAppointed, startNewSeason)));
   document.getElementById('ucl-btn')?.addEventListener('click', () => {
     currentState.ucl = createUcl(uclPower, Math.random, { myPowerAway: uclPowerAway });
     currentState.ucl.teams[0].name = currentState.club.name;
@@ -2719,25 +2795,25 @@ function runSecondHalfAndFinish(saleMessage = '') {
   }
 }
 
-// 정식 임명: 첫 시즌을 잔류선 위로 마치면 이사진이 임시 감독을 정식 감독으로 임명하고, 첫 특기를 고르게 한다.
+// 정식 임명: 첫 시즌을 잔류선 위로 마치면 이사진이 임시 감독을 정식 감독으로 임명하고, 기자회견에서 전술 철학을 고르게 한다.
 function maybeAppoint(survived, next) {
   if (currentState.appointed || !survived) { next(); return; }
   currentState.appointed = true;
-  showSpecialtyPick({
-    kicker: '정식 임명',
-    title: '이사진이 당신을 정식 감독으로 임명했습니다',
-    detail: '첫 시즌을 버텨 낸 보상이에요. 첫 특기를 고르세요. 앞으로 승격할 때마다 특기를 하나씩 더 얻어요.',
-    firstPick: true,
-  }, next);
+  showPhilosophyPick(next);
 }
-// 승격 보상: 특기 3택1(이미 가진 특기는 강화 카드로 나온다)
-function promotionPick(next) {
-  showSpecialtyPick({ kicker: '승격 보상', title: '새 리그, 새 특기', detail: '승격을 이끈 감독의 새 특기를 고르세요.' }, next);
+// 시즌 마무리 라커룸 토크: 이미 정식 감독이던 시즌부터(임명을 방금 받은 시즌은 건너뛴다)
+function endTalkThen(wasAppointed, next) {
+  if (!wasAppointed) { next(); return; }
+  showTalkPick('end', next);
+}
+// 시즌 시작 라커룸 토크
+function startTalkThen(next) {
+  if (!currentState.appointed) { next(); return; }
+  showTalkPick('start', next);
 }
 
 // 승격하면 구단을 옮기지 않고 같은 구단으로 새 리그에 올라간다(선수단 유지).
 function promoteToNextTier(nextTierId) {
-  currentState.promotedThisSeason = true; // 언더독의 기적: 승격한 첫 시즌
   currentState.leagueTierId = nextTierId;
   if (getLadderIndex(nextTierId) > getLadderIndex(currentState.highestTierId)) {
     currentState.highestTierId = nextTierId;

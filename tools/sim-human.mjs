@@ -12,7 +12,7 @@ import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardRe
 import { applyTransactionDecay } from '../engine/chemistry.mjs';
 import { computeAverageOVR, computeTeamPower } from '../engine/team-power.mjs';
 import { computePlaystyleSynergyBonus } from '../engine/ovr.mjs';
-import { drawSpecialtyChoices, pickSpecialty, specialtyEffects, tenureChemistry } from '../engine/specialties.mjs';
+import { PHILOSOPHY_IDS, drawPhilosophyChoices, levelUpPhilosophy, drawTalkChoices, rollTalkOutcome, specialtyEffects } from '../engine/specialties.mjs';
 import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, computeReleaseProceeds, recallFunds, generateSaleOffers, noOfferChance, valuePrice, FUNDS_SCALE, fundsScale } from '../engine/economy.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier } from '../engine/league.mjs';
 import { optimizeLineup } from '../engine/lineup.mjs';
@@ -69,20 +69,16 @@ function bestFormationFor(tag) {
   const count = (slots) => slots.filter((p) => PLAYSTYLE_TAGS[tag].positions.includes(p)).length;
   return Object.values(FORMATIONS).map((f) => f.slots).sort((a, b) => count(b) - count(a))[0];
 }
-// 봇의 특기 선택: 지금 선발에서 오르는 OVR + 효과별 환산값(OVR 1점 ≈ 승점 2.5점)
-function specValue(choice, owned, evalPower) {
-  const before = evalPower(specialtyEffects(owned));
-  const after = evalPower(specialtyEffects(pickSpecialty(owned, choice.id)));
-  const extra = {
-    hairdryer: 0.5, lateSurge: 0.8, marketMaster: 0.45, youngTalent: 0.4, dataAnalyst: 0.15, clubFather: 0.45, underdog: 0.45,
-  }[choice.id] ?? 0;
-  return (after - before) + extra * (choice.upgrade ? 0.6 : 1);
+// 봇의 철학 선택: 지금 선발에서 가장 많이 오르는 철학(정식 임명)
+function choosePhilosophy(evalPower) {
+  const ids = drawPhilosophyChoices();
+  const base = evalPower(specialtyEffects(null));
+  return { id: ids.map((id) => ({ id, v: evalPower(specialtyEffects({ id, level: 1 })) - base })).sort((a, b) => b.v - a.v)[0].id, level: 1 };
 }
-function chooseSpecialty(owned, firstPick, evalPower) {
-  const choices = drawSpecialtyChoices(owned, Math.random, { firstPick });
-  if (!choices.length) return owned;
-  const best = choices.map((c) => ({ c, v: specValue(c, owned, evalPower) })).sort((a, b) => b.v - a.v)[0].c;
-  return pickSpecialty(owned, best.id);
+// 봇의 라커룸 토크: 고르는 기준이 없어서(효과를 모르고 고른다) 무작위 선택. 반응은 규칙대로 정해진다.
+function pickTalk(kind) {
+  const ids = drawTalkChoices(kind);
+  return rollTalkOutcome(kind, ids[Math.floor(Math.random() * ids.length)]);
 }
 
 function chooseTarget(squad, season = 1) {
@@ -111,7 +107,7 @@ function tagStats(lineup) {
 function playCareer() {
   let tierId = 'tier5';
   let squad = generateStartingSquad().map((p) => toSquad(lockStrip(p, 1)));
-  let specs = []; let appointed = false; let probationUsed = false; let promotedThisSeason = false;
+  let philosophy = null; let stanceOut = null; let offseasonOut = null; let appointed = false; let probationUsed = false;
   let coachLevel = 'academy'; let scoutLevel = 'academy';
   let leftover = 0; let proceeds = 0; let listed = [];
   let missed = 0; let promotedPending = false; let first = true;
@@ -126,7 +122,7 @@ function playCareer() {
     let salesIncome = 0; let staffSpend = 0;
 
     if (!first) {
-      squad = ageSquad(squad, Math.random, coachLevel).squad.map(repricePlayer).map((p) => ({ ...p, seasonsAtClub: (p.seasonsAtClub ?? 0) + 1, acquiredThisSeason: false, boughtThisSeason: false }));
+      squad = ageSquad(squad, Math.random, coachLevel, { extraGrowth: (stanceOut?.fx.growthBoost ?? 0) + (offseasonOut?.fx.youthGrowth ?? 0), vetRelief: offseasonOut?.fx.vetRelief ?? 0 }).squad.map(repricePlayer).map((p) => ({ ...p, seasonsAtClub: (p.seasonsAtClub ?? 0) + 1, acquiredThisSeason: false, boughtThisSeason: false }));
     }
     first = false;
 
@@ -138,7 +134,7 @@ function playCareer() {
     const powerOf = (sq, chem, fxOverride = null) => {
       const { xi, bench } = optimizeLineup(sq, SLOTS, 5);
       const lineup = withFormation(xi).filter(Boolean);
-      const f = fxOverride ?? specialtyEffects(specs);
+      const f = fxOverride ?? specialtyEffects(philosophy, stanceOut?.fx);
       return { power: computeTeamPower(lineup, bench, chem, f), avgOVR: computeAverageOVR(lineup, bench, f), lineup, bench };
     };
     const startInfo = powerOf(squad, CHEMISTRY_START);
@@ -154,8 +150,12 @@ function playCareer() {
       if (funds >= cost + 60) { funds -= cost; staffSpend += cost; if (role === 'coach') coachLevel = next; else scoutLevel = next; }
     }
 
-    let fxNow = specialtyEffects(specs);
-    let chem = Math.min(100, CHEMISTRY_START + fxNow.startChemistry + tenureChemistry(fxNow, s + 1)); // 헤어드라이어·구단의 아버지
+    stanceOut = appointed ? pickTalk('start') : null; // 시즌 시작 라커룸 토크(정식 감독이 된 뒤부터)
+    let fxNow = specialtyEffects(philosophy, stanceOut?.fx);
+    let chem = Math.max(0, Math.min(100, CHEMISTRY_START + (stanceOut?.fx.chemNow ?? 0) + (offseasonOut?.fx.nextStartChem ?? 0)));
+    if (offseasonOut?.fx.grantMult) funds = Math.round(funds * 1); // 지급액 배율은 아래 정산(grant)에 이미 반영하지 못해 근사: 시즌 시작 자금에 곱한다
+    if (offseasonOut?.fx.grantMult) funds += Math.round(grant * (offseasonOut.fx.grantMult - 1));
+    offseasonOut = null;
     let buys = 0; let spent = 0; let week = 0;
     const slotN = SCOUT_TARGET_SLOTS_BY_LEVEL[scoutLevel];
     const decay = COACH_CHEMISTRY_DECAY_BY_LEVEL[coachLevel] ?? CHEMISTRY_DECAY_PER_TRANSACTION;
@@ -165,7 +165,6 @@ function playCareer() {
     for (const phase of ['summer', 'winter']) {
       if (phase === 'winter') {
         funds += Math.round(base * WINTER_FUNDS_RATIO * 1); // 겨울 지원금
-        chem = Math.min(100, chem + fxNow.startChemistry); // 헤어드라이어: 겨울 시작
         squad = squad.map((p) => ({ ...p, boughtThisSeason: false })); // 여름에 산 선수는 겨울부터 판매 가능
       }
       for (let w = 0; w < (phase === 'summer' ? 8 : 4); w++) {
@@ -272,7 +271,7 @@ function playCareer() {
       }
       const info = powerOf(squad, chem);
       lineup = info.lineup; bench = info.bench;
-      const pts = runHalfSeason(lineup, bench, chem, tierId, Math.random, fxNow, 'balance', (phase === 'winter' ? fxNow.secondHalfPoints : 0) + (promotedThisSeason ? fxNow.promotedPointsPerHalf : 0));
+      const pts = runHalfSeason(lineup, bench, chem, tierId, Math.random, fxNow, 'balance', (phase === 'winter' ? fxNow.pointsSecond : fxNow.pointsFirst));
       if (phase === 'summer') firstHalf = pts; else secondHalf = pts;
     }
     // 마지막 정산(시즌 안에 못 받은 판매 대금은 이월 자금으로)
@@ -289,7 +288,7 @@ function playCareer() {
       tier: tierId, points: total, result, rank, buys, spent, leftover: Math.round(funds), grant,
       avgOVR: endInfo.avgOVR, active: 0, ...tagStats(lineup), ucl: null,
       powerStart: startInfo.power, avgStart: startInfo.avgOVR, powerEnd: endInfo.power,
-      specs: specs.map((x) => `${x.id}:${x.level}`).join(','), coach: coachLevel, scout: scoutLevel, salesIncome, staffSpend,
+      specs: philosophy ? `${philosophy.id}:${philosophy.level}` : '', talk: stanceOut?.name ?? '', coach: coachLevel, scout: scoutLevel, salesIncome, staffSpend,
     };
     seasons.push(rec);
     leftover = funds;
@@ -311,15 +310,15 @@ function playCareer() {
     // 수습 기간: 정식 감독이 되기 전 첫 시즌은 강등권이어도 한 번은 해임되지 않는다(게임과 같은 규칙)
     let effResult = result;
     if (result === 'relegation' && !appointed && !probationUsed) { probationUsed = true; effResult = 'safe'; }
-    promotedThisSeason = false;
     const outcome = judgeRunOutcome({ seasonResult: effResult, leagueTierId: tierId, missedTargetCount: missed });
     if (outcome.ended) { reason = outcome.reason; break; }
     missed = nextMissedTargetCount(effResult, missed);
     // 정식 임명(첫 시즌 잔류 이상) → 첫 특기, 승격 → 특기 하나 더
     const evalPower = (f) => powerOf(squad, CHEMISTRY_START, f).power;
-    if (!appointed && result !== 'relegation') { appointed = true; specs = chooseSpecialty(specs, true, evalPower); }
-    if (outcome.canPromote) { tierId = getNextTier(tierId); promotedPending = true; promotedThisSeason = true; specs = chooseSpecialty(specs, false, evalPower); }
-    fxNow = specialtyEffects(specs);
+    const wasAppointed = appointed;
+    if (!appointed && result !== 'relegation') { appointed = true; philosophy = choosePhilosophy(evalPower); }
+    if (outcome.canPromote) { tierId = getNextTier(tierId); promotedPending = true; philosophy = levelUpPhilosophy(philosophy); }
+    offseasonOut = wasAppointed ? pickTalk('end') : null; // 시즌 마무리 라커룸 토크
   }
   return { seasons, reason, uclTitles };
 }
