@@ -2080,7 +2080,7 @@ function rollMarketInjuries() {
     msgs.push(`${p.name}(${p.position}) ${INJURY_LABELS[kind]} 부상`);
     return { ...p, out, outKind: kind, injHistory: [...(p.injHistory ?? []), { kind, ago: 0 }] };
   });
-  return msgs.length ? `🩹 ${msgs.join(', ')} - 선발에서 빠집니다. 대체 선수를 알아보세요.` : '';
+  return msgs.length ? `✚ ${msgs.join(', ')} - 선발에서 빠집니다. 대체 선수를 알아보세요.` : '';
 }
 function rollHalfInjuries(lineup) {
   const list = [];
@@ -2100,7 +2100,7 @@ function tickInjuries() {
 }
 function injuriesHtml(list) {
   if (!list?.length) return '';
-  return `<div class="agingbox"><b>부상</b><ul>${list.map((x) => `<li class="is-down">🩹 ${esc(x.name)} <span>${x.position} · ${INJURY_LABELS[x.kind]}</span></li>`).join('')}</ul></div>`;
+  return `<div class="agingbox"><b>부상</b><ul>${list.map((x) => `<li class="is-down"><i class="cross">✚</i> ${esc(x.name)} <span>${x.position} · ${INJURY_LABELS[x.kind]}</span></li>`).join('')}</ul></div>`;
 }
 
 function runFirstHalf(saleMessage = '') {
@@ -3421,7 +3421,7 @@ function renderMarket(banner = '') {
       <span class="srow__pos">${p.position}</span>
       <b class="srow__ovr n">${starLabel(p)}</b>
       <div class="srow__main">
-        <div class="srow__name">${esc(p.name)}<small>${p.age}세</small>${p.out > 0 ? `<span class="tag tag--inj">🩹 ${INJURY_LABELS[p.outKind] ?? '부상'}</span>` : ''}${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
+        <div class="srow__name">${esc(p.name)}<small>${p.age}세</small>${p.out > 0 ? `<span class="tag tag--inj"><i class="cross">✚</i> ${INJURY_LABELS[p.outKind] ?? '부상'}</span>` : ''}${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
         <div class="srow__line2">${tagIconsHtml(p, null, true)}${growthBadge(p, 'headCoach')}</div>
       </div>
       <div class="srow__side">${advice ? `<b class="advice advice--${advice.id}">${advice.label}</b>` : ''}<i class="srow__chev" aria-hidden="true">⌄</i></div>

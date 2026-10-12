@@ -2380,3 +2380,5 @@ button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
 /* 부상 */
 .traithints span.is-inj { color: var(--debit, #ff6a3d); border-color: color-mix(in srgb, var(--debit, #ff6a3d) 45%, transparent); font-style: normal; }
 .tag--inj { background: color-mix(in srgb, var(--debit, #ff6a3d) 25%, transparent); color: var(--debit, #ff6a3d); }
+.cross { font-style: normal; font-weight: 900; color: #e63946; }
+.tag--inj { color: var(--light); }
