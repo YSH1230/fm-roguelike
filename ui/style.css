@@ -2366,3 +2366,9 @@ button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
 .srow__ovr { font-size: 17px; min-width: 46px; }
 .benchchip__ovr { font-size: 11px; }
 .gapchip--thin { border-style: dashed; opacity: 0.85; }
+
+/* 스카우트 지시 */
+.scoutorder { display: grid; gap: 6px; padding: 8px 10px; margin: 8px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.scoutorder__sels { display: flex; gap: 6px; flex-wrap: wrap; }
+.scoutorder__sels select { flex: 1 1 90px; min-width: 0; }
+.scoutorder__note { color: var(--muted); font-size: var(--fs-micro); }

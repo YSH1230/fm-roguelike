@@ -62,14 +62,14 @@ function pickPlaystyleTags(tier, position, rng) {
 // 로컬~레전더리 절차적 생성 (GOD은 data/god-players.mjs 참고, 여기서 생성 안 함)
 // position을 넘기면 그 포지션으로 고정한다 - 시작 스쿼드가 포지션별 최소치를
 // 보장해야 해서(generateStartingSquad) 무작위 배정만으로는 부족하다.
-export function generateProceduralPlayer(tierId, rng = Math.random, position = null, forceTag = null) {
+export function generateProceduralPlayer(tierId, rng = Math.random, position = null, forceTag = null, ageRange = null) {
   const tier = PLAYER_TIERS[tierId];
   if (!tier) throw new Error(`Unknown player tier: ${tierId}`);
 
   const continentTag = pick(Object.keys(CONTINENT_TAGS), rng);
   const name = randomName(continentTag, rng);
   const baseOVR = randomInt(tier.minOVR, tier.maxOVR, rng);
-  const age = randomInt(18, 35, rng);
+  const age = ageRange ? randomInt(ageRange[0], ageRange[1], rng) : randomInt(18, 35, rng);
 
   // 30% 확률로 특수 성향 하나 부여 (스펙: 등급 무관 0~1개).
   // 베테랑 리더는 33세 이상에서만 발동하므로(engine/ovr.mjs), 어린 선수에게는

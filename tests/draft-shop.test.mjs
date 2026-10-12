@@ -84,3 +84,24 @@ test('스카우터 상위 등급 확률: 값이 클수록 톱클래스 이상 �
   const base = topShare(0);
   assert.ok(topShare(0.9) > base * 1.4, '마스터 스카우터는 상위 카드가 눈에 띄게 많아야 한다');
 });
+
+import { generateScoutDelivery, SCOUT_AGE_BANDS } from '../data/draft-shop.mjs';
+test('스카우트 지시: 3명 모두 포지션·태그·나이대 조건을 만족한다', () => {
+  for (let i = 0; i < 60; i++) {
+    const cards = generateScoutDelivery({ pos: 'CMF', tag: 'pass', age: 'young' }, 3, [], Math.random, 'tier3');
+    assert.equal(cards.length, 3);
+    for (const c of cards) {
+      assert.equal(c.position, 'CMF');
+      assert.ok(c.playstyleTags.includes('pass'));
+      assert.ok(c.age >= SCOUT_AGE_BANDS.young[0] && c.age <= SCOUT_AGE_BANDS.young[1]);
+    }
+  }
+});
+test('스카우트 지시가 비어 있으면 아무 3명이 오고, 세 명의 수준이 벌어지는 편이다', () => {
+  let spreads = 0;
+  for (let i = 0; i < 200; i++) {
+    const o = generateScoutDelivery({}, 3, [], Math.random, 'tier3').map((c) => c.baseOVR);
+    spreads += Math.max(...o) - Math.min(...o);
+  }
+  assert.ok(spreads / 200 >= 5);
+});

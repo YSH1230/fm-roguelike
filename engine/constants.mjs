@@ -168,7 +168,7 @@ export const SCOUT_HAGGLE_HINT_BY_LEVEL = {
   master: { half: 0.03, hit: 0.85 },
 };
 // 스카우터 목표 지정 칸 수: 칸마다 태그 또는 포지션 하나를 정해 두면 매주 그 조건의 카드를 1장씩 보장한다.
-export const SCOUT_TARGET_SLOTS_BY_LEVEL = { academy: 0, proLicense: 1, veteran: 2, master: 3 };
+export const SCOUT_TARGET_SLOTS_BY_LEVEL = { academy: 1, proLicense: 1, veteran: 2, master: 3 }; // v3: 지시에 걸 수 있는 조건(포지션·태그·나이대) 수
 
 // 리그별 스태프·감독 시장에 나오는 등급. 5부에 마스터 코치나 레전더리 감독이 있는 건 비현실적이다.
 export const STAFF_LEVELS_BY_TIER = {
@@ -181,7 +181,7 @@ export const STAFF_LEVELS_BY_TIER = {
 // 리그가 "이 정도 감독은 있어야 한다"고 기대하는 감독 배율. 감독 배율을 이 값으로
 // 나눈 값이 실제로 곱해진다 - 상위 리그에서 루키 감독을 유지하면 그만큼 손해.
 // 스카우터 능력 4가지: 매물 장수 / 상위 등급 카드 확률 / 다시 뽑기 할인 / 목표 지정(매주 보장 카드).
-export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 4, veteran: 4, master: 4 };
+export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 3, veteran: 3, master: 3 }; // v3: 지시 한 번에 항상 3명
 // 톱클래스 이상 카드가 나올 가중치 배율 증가분(리그에 없는 등급은 그대로 0).
 export const SCOUT_QUALITY_BOOST_BY_LEVEL = { academy: 0, proLicense: 0.25, veteran: 0.5, master: 0.9 };
 export const SCOUT_REROLL_DISCOUNT_BY_LEVEL = { academy: 0, proLicense: 0.2, veteran: 0.35, master: 0.5 };

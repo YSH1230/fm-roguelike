@@ -44,6 +44,31 @@ function targetedCard(tag, tierId, rng, position = null, pool = tierPool(tierId)
 
 // targets: 스카우터가 매주 맨 앞에서부터 한 칸에 한 장씩 보장하는 목표 카드들. 칸 하나는 { tag?, position? } - 태그만, 포지션만, 둘 다 가능하다(둘 다면 둘을 함께 만족하는 카드 1장).
 // qualityBoost: 스카우터가 올려 주는 상위 등급 확률.
+// v3: 스카우트 지시 → 3명 도착. 지시 조건(포지션·태그·나이대)은 3명 모두 만족하고, 3명은 등급이 서로 달라지게 뽑는다.
+export const SCOUT_AGE_BANDS = { young: [18, 22], prime: [23, 29], vet: [30, 35] };
+export function generateScoutDelivery(order = {}, size = 3, availableGods = [], rng = Math.random, tierId = 'tier1', qualityBoost = 0) {
+  const pool = tierPool(tierId, qualityBoost);
+  const tag = order.tag && PLAYSTYLE_TAGS[order.tag] ? order.tag : null;
+  const position = order.pos ?? null;
+  const ageRange = SCOUT_AGE_BANDS[order.age] ?? null;
+  const godEligible = tierId === 'tier1' && availableGods.length > 0 && !tag && !position && !ageRange;
+  const make = () => {
+    if (godEligible && rng() < GOD_PLAYER_SHOP_CHANCE) return availableGods[Math.floor(rng() * availableGods.length)];
+    const tier = pool[Math.floor(rng() * pool.length)];
+    return generateProceduralPlayer(tier, rng, position, tag, ageRange);
+  };
+  // 세 장이 전부 같은 수준이면 고르는 재미가 없다 - 몇 번 다시 뽑아 수준(기본 능력)이 벌어지게 한다.
+  let best = null;
+  for (let i = 0; i < 12; i++) {
+    const cards = Array.from({ length: size }, make);
+    const ovrs = cards.map((c) => c.baseOVR);
+    const spread = Math.max(...ovrs) - Math.min(...ovrs);
+    if (!best || spread > best.spread) best = { cards, spread };
+    if (spread >= 6) break;
+  }
+  return best.cards;
+}
+
 export function generateShopOffer(size, availableGods = [], rng = Math.random, tierId = 'tier1', targets = [], qualityBoost = 0) {
   const pool = tierPool(tierId, qualityBoost);
   // GOD 카드는 1부에서만 굴린다 - 예전엔 리그 무관 고정 확률이라 5부 상점에도

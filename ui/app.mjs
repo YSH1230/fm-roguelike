@@ -18,7 +18,7 @@ import { assignRandomStaff, generateStaffOffer, generateStaffCandidate } from '.
 import { GOD_PLAYERS } from '../data/god-players.mjs';
 import { rollSeasonEvent, describeChoice, resolveChoice } from '../data/season-events.mjs';
 import { drawDemandOffer, getDemand, evaluateDemand, DIFFICULTY_LABELS } from '../data/board-demands.mjs';
-import { generateShopOffer } from '../data/draft-shop.mjs';
+import { generateScoutDelivery } from '../data/draft-shop.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
 import { judgeRunOutcome, nextMissedTargetCount, seasonPrestige, demandPrestige, uclPrestige, retirePrestige, gradeOf, titleProgress } from '../engine/run.mjs';
 import {
@@ -355,10 +355,9 @@ function staffChips(role, level) {
   }
   const slots = SCOUT_TARGET_SLOTS_BY_LEVEL[level];
   const hint = SCOUT_HAGGLE_HINT_BY_LEVEL[level];
-  return chip(`매물 ${SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[level]}장`)
+  return chip(`지시 조건 ${slots}개`, '포지션·태그·나이대 중 걸 수 있는 조건 수예요. 많이 걸수록 원하는 선수가 와요')
+    + chip(`평가 범위 ±${{ academy: 2, proLicense: 1.5, veteran: 1, master: 0.5 }[level]}★`, '영입 전에 보이는 별 범위의 폭이에요. 좁을수록 정확해요')
     + (SCOUT_QUALITY_BOOST_BY_LEVEL[level] ? chip(`상위 카드 +${Math.round(SCOUT_QUALITY_BOOST_BY_LEVEL[level] * 100)}%`, '톱클래스 이상 카드가 나올 확률') : '')
-    + (SCOUT_REROLL_DISCOUNT_BY_LEVEL[level] ? chip(`리롤 −${Math.round(SCOUT_REROLL_DISCOUNT_BY_LEVEL[level] * 100)}%`, '다시 뽑기 비용 할인') : '')
-    + (slots ? chip(`목표 ${slots}칸`, '칸마다 태그나 포지션을 정해 두면 매주 그 조건의 카드를 1장씩 보장해요') : '')
     + (hint ? chip(`협상 힌트 ±${Math.round(hint.half * 100)}%`, '협상 슬라이더에 구단 하한선 추정 구간을 보여 줘요(가끔 틀려요)') : '');
 }
 
@@ -998,7 +997,7 @@ function startRun(club) {
     squad,
     staff,
     availableGodPlayers: [...GOD_PLAYERS], // 이번 런에서 아직 영입 안 한 GOD 카드
-    scoutTargets: [], // 스카우터 목표 칸: [{ tag, pos }] (칸 수는 스카우터 등급)
+    scoutOrder: { pos: null, tag: null, age: null }, // 스카우트 지시(매주 이 조건으로 3명 도착, 조건 수는 스카우터 등급)
     eventChoice: rolled.choice ?? null, // 선택형 이벤트(고르기 전까지 저장)
     eventHistory: rolled.id ? [rolled.id] : [], // 최근 이벤트(같은 게 반복되지 않게 가중치를 낮춘다)
     nextGrantBonus: 0, // 스폰서 장기 계약: 다음 시즌 지급액 가산 비율
@@ -1045,9 +1044,8 @@ function startRun(club) {
     freshBudget: false,
     pendingTransferProceeds: 0,
   };
-  currentState.shopOffer = newShopOffer();
+  currentState.shopOffer = []; // v3: 1주차는 지시를 내려 보는 주 - 스카우터가 찾은 3명은 2주차에 도착한다
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
-  if (loadRecords(localStorage).runs <= 1) ensureUpgradeOffer(); // 계정의 첫 런에서만(튜토리얼을 건너뛰어도 보장)
   renderNaming();
 }
 
@@ -1081,8 +1079,8 @@ function tutorialTick(where) {
   }
   const onTactics = currentState.tab === 'tactics';
   if (step === 1) {
-    const pick = currentState.shopOffer.find((c) => hasUpgrade([c]));
-    showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '지금 선발보다 강한 선수예요. 협상을 눌러 영입해 보세요.', onSkip: tutSkip });
+    if (currentState.tab !== 'draft') { currentState.tab = 'draft'; renderMarket(); return; }
+    spotOrSkip('#scout-order', '스카우터에게 찾을 선수를 지시해요. 포지션·태그·나이대를 골라 두면 다음 주에 조건에 맞는 3명이 도착해요. 지시를 바꾸면 새 3명이 와요.', 2);
   } else if (step === 2) spotOrSkip('.deal__tags .chip', '선수마다 스타일 태그가 있어요. 같은 태그를 가진 선발이 3명 모이면 그 선수들이 모두 강해져요.', 3);
   else if (step === 3) spotOrSkip('#chem-info-btn', '조직력은 선수들이 손발을 맞추는 정도예요. 영입·판매를 많이 하면 떨어지고(한 주 첫 거래는 괜찮아요), 거래가 없는 주엔 올라요.', 4);
   else if (step === 4) spotOrSkip('[data-tab="squad"]', `선수단은 최대 ${capNow()}명이에요. 가득 차면 영입할 때 내보낼 선수를 골라야 해요.`, 5);
@@ -1108,7 +1106,11 @@ function tutorialTick(where) {
     if (currentState.tab !== 'draft') { currentState.tab = 'draft'; renderMarket(); return; }
     spotOrSkip('.res__item--score', '명성은 이번 판의 점수예요. 승격·우승 같은 성적으로 쌓이고, 판이 끝나면 D부터 SS까지 등급이 매겨져요.', 14);
   } else if (step === 14) showSpot({ selector: '#next-week-btn', text: '다음 주로 넘기면 시즌이 진행돼요. 8주 뒤 전반기가 시작됩니다.', onSkip: tutSkip });
-  else clearSpot();
+  else if (step === 15) {
+    if (currentState.tab !== 'draft') { currentState.tab = 'draft'; renderMarket(); return; }
+    const pick = currentState.shopOffer.find((c) => hasUpgrade([c]));
+    if (!showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '스카우터가 데려온 3명이에요. 별 범위가 넓을수록 불확실한 선수예요. 마음에 드는 선수를 협상해서 영입해 보세요.', onSkip: tutSkip })) clearSpot();
+  } else clearSpot();
 }
 
 const KIT_CHOICES = ['#ccff00', '#ff6a3d', '#e63946', '#ff8fab', '#ffd23a', '#f4a261', '#2ecc71', '#0b8f5a', '#3aa0ff', '#1d4ed8', '#22d3ee', '#c06bff', '#7c3aed', '#8d6e63', '#f2f2f2', '#6b7280'];
@@ -1283,9 +1285,9 @@ function newShopOffer() {
   currentState.rejected = {};
   currentState.counterOffer = {};
   currentState.bidMemory = {};
-  const targets = (currentState.scoutTargets ?? []).slice(0, scoutSlots()).filter((t) => t && (t.tag || t.pos)).map((t) => ({ tag: t.tag || null, position: t.pos || null }));
+  const order = currentState.scoutOrder ?? {};
   const boost = isStaffFreshThisWeek('headScout') ? 0 : SCOUT_QUALITY_BOOST_BY_LEVEL[staffLevel('headScout')] ?? 0;
-  return generateShopOffer(scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId, targets, boost).map(stripLockedTags).map(withSeller);
+  return generateScoutDelivery(order, scoutOfferSize(), currentState.availableGodPlayers, Math.random, currentState.leagueTierId, boost).map(stripLockedTags).map(withSeller);
 }
 
 // 카드마다 내놓는 구단(리그 구단 이름)을 붙인다. GOD 카드는 흥정 없이 고정가라 구단을 안 붙인다.
@@ -1430,11 +1432,6 @@ function scoutOfferSize() {
   return SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[staffLevel('headScout')] ?? SHOP_OFFER_SIZE;
 }
 
-// 스카우터 등급이 높을수록 다시 뽑기 비용이 싸진다
-function rerollCost() {
-  if (isStaffFreshThisWeek('headScout')) return SHOP_REROLL_COST;
-  return Math.round(SHOP_REROLL_COST * (1 - (SCOUT_REROLL_DISCOUNT_BY_LEVEL[staffLevel('headScout')] ?? 0)));
-}
 
 // 스펙 2절: 시즌마다 자금을 지급하고, 남은 돈은 그 위에 이월한다(상한 30%).
 // 지급 시점을 여기로 모은 이유: 다음 시즌 리그와 구단은 거취 선택이 끝나야
@@ -1697,7 +1694,7 @@ function buyCard(card, rowEl = null, outgoing = null, priceOverride = null) {
     currentState.firstBuyTracked = true;
     track('first_buy', { run: currentState.telemetryRun, sec: Math.round((Date.now() - (currentState.startedAt ?? Date.now())) / 1000), s: currentState.seasonNumber });
   }
-  if (tutStep() === 1) tutSet(2);
+  if (tutStep() === 15) tutSet(16);
   const haggled = priceOverride && priceOverride < askPrice;
   renderMarket('');
   if (!card.id.startsWith('god-') || haggled || activated.length) {
@@ -1748,14 +1745,6 @@ function hireStaff(role, level, rowEl = null) {
   // 새 후보를 뽑아, 이미 영입한 사람이 매물로 다시 뜨지 않게 한다.
   currentState.staffOffer = { ...currentState.staffOffer, [`${role}:${level}`]: generateStaffCandidate(role, level) };
   renderMarket(`${esc(candidate.name)}(${STAFF_ROLE_LABELS[role]}) 영입 완료(${cost}G, 이번 주는 효과 미발동)`);
-}
-
-function rerollShop() {
-  const cost = rerollCost();
-  if (currentState.funds < cost) return;
-  currentState.funds -= cost;
-  currentState.shopOffer = newShopOffer();
-  renderMarket();
 }
 
 // 선수단 탭 교체: 같은 포지션 슬롯끼리 바꾼다(전술 탭의 수동 배치와 같은 manualOverrides를 쓴다).
@@ -2018,6 +2007,7 @@ function nextWeek() {
     return;
   }
   currentState.shopOffer = newShopOffer();
+  if (tutStep() >= 0 && loadRecords(localStorage).runs <= 1) ensureUpgradeOffer(); // 튜토리얼에서는 "영입해 보세요"가 막히지 않게
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
   renderMarket([saleMessage, chemMessage].filter(Boolean).join(' / '));
 }
@@ -2437,8 +2427,8 @@ function renderUcl(opts = {}) {
           <div>${crestOf(myTeam, 40)}<b>${esc(myTeam.name)}</b></div><span>vs</span><div>${opp ? crestOf(opp, 40) : ''}<b>${opp ? esc(opp.name) : ''}</b></div>
         </div>
         <div class="uclnext__venue is-${venue}">${{ home: '홈 경기', away: '원정 경기', neutral: '중립 경기(단판)' }[venue]}</div>
-        <div class="uclnext__power">내 전력 ${Math.round(myTeam.power)} · 상대 전력 ${opp ? opp.power : ''}${opp ? ` · ${UCL_STYLE_LABELS[opp.style]}` : ''}</div>
-        ${fortress ? `<div class="uclnext__fortress">⚠ 원정팀의 무덤 — 이 원정에서는 조직력이 절반이 되어 내 전력이 ${Math.round(s.myPowerAway)}로 떨어집니다</div>` : ''}
+        <div class="uclnext__power">${opp ? `상대 스타일 · ${UCL_STYLE_LABELS[opp.style]}` : ''}</div>
+        ${fortress ? `<div class="uclnext__fortress">⚠ 원정팀의 무덤 — 이 원정에서는 조직력이 절반이 되어 전력이 크게 떨어집니다</div>` : ''}
         ${agg ? `<div class="uclnext__agg">${agg}</div>` : ''}
       </div>`;
   }
@@ -2763,7 +2753,6 @@ function runSecondHalfAndFinish(saleMessage = '') {
     ${uclQualified ? '<div class="banner banner--ucl">리그 4위 이내로 마쳐 챔피언스리그에 진출했습니다. 시즌 결산 후 챔피언스리그가 이어집니다.</div>' : ''}
     <div class="panel">
       <ul class="summary">
-        <li><span>최종 팀 전력</span><b>${computeTeamPower(lineup, bench, currentState.chemistry, fx()).toFixed(1)}</b></li>
         <li><span>최종 조직력</span><b>${currentState.chemistry.toFixed(1)}</b></li>
         <li><span>${goalLine}</span></li>
         ${demandLine ? `<li><span>${demandLine}</span></li>` : ''}
@@ -3263,8 +3252,7 @@ function renderMarket(banner = '') {
     } else if (lineupCount < slotCount || !sameSlot) {
       compareHtml = `<div class="deal__cmp is-empty">${c.position} 공석 · 바로 선발</div>`;
     } else {
-      const diff = starsFor(c) - starsFor(sameSlot);
-      compareHtml = `<div class="deal__cmp"><span>내 선발 ${c.position} <b class="n">${starLabel(sameSlot)}</b></span><em class="${diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat'} n">${diff > 0 ? '▲' : diff < 0 ? '▼' : '='}${diff ? Math.abs(diff) : ''}</em></div>`;
+      compareHtml = `<div class="deal__cmp"><span>내 선발 ${c.position} <b class="n">${starLabel(sameSlot)}</b></span></div>`; // 차이는 안 보여 준다(범위의 중심이 새 버리므로)
     }
     const decayNote = decay > 0 ? `조직력 −${decay}` : '';
     return `<li class="offer deal" data-row="${c.id}" data-tier="${tier}" style="--tier:var(--t-${tier})">
@@ -3305,19 +3293,18 @@ function renderMarket(banner = '') {
       ${filterLabel ? `<button class="gapchip gapchip--clear" data-gap-clear>${esc(filterLabel)}만 보는 중 · 전체 보기</button>` : ''}
     </div>` : '';
 
-  const slotN = scoutSlots();
-  const scoutTargets = currentState.scoutTargets ?? [];
+  const orderCap = Math.max(1, scoutSlots());
+  const scoutOrder = currentState.scoutOrder ?? {};
+  const orderFilled = ['pos', 'tag', 'age'].filter((k) => scoutOrder[k]).length;
   const tagOpts = (sel) => TAG_IDS.map((t) => `<option value="${t}"${sel === t ? ' selected' : ''}>${esc(TAG_LABELS[t] ?? t)}</option>`).join('');
   const posOpts = (sel) => POSITIONS.map((p) => `<option value="${p}"${sel === p ? ' selected' : ''}>${p}</option>`).join('');
-  const scoutTargetHtml = slotN
-    ? `<div class="scoutbar" title="스카우터가 매주 칸마다 이 조건의 선수를 1장씩 찾아 줍니다(다음 주부터)">
-        <span class="scoutbar__label">${renderTagIcon(TRAIT_ICON_PATHS, 'scout')}목표</span>
-        ${Array.from({ length: slotN }, (_, i) => `<span class="scoutslot">
-          <select data-scout-tag="${i}" aria-label="목표 ${i + 1} 태그"><option value="">태그</option>${tagOpts(scoutTargets[i]?.tag)}</select>
-          <select data-scout-pos="${i}" aria-label="목표 ${i + 1} 포지션"><option value="">포지션</option>${posOpts(scoutTargets[i]?.pos)}</select>
-        </span>`).join('')}
-      </div>`
-    : '';
+  const ageOpts = (sel) => [['young', '유망(~22세)'], ['prime', '즉전력(23~29)'], ['vet', '베테랑(30~)']].map(([v, l]) => `<option value="${v}"${sel === v ? ' selected' : ''}>${l}</option>`).join('');
+  const orderSel = (key, label, opts) => `<select data-order="${key}" aria-label="${label}" ${!scoutOrder[key] && orderFilled >= orderCap ? 'disabled' : ''}><option value="">${label}</option>${opts}</select>`;
+  const scoutTargetHtml = `<div class="scoutorder" id="scout-order">
+      <span class="scoutbar__label">${renderTagIcon(TRAIT_ICON_PATHS, 'scout')}스카우트 지시</span>
+      <span class="scoutorder__sels">${orderSel('pos', '포지션', posOpts(scoutOrder.pos))}${orderSel('tag', '태그', tagOpts(scoutOrder.tag))}${orderSel('age', '나이대', ageOpts(scoutOrder.age))}</span>
+      <small class="scoutorder__note">조건 ${orderFilled}/${orderCap}개 · 다음 주에 이 조건으로 3명이 도착해요${orderCap < 3 ? ' (스카우터 등급이 높으면 조건을 더 걸 수 있어요)' : ''}</small>
+    </div>`;
   const starPlayer = [...squad].sort((a, b) => observedOVR(b) - observedOVR(a))[0] ?? null;
   // 선수단 탭: 선발 / 벤치 / 예비 세 묶음으로 보여 준다. 행을 누르면 교체·판매 버튼이 펼쳐진다.
   const benchIds = new Set(bench.map((p) => p.id));
@@ -3380,10 +3367,9 @@ function renderMarket(banner = '') {
         <div class="subtabs" role="tablist">
           <button type="button" role="tab" data-draft-sub="players" aria-selected="${draftSub === 'players'}">선수 <i>${shopOffer.length}</i></button>
           ${isUnlocked('staff') ? `<button type="button" role="tab" data-draft-sub="staff" aria-selected="${draftSub === 'staff'}">스태프</button>` : ''}
-          ${draftSub === 'players' ? `<button class="reroll" id="reroll-btn" ${funds >= rerollCost() ? '' : 'disabled'}>다시 뽑기 <b>${rerollCost()}G</b></button>` : ''}
         </div>
         ${draftSub === 'players' ? `${scoutTargetHtml}${gapBarHtml}
-        <ul class="offers">${offerHtml || `<li class="empty">${currentState.offerFilter ? `이번 주 매물에 ${currentState.offerFilter}가 없습니다. 다시 뽑거나 전체 보기로 돌아가세요.` : '이번 주는 매물이 없습니다. 다시 뽑거나 다음 주로 넘어가세요.'}</li>`}</ul>` : ''}
+        <ul class="offers">${offerHtml || `<li class="empty">${currentState.offerFilter ? `이번 주 후보 중에 ${currentState.offerFilter}가 없습니다. 전체 보기로 돌아가세요.` : '스카우터에게 지시를 내리고 다음 주로 넘어가면 3명이 도착해요.'}</li>`}</ul>` : ''}
         ${draftSub === 'staff' ? draftStaffHtml(funds) : ''}
       </section>`,
     tactics: `
@@ -3548,7 +3534,6 @@ function renderMarket(banner = '') {
       if (!btn) continue; // 공석 필터로 가려진 카드는 화면에 없다
       btn.onclick = () => (card.seller ? openHaggle(card) : buyCard(card, document.querySelector(`[data-row="${card.id}"]`)));
     }
-    document.getElementById('reroll-btn')?.addEventListener('click', rerollShop);
     document.querySelectorAll('[data-draft-sub]').forEach((b) => { b.onclick = () => { currentState.draftSub = b.dataset.draftSub; renderMarket(); }; });
     document.querySelectorAll('[data-hire-staff]').forEach((btn) => {
       btn.onclick = () => {
@@ -3683,11 +3668,10 @@ function renderMarket(banner = '') {
     currentState.offerFilter = null;
     renderMarket(banner);
   });
-  document.querySelectorAll('[data-scout-tag], [data-scout-pos]').forEach((sel) => {
+  document.querySelectorAll('[data-order]').forEach((sel) => {
     sel.addEventListener('change', () => {
-      const i = Number(sel.dataset.scoutTag ?? sel.dataset.scoutPos);
-      const t = (currentState.scoutTargets ??= []);
-      t[i] = { ...(t[i] ?? {}), [sel.dataset.scoutTag !== undefined ? 'tag' : 'pos']: sel.value || null };
+      currentState.scoutOrder = { ...(currentState.scoutOrder ?? {}), [sel.dataset.order]: sel.value || null };
+      renderMarket(banner);
     });
   });
   document.getElementById('spec-line')?.addEventListener('click', () => { currentState.tab = 'staff'; renderMarket(); });
