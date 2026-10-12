@@ -3,6 +3,7 @@ import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, TAG_IDS, FLAIR
 import { valuePrice } from '../engine/economy.mjs';
 import { pick, randomName } from './name-pools.mjs';
 import { rollHiddenTraits } from '../engine/stars.mjs';
+import { sampleInjuryHistory } from '../engine/injury.mjs';
 
 // 5부 시작 스쿼드 등급 분포 (스펙 11절: 60~80장, 스펙 2절 "5부=로컬 급"에 맞춤).
 // 순수 로컬 등급만 60장 — 실측(node tune-check)으로 확인한 결과, 등급을
@@ -90,6 +91,7 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
     baseOVR,
     ...pot,
     ...hidden,
+    injHistory: sampleInjuryHistory({ durability: hidden.durability, age }, rng), // 지난 시즌 부상 이력(숨은 내구성의 결과)
     flair: baseOVR >= FLAIR_MIN_OVR ? FLAIR_BY_POSITION[pos] : null, // 월드클래스 이상의 개인 특기
     price: valuePrice({ baseOVR, age, position: pos, specialTrait, ...pot, obsErr: hidden.obsErr }, marketNoise),
     age,

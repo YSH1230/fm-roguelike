@@ -10,6 +10,7 @@ export const TRAIT_PHRASES = {
   team: { team: '팀 플레이를 중시', solo: '혼자 해결하는 타입' },
   adapt: { riser: '큰 무대에 강한 편', lowking: '작은 무대에서 빛나는 편' },
   settle: { fast: '적응이 빠른 편', slow: '새 팀 적응이 느린 편' },
+  durability: { iron: '잘 다치지 않는 편', fragile: '자주 다치는 편' },
 };
 const ALL_PHRASES = Object.values(TRAIT_PHRASES).flatMap((o) => Object.values(o));
 export const HINT_COUNT = { academy: 1, proLicense: 2, veteran: 2, master: 3 };
@@ -23,6 +24,7 @@ export function activeTraits(p) {
   else if (err >= 3) out.push({ axis: 'rep', key: 'bubble' });
   if (p.volatility === 'streaky' || p.volatility === 'steady') out.push({ axis: 'volatility', key: p.volatility });
   for (const axis of ['curve', 'rhythm', 'team', 'adapt', 'settle']) if (p[axis]) out.push({ axis, key: p[axis] });
+  if (p.durability === 'iron' || p.durability === 'fragile') out.push({ axis: 'durability', key: p.durability });
   return out;
 }
 

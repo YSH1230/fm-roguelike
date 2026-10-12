@@ -2376,3 +2376,7 @@ button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
 /* 성향 문구 */
 .traithints { display: flex; flex-wrap: wrap; gap: 4px; }
 .traithints span { font-size: var(--fs-micro); color: var(--muted); border: 1px dashed var(--line); border-radius: 4px; padding: 1px 6px; font-style: italic; }
+
+/* 부상 */
+.traithints span.is-inj { color: var(--debit, #ff6a3d); border-color: color-mix(in srgb, var(--debit, #ff6a3d) 45%, transparent); font-style: normal; }
+.tag--inj { background: color-mix(in srgb, var(--debit, #ff6a3d) 25%, transparent); color: var(--debit, #ff6a3d); }

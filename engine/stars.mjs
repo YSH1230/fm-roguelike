@@ -15,7 +15,9 @@ export function rollHiddenTraits(rng = Math.random) {
   const r = rng();
   const volatility = r < 0.2 ? 'streaky' : r < 0.45 ? 'steady' : 'normal';
   const axis = (a, b) => (rng() < 0.3 ? (rng() < 0.5 ? a : b) : null); // 축마다 30%만 활성(선수당 보통 3~4개 특성)
+  const d = rng();
   return {
+    durability: d < 0.2 ? 'iron' : d < 0.8 ? 'normal' : 'fragile', // 내구성(부상 확률, engine/injury.mjs)
     obsErr: Math.round(gauss(rng) * OBS_ERR_SIGMA * 10) / 10, volatility, form: rollForm(volatility, rng),
     curve: axis('late', 'early'), rhythm: axis('slow', 'fast'), team: axis('team', 'solo'), adapt: axis('riser', 'lowking'), settle: axis('fast', 'slow'),
   };
