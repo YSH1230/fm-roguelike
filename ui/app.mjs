@@ -48,6 +48,7 @@ import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
 import { starsOf, starRange, starText, rangeText, tierFromStars, rollForm, observedOVR, hideHidden, hiddenShift } from '../engine/stars.mjs';
 import { traitHints } from '../engine/traits.mjs';
 import { rollInjury, injuryChips, INJURY_LABELS, INJURY_POINTS } from '../engine/injury.mjs';
+import { rankFromPoints, predictRanks, marketReport } from '../engine/preview.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
 import { ageSquad, playerTrend, ensurePotential, hasPeaked, bodyAge, growthStage } from '../engine/aging.mjs';
@@ -1557,6 +1558,7 @@ function startNewSeason() {
   });
   // 시즌이 끝났으니 평가 오차의 절반을 그 시즌 폼으로 갱신하고(범위는 점으로), 나이에 따른 능력 변화와 함께 별이 움직인다.
   currentState.squad = aged.squad.map((p) => ({ ...p, obsErr: Math.round((0.5 * (p.obsErr ?? 0) + 0.5 * (p.form ?? 0)) * 10) / 10, unproven: false })).map(repricePlayer).map((p) => ({ ...p, form: rollForm(p.volatility) })); // 몸값도 다시 매기고, 시즌 폼은 새로 정해진다
+  currentState.windowBuys = [];
   currentState.halfObsDone = false;
   currentState.halfStarChanges = null;
   currentState.halfInjuries = null;
@@ -1706,6 +1708,7 @@ function buyCard(card, rowEl = null, outgoing = null, priceOverride = null) {
     : { tone: 'flat', text: '적정가 · 시세와 비슷하게 샀어요' };
   if (card.seller && !priceOverride) setMood(card.seller, 'asking');
   currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, unproven: true, paidPrice: price, price: trueValue }];
+  currentState.windowBuys = [...(currentState.windowBuys ?? []), card.id];
   const tiersAfter = tagTiers();
   const activated = Object.keys(tiersAfter).filter((t) => tiersAfter[t] > tiersBefore[t])
     .map((t) => `${TAG_LABELS[t] ?? t} +${PLAYSTYLE_TAGS[t].values[tiersAfter[t] - 1]}`);
@@ -1986,6 +1989,48 @@ function flashWeekTransition(label, onDone) {
 }
 
 // 반기 전술 방향(2시즌 해금): 기대 승점은 그대로, 공격은 기복이 크고 수비는 안정적이다.
+// v3: 반기 시작 직전 시즌 전망 - 기자 3명의 예상 순위와 이적시장 성적표(팀 전력은 시즌 중 내내 비밀이라 여기서만 알려 준다).
+const JOURNALISTS = [
+  { key: 'optimist', outlet: '스포츠 데일리', name: '한낙관' },
+  { key: 'analyst', outlet: '데이터 라인', name: '서분석' },
+  { key: 'pessimist', outlet: '나이트 뉴스', name: '오비관' },
+];
+function previewQuote(key, rank) {
+  if (key === 'optimist') return rank <= 3 ? '올해는 우승입니다. 다른 얘기는 필요 없어요.' : rank <= 8 ? '숨은 다크호스입니다. 상위권도 충분해요.' : rank <= 14 ? '보강이 맞아떨어지면 중위권 위로 갑니다.' : '아직 잠재력은 있습니다. 반등을 기대해 봅니다.';
+  if (key === 'analyst') return rank <= 3 ? '지표상 상위권입니다.' : rank <= 8 ? '지표상 중상위권입니다.' : rank <= 14 ? '지표상 중위권입니다.' : rank <= 17 ? '지표상 잔류 경쟁권입니다.' : '지표상 강등권입니다.';
+  return rank <= 3 ? '좋아 보이지만 거품이 꺼질 때를 조심해야 합니다.' : rank <= 8 ? '상위권은 어렵다고 봅니다.' : rank <= 14 ? '중위권 이하가 현실적입니다.' : '강등 후보 1순위입니다.';
+}
+function showSeasonPreview(half, onDone) {
+  const tierId = currentState.leagueTierId;
+  const { lineup, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const power = computeTeamPower(lineup, bench, currentState.chemistry, fx(half));
+  const tier = getLeagueTier(tierId);
+  const full = convertPowerToPoints(power, (tier.averageOVR[0] + tier.averageOVR[1]) / 2);
+  const total = half === 1 ? full : (currentState.firstHalfPoints ?? 0) + full / 2;
+  const ranks = predictRanks(rankFromPoints(total, tierId));
+  const entries = (currentState.windowBuys ?? []).map((id) => {
+    const p = currentState.squad.find((x) => x.id === id);
+    if (!p) return null;
+    const mates = lineup.filter((x) => x.position === p.position && x.id !== p.id).map((x) => starsFor(x));
+    return { name: p.name, stars: starLabel(p), delta: mates.length ? starsFor(p) - Math.max(...mates) : 1, bargain: p.paidPrice != null && p.price != null && p.paidPrice < p.price * 0.8 };
+  }).filter(Boolean);
+  const report = marketReport(entries);
+  const root = document.getElementById('eventmodal-root');
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal preview">
+        <div class="eventmodal__kicker">${half === 1 ? '시즌 전망' : '후반기 전망'}</div>
+        <div class="eventmodal__title">기자들의 예상 순위</div>
+        <ul class="previewlist">${JOURNALISTS.map((j) => `<li><span class="previewlist__who"><b>${j.outlet}</b> ${j.name} 기자</span><em class="n">${ranks[j.key]}위</em><p>“${previewQuote(j.key, ranks[j.key])}”</p></li>`).join('')}</ul>
+        <div class="eventmodal__title">이적시장 성적표 <b class="previewgrade">${report.grade}</b></div>
+        <p class="eventmodal__detail">${report.summary}</p>
+        ${report.lines.length ? `<ul class="previewlist previewlist--buys">${report.lines.map((l, i) => `<li><span class="previewlist__who"><b>${esc(l.name)}</b> ${entries[i].stars}</span><p>${l.text}${l.bargain ? ' · 가성비 좋은 계약' : ''}</p></li>`).join('')}</ul>` : ''}
+        <button class="reroll" id="preview-go" style="margin-top:var(--s2);width:100%">경기 시작</button>
+      </div>
+    </div>`;
+  document.getElementById('preview-go').onclick = () => { root.innerHTML = ''; onDone(); };
+}
+
 function askDirection(onPick) {
   if (tutStep() >= 0) { currentState.direction = 'balance'; onPick(); return; } // 튜토리얼 중에는 묻지 않는다
   const root = document.getElementById('eventmodal-root');
@@ -2025,11 +2070,11 @@ function nextWeek() {
   const saleMessage = resolveListedSales();
 
   if (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1]) {
-    askDirection(() => runFirstHalf(saleMessage));
+    showSeasonPreview(1, () => askDirection(() => runFirstHalf(saleMessage)));
     return;
   }
   if (currentState.phase === 'winter' && currentState.week > WINTER_MARKET_WEEKS[1]) {
-    askDirection(() => runSecondHalfAndFinish(saleMessage));
+    showSeasonPreview(2, () => askDirection(() => runSecondHalfAndFinish(saleMessage)));
     return;
   }
   const marketStart = currentState.phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0];
@@ -2239,6 +2284,7 @@ function renderHalfTimeVerdict(saleMessage, lineup, slotted, bench) {
 function enterWinterMarket() {
   currentState.phase = 'winter';
   currentState.week = WINTER_MARKET_WEEKS[0];
+  currentState.windowBuys = [];
   // 여름에 산 선수는 겨울부터 판매할 수 있다.
   currentState.squad = currentState.squad.map((p) => ({ ...p, boughtThisSeason: false }));
   currentState.shopOffer = newShopOffer();
@@ -4045,4 +4091,4 @@ if (UCL_DEMO) {
 }
 
 // 확인용 훅(#dev): 감독 장면(철학·라커룸 토크)을 바로 띄워 본다. 일반 플레이에는 영향이 없다.
-if (location.hash.includes('dev')) window.__dev = { renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
+if (location.hash.includes('dev')) window.__dev = { showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };

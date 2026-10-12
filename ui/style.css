@@ -2382,3 +2382,13 @@ button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
 .tag--inj { background: color-mix(in srgb, var(--debit, #ff6a3d) 25%, transparent); color: var(--debit, #ff6a3d); }
 .cross { font-style: normal; font-weight: 900; color: #e63946; }
 .tag--inj { color: var(--light); }
+
+/* 시즌 전망 */
+.preview { max-height: 88vh; overflow-y: auto; }
+.previewlist { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
+.previewlist li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.previewlist__who { font-size: var(--fs-micro); color: var(--muted); }
+.previewlist__who b { color: var(--light); }
+.previewlist em { font-style: normal; font-size: 20px; color: var(--light); }
+.previewlist p { grid-column: 1 / -1; margin: 0; font-size: var(--fs-body); }
+.previewgrade { margin-left: 8px; padding: 0 8px; border: 2px solid var(--turf, #ccff00); border-radius: 4px; color: var(--turf, #ccff00); }
