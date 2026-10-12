@@ -34,7 +34,8 @@ export function valuePrice(p, marketNoise = 0) {
   const stage = growthStage(p);
   const growing = stage === 'early' || stage === 'late';
   const peak = growing ? Math.min(99, Math.max(p.baseOVR, Math.round(p.peakOVR * (1 + marketNoise)))) : p.baseOVR;
-  const priceOVR = Math.min(94, Math.max(50, Math.round(p.baseOVR + (stage === 'late' ? 0.9 : 0.35) * (peak - p.baseOVR))));
+  const seen = p.baseOVR + (p.obsErr ?? 0); // v3: 시장은 진짜 실력이 아니라 평판(관측값)으로 값을 매긴다
+  const priceOVR = Math.min(94, Math.max(50, Math.round(seen + (stage === 'late' ? 0.9 : 0.35) * (peak - p.baseOVR))));
   const tier = Object.entries(PLAYER_TIERS).find(([, t]) => priceOVR >= t.minOVR && priceOVR <= t.maxOVR)?.[0] ?? 'local';
   return Math.round(calculatePlayerPrice(tier, priceOVR) * (TRAIT_PRICE_MULT[p.specialTrait] ?? 1) * agePriceMult(p.age));
 }

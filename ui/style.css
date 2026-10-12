@@ -2358,3 +2358,11 @@ button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
 .stancebox li { font-size: var(--fs-label); padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
 .stancebox li.is-good { color: var(--turf); }
 .stancebox li.is-bad { color: #f0928a; }
+
+/* ===== v3: OVR 숫자 대신 별 표시 ===== */
+.deal .pcard { padding-bottom: 18px; }
+.deal .pcard__ovr { top: auto; bottom: 2px; left: 0; right: 0; text-align: center; font-size: 12px; color: var(--tier); background: rgba(0, 0, 0, 0.55); padding: 2px 0; text-shadow: none; }
+.slot .slot__ovr { top: -5px; right: -4px; font-size: 11px; padding: 0 3px; background: rgba(8, 12, 10, 0.82); border-radius: 3px; text-shadow: none; color: var(--tier, var(--light)); }
+.srow__ovr { font-size: 17px; min-width: 46px; }
+.benchchip__ovr { font-size: 11px; }
+.gapchip--thin { border-style: dashed; opacity: 0.85; }

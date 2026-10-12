@@ -86,6 +86,7 @@ export const defenseLineBonus = (player, fx = null) => (fx?.defenseLine && playe
 export function computePlayerFinalOVR(player, lineup, bench, fx = null) {
   return (
     player.baseOVR +
+    (player.form ?? 0) + // v3: 시즌 폼(숨은 값, 시즌 평점으로만 드러남)
     formationTagBonus(player, fx) +
     defenseLineBonus(player, fx) +
     computeSelfTraitBonus(player) +

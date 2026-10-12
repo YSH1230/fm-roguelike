@@ -2,6 +2,7 @@ import { generatePotential } from '../engine/aging.mjs';
 import { PLAYER_TIERS, POSITIONS, CONTINENT_TAGS, PLAYSTYLE_TAGS, TAG_IDS, FLAIR_BY_POSITION, FLAIR_MIN_OVR, SPECIAL_TRAITS, TRAIT_PRICE_MULT } from '../engine/constants.mjs';
 import { valuePrice } from '../engine/economy.mjs';
 import { pick, randomName } from './name-pools.mjs';
+import { rollHiddenTraits } from '../engine/stars.mjs';
 
 // 5부 시작 스쿼드 등급 분포 (스펙 11절: 60~80장, 스펙 2절 "5부=로컬 급"에 맞춤).
 // 순수 로컬 등급만 60장 — 실측(node tune-check)으로 확인한 결과, 등급을
@@ -81,13 +82,15 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
   // 전성기(보이지 않는 잠재력)와, 시장이 그걸 ±7% 정도 잘못 보는 가격(스카우트가 좋으면 어긋남을 찾아낸다)
   const pot = generatePotential(baseOVR, age, pos, rng);
   const marketNoise = Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng()) * 0.07;
+  const hidden = rollHiddenTraits(rng); // v3: 평가 오차·폼 변동(화면에 안 보이는 숨은 속성)
   return {
     id: `p${String(nextId++).padStart(4, '0')}`,
     name,
     baseOVR,
     ...pot,
+    ...hidden,
     flair: baseOVR >= FLAIR_MIN_OVR ? FLAIR_BY_POSITION[pos] : null, // 월드클래스 이상의 개인 특기
-    price: valuePrice({ baseOVR, age, position: pos, specialTrait, ...pot }, marketNoise),
+    price: valuePrice({ baseOVR, age, position: pos, specialTrait, ...pot, obsErr: hidden.obsErr }, marketNoise),
     age,
     position: pos,
     playstyleTags: withForcedTag(pickPlaystyleTags(tier, pos, rng), forceTag),

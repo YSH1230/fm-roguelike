@@ -1,4 +1,8 @@
 import { computeAverageOVR } from './team-power.mjs';
+import { observedOVR } from './stars.mjs';
+
+// v3: 자동 선발은 별(관측값)만 본다 - 진짜 실력(시즌 폼 포함)은 모르는 상태에서 고른다.
+const asSeen = (p) => ({ ...p, baseOVR: observedOVR(p), form: 0 });
 
 // 케미(태그/대륙/특수 성향)까지 반영한 최종 OVR 평균이 가장 높은 선발을
 // 찾는다. 선발 슬롯에는 그 슬롯 포지션의 선수만 넣고, 그 포지션 선수가 없으면
@@ -8,7 +12,7 @@ import { computeAverageOVR } from './team-power.mjs';
 // 못 넘는 경우가 있어 2개 동시 교체까지 본다.
 // ponytail: 3개 이상 동시 교체는 안 본다 - 5명 문턱 시너지를 통째로 못 찾을 수 있다.
 export function optimizeLineup(squad, slots, benchSize, coach = null) {
-  const byOvr = (a, b) => b.baseOVR - a.baseOVR;
+  const byOvr = (a, b) => observedOVR(b) - observedOVR(a);
   const xi = new Array(slots.length).fill(null);
   const used = new Set();
   slots.forEach((pos, i) => {
@@ -22,7 +26,7 @@ export function optimizeLineup(squad, slots, benchSize, coach = null) {
   };
   const score = (lineup) => {
     const players = lineup.filter(Boolean);
-    return players.length ? computeAverageOVR(players, benchOf(lineup), coach) : 0;
+    return players.length ? computeAverageOVR(players.map(asSeen), benchOf(lineup).map(asSeen), coach) : 0;
   };
   // 슬롯 i에 넣을 수 있는 후보: 그 자리 포지션의 선발 밖 선수
   const candidates = (lineup, i) => {
