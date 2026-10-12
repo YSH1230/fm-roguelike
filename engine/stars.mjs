@@ -2,7 +2,7 @@
 // 관측값 = baseOVR + obsErr(선수마다 고정된 평가 오차: 양수면 이름값이 높은 "거품", 음수면 저평가된 "보석").
 import { hash32 } from './scouting.mjs';
 
-export const OBS_ERR_SIGMA = 3; // 평가 오차 표준편차(OVR). 별 약 0.75칸
+export const OBS_ERR_SIGMA = 4.5; // 평가 오차 표준편차(OVR). 별 약 0.75칸
 export const OVR_PER_STAR = 4; // 리그 평균 선수 = ★3, OVR 4가 별 1칸
 export const FORM_SIGMA = { steady: 1.5, normal: 2.5, streaky: 5 }; // 시즌 폼 표준편차(OVR)
 

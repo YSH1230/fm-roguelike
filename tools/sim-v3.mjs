@@ -1,0 +1,380 @@
+// [v3] 화면에 보이는 정보(별·범위·성향 문구·부상 이력·가격)만으로 판단하는 봇 3종: BOT=light|normal|skilled (기본 normal).
+//   light: 스카우트 지시 없이 도착한 3명 중 고르고, 한 주 1명만 사고, 안 쓰는 선수를 팔지 않는다. normal: 지시(약한 포지션+목표 태그)·판매 순환.
+//   skilled: normal + 성향 문구·부상 이력 칩을 읽어 평가를 보정한다. 숨은 값(OVR·폼·특성)은 어느 봇도 직접 보지 못한다.
+// 사람처럼 플레이하는 커리어 봇. sim-career의 smart(태그·포메이션·스카우터 목표)에 아래를 더했다.
+//  - 선수 판매 순환: 선발·벤치 밖 선수는 매주 판매 등록하고(여름 50~100% / 겨울 70~110%) 그 돈으로 다시 영입한다.
+//  - 코치·스카우터를 돈 내고 산다(리그별 목표 등급). 감독 NPC는 없다 - 정식 임명(첫 시즌 잔류)과 승격마다 감독 특기를 고른다.
+//  - 겨울 지원금, 이사진 목표·요구 보상, 챔피언스리그 상금, 조직력 회복/하락, 포메이션·코치 주력 선택.
+// 모델에 없는 것: 시즌 이벤트(좋고 나쁜 게 평균적으로 거의 상쇄), 성골 유스 같은 특수 성향 노림, GOD 영입.
+// 사용: node tools/sim-human.mjs <커리어 수> [--out 파일.json]
+import fs from 'node:fs';
+import { FORMATIONS } from '../ui/formations.mjs';
+import { generateStartingSquad } from '../data/generate-player.mjs';
+import { generateScoutDelivery } from '../data/draft-shop.mjs';
+import { starsOf, starRange, observedOVR, rollForm, hiddenShift, OVR_PER_STAR } from '../engine/stars.mjs';
+import { traitHints } from '../engine/traits.mjs';
+import { rollInjury, injuryChips, INJURY_POINTS } from '../engine/injury.mjs';
+import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardReward } from '../engine/season.mjs';
+import { applyTransactionDecay } from '../engine/chemistry.mjs';
+import { computeAverageOVR, computeTeamPower } from '../engine/team-power.mjs';
+import { computePlaystyleSynergyBonus } from '../engine/ovr.mjs';
+import { PHILOSOPHY_IDS, drawPhilosophyChoices, levelUpPhilosophy, drawTalkChoices, rollTalkOutcome, specialtyEffects } from '../engine/specialties.mjs';
+import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, computeReleaseProceeds, recallFunds, generateSaleOffers, noOfferChance, valuePrice, FUNDS_SCALE, fundsScale } from '../engine/economy.mjs';
+import { getLeagueTier, getLadderIndex, getNextTier } from '../engine/league.mjs';
+import { optimizeLineup } from '../engine/lineup.mjs';
+import { ageSquad, ensurePotential, growthStage } from '../engine/aging.mjs';
+import { patienceFor, offerAccepted, counterAccepted } from '../engine/haggle.mjs';
+import { finalLeagueRank } from '../engine/half-results.mjs';
+import { judgeRunOutcome, nextMissedTargetCount } from '../engine/run.mjs';
+import { createUcl, advanceUcl, UCL_REWARDS_FUNDS } from '../engine/champions-league.mjs';
+import {
+  CHEMISTRY_START, WINTER_TAX_RATIO, WINTER_FUNDS_RATIO, PROMOTION_STAY_FUNDS_RATIO, SAME_LEAGUE_FUNDS_RATIO,
+  STAGNATION_FUNDS_PENALTY_PER_MISS, PLAYSTYLE_TAGS, TAG_IDS, BASIC_TAGS, COACH_CHEMISTRY_DECAY_BY_LEVEL,
+  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_QUALITY_BOOST_BY_LEVEL, SCOUT_TARGET_SLOTS_BY_LEVEL, STAFF_PRICE_TABLE,
+  squadCapFor, PLAYER_TIERS, PLAYER_PRICE_TABLE, TRAIT_PRICE_MULT, BOARD_DEMAND_REWARD, CHEMISTRY_DECAY_PER_TRANSACTION, POSITIONS,
+} from '../engine/constants.mjs';
+
+Object.assign(FUNDS_SCALE, JSON.parse(process.env.FS ?? '{}')); // 실험용: FS='{"tier1":0.5}'
+const argv = process.argv.slice(2);
+const N = Number(argv[0] ?? 100);
+const OUT = argv.includes('--out') ? argv[argv.indexOf('--out') + 1] : null;
+const MAX_SEASONS = 25;
+const BOT = process.env.BOT ?? 'normal';
+const midOf = (tierId) => { const t = getLeagueTier(tierId); return (t.averageOVR[0] + t.averageOVR[1]) / 2 + 6; }; // ui leagueMid와 같다
+const r1 = (x) => Math.round(x * 10) / 10;
+const healthy = (sq) => sq.filter((p) => !(p.out > 0));
+
+// 봇이 "믿는" 능력: 별(범위면 중앙값)에서 거꾸로 환산한다. skilled는 성향 문구·부상 이력으로 보정한다.
+const HINT_ADJ = { '저평가받는 편': 4, '이름값이 앞서는 편': -4, '자주 다치는 편': -1.5, '잘 다치지 않는 편': 0.5, '지난 시즌 시즌 아웃': -1, '지난 시즌 반기 아웃': -0.7, '잔부상 많음': -0.5, '기복이 큰 편': -0.5, '꾸준한 편': 0.5, '혼자 해결하는 타입': 0.7, '새 팀 적응이 느린 편': -1, '적응이 빠른 편': 0.5 };
+function believedOVR(p, mid, level) {
+  let stars;
+  if (p.unproven) { const r = starRange(p, mid, level); stars = (r.lo + r.hi) / 2; } else stars = starsOf(p, mid);
+  let o = mid + (stars - 3) * OVR_PER_STAR;
+  if (BOT === 'skilled') for (const h of [...traitHints(p, level), ...injuryChips(p, level)]) o += HINT_ADJ[h] ?? 0;
+  return { ...p, baseOVR: o, obsErr: 0, form: 0, team: null, adapt: null, settle: null, rhythm: null };
+}
+const BASE_SLOTS = FORMATIONS['4-3-3'].slots;
+const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+
+// 리그별로 사람이 맞춰 가는 스태프 목표 등급
+const COACH_TARGET = { tier5: 'academy', tier4: 'proLicense', tier3: 'proLicense', tier2: 'veteran', tier1: 'master' };
+const SCOUT_TARGET = { tier5: 'academy', tier4: 'proLicense', tier3: 'proLicense', tier2: 'veteran', tier1: 'veteran' };
+const STAFF_ORDER = ['academy', 'proLicense', 'veteran', 'master'];
+const mid = ([a, b]) => Math.round((a + b) / 2);
+
+const toSquad = (c, bought = false) => ({ ...c, seasonsAtClub: 0, acquiredThisSeason: true, boughtThisSeason: bought, inBench: false });
+
+// 해금 전 태그·특수 성향은 카드에 안 붙는다(ui/app.mjs stripLockedTags와 같은 규칙, 계정이 처음일 때 기준)
+function lockStrip(card, season) {
+  const open = () => true; // 해금 시스템 폐지
+  let tags = card.playstyleTags.filter(open);
+  if (!tags.length) { const fit = BASIC_TAGS.filter((t) => PLAYSTYLE_TAGS[t].positions.includes(card.position)); tags = [(fit.length ? fit : BASIC_TAGS)[0]]; }
+  const out = { ...card, playstyleTags: tags };
+  if (card.specialTrait && false) { out.price = Math.round(card.price / (TRAIT_PRICE_MULT[card.specialTrait] ?? 1)); out.specialTrait = null; }
+  return out;
+}
+
+function tierOfOvr(ovr) {
+  for (const [id, t] of Object.entries(PLAYER_TIERS)) if (ovr >= t.minOVR && ovr <= t.maxOVR) return id;
+  return ovr > 94 ? null : 'local';
+}
+// 시즌 시작 몸값 재계산(ui/app.mjs repricePlayer와 같다)
+function repricePlayer(p) {
+  if (!p.price) return p;
+  const q = ensurePotential(p);
+  return { ...q, price: valuePrice(q, 0) };
+}
+
+function bestFormationFor(tag) {
+  const count = (slots) => slots.filter((p) => PLAYSTYLE_TAGS[tag].positions.includes(p)).length;
+  return Object.values(FORMATIONS).map((f) => f.slots).sort((a, b) => count(b) - count(a))[0];
+}
+// 봇의 철학 선택: 지금 선발에서 가장 많이 오르는 철학(정식 임명)
+function choosePhilosophy(evalPower) {
+  const ids = drawPhilosophyChoices();
+  const base = evalPower(specialtyEffects(null));
+  return { id: ids.map((id) => ({ id, v: evalPower(specialtyEffects({ id, level: 1 })) - base })).sort((a, b) => b.v - a.v)[0].id, level: 1 };
+}
+// 봇의 라커룸 토크: 고르는 기준이 없어서(효과를 모르고 고른다) 무작위 선택. 반응은 규칙대로 정해진다.
+function pickTalk(kind) {
+  const ids = drawTalkChoices(kind);
+  return rollTalkOutcome(kind, ids[Math.floor(Math.random() * ids.length)]);
+}
+
+function chooseTarget(squad, season = 1) {
+  const ids = TAG_IDS.filter((t) => true);
+  const score = (t) => squad.filter((p) => p.playstyleTags.includes(t)).length;
+  const best = Math.max(...ids.map(score));
+  const pool = ids.filter((t) => score(t) === best);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function progressCredit(squad, card, tag) {
+  if (!tag || !card.playstyleTags.includes(tag)) return 0;
+  const def = PLAYSTYLE_TAGS[tag];
+  const holders = squad.filter((p) => p.playstyleTags.includes(tag)).length;
+  const curTier = def.thresholds.filter((n) => holders >= n).length;
+  if (curTier >= def.thresholds.length) return 0;
+  const need = def.thresholds[curTier];
+  const curTotal = (curTier ? def.values[curTier - 1] : 0) * holders;
+  return Math.max(0, (def.values[curTier] * need - curTotal) / (need - holders) / 11);
+}
+function tagStats(lineup) {
+  const b = computePlaystyleSynergyBonus(lineup);
+  let sum = 0; for (const v of b.values()) sum += v;
+  return { perPlayer: lineup.length ? sum / lineup.length : 0 };
+}
+
+function playCareer() {
+  let tierId = 'tier5';
+  let squad = generateStartingSquad().map((p) => toSquad(lockStrip(p, 1)));
+  let philosophy = null; let stanceOut = null; let offseasonOut = null; let appointed = false; let probationUsed = false;
+  let coachLevel = 'academy'; let scoutLevel = 'academy';
+  let leftover = 0; let proceeds = 0; let listed = [];
+  let missed = 0; let promotedPending = false; let first = true;
+  const seasons = []; let reason = 'cap'; let uclTitles = 0;
+
+  for (let s = 0; s < MAX_SEASONS; s++) {
+    const base = calculateStartingFunds(getLadderIndex(tierId)) * fundsScale(tierId, s + 1);
+    const ratio = first ? 1 : promotedPending ? PROMOTION_STAY_FUNDS_RATIO : SAME_LEAGUE_FUNDS_RATIO;
+    const grant = Math.round(base * ratio * Math.max(0, 1 - missed * STAGNATION_FUNDS_PENALTY_PER_MISS));
+    let funds = grant + (first ? 0 : recallFunds(leftover, grant).carried) + proceeds;
+    proceeds = 0; promotedPending = false;
+    let salesIncome = 0; let staffSpend = 0;
+
+    if (!first) {
+      squad = ageSquad(squad, Math.random, coachLevel, { extraGrowth: (stanceOut?.fx.growthBoost ?? 0) + (offseasonOut?.fx.youthGrowth ?? 0), vetRelief: offseasonOut?.fx.vetRelief ?? 0 }).squad
+        .map((p) => ({ ...p, obsErr: r1(0.5 * (p.obsErr ?? 0) + 0.5 * (p.form ?? 0)), unproven: false })).map(repricePlayer)
+        .map((p) => ({ ...p, form: rollForm(p.volatility), out: 0, outKind: null, seasonsAtClub: (p.seasonsAtClub ?? 0) + 1, acquiredThisSeason: false, boughtThisSeason: false }));
+    }
+    first = false;
+
+    // 시즌 시작 팀 전력(승격해서 올라온 직후 상단에 보이는 값) - 포메이션/주력은 아래에서 고른다
+    const targetTag = chooseTarget(squad, s + 1);
+    let SLOTS = bestFormationFor(targetTag);
+    const FM = Object.entries(FORMATIONS).find(([, f]) => f.slots === SLOTS)?.[1];
+    const withFormation = (xi) => xi.map((p) => (p ? { ...p, slotPosition: p.position, formationTag: FM?.tag } : p));
+    const powerOf = (sq, chem, fxOverride = null) => {
+      const { xi, bench } = optimizeLineup(healthy(sq), SLOTS, 5);
+      const lineup = withFormation(xi).filter(Boolean);
+      const f = fxOverride ?? specialtyEffects(philosophy, stanceOut?.fx);
+      return { power: computeTeamPower(lineup, bench, chem, f), avgOVR: computeAverageOVR(lineup, bench, f), lineup, bench };
+    };
+    const startInfo = powerOf(squad, CHEMISTRY_START);
+
+    // 스태프 투자(리그별 목표 등급까지, 코치 → 스카우터 순)
+    const staffOpen = true;
+    for (const [role, target] of [['coach', COACH_TARGET[tierId]], ['scout', SCOUT_TARGET[tierId]]]) {
+      if (!staffOpen) break;
+      const cur = role === 'coach' ? coachLevel : scoutLevel;
+      if (STAFF_ORDER.indexOf(cur) >= STAFF_ORDER.indexOf(target)) continue;
+      const next = STAFF_ORDER[STAFF_ORDER.indexOf(cur) + 1];
+      const cost = mid(STAFF_PRICE_TABLE[next]);
+      if (funds >= cost + 60) { funds -= cost; staffSpend += cost; if (role === 'coach') coachLevel = next; else scoutLevel = next; }
+    }
+
+    stanceOut = appointed ? pickTalk('start') : null; // 시즌 시작 라커룸 토크(정식 감독이 된 뒤부터)
+    let fxNow = specialtyEffects(philosophy, stanceOut?.fx);
+    let chem = Math.max(0, Math.min(100, CHEMISTRY_START + (stanceOut?.fx.chemNow ?? 0) + (offseasonOut?.fx.nextStartChem ?? 0)));
+    if (offseasonOut?.fx.grantMult) funds = Math.round(funds * 1); // 지급액 배율은 아래 정산(grant)에 이미 반영하지 못해 근사: 시즌 시작 자금에 곱한다
+    if (offseasonOut?.fx.grantMult) funds += Math.round(grant * (offseasonOut.fx.grantMult - 1));
+    offseasonOut = null;
+    let buys = 0; let spent = 0; let week = 0;
+    const slotN = SCOUT_TARGET_SLOTS_BY_LEVEL[scoutLevel];
+    const decay = COACH_CHEMISTRY_DECAY_BY_LEVEL[coachLevel] ?? CHEMISTRY_DECAY_PER_TRANSACTION;
+    let firstHalf = 0; let secondHalf = 0; let lineup; let bench;
+    const MID = midOf(tierId);
+    const optimalAvg = (sq) => { const { xi, bench: b } = optimizeLineup(healthy(sq).map((p) => believedOVR(p, MID, scoutLevel)), SLOTS, 5); return computeAverageOVR(xi.filter(Boolean), b); };
+    let order = {}; // 스카우트 지시(다음 주에 이 조건으로 3명이 온다)
+    let injPts = 0;
+    const halfFx = (half) => ({ ...fxNow, leagueIdx: getLadderIndex(tierId), half });
+    const observe = (half) => { squad = squad.map((p) => ({ ...p, obsErr: r1(0.5 * (p.obsErr ?? 0) + 0.5 * ((p.form ?? 0) + hiddenShift(p, halfFx(half)))), unproven: false })); };
+    const marketInjuries = () => {
+      squad = squad.map((p) => {
+        if (p.out > 0) return p;
+        const kind = rollInjury(p, Math.random, ['half', 'season']);
+        return kind ? { ...p, out: kind === 'half' ? 1 : phaseNow === 'summer' ? 2 : 1, outKind: kind } : p;
+      });
+    };
+    let phaseNow = 'summer';
+
+    for (const phase of ['summer', 'winter']) {
+      phaseNow = phase;
+      if (phase === 'winter') {
+        funds += Math.round(base * WINTER_FUNDS_RATIO * 1); // 겨울 지원금
+        squad = squad.map((p) => ({ ...p, boughtThisSeason: false })); // 여름에 산 선수는 겨울부터 판매 가능
+      }
+      for (let w = 0; w < (phase === 'summer' ? 8 : 4); w++) {
+        week += 1;
+        if (w === 2) marketInjuries(); // 시장 3주차: 반기 아웃·시즌 아웃 발생
+        // 지난주에 낸 판매 등록 정산
+        const due = listed.filter((l) => l.resolveWeek <= week);
+        listed = listed.filter((l) => l.resolveWeek > week);
+        for (const l of due) { const p = computeReleaseProceeds(l.card.price, l.method); funds += p; salesIncome += p; }
+
+        // [v3] 이번 주 도착분은 지난주에 낸 지시(order)로 온다. 새 판 1주차는 도착이 없다.
+        const size = SCOUT_SHOP_OFFER_SIZE_BY_LEVEL[scoutLevel];
+        const priceMods = (card) => {
+          const m = phase === 'winter' ? [WINTER_TAX_RATIO] : [];
+          if (fxNow.buyDiscount) m.push(-fxNow.buyDiscount);
+          if (fxNow.growthBuyDiscount && growthStage(card) === 'early') m.push(-fxNow.growthBuyDiscount);
+          return m;
+        };
+        let pool = (s === 0 && week === 1 ? [] : generateScoutDelivery(BOT === 'light' ? {} : order, size, [], Math.random, tierId, SCOUT_QUALITY_BOOST_BY_LEVEL[scoutLevel]))
+          .map((c0) => { const card = lockStrip(c0, s + 1); return { card: { ...card, unproven: true }, price: applyCostModifiers(card.price, priceMods(card)) }; });
+        let boughtThisWeek = 0;
+        let hadTx = false; let txCount = 0;
+        const cap = squadCapFor(s + 1);
+        const decayNow = () => { const d = txCount === 0 ? 0 : decay; txCount += 1; hadTx = true; chem = applyTransactionDecay(chem, 1, d); }; // 한 주 첫 거래는 면제
+        // 선수 내보내기: 1시즌은 다음 주 정산, 2시즌부터는 오퍼 중 최고가를 바로 수락(기다림은 모델에 없음)
+        const sellOut = (p) => {
+          squad = squad.filter((x) => x.id !== p.id);
+          if (Math.random() < noOfferChance(p)) return; // 오퍼가 없으면 자유계약으로 떠난다(수입 없음)
+          const offers = generateSaleOffers(p.price, p.baseOVR).sort((a, b) => b - a);
+          // 판매 협상: 구매 구단이 유연하면 +10%→+5%를 불러 본다. 인내심이 바닥나면 그 오퍼는 사라지고 다음 오퍼로 간다.
+          const sc = [-1, 0, 1][Math.floor(Math.random() * 3)];
+          const u = Math.random();
+          let got = offers[0] ?? 0;
+          if (sc >= 1 && got > 0) {
+            let pat = patienceFor(sc); let withdrawn = false;
+            for (const r of [0.1, 0.05]) {
+              if (counterAccepted({ raise: r, score: sc, u })) { got = Math.round(got * (1 + r)); break; }
+              pat -= 1;
+              if (pat <= 0) { withdrawn = true; break; }
+            }
+            if (withdrawn) got = offers[1] ?? null;
+          }
+          if (got === null) { squad = [...squad, { ...p, baseOVR: Math.max(1, p.baseOVR - 3) }]; return; } // 오퍼가 다 사라지면 태업 복귀
+          funds += got; salesIncome += got;
+        };
+        const spare = () => {
+          const { xi: x0, bench: b0 } = optimizeLineup(healthy(squad), SLOTS, 5);
+          const keep = new Set([...x0.filter(Boolean), ...b0].map((p) => p.id));
+          return squad.filter((p) => !keep.has(p.id) && !p.boughtThisSeason).sort((a, b) => observedOVR(a) - observedOVR(b));
+        };
+        for (;;) {
+          const baseAvg = optimalAvg(squad);
+          const full = squad.length >= cap;
+          if (full && !spare().length) break; // 정원이 차고 내보낼 선수도 없다
+          if (BOT === 'light' && boughtThisWeek >= 1) break; // 라이트: 한 주에 한 명만
+          const ranked = pool.filter((o) => funds >= o.price)
+            .map((o) => ({ ...o, gain: BOT === 'light' ? believedOVR({ ...toSquad(o.card), unproven: true }, MID, scoutLevel).baseOVR - MID : optimalAvg([...squad, { ...toSquad(o.card), unproven: true }]) - baseAvg + progressCredit(squad, o.card, targetTag) }))
+            .sort((x, y) => y.gain - x.gain);
+          if (!ranked.length || ranked[0].gain <= (BOT === 'light' ? 0 : 0.02)) break; // 라이트: 자리와 상관없이 별이 가장 높은 선수를 산다(리그 평균 선수보다 좋아 보이면)
+          const best = ranked[0];
+          // 흥정: 구단 태도(-1·0·1)를 보고 유연하면 20%→10%, 보통이면 10%, 완강하면 안 깎는다. 인내심이 바닥나면 협상 결렬.
+          const hscore = [-1, 0, 1][Math.floor(Math.random() * 3)];
+          const hu = Math.random();
+          const hTrue = valuePrice(best.card, 0);
+          const plan = hscore >= 1 ? [0.2, 0.1] : hscore === 0 ? [0.1] : [];
+          let hpat = patienceFor(hscore); let hfactor = 1; let hbroken = false;
+          for (const d of plan) {
+            if (offerAccepted({ ask: best.card.price, trueValue: hTrue, discount: d, score: hscore, u: hu })) { hfactor = 1 - d; break; }
+            hpat -= 1;
+            if (hpat <= 0) { hbroken = true; break; }
+          }
+          if (hbroken) { pool = pool.filter((o) => o.card !== best.card); continue; }
+          best.price = Math.round(best.price * hfactor);
+          if (funds < best.price) { pool = pool.filter((o) => o.card !== best.card); continue; }
+          if (full) sellOut(spare()[0]); // 교체 영입은 한 건으로 센다
+          funds -= best.price; spent += best.price; buys += 1;
+          squad = [...squad, { ...toSquad(best.card, true), unproven: true }];
+          boughtThisWeek += 1;
+          decayNow();
+          pool = pool.filter((o) => o.card !== best.card);
+        }
+        // 선발·벤치 밖 선수 판매 등록(이번 시즌 영입은 못 판다). 성장 중인 어린 선수 2명까지는 남겨 둔다.
+        const { xi, bench: bn } = optimizeLineup(healthy(squad), SLOTS, 5);
+        const used = new Set([...xi.filter(Boolean), ...bn].map((p) => p.id));
+        const prospects = new Set([...squad].filter((p) => !used.has(p.id) && p.age <= 20).sort((a, b) => observedOVR(b) - observedOVR(a)).slice(0, 2).map((p) => p.id));
+        if (BOT !== 'light') for (const p of squad.filter((x) => !used.has(x.id) && !x.boughtThisSeason && !prospects.has(x.id))) { // 라이트는 안 쓰는 선수를 팔지 않는다
+          sellOut(p);
+          decayNow();
+        }
+        // 다음 주 도착분을 위한 지시: 선발에서 가장 약해 보이는 포지션 + 목표 태그(+ 베테랑 스카우터 이상이면 즉전력 나이대)
+        if (BOT !== 'light') {
+          const cur = optimizeLineup(healthy(squad), SLOTS, 5).xi.filter(Boolean);
+          const weakest = [...cur].sort((a, b) => observedOVR(a) - observedOVR(b))[0];
+          const missing = SLOTS.find((pos) => !healthy(squad).some((p) => p.position === pos));
+          order = { pos: missing ?? weakest?.position ?? null };
+          if (slotN >= 2) order.tag = targetTag;
+          if (slotN >= 3) order.age = 'prime';
+        }
+        chem = advanceWeek(chem, hadTx);
+      }
+      { // 시장 마감: 정원 초과분은 낮은 OVR 순으로 자동 방출
+        const capNow = squadCapFor(s + 1);
+        if (squad.length > capNow) {
+          const { xi: x1, bench: b1 } = optimizeLineup(healthy(squad), SLOTS, 5);
+          const keep = new Set([...x1.filter(Boolean), ...b1].map((p) => p.id));
+          const drop = new Set(squad.filter((p) => !keep.has(p.id)).sort((a, b) => observedOVR(a) - observedOVR(b)).slice(0, squad.length - capNow).map((p) => p.id));
+          squad = squad.filter((p) => !drop.has(p.id));
+        }
+      }
+      const info = powerOf(squad, chem);
+      lineup = info.lineup; bench = info.bench;
+      let injBonus = 0;
+      for (const p of lineup) { const k = rollInjury(p, Math.random, ['minor', 'mid']); if (k) injBonus -= INJURY_POINTS[k]; }
+      injPts += injBonus;
+      const pts = runHalfSeason(lineup, bench, chem, tierId, Math.random, halfFx(phase === 'winter' ? 2 : 1), 'balance', (phase === 'winter' ? fxNow.pointsSecond : fxNow.pointsFirst) + injBonus);
+      squad = squad.map((p) => (p.out > 1 ? { ...p, out: p.out - 1 } : p.out > 0 ? { ...p, out: 0, outKind: null } : p));
+      if (phase === 'summer') observe(1);
+      if (phase === 'summer') firstHalf = pts; else secondHalf = pts;
+    }
+    // 마지막 정산(시즌 안에 못 받은 판매 대금은 이월 자금으로)
+    for (const l of listed) { const p = computeReleaseProceeds(l.card.price, l.method); funds += p; salesIncome += p; }
+    listed = [];
+
+    const total = firstHalf + secondHalf;
+    const result = judgeSeasonResult(total, tierId);
+    const tierDef = getLeagueTier(tierId);
+    const isTop = getNextTier(tierId) === null;
+    const rank = finalLeagueRank(total, tierDef, result, Math.random, isTop ? 4 : 3);
+    const endInfo = powerOf(squad, chem);
+    const rec = {
+      tier: tierId, points: total, result, rank, buys, spent, leftover: Math.round(funds), grant,
+      avgOVR: endInfo.avgOVR, active: 0, ...tagStats(lineup), ucl: null, injPts: r1(injPts), visErr: r1(avg(lineup.map((p) => Math.abs((p.obsErr ?? 0) - ((p.form ?? 0)))))),
+      powerStart: startInfo.power, avgStart: startInfo.avgOVR, powerEnd: endInfo.power,
+      specs: philosophy ? `${philosophy.id}:${philosophy.level}` : '', talk: stanceOut?.name ?? '', coach: coachLevel, scout: scoutLevel, salesIncome, staffSpend,
+    };
+    seasons.push(rec);
+    leftover = funds;
+
+    // 이사진 목표 초과 보상 + 요구 카드(쉬움을 골라 절반쯤 달성)
+    const goal = boardGoalPoints(tierDef);
+    proceeds += boardReward(total, goal, base).funds + Math.round(base * BOARD_DEMAND_REWARD.easy * 0.5);
+
+    if (isTop && rank <= 4) {
+      const power = computeTeamPower(lineup, bench, CHEMISTRY_START, fxNow);
+      const away = computeTeamPower(lineup, bench, CHEMISTRY_START / 2, fxNow);
+      let u = createUcl(power, Math.random, { myPowerAway: away });
+      for (let i = 0; i < 40 && u.stage !== 'done'; i++) u = advanceUcl(u, Math.random);
+      rec.ucl = u.result;
+      proceeds += UCL_REWARDS_FUNDS[rec.ucl] ?? 0;
+      if (rec.ucl === 'champion') uclTitles += 1;
+    }
+
+    // 수습 기간: 정식 감독이 되기 전 첫 시즌은 강등권이어도 한 번은 해임되지 않는다(게임과 같은 규칙)
+    let effResult = result;
+    if (result === 'relegation' && !appointed && !probationUsed) { probationUsed = true; effResult = 'safe'; }
+    const outcome = judgeRunOutcome({ seasonResult: effResult, leagueTierId: tierId, missedTargetCount: missed });
+    if (outcome.ended) { reason = outcome.reason; break; }
+    missed = nextMissedTargetCount(effResult, missed);
+    // 정식 임명(첫 시즌 잔류 이상) → 첫 특기, 승격 → 특기 하나 더
+    const evalPower = (f) => powerOf(squad, CHEMISTRY_START, f).power;
+    const wasAppointed = appointed;
+    if (!appointed && result !== 'relegation') { appointed = true; philosophy = choosePhilosophy(evalPower); }
+    if (outcome.canPromote) { tierId = getNextTier(tierId); promotedPending = true; philosophy = levelUpPhilosophy(philosophy); }
+    offseasonOut = wasAppointed ? pickTalk('end') : null; // 시즌 마무리 라커룸 토크
+  }
+  return { seasons, reason, uclTitles };
+}
+
+const t0 = Date.now();
+const careers = [];
+for (let i = 0; i < N; i++) {
+  careers.push(playCareer());
+  if ((i + 1) % 10 === 0) process.stderr.write(`\r${i + 1}/${N} ${(Date.now() - t0) / 1000 | 0}s`);
+}
+process.stderr.write('\n');
+if (OUT) fs.writeFileSync(OUT, JSON.stringify({ strategy: BOT, N, careers }));
+console.log(JSON.stringify({ strategy: BOT, N, secs: (Date.now() - t0) / 1000 }));
