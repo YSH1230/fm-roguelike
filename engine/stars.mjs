@@ -14,8 +14,24 @@ function gauss(rng) {
 export function rollHiddenTraits(rng = Math.random) {
   const r = rng();
   const volatility = r < 0.2 ? 'streaky' : r < 0.45 ? 'steady' : 'normal';
-  return { obsErr: Math.round(gauss(rng) * OBS_ERR_SIGMA * 10) / 10, volatility, form: rollForm(volatility, rng) };
+  const axis = (a, b) => (rng() < 0.3 ? (rng() < 0.5 ? a : b) : null); // 축마다 30%만 활성(선수당 보통 3~4개 특성)
+  return {
+    obsErr: Math.round(gauss(rng) * OBS_ERR_SIGMA * 10) / 10, volatility, form: rollForm(volatility, rng),
+    curve: axis('late', 'early'), rhythm: axis('slow', 'fast'), team: axis('team', 'solo'), adapt: axis('riser', 'lowking'), settle: axis('fast', 'slow'),
+  };
 }
+
+// 숨은 특성이 이번 상황에서 실력에 보태는 값. fx.leagueIdx(0=5부~4=1부)·fx.half(1|2)가 있어야 그 축이 작동한다.
+export function hiddenShift(p, fx = null) {
+  let v = 0;
+  if (p.team === 'solo') v += 2; else if (p.team === 'team') v -= 1; // 혼자 해결하는 선수는 강하지만 팀 시너지가 약하다(ovr.mjs)
+  if (p.adapt && fx?.leagueIdx != null) { const d = (fx.leagueIdx - 2) * 0.75; v += p.adapt === 'riser' ? d : -d; }
+  if (p.acquiredThisSeason) { if (p.settle === 'fast') v += 1; else if (p.settle === 'slow') v -= 2; }
+  if (p.rhythm && fx?.half) { const s = p.rhythm === 'slow' ? -2 : 2; v += fx.half === 1 ? s : -s; }
+  return v;
+}
+// 화면 표시용: 숨은 값을 전부 지운 선수(팀 효과 표시가 숨은 값을 새지 않게)
+export const hideHidden = (p) => ({ ...p, form: 0, team: null, adapt: null, settle: null, rhythm: null });
 
 // 시즌 폼: 시즌이 시작될 때 선수마다 정해져 그 시즌 내내 유지된다.
 export function rollForm(volatility = 'normal', rng = Math.random) {

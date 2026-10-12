@@ -2372,3 +2372,7 @@ button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
 .scoutorder__sels { display: flex; gap: 6px; flex-wrap: wrap; }
 .scoutorder__sels select { flex: 1 1 90px; min-width: 0; }
 .scoutorder__note { color: var(--muted); font-size: var(--fs-micro); }
+
+/* 성향 문구 */
+.traithints { display: flex; flex-wrap: wrap; gap: 4px; }
+.traithints span { font-size: var(--fs-micro); color: var(--muted); border: 1px dashed var(--line); border-radius: 4px; padding: 1px 6px; font-style: italic; }

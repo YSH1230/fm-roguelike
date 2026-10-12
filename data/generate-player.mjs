@@ -82,7 +82,8 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
   // 전성기(보이지 않는 잠재력)와, 시장이 그걸 ±7% 정도 잘못 보는 가격(스카우트가 좋으면 어긋남을 찾아낸다)
   const pot = generatePotential(baseOVR, age, pos, rng);
   const marketNoise = Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng()) * 0.07;
-  const hidden = rollHiddenTraits(rng); // v3: 평가 오차·폼 변동(화면에 안 보이는 숨은 속성)
+  const hidden = rollHiddenTraits(rng); // v3: 평가 오차·폼 변동 등 화면에 안 보이는 숨은 속성
+  if (hidden.curve) { pot.peakBodyAge += hidden.curve === 'late' ? 2 : -2; if (hidden.curve === 'late') pot.peakOVR = Math.min(99, pot.peakOVR + 2); } // 대기만성은 늦고 높게, 조기 개화는 일찍
   return {
     id: `p${String(nextId++).padStart(4, '0')}`,
     name,

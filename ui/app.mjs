@@ -45,7 +45,8 @@ import {
   STAFF_LEVELS, STAFF_PRICE_TABLE,
 } from '../engine/constants.mjs';
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
-import { starsOf, starRange, starText, rangeText, tierFromStars, rollForm, observedOVR } from '../engine/stars.mjs';
+import { starsOf, starRange, starText, rangeText, tierFromStars, rollForm, observedOVR, hideHidden } from '../engine/stars.mjs';
+import { traitHints } from '../engine/traits.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
 import { ageSquad, playerTrend, ensurePotential, hasPeaked, bodyAge, growthStage } from '../engine/aging.mjs';
@@ -189,8 +190,9 @@ function currentFormation() {
 // 이사진이 이번 시즌 요구하는 승점(안전선~승격선 사이). 리그와 구단 기대치만으로
 // 정해지니 따로 저장하지 않고 필요할 때 계산한다.
 // 감독 효과(engine/specialties.mjs): 전술 철학(영구) + 이번 시즌 라커룸 토크. 엔진 계산 곳곳에 이 한 객체를 넘긴다.
-function fx() {
-  return specialtyEffects(currentState?.philosophy, currentState?.stance?.fx);
+function fx(half = null) {
+  // leagueIdx·half: 숨은 선수 특성(리그 적응·시즌 리듬)이 작동하는 데 필요하다
+  return { ...specialtyEffects(currentState?.philosophy, currentState?.stance?.fx), leagueIdx: currentState?.leagueTierId ? getLadderIndex(currentState.leagueTierId) : null, half };
 }
 // 반기 승점에 더해지는 라커룸 토크 보너스(승부수 선언 등)
 function halfBonus(half) {
@@ -206,6 +208,12 @@ function seasonBaseGrant() {
 const BOARD_RULE_TEXT = `목표를 넘긴 승점 1점당 다음 시즌 자금 +${BOARD_REWARD_FUNDS_PER_POINT * 100}%(최대 +${BOARD_REWARD_FUNDS_CAP * 100}%), 한 점이라도 넘기면 조직력 +${BOARD_REWARD_CHEMISTRY}.`;
 
 // v3: 화면에는 OVR 숫자 대신 별(현재 리그 기준 상대 평가)만 보인다.
+// 성향 문구: 숨은 특성의 힌트(스카우터 등급이 낮으면 가끔 틀린다)
+function hintsHtml(p) {
+  const hints = traitHints(p, staffLevel('headScout'));
+  return hints.length ? `<div class="traithints">${hints.map((h) => `<span>${esc(h)}</span>`).join('')}</div>` : '';
+}
+
 function leagueMid() {
   const t = getLeagueTier(currentState.leagueTierId);
   return (t.averageOVR[0] + t.averageOVR[1]) / 2 + 6; // 리그 평균 전력 + 6 = 그 리그 평균 선수(선수 능력은 전력 지표보다 6쯤 높다)
@@ -2050,7 +2058,7 @@ function runFirstHalf(saleMessage = '') {
 
   const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   // 승점은 정수로 쓴다: 화면에 보이는 승점과 승/강등 판정에 쓰는 승점이 같아야 한다.
-  currentState.firstHalfPoints = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(), currentState.direction ?? 'balance', halfBonus(1)));
+  currentState.firstHalfPoints = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(1), currentState.direction ?? 'balance', halfBonus(1)));
 
   // 이 시즌의 순위표를 전반기에 만들어 두고, 후반기는 그 위에 이어서 쌓는다(상대 구단도 그대로).
   const table = simulateLeagueTable(currentState.firstHalfPoints, effectiveTier(currentState.leagueTierId));
@@ -2597,7 +2605,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
     saleMessage = saleMessage ? `${saleMessage} / ${msg}` : msg;
   }
   const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
-  const secondHalf = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(), currentState.direction ?? 'balance', halfBonus(2)));
+  const secondHalf = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(2), currentState.direction ?? 'balance', halfBonus(2)));
   const firstHalf = roundHalfPoints(currentState.firstHalfPoints ?? 0); // 옛 저장(소수점)도 같은 규칙으로
   const totalPoints = firstHalf + secondHalf;
   let result = judgeSeasonResult(totalPoints, currentState.leagueTierId, currentState.expectationModifier ?? 0);
@@ -3191,11 +3199,13 @@ function renderMarket(banner = '') {
   // 스트립은 시너지가 반영된 최종 OVR로 계산한다. 포메이션을 바꿨을 때
   // 숫자가 왜 움직이는지(태그 발동/해제) 읽히게 하려면 baseOVR로는 안 된다.
   // 지금 실제로 보너스를 주고 있는 태그(초록 아이콘): 플레이스타일/대륙 시너지가 발동한 것만
-  const activeTags = new Map(lineup.map((p) => [
+  const shownLineup = lineup.map(hideHidden); // 화면 표시는 숨은 특성을 뺀 계산으로(팀 효과 표시가 숨은 값을 새지 않게)
+  const shownBench = bench.map(hideHidden);
+  const activeTags = new Map(shownLineup.map((p) => [
     p.id,
-    new Set(computePlayerBonusBreakdown(p, lineup, bench, fx()).filter((x) => x.kind === 'playstyle').map((x) => x.id)),
+    new Set(computePlayerBonusBreakdown(p, shownLineup, shownBench, fx()).filter((x) => x.kind === 'playstyle').map((x) => x.id)),
   ]));
-  const finalOVR = new Map(lineup.map((p) => [p.id, computePlayerFinalOVR({ ...p, form: 0 }, lineup, bench, fx())])); // 시즌 폼은 숨는 값이라 뺀다
+  const finalOVR = new Map(shownLineup.map((p) => [p.id, computePlayerFinalOVR(p, shownLineup, shownBench, fx())]));
   const tagTiers = Object.fromEntries(TAG_IDS.map((t) => [t, playstyleTagProgress(t, lineup).tier])); // 팀 스타일 단계(1 브론즈·2 실버·3 골드)
   const groupAvg = (positions) => {
     const members = lineup.filter((p) => positions.includes(p.slotPosition));
@@ -3205,7 +3215,7 @@ function renderMarket(banner = '') {
   const teamPower = computeTeamPower(lineup, bench, chemistry, fx());
   // 조직력이 전력에 주는 몫: 시작값(60)과 비교한 차이
   const chemDelta = teamPower - computeTeamPower(lineup, bench, CHEMISTRY_START, fx());
-  const specDelta = teamPower - computeTeamPower(lineup, bench, chemistry, null); // 감독 특기가 전력에 보태는 몫
+  const specDelta = teamPower - computeTeamPower(lineup, bench, chemistry, { leagueIdx: fx().leagueIdx }); // 감독 특기가 전력에 보태는 몫
 
   const weekStart = phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0];
   const dots = Array.from({ length: maxWeek - weekStart + 1 }, (_, i) => {
@@ -3264,6 +3274,7 @@ function renderMarket(banner = '') {
         <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세</span></div>
         ${c.seller ? `<div class="deal__seller"><span>${esc(c.seller)}</span><span class="deal__att">태도 <b class="att att--${sellerAttitude(c.seller).label}">${sellerAttitude(c.seller).label}</b> ${attitudeFace(sellerAttitude(c.seller).label)}</span></div>` : ''}
         <div class="deal__meta"><div class="deal__tags">${tags}</div>${growthBadge(c, 'headScout')}</div>
+        ${hintsHtml(c)}
         ${compareHtml}
       </div>
       <div class="deal__act">
@@ -3325,6 +3336,7 @@ function renderMarket(banner = '') {
       </div>
       <div class="srow__side">${advice ? `<b class="advice advice--${advice.id}">${advice.label}</b>` : ''}<i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
+        ${hintsHtml(p)}
         ${advice ? `<span class="srow__why advice--${advice.id}">${esc(advice.why)}</span>` : ''}
         ${(currentState.mvpSeasons?.[p.id] || p.seasonsAtClub) ? `<span class="srow__paid">${p.seasonsAtClub ? `${p.seasonsAtClub + 1}시즌째` : ''}${currentState.mvpSeasons?.[p.id] ? ` · 시즌 MVP ${currentState.mvpSeasons[p.id]}회` : ''}${isLegend(p) ? ' · 팔면 조직력 -' + HOMETOWN_RELEASE_CHEMISTRY_PENALTY : ''}</span>` : ''}
         ${p.paidPrice ? `<span class="srow__paid">산 값 <b class="n">${p.paidPrice}G</b> · 시세 <b class="n">${p.price}G</b> <em class="${p.price > p.paidPrice ? 'up' : p.price < p.paidPrice ? 'down' : 'flat'}">${p.price >= p.paidPrice ? '+' : ''}${p.price - p.paidPrice}</em></span>` : p.price ? `<span class="srow__paid">시세 <b class="n">${p.price}G</b></span>` : ''}
@@ -3405,7 +3417,7 @@ function renderMarket(banner = '') {
             <b class="benchchip__ovr n">${starLabel(p)}</b>
           </div>`).join('')}
         </div>
-        ${renderBonusDetail(slotted[currentState.selectedSlot], lineup, bench, fx())}
+        ${renderBonusDetail(slotted[currentState.selectedSlot] && hideHidden(slotted[currentState.selectedSlot]), shownLineup, shownBench, fx())}
         ${renderSlotPicker(squad, formationId, currentState.selectedSlot, inXI, new Set(bench.map((p) => p.id)))}
       </section>
       ${renderChemistryPanel(lineup, bench)}`,

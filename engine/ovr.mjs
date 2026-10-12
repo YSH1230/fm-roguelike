@@ -1,4 +1,5 @@
 import { growthStage } from './aging.mjs';
+import { hiddenShift } from './stars.mjs';
 import { PLAYSTYLE_TAGS, SEED_EFFECT, FORMATION_TAG_BONUS, tagAmp, flairBonusFor } from './constants.mjs';
 
 // v2: 역할 칸(주장/에이스/조커)과 대륙 시너지는 폐지. 특수 성향은 선발/벤치에 있기만 하면 자동 적용되고,
@@ -70,7 +71,7 @@ export function computePlaystyleSynergyBonus(lineup, onlyTagId = null, fx = null
     if (holders.length < tagDef.thresholds[0]) continue;
     const value = tieredValue(holders.length, tagDef.thresholds, tagDef.values) + (fx?.tagBonus?.[tagId] ?? 0); // 태그 스승 특기
     for (const p of holders) {
-      bonuses.set(p.id, (bonuses.get(p.id) ?? 0) + value * tagAmp(p.baseOVR) * (isSeed(p) ? SEED_EFFECT : 1));
+      bonuses.set(p.id, (bonuses.get(p.id) ?? 0) + value * tagAmp(p.baseOVR) * (isSeed(p) ? SEED_EFFECT : 1) * (p.team === 'team' ? 1.5 : p.team === 'solo' ? 0 : 1)); // v3: 팀 플레이어는 시너지 ×1.5, 혼자 해결하는 선수는 못 받는다
     }
   }
   return bonuses;
@@ -87,6 +88,7 @@ export function computePlayerFinalOVR(player, lineup, bench, fx = null) {
   return (
     player.baseOVR +
     (player.form ?? 0) + // v3: 시즌 폼(숨은 값, 시즌 평점으로만 드러남)
+    hiddenShift(player, fx) + // v3: 숨은 특성(팀 기여·리그 적응·신입 적응·시즌 리듬)
     formationTagBonus(player, fx) +
     defenseLineBonus(player, fx) +
     computeSelfTraitBonus(player) +

@@ -48,3 +48,40 @@ test('자동 선발은 진짜 실력이 아니라 별(관측값)로 고른다', 
   assert.equal(xi[0].id, 'bubble');
   assert.equal(tierFromStars(5), 'legendary');
 });
+
+import { hiddenShift, hideHidden } from '../engine/stars.mjs';
+import { traitHints, activeTraits } from '../engine/traits.mjs';
+import { computePlaystyleSynergyBonus } from '../engine/ovr.mjs';
+
+test('숨은 특성: 시즌 리듬·리그 적응·신입 적응·팀 기여가 실력에 반영된다', () => {
+  assert.equal(hiddenShift({ rhythm: 'slow' }, { half: 1 }), -2);
+  assert.equal(hiddenShift({ rhythm: 'slow' }, { half: 2 }), 2);
+  assert.equal(hiddenShift({ adapt: 'riser' }, { leagueIdx: 4 }), 1.5);
+  assert.equal(hiddenShift({ adapt: 'lowking' }, { leagueIdx: 4 }), -1.5);
+  assert.equal(hiddenShift({ settle: 'slow', acquiredThisSeason: true }), -2);
+  assert.equal(hiddenShift({ settle: 'slow' }), 0);
+  assert.equal(hiddenShift({ team: 'solo' }), 2);
+  assert.equal(hideHidden({ id: 'a', team: 'solo', form: 3 }).form, 0);
+});
+
+test('팀 플레이어는 태그 시너지 ×1.5, 혼자 해결하는 선수는 못 받는다', () => {
+  const mk = (id, team) => ({ id, baseOVR: 50, position: 'CMF', playstyleTags: ['pass'], team });
+  const lineup = [mk('a', 'team'), mk('b', 'solo'), mk('c', null)];
+  const b = computePlaystyleSynergyBonus(lineup, 'pass');
+  assert.equal(b.get('b'), 0);
+  assert.ok(b.get('a') > b.get('c') && b.get('c') > 0);
+});
+
+test('성향 문구: 같은 선수·같은 등급이면 같고, 마스터가 더 정확하며 더 많이 보인다', () => {
+  const p = { id: 'zz1', obsErr: -4, volatility: 'streaky', curve: 'late', rhythm: 'slow', team: null, adapt: null, settle: null };
+  assert.deepEqual(traitHints(p, 'master'), traitHints(p, 'master'));
+  assert.ok(traitHints(p, 'master').length >= traitHints(p, 'academy').length);
+  let right = { academy: 0, master: 0 };
+  const truth = new Set(['저평가받는 편', '기복이 큰 편', '늦게 터지는 타입', '슬로 스타터']);
+  for (let i = 0; i < 400; i++) {
+    const q = { ...p, id: `q${i}` };
+    for (const lvl of ['academy', 'master']) for (const h of traitHints(q, lvl)) if (truth.has(h)) right[lvl] += 1 / Math.max(1, traitHints(q, lvl).length);
+  }
+  assert.ok(right.master / 400 > right.academy / 400);
+  assert.equal(activeTraits(p).length, 4);
+});
