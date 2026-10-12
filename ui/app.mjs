@@ -45,7 +45,7 @@ import {
   STAFF_LEVELS, STAFF_PRICE_TABLE,
 } from '../engine/constants.mjs';
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
-import { starsOf, starRange, starText, rangeText, tierFromStars, rollForm, observedOVR, hideHidden } from '../engine/stars.mjs';
+import { starsOf, starRange, starText, rangeText, tierFromStars, rollForm, observedOVR, hideHidden, hiddenShift } from '../engine/stars.mjs';
 import { traitHints } from '../engine/traits.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
@@ -219,7 +219,8 @@ function leagueMid() {
   return (t.averageOVR[0] + t.averageOVR[1]) / 2 + 6; // 리그 평균 전력 + 6 = 그 리그 평균 선수(선수 능력은 전력 지표보다 6쯤 높다)
 }
 const starsFor = (p) => starsOf(p, leagueMid());
-const starLabel = (p) => starText(starsFor(p));
+// 영입한 지 얼마 안 된 선수(unproven)는 아직 범위로 보이고, 첫 결산에서 한 점으로 좁아진다
+const starLabel = (p) => (p.unproven ? seenRange(p) : starText(starsFor(p)));
 const tierOfP = (p) => tierFromStars(starsFor(p));
 const seenRange = (p) => rangeText(starRange(p, leagueMid(), staffLevel('headScout')));
 
@@ -1551,11 +1552,22 @@ function startNewSeason() {
     extraGrowth: (currentState.stance?.fx.growthBoost ?? 0) + (offFx.youthGrowth ?? 0), // 격려(시즌)·세대교체(마무리) 토크
     vetRelief: offFx.vetRelief ?? 0,
   });
-  currentState.squad = aged.squad.map(repricePlayer).map((p) => ({ ...p, form: rollForm(p.volatility) })); // OVR이 바뀌었으니 몸값도 다시 매기고, 시즌 폼은 새로 정해진다
+  // 시즌이 끝났으니 평가 오차의 절반을 그 시즌 폼으로 갱신하고(범위는 점으로), 나이에 따른 능력 변화와 함께 별이 움직인다.
+  currentState.squad = aged.squad.map((p) => ({ ...p, obsErr: Math.round((0.5 * (p.obsErr ?? 0) + 0.5 * (p.form ?? 0)) * 10) / 10, unproven: false })).map(repricePlayer).map((p) => ({ ...p, form: rollForm(p.volatility) })); // 몸값도 다시 매기고, 시즌 폼은 새로 정해진다
+  currentState.halfObsDone = false;
+  currentState.halfStarChanges = null;
   // 오래 뛴 선수(3시즌 이상)나 클럽 레전드가 은퇴하면 따로 인사한다.
   const tribute = aged.retired.map((r) => preAge.get(r.id)).filter((p) => p && ((p.seasonsAtClub ?? 0) >= 3 || isLegend(p)))
     .map((p) => ({ name: p.name, seasons: p.seasonsAtClub ?? 0, mvp: currentState.mvpSeasons?.[p.id] ?? 0, legend: isLegend(p) }));
-  const agingReport = { peaked: aged.peaked ?? [], coachHelped: aged.coachHelped ?? [], changes: aged.changes, retired: aged.retired, youthLeft: youthLeft.map((p) => ({ name: p.name, position: p.position })) };
+  const changeBy = new Map(aged.changes.map((c) => [c.id, c]));
+  const starMoves = currentState.squad.map((p) => {
+    const o = preAge.get(p.id);
+    if (!o) return null;
+    const s0 = starsFor(o);
+    const s1 = starsFor(p);
+    return s0 === s1 ? null : { id: p.id, name: p.name, age: p.age, s0, s1, kind: changeBy.get(p.id)?.kind, coach: changeBy.get(p.id)?.coach };
+  }).filter(Boolean);
+  const agingReport = { peaked: aged.peaked ?? [], coachHelped: aged.coachHelped ?? [], changes: aged.changes, starMoves, retired: aged.retired, youthLeft: youthLeft.map((p) => ({ name: p.name, position: p.position })) };
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
   currentState.shopOffer = newShopOffer();
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
@@ -1687,7 +1699,7 @@ function buyCard(card, rowEl = null, outgoing = null, priceOverride = null) {
     : diff >= 0.07 ? { tone: 'bad', text: `스카우트 오판 · 시세보다 ${Math.round(diff * 100)}% 비싸게 샀어요` }
     : { tone: 'flat', text: '적정가 · 시세와 비슷하게 샀어요' };
   if (card.seller && !priceOverride) setMood(card.seller, 'asking');
-  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, paidPrice: price, price: trueValue }];
+  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, unproven: true, paidPrice: price, price: trueValue }];
   const tiersAfter = tagTiers();
   const activated = Object.keys(tiersAfter).filter((t) => tiersAfter[t] > tiersBefore[t])
     .map((t) => `${TAG_LABELS[t] ?? t} +${PLAYSTYLE_TAGS[t].values[tiersAfter[t] - 1]}`);
@@ -2101,7 +2113,7 @@ function mvpAwardHtml(rows) {
       <span>${w.p.position} · ${starLabel(w.p)} · 활약 ${Math.round(w.pts)}점</span>
       ${(currentState.mvpSeasons?.[w.p.id] ?? 0) > 1 ? `<em>통산 MVP ${currentState.mvpSeasons[w.p.id]}회</em>` : ''}
     </div>
-    ${rest.length ? `<ol class="mvpaward__rest">${rest.map((r, i) => `<li><b class="n">${i + 2}</b><span>${esc(r.p.name)}<small>${r.p.position} · OVR ${r.p.baseOVR}</small></span><em class="n">${Math.round(r.pts)}점</em></li>`).join('')}</ol>` : ''}
+    ${rest.length ? `<ol class="mvpaward__rest">${rest.map((r, i) => `<li><b class="n">${i + 2}</b><span>${esc(r.p.name)}<small>${r.p.position} · ${starLabel(r.p)}</small></span><em class="n">${Math.round(r.pts)}점</em></li>`).join('')}</ol>` : ''}
   </div>`;
 }
 // 시즌 MVP 확정: 1위에게 "시즌 MVP 1회"를 남긴다.
@@ -2113,7 +2125,30 @@ function decideSeasonMvp() {
   return top;
 }
 
+// v3: 한 반기가 끝나면 스카우터가 선수를 다시 평가한다. 평가 오차의 절반은 그 반기에 보인 활약(시즌 폼 등)으로 바뀐다.
+// 영입한 지 얼마 안 된 선수의 범위는 이때 한 점으로 좁아진다. 변화가 생긴 선수 목록을 돌려준다.
+function updateObservations(half) {
+  const f = fx(half);
+  const changes = [];
+  currentState.squad = currentState.squad.map((p) => {
+    const before = starLabel(p);
+    const sb = starsFor(p);
+    const perf = (p.form ?? 0) + hiddenShift(p, f);
+    const np = { ...p, obsErr: Math.round((0.5 * (p.obsErr ?? 0) + 0.5 * perf) * 10) / 10, unproven: false };
+    const sa = starsFor(np);
+    if (p.unproven || sa !== sb) changes.push({ name: p.name, before, after: starLabel(np), up: sa > sb, down: sa < sb });
+    return np;
+  });
+  return changes;
+}
+function starChangesHtml(list) {
+  if (!list?.length) return '';
+  return `<div class="agingbox"><b>스카우터 재평가</b><ul>${list.slice(0, 6).map((c) => `<li class="${c.up ? 'is-up' : c.down ? 'is-down' : ''}">${c.up ? '▲' : c.down ? '▼' : '●'} ${esc(c.name)} <span>${c.before} → ${c.after}</span></li>`).join('')}</ul></div>`;
+}
+
 function renderHalfTimeVerdict(saleMessage, lineup, slotted, bench) {
+  if (!currentState.halfObsDone) { currentState.halfStarChanges = updateObservations(1); currentState.halfObsDone = true; }
+  slotted = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides).slotted; // 새 평가로 다시 그린다
   const tier = effectiveTier(currentState.leagueTierId);
   const points = currentState.firstHalfPoints;
   const pace = judgeSeasonResult(points * 2, currentState.leagueTierId, currentState.expectationModifier ?? 0);
@@ -2140,6 +2175,7 @@ function renderHalfTimeVerdict(saleMessage, lineup, slotted, bench) {
     ${saleMessage ? `<div class="banner">${esc(saleMessage)}</div>` : ''}
     <p class="note">이사진 목표 <b>${currentBoardGoal()}점</b> - 전반기 ${points.toFixed(0)}점(목표 페이스 ${(currentBoardGoal() / 2).toFixed(0)}점).</p>
     <p class="note">겨울 이적시장에서 스쿼드를 보강하세요(윈터 택스 +${WINTER_TAX_RATIO * 100}%).</p>
+    ${starChangesHtml(currentState.halfStarChanges)}
     ${mvpRaceHtml('MVP 레이스 (전반기 현황)', mvpRanking(3))}
     <div class="panel">
       <div class="panel__head"><h2>전반기 라인업</h2><span class="panel__count">${currentFormation()}</span></div>
@@ -3776,14 +3812,9 @@ function renderMarket(banner = '') {
         </ul>
       </div>` : '';
     const ag = { youthLeft: [], ...(briefing.aging ?? { changes: [], retired: [] }) };
-    const mid = leagueMid();
-    const starMove = (c) => {
-      const err = currentState.squad.find((q) => q.id === c.id)?.obsErr ?? 0;
-      return { ...c, s0: starsOf({ baseOVR: c.from, obsErr: err }, mid), s1: starsOf({ baseOVR: c.to, obsErr: err }, mid) };
-    };
-    const moved = ag.changes.map(starMove).filter((c) => c.s0 !== c.s1);
-    const ups = moved.filter((c) => c.s1 > c.s0).sort((a, b) => b.delta - a.delta).slice(0, 4);
-    const downs = moved.filter((c) => c.s1 < c.s0).sort((a, b) => a.delta - b.delta).slice(0, 4);
+    const moved = ag.starMoves ?? [];
+    const ups = moved.filter((c) => c.s1 > c.s0).sort((a, b) => (b.s1 - b.s0) - (a.s1 - a.s0)).slice(0, 4);
+    const downs = moved.filter((c) => c.s1 < c.s0).sort((a, b) => (a.s1 - a.s0) - (b.s1 - b.s0)).slice(0, 4);
     const agingHtml = ups.length || downs.length || ag.retired.length || ag.youthLeft.length || ag.peaked?.length ? `<div class="agingbox">
         <b>선수단 평가 변화</b>
         ${(ag.coachHelped ?? []).length ? `<p class="agingbox__coach">코치 덕분에 ${ag.coachHelped.length}명이 추가로 성장했어요: ${esc(ag.coachHelped.slice(0, 4).map((x) => x.name).join(', '))}${ag.coachHelped.length > 4 ? ' 외' : ''}</p>` : ''}
@@ -3960,4 +3991,4 @@ if (UCL_DEMO) {
 }
 
 // 확인용 훅(#dev): 감독 장면(철학·라커룸 토크)을 바로 띄워 본다. 일반 플레이에는 영향이 없다.
-if (location.hash.includes('dev')) window.__dev = { runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
+if (location.hash.includes('dev')) window.__dev = { renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
