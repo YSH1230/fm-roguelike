@@ -859,39 +859,71 @@ function awardPrestige(rows) {
 
 // 우승 트로피 연출(전체 화면). kind: 'league' | 'ucl'. lines: 우승까지의 여정(챔스) 같은 보조 문구.
 // 챔피언스리그는 암전 → 불꽃놀이 → 트로피가 올라오는 시상식 순서로 길게 보여준다.
+// 우승 시상: 암전 → 선발 11명 입장 → 트로피 하강 → (탭으로) 들어 올림 → 컨페티·플래시 → 타이틀. 리그가 높을수록 화려하고, 챔피언스리그는 따로(파란 조명·별 컨페티·불꽃놀이).
+const CUP_PATHS = `<defs><linearGradient id="cerGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6d77a"/><stop offset="0.55" stop-color="#dda63a"/><stop offset="1" stop-color="#9c6a17"/></linearGradient></defs>
+  <path d="M30 14 H70 V38 C70 52 62 60 50 62 C38 60 30 52 30 38 Z" fill="url(#cerGold)"/>
+  <path d="M30 20 H17 C17 37 24 43 33 45 M70 20 H83 C83 37 76 43 67 45" fill="none" stroke="url(#cerGold)" stroke-width="4" stroke-linecap="round"/>
+  <rect x="45" y="62" width="10" height="14" fill="url(#cerGold)"/><rect x="31" y="76" width="38" height="9" rx="2" fill="url(#cerGold)"/>
+  <path d="M40 20 C40 34 42 44 47 52" fill="none" stroke="#fff6cf" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round"/>`;
 function showTrophy({ kind, title, sub, lines = [], reward = '' }, onClose = () => {}) {
-  const el = document.createElement('div');
-  el.className = `trophy trophy--${kind}`;
-  const confetti = Array.from({ length: kind === 'ucl' ? 46 : 28 }, (_, i) => `<i style="--x:${Math.round(Math.random() * 100)}%;--d:${(2.4 + Math.random() * 2.4).toFixed(2)}s;--w:${(Math.random() * 2.2).toFixed(2)}s;--c:${['#dda63a', '#f0ead9', '#4ca86a', '#5b9bd5', '#e2564d'][i % 5]}"></i>`).join('');
-  // 불꽃놀이: 터지는 점마다 14개 불똥이 사방으로 퍼진다(CSS 변수로 방향/거리).
-  const bursts = kind === 'ucl' ? Array.from({ length: 6 }, (_, b) => {
-    const x = 12 + Math.round(Math.random() * 76); const y = 6 + Math.round(Math.random() * 24);
-    const color = ['#f6d77a', '#8fd0ff', '#ff9c8f', '#9af0b5', '#ffffff', '#f6d77a'][b];
-    const sparks = Array.from({ length: 14 }, (_, s) => `<i style="--a:${Math.round((360 / 14) * s)}deg;--r:${46 + Math.round(Math.random() * 26)}px"></i>`).join('');
-    return `<div class="trophy__burst" style="left:${x}%;top:${y}%;--c:${color};--w:${(1.1 + b * 0.55).toFixed(2)}s">${sparks}</div>`;
+  const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const captain = pickCaptain(lineup);
+  const others = lineup.filter((p) => p.id !== captain?.id).slice(0, 10);
+  const idx = getLadderIndex(currentState.leagueTierId);
+  const ucl = kind === 'ucl';
+  const big = ucl || idx >= 3; // 2부 이상·챔피언스리그는 불꽃놀이
+  const kit = currentState.club.kit;
+  const confettiN = ucl ? 80 : 26 + idx * 14;
+  const colors = ucl ? ['#8fd0ff', '#ffffff', '#f6d77a', '#5b9bd5'] : ['#dda63a', '#f0ead9', '#4ca86a', '#e2564d', kit];
+  const confetti = Array.from({ length: confettiN }, (_, k) => `<i style="--x:${Math.round(Math.random() * 100)}%;--d:${(2.2 + Math.random() * 2.2).toFixed(2)}s;--w:${(Math.random() * 1.6).toFixed(2)}s;--c:${colors[k % colors.length]}">${ucl && k % 3 === 0 ? '★' : ''}</i>`).join('');
+  const bursts = big ? Array.from({ length: ucl ? 7 : 4 }, (_, b) => {
+    const x = 10 + Math.round(Math.random() * 80); const y = 6 + Math.round(Math.random() * 26);
+    const sparks = Array.from({ length: 14 }, (__, k) => `<i style="--a:${Math.round((360 / 14) * k)}deg;--r:${46 + Math.round(Math.random() * 26)}px"></i>`).join('');
+    return `<div class="trophy__burst" style="left:${x}%;top:${y}%;--c:${['#f6d77a', '#8fd0ff', '#ff9c8f', '#9af0b5', '#ffffff', '#f6d77a', '#8fd0ff'][b]};--w:${(0.2 + b * 0.35).toFixed(2)}s">${sparks}</div>`;
   }).join('') : '';
+  const person = (p, i, side) => `<div class="cer__p cer__p--${side}" style="--d:${(1.0 + i * 0.16).toFixed(2)}s">${renderPortrait(p, { size: 40, kit })}</div>`;
+  const left = others.filter((_, i) => i % 2 === 0).map((p, i) => person(p, i * 2, 'l')).join('');
+  const right = others.filter((_, i) => i % 2 === 1).map((p, i) => person(p, i * 2 + 1, 'r')).join('');
+  const cups = Array.from({ length: Math.min(currentState.titles ?? 1, 8) }, () => `<svg viewBox="0 0 100 100" aria-hidden="true">${CUP_PATHS}</svg>`).join('');
+  const el = document.createElement('div');
+  el.className = `cer cer--${kind}${big ? ' cer--big' : ''}`;
   el.innerHTML = `
-    <div class="trophy__rays"></div>
+    <div class="cer__spot"></div>
+    <div class="cer__caption">최종 라운드 종료</div>
+    <div class="cer__stage">
+      <svg class="cer__cup" viewBox="0 0 100 100" aria-hidden="true">${CUP_PATHS}</svg>
+      <div class="cer__line">${left}<div class="cer__cap" style="--d:1.0s">${captain ? `${renderPortrait(captain, { size: 64, kit })}<b>${esc(captain.name)}</b>` : ''}</div>${right}</div>
+    </div>
+    <button class="cer__lift" id="cer-lift" hidden>트로피를 들어 올리기</button>
+    <button class="cer__skip" id="cer-skip">건너뛰기</button>
+    <div class="cer__flash"></div>
+    <div class="cer__confetti">${confetti}</div>
     <div class="trophy__fireworks">${bursts}</div>
-    <div class="trophy__confetti">${confetti}</div>
-    <div class="trophy__body">
-      <svg class="trophy__cup" viewBox="0 0 100 100" aria-hidden="true">
-        <defs><linearGradient id="trophyGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6d77a"/><stop offset="0.55" stop-color="#dda63a"/><stop offset="1" stop-color="#9c6a17"/></linearGradient></defs>
-        <path d="M30 14 H70 V38 C70 52 62 60 50 62 C38 60 30 52 30 38 Z" fill="url(#trophyGold)"/>
-        <path d="M30 20 H17 C17 37 24 43 33 45 M70 20 H83 C83 37 76 43 67 45" fill="none" stroke="url(#trophyGold)" stroke-width="4" stroke-linecap="round"/>
-        <rect x="45" y="62" width="10" height="14" fill="url(#trophyGold)"/>
-        <rect x="31" y="76" width="38" height="9" rx="2" fill="url(#trophyGold)"/>
-        <path d="M40 20 C40 34 42 44 47 52" fill="none" stroke="#fff6cf" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round"/>
-      </svg>
-      <div class="trophy__kicker">${kind === 'ucl' ? 'CHAMPIONS OF EUROPE' : 'CHAMPION'}</div>
+    <div class="cer__final">
+      <div class="trophy__kicker">${ucl ? 'CHAMPIONS OF EUROPE' : 'CHAMPIONS'}</div>
       <h2 class="trophy__title">${esc(title)}</h2>
       <p class="trophy__sub">${esc(sub)}</p>
-      ${lines.length ? `<ul class="trophy__journey">${lines.map((l, i) => `<li style="--i:${i}">${esc(l)}</li>`).join('')}</ul>` : ''}
+      <div class="cer__cups">${cups}</div>
+      ${lines.length ? `<ul class="trophy__journey">${lines.map((l, k) => `<li style="--i:${k}">${esc(l)}</li>`).join('')}</ul>` : ''}
       ${reward ? `<p class="trophy__reward">${esc(reward)}</p>` : ''}
       <button class="cta" id="trophy-close">계속</button>
     </div>`;
   document.body.appendChild(el);
-  el.querySelector('#trophy-close').onclick = () => { el.remove(); onClose(); };
+  const timers = [];
+  let lifted = false;
+  const lift = () => {
+    if (lifted) return;
+    lifted = true;
+    timers.forEach(clearTimeout);
+    el.classList.add('is-lifted');
+    navigator.vibrate?.([40, 30, 90]);
+    timers.push(setTimeout(() => el.classList.add('is-final'), 1500));
+  };
+  timers.push(setTimeout(() => { el.classList.add('is-ready'); el.querySelector('#cer-lift').hidden = false; }, 4400));
+  timers.push(setTimeout(lift, 8200)); // 안 눌러도 자동으로 들어 올린다
+  el.querySelector('#cer-lift').onclick = lift;
+  el.querySelector('#cer-skip').onclick = () => { lift(); el.classList.add('is-final'); };
+  el.querySelector('#trophy-close').onclick = () => { timers.forEach(clearTimeout); el.remove(); onClose(); };
 }
 
 // 선수 등급 팝업: 어떤 등급이 있는지만 낮은 순서대로 보여주고, 누른 카드의 등급을 강조한다.
@@ -4175,4 +4207,4 @@ if (UCL_DEMO) {
 }
 
 // 확인용 훅(#dev): 감독 장면(철학·라커룸 토크)을 바로 띄워 본다. 일반 플레이에는 영향이 없다.
-if (location.hash.includes('dev')) window.__dev = { showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
+if (location.hash.includes('dev')) window.__dev = { showTrophy, showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
