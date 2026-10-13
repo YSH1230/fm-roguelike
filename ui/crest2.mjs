@@ -169,47 +169,94 @@ export function designOf(club) {
   return ROSTER_DESIGN.get(club.name) ?? designFromSeed(club, 0);
 }
 
+// 보색 계열 보조색(채도 높게)
+function complement(hex, shift = 0) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  let h = 0; const dd = mx - mn;
+  if (dd) h = mx === r ? ((g - b) / dd) % 6 : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4;
+  h = (h * 60 + 180 + shift + 360) % 360;
+  const l = 0.55, sat = 0.8;
+  const k = (m) => (m + h / 30) % 12; const a = sat * Math.min(l, 1 - l);
+  const f = (m) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(m) - 3, Math.min(9 - k(m), 1)))));
+  return `#${[f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+// 문장에서는 색이 또렷해야 해서, 지정 색이 없는 리그 구단은 채도와 밝기를 끌어올려 쓴다
+function vivid(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+  let h = 0; const dd = mx - mn;
+  if (dd) h = mx === r ? ((g - b) / dd) % 6 : mx === g ? (b - r) / dd + 2 : (r - g) / dd + 4;
+  h = (h * 60 + 360) % 360;
+  const l = Math.min(0.46, Math.max(0.34, (mx + mn) / 2)); const sat = 0.72;
+  const k = (m) => (m + h / 30) % 12; const a = sat * Math.min(l, 1 - l);
+  const f = (m) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(m) - 3, Math.min(9 - k(m), 1)))));
+  return `#${[f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
 let crestCount = 0;
+// 실제 구단 문장처럼: 굵은 이중 테두리 + 2색 바탕 + 크게 그린 상징(또는 큼직한 모노그램) + 별/왕관/리본.
 // club: { name, kit, kit2?, crest? }. kit2가 있으면 보조색으로 쓴다.
 export function renderCrest(club, { size = 40 } = {}) {
   const name = club.name ?? 'x';
   const seed = hash(club.id ?? name);
-  const kit = club.kit ?? '#2c4239';
+  const kit = club.crest ? (club.kit ?? '#2c4239') : vivid(club.kit ?? '#2c4239');
   const d = designOf(club);
   const shapeId = d.shape, fieldId = d.field, chargeId = d.charge, decoId = d.deco;
   const ringText = !!d.ring;
-  const cands = SECOND.filter((c) => Math.abs(lum(c) - lum(kit)) > 0.35);
+  const cands = [...SECOND, complement(kit), complement(kit, 40), '#14233f'].filter((c) => Math.abs(lum(c) - lum(kit)) > 0.28);
   const second = club.kit2 ?? (cands.length ? cands : ['#f4f1e8'])[(seed >>> 15) % (cands.length || 1)];
   const c1 = kit;
-  const c2 = fieldId === 'solid' ? kit : second;
+  const c2 = fieldId === 'solid' ? mix(kit, '#000000', 0.25) : second;
   const ink = '#14100f';
-  const chargeFill = lum(c1) > 0.6 ? '#14100f' : (lum(second) > 0.6 ? second : '#f4f1e8');
-  const rim = lum(c1) > 0.55 ? '#14100f' : '#f4f1e8';
+  const rim = lum(c1) > 0.55 ? '#1b1b1f' : '#f4f1e8'; // 바깥 테두리: 밝은 색 팀은 검정, 어두운 색 팀은 아이보리
   const gold = '#ffc400';
+  const monogram = (seed >>> 27) % 4 === 0 && !ringText; // 네 곳에 한 곳쯤은 큼직한 이니셜 문장
   const words = name.trim().split(/\s+/);
-  const initials = (words.length > 1 ? words[0][0] + words[1][0] : words[0].slice(0, 2)).toUpperCase();
+  const initials = (words.length > 2 ? words.slice(0, 3).map((w) => w[0]).join('') : words.length > 1 ? words[0][0] + words[1][0] : words[0].slice(0, 2)).toUpperCase();
   crestCount += 1;
   const id = `cr${seed}-${crestCount}`;
   const shape = SHAPES[shapeId];
   const busy = fieldId !== 'solid';
-  const disc = busy ? `<circle cx="32" cy="28" r="15.500" fill="${mix(c1, '#000000', 0.45)}" opacity=".92"/>` : '';
-  const banner = `<g><path d="M6 43 H58 L54 49.500 L58 56 H6 L10 49.500Z" fill="${mix(c1, '#000000', 0.55)}" stroke="${rim}" stroke-width="1.600" stroke-linejoin="round"/><text x="32" y="53.700" text-anchor="middle" font-family="Anton, 'FM Square', sans-serif" font-size="9.500" letter-spacing=".8" fill="#f4f1e8">${esc(initials)}</text></g>`;
+  // 상징 색: 바탕(두 색) 위에서 눈에 띄게 아이보리/금/검정 중 고른다
+  const pickFill = () => {
+    const opts = lum(c1) > 0.6 && !busy ? ['#14100f', '#f4f1e8'] : ['#f4f1e8', gold];
+    const best = opts.filter((c) => Math.abs(lum(c) - lum(c1)) > 0.4 && (!busy || Math.abs(lum(c) - lum(c2)) > 0.3));
+    return (best.length ? best : ['#f4f1e8'])[(seed >>> 9) % (best.length || 1)];
+  };
+  const ANIMALS = ['lion', 'wolf', 'bull', 'stag', 'fox', 'eagle', 'owl', 'bear', 'shark', 'swan'];
+  const isAnimal = ANIMALS.includes(chargeId);
+  // 사자·독수리·사슴은 금빛으로, 나머지는 아이보리로(바탕과 어울리게)
+  const chargeFill = ['lion', 'eagle', 'stag'].includes(chargeId) && Math.abs(lum(gold) - lum(c1)) > 0.25 ? gold : pickFill();
+  const plate = busy ? `<circle cx="32" cy="29" r="${monogram ? 17 : 19}" fill="${mix(c1, '#000000', 0.5)}" stroke="${rim}" stroke-width="2"/>` : '';
   const label = esc(words[0].slice(0, 6).toUpperCase());
-  const ring = ringText ? `<circle cx="32" cy="32" r="25" fill="none" stroke="${mix(c1, '#000000', 0.5)}" stroke-width="9"/><path id="${id}r" d="M32 32 m-24 0 a24 24 0 1 1 48 0 a24 24 0 1 1 -48 0" fill="none"/><text font-family="Anton, 'FM Square', sans-serif" font-size="7.200" letter-spacing="1.400" fill="#f4f1e8"><textPath href="#${id}r" startOffset="25%" text-anchor="middle">${esc(name.toUpperCase())}</textPath></text>` : '';
-  const innerScale = ringText ? 0.72 : 1;
-  const body = `<g transform="translate(32 ${ringText ? 32 : 31}) scale(${innerScale}) translate(-32 -${ringText ? 32 : 31})">${disc}<g>${CHARGES[chargeId](chargeFill, ink)}</g>${ringText ? '' : banner}</g>`;
-  const deco = DECOS[decoId](gold, ink, label);
+  const ring = ringText ? `<circle cx="32" cy="32" r="25.500" fill="${mix(c1, '#000000', 0.45)}"/><path id="${id}r" d="M32 32 m-23 0 a23 23 0 1 1 46 0 a23 23 0 1 1 -46 0" fill="none"/><text font-family="Anton, 'FM Square', sans-serif" font-size="7.600" letter-spacing="1.600" fill="#f4f1e8"><textPath href="#${id}r" startOffset="25%" text-anchor="middle">${esc(name.toUpperCase())}</textPath></text><circle cx="32" cy="32" r="19" fill="${c1}"/><circle cx="32" cy="32" r="19" fill="none" stroke="${rim}" stroke-width="1.600"/>` : '';
+  const bannerOn = !ringText && !monogram && (seed >>> 5) % 2 === 0; // 이니셜 띠는 절반만
+  const banner = `<g><path d="M6 45 H58 L54 51 L58 57 H6 L10 51Z" fill="${mix(c1, '#000000', 0.6)}" stroke="${rim}" stroke-width="1.800" stroke-linejoin="round"/><text x="32" y="55" text-anchor="middle" font-family="Anton, 'FM Square', sans-serif" font-size="9.500" letter-spacing=".9" fill="#f4f1e8">${esc(initials.slice(0, 3))}</text></g>`;
+  // 상징은 크게(방패의 60% 이상)
+  const cScale = ringText ? 0.78 : isAnimal ? (bannerOn ? 1.08 : 1.22) : bannerOn ? 1.2 : 1.42;
+  const cy = ringText ? 32 : bannerOn ? 28 : 31;
+  const symbol = monogram
+    ? `<text x="32" y="${initials.length > 2 ? 40 : 43}" text-anchor="middle" font-family="Anton, 'FM Square', sans-serif" font-size="${initials.length > 2 ? 24 : 32}" letter-spacing="1" fill="${chargeFill}" stroke="${ink}" stroke-width="3.600" paint-order="stroke" stroke-linejoin="round">${esc(initials)}</text>`
+    : `<g transform="translate(32 ${cy}) scale(${cScale}) translate(-32 -28)">${CHARGES[chargeId](chargeFill, ink)}</g>`;
+  const body = `${plate}${symbol}${bannerOn ? banner : ''}`;
+  const decoRaw = DECOS[decoId](gold, ink, label);
+  const deco = decoId === 'wings' || decoId === 'laurel' || decoId === 'none' ? decoRaw : `<g transform="translate(32 6) scale(1.28) translate(-32 -6)">${decoRaw}</g>`;
   const sideDeco = decoId === 'wings' || decoId === 'laurel';
-  const shieldScale = decoId === 'none' ? 0.96 : decoId === 'ribbonTop' ? 0.8 : 0.84;
+  const shieldScale = decoId === 'none' ? 0.97 : decoId === 'ribbonTop' ? 0.8 : 0.86;
   const ty = decoId === 'none' ? 32 : decoId === 'ribbonTop' ? 38 : 36;
+  // 입체감: 왼쪽 위 하이라이트와 오른쪽 아래 그늘(완전 평면은 아니지만 그라디언트는 쓰지 않는다)
+  const gloss = `<path d="M0 0 H64 V20 C44 18 22 28 0 44Z" fill="#fff" opacity=".13"/><path d="M64 30 V64 H30 C46 58 58 46 64 30Z" fill="#000" opacity=".16"/>`;
   return `<svg class="crest crest--v3" width="${size}" height="${size}" viewBox="0 0 64 64" role="img" aria-label="${esc(name)} 엠블럼" focusable="false">
     ${sideDeco ? deco : ''}
     <g transform="translate(32 ${ty}) scale(${shieldScale}) translate(-32 -32)">
+      <path d="${shape}" fill="${rim}" stroke="${ink}" stroke-width="5" stroke-linejoin="round"/>
+      <path d="${shape}" fill="${rim}" stroke="${rim}" stroke-width="3.600" stroke-linejoin="round"/>
       <clipPath id="${id}"><path d="${shape}"/></clipPath>
-      <g clip-path="url(#${id})">${FIELDS[fieldId](c1, c2)}</g>
+      <g transform="translate(32 32) scale(.94) translate(-32 -32)"><g clip-path="url(#${id})">${FIELDS[fieldId](c1, c2)}${gloss}</g></g>
+      <path d="${shape}" fill="none" stroke="${ink}" stroke-width="1.200" stroke-linejoin="round" transform="translate(32 32) scale(.94) translate(-32 -32)" opacity=".7"/>
       ${ring}
-      <path d="${shape}" fill="none" stroke="${rim}" stroke-width="3.400" stroke-linejoin="round"/>
-      <path d="${shape}" fill="none" stroke="#14100f" stroke-width="1" stroke-linejoin="round" transform="translate(32 32) scale(.93) translate(-32 -32)" opacity=".5"/>
       ${body}
     </g>
     ${sideDeco ? '' : deco}
