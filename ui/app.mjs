@@ -50,6 +50,7 @@ import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
 import { starsOf, starRange, starText, rangeText, tierFromStars, rollForm, observedOVR, hideHidden, hiddenShift } from '../engine/stars.mjs';
 import { traitHints } from '../engine/traits.mjs';
 import { rollInjury, injuryChips, INJURY_LABELS, INJURY_POINTS } from '../engine/injury.mjs';
+import { personalityReaction, benchHalvesNeeded, rollBenchTransferDemand, CAPTAIN_TAIL } from '../engine/personality.mjs';
 import { rankFromPoints, predictRanks, marketReport } from '../engine/preview.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
@@ -585,11 +586,16 @@ function showTalkPick(kind, onDone) {
     b.onclick = () => {
       const id = choices[Number(b.dataset.talk)];
       const outcome = rollTalkOutcome(kind, id);
+      // 성격 반응: 조직력 소폭 가감 + 사건 확률 배수(다음 토크까지) + 반응 한 줄
+      const pr = personalityReaction(id, currentState.squad);
+      currentState.personalityMood = pr.byType;
+      if (pr.delta) outcome.fx = { ...outcome.fx, [isStart ? 'chemNow' : 'nextStartChem']: (outcome.fx[isStart ? 'chemNow' : 'nextStartChem'] ?? 0) + pr.delta };
+      if (pr.text) outcome.text = `${outcome.text} ${pr.text}`;
       track('talk', { k: kind, id, s: currentState.seasonNumber });
       const lines = describeTalkFx(outcome.fx);
       const good = lines.filter((l) => l.good).length;
       const tone = good > lines.length - good ? 'good' : good < lines.length - good ? 'bad' : 'mixed';
-      const captainLine = pickLine(CAPTAIN_LINES[tone], `cap-${tone}`).replace('{호칭}', CALL_NAME[trustStage()]);
+      const captainLine = `${pickLine(CAPTAIN_LINES[tone], `cap-${tone}`)} ${CAPTAIN_TAIL[captain?.personality]?.[tone] ?? ''}`.trim().replace(/\{호칭\}/g, CALL_NAME[trustStage()]);
       document.getElementById('lr-panel').innerHTML = `
         <div class="lr__bubble lr__bubble--you" style="--d:0s"><small>감독</small>${esc(TALKS[kind][id].line)}</div>
         <p class="lr__react" style="--d:0.9s">${esc(outcome.text)}</p>
@@ -2176,6 +2182,7 @@ function listForSale(card) {
   });
 }
 
+const LOYAL_SALE_CHEMISTRY = 2;
 function acceptSaleOffer(cardId, index, amount, viaCounter = false) {
   const l = currentState.listedForSale.find((x) => x.card.id === cardId);
   const offer = l?.offers[index];
@@ -2184,6 +2191,7 @@ function acceptSaleOffer(cardId, index, amount, viaCounter = false) {
   returnGodToPool(l.card);
   hometownExitPenalty(l.card);
   currentState.chemistry = applyTransactionDecay(currentState.chemistry, 1, tradeDecay()); // 조직력 벌은 실제로 팔릴 때 붙는다
+  if (l.card.personality === 'loyal') currentState.chemistry = Math.max(0, currentState.chemistry - LOYAL_SALE_CHEMISTRY); // 충성형은 팔면 더 아프다
   if (!viaCounter) setMood(offer.club, 'asking'); // 제시한 금액 그대로 팔면 그 구단은 기분이 좋다
   currentState.funds += amount;
   currentState.seasonTrack.income += amount;
@@ -2474,13 +2482,14 @@ function showInjuryPopup(list) {
 }
 // 출전 요구 이벤트: 2반기 이상 벤치였고 같은 자리 선발만큼 평가가 높은 선수가 시장 마지막 주에 요구한다(반기당 최대 1건).
 // "선발로 넣는다"를 골랐는데 반기 시작 때 선발이 아니면 "거절"과 같다. 거절하면 조직력이 깎이고, 같은 선수가 또 거절당하면 이적 요구로 이어진다.
-const PLAY_DEMAND_MIN_BENCH_HALVES = 2;
 const PLAY_REFUSE_CHEMISTRY = 3;
+// 벤치 반기 수의 말: 1이면 직전 반기(여름시장 끝이면 지난 후반기, 겨울시장 끝이면 전반기), 2 이상이면 한 시즌
+const benchSpanText = (n) => (n >= 2 ? '한 시즌 넘게' : currentState.phase === 'summer' ? '지난 후반기를' : '전반기를');
 function maybeAskPlayDemand() {
   if (tutStep() >= 0 || currentState.playDemand) return;
   const xi = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
   const cand = currentState.squad
-    .filter((p) => (currentState.benchHalves?.[p.id] ?? 0) >= PLAY_DEMAND_MIN_BENCH_HALVES && !(p.out > 0) && !xi.some((q) => q.id === p.id)
+    .filter((p) => (currentState.benchHalves?.[p.id] ?? 0) >= benchHalvesNeeded(p.personality, currentState.personalityMood) && !(p.out > 0) && !xi.some((q) => q.id === p.id)
       && starsFor(p) >= Math.min(...xi.filter((q) => q.position === p.position).map(starsFor)))
     .sort((a, b) => b.baseOVR - a.baseOVR)[0];
   if (!cand) return;
@@ -2491,7 +2500,7 @@ function maybeAskPlayDemand() {
       <div class="eventmodal eventmodal--goal">
         <div class="eventmodal__kicker">출전 요구</div>
         <div class="eventmodal__title">${esc(cand.name)}(${cand.position})이(가) 출전을 요구합니다</div>
-        <p class="eventmodal__detail">${currentState.benchHalves[cand.id]}반기째 벤치에 있어요. 선발로 넣겠다고 하면 이번 반기 선발에 포함돼야 해요. 빼면 거절한 걸로 처리돼요.</p>
+        <p class="eventmodal__detail">${benchSpanText(currentState.benchHalves[cand.id])} 뛰지 못했어요. 선발로 넣겠다고 하면 이번 반기 선발에 포함돼야 해요. 빼면 거절한 걸로 처리돼요.</p>
         <button class="cta" id="pd-start">선발로 넣는다</button>
         <button class="reroll" id="pd-refuse" style="margin-top:var(--s2);width:100%">거절한다 <small>조직력 −${PLAY_REFUSE_CHEMISTRY}</small></button>
       </div>
@@ -3213,7 +3222,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const ace = lineup.find((p) => p.specialTrait === 'seongGolYouth');
   currentState.pendingTransferDemand = ace && Math.random() < SEONGGOL_TRANSFER_DEMAND_CHANCE
     ? { id: ace.id, name: ace.name }
-    : (currentState.pendingTransferDemand ?? null);
+    : (currentState.pendingTransferDemand ?? rollBenchTransferDemand(currentState.squad, currentState.benchHalves, currentState.personalityMood));
   const goal = currentBoardGoal();
   const reward = boardReward(totalPoints, goal, seasonBaseGrant());
   const chosen = currentState.boardDemand;
@@ -4385,7 +4394,7 @@ function renderMarket(banner = '') {
       </div>` : '';
     const td = briefing.transferDemand;
     const transferHtml = td ? `<div class="transferdemand">
-        <p class="eventmodal__detail"><b>${esc(td.name)}</b>${td.reason === 'play' ? '이(가) 계속 뛰지 못해 이적을 요구합니다.' : '(신성)에게 빅클럽의 이적 요구가 왔습니다.'}</p>
+        <p class="eventmodal__detail"><b>${esc(td.name)}</b>${td.reason ? '이(가) 계속 뛰지 못해 이적을 요구합니다.' : '(신성)에게 빅클럽의 이적 요구가 왔습니다.'}</p>
         <div class="transferdemand__btns">
           <button class="reroll" id="td-release">보내주기 <small>자유계약으로 이탈</small></button>
           <button class="reroll" id="td-keep">붙잡기 <small>능력 −${SEONGGOL_REJECT_OVR_PENALTY}</small></button>

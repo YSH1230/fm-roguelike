@@ -183,7 +183,7 @@ const CHOICES = [
       : { funds: funds + Math.round(baseFunds * 0.04), message: `유망주 테스트: 사양하고 지원금 +${Math.round(baseFunds * 0.04)}G` }),
   },
   {
-    id: 'playtimeDemand', name: '출전 요구',
+    id: 'playtimeDemand', name: '유망주 면담',
     prepare: ({ squad }, rng) => {
       const pool = squad.filter((p) => p.age <= 22);
       const kid = pool.length ? pool[Math.floor(rng() * pool.length)] : youngest(squad);
@@ -201,11 +201,11 @@ const CHOICES = [
     },
     resolve: ({ squad, chemistry }, payload, i) => {
       const p = squad.find((x) => x.id === payload.playerId);
-      if (!p) return { message: '출전 요구: 해당 선수는 이미 선수단에 없습니다' };
+      if (!p) return { message: '유망주 면담: 해당 선수는 이미 선수단에 없습니다' };
       const bump = (d) => squad.map((x) => (x.id === p.id ? { ...x, baseOVR: clamp(x.baseOVR + d, 1, 99) } : x));
       return i === 0
-        ? { squad: bump(1), chemistry: clamp(chemistry - 2, 0, 100), message: `출전 요구: ${p.name}에게 기회를 약속했습니다. OVR +1, 조직력 -2` }
-        : { squad: bump(-1), message: `출전 요구: ${p.name}의 요구를 거절했습니다. OVR -1` };
+        ? { squad: bump(1), chemistry: clamp(chemistry - 2, 0, 100), message: `유망주 면담: ${p.name}에게 기회를 약속했습니다. OVR +1, 조직력 -2` }
+        : { squad: bump(-1), message: `유망주 면담: ${p.name}의 요구를 거절했습니다. OVR -1` };
     },
   },
   {

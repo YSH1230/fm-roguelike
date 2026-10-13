@@ -4,6 +4,7 @@ import { valuePrice } from '../engine/economy.mjs';
 import { pick, randomName } from './name-pools.mjs';
 import { rollHiddenTraits } from '../engine/stars.mjs';
 import { sampleInjuryHistory } from '../engine/injury.mjs';
+import { rollPersonality } from '../engine/personality.mjs';
 
 // 5부 시작 스쿼드 등급 분포 (스펙 11절: 60~80장, 스펙 2절 "5부=로컬 급"에 맞춤).
 // 순수 로컬 등급만 60장 — 실측(node tune-check)으로 확인한 결과, 등급을
@@ -100,6 +101,7 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
     continentTag,
     specialTrait,
     isDraftedYouth: specialTrait === 'seongGolYouth',
+    personality: rollPersonality(rng), // 숨은 성격(사건·관계 담당, 화면에 안 보임)
   };
 }
 
