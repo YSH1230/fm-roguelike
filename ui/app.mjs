@@ -694,6 +694,7 @@ const dockEl = () => document.getElementById('dock');
 function setScreen(html, dock = '') {
   screenEl().innerHTML = html;
   dockEl().innerHTML = dock;
+  document.body.classList.toggle('has-mknav', !!screenEl().querySelector('.mknav'));
 }
 
 // 전/후반기 시뮬레이션: 경기장 위에서 공이 오가는 연출은 그대로 두고, 아래 순위표는
@@ -3544,6 +3545,13 @@ function renderChemistryPanel(lineup, bench) {
 }
 
 const visibleTabs = () => TABS.filter((t) => t.id !== 'staff' || isUnlocked('staff'));
+const TAB_ICONS = {
+  draft: '<circle cx="11" cy="11" r="7"/><path d="M16 16 L21 21"/>',
+  tactics: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4 V20 M3 12 H21"/>',
+  squad: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20 C3 16 6 14 9 14 C12 14 15 16 15 20 M16 5 A3 3 0 0 1 16 11 M18 14 C20 15 21 17 21 20"/>',
+  staff: '<circle cx="12" cy="8" r="4"/><path d="M5 21 C5 17 8 15 12 15 C16 15 19 17 19 21"/>',
+};
+const tabIcon = (id) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TAB_ICONS[id] ?? ''}</svg>`;
 const TABS = [
   { id: 'draft', label: '영입' },
   { id: 'tactics', label: '전술' },
@@ -3878,16 +3886,14 @@ function renderMarket(banner = '') {
 
   document.documentElement.style.setProperty('--kit', club.kit ?? '#4a5a52');
   setScreen(`
-    <header class="topbar" style="--kit:${club.kit ?? '#4a5a52'}">
-      <div class="topbar__id">
+    <header class="mkhead" style="--kit:${club.kit ?? '#4a5a52'};--team:${club.kit ?? '#4a5a52'};--on-team:${onColorOf(club.kit ?? '#4a5a52')}">
+      <div class="mkhead__top">
         ${renderCrest(club, { size: 36 })}
-        <div class="topbar__idText">
-          <span class="topbar__club">${esc(club.name)}</span>
-          <span class="topbar__phase">${phaseLabel} · ${week === maxWeek ? '이번 주가 마지막' : `${phase === 'summer' ? '전반기' : '후반기'} 시작까지 ${maxWeek - week}주`}</span>
-        </div>
-        <span class="topbar__week"><b>${week}</b>/${maxWeek}주</span>
+        <div class="mkhead__id"><b>${esc(club.name)}</b><small>${phaseLabel} · ${week === maxWeek ? '이번 주가 마지막' : `${phase === 'summer' ? '전반기' : '후반기'} 시작까지 ${maxWeek - week}주`}</small></div>
+        <button type="button" class="mkhead__funds" id="mk-more-btn" aria-expanded="${tutStep() === 10}" aria-label="자금·조직력·명성 자세히">${negIcon('coin')}<b>${funds.toLocaleString('ko-KR')}</b><i>G</i></button>
       </div>
       <div class="weekdots">${dots}</div>
+      <div class="mkhead__more" id="mk-more" ${tutStep() === 10 ? '' : 'hidden'}>
       <div class="res">
         <div class="res__item res__item--btn" id="funds-info-btn" role="button" tabindex="0">
           <span class="res__label">자금 <i class="res__hint">ⓘ</i></span>
@@ -3923,6 +3929,7 @@ function renderMarket(banner = '') {
         <b>깎이는 때:</b> 영입·판매 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'}. 한 주의 첫 거래는 깎이지 않고, 영입하면서 내보내는 교체는 한 건입니다.<br>
         그래서 자주 갈아치울수록 손해, 굵직하게 바꾸고 기다릴수록 이득입니다.
       </p>
+      </div>
     </header>
 
     ${(() => {
@@ -3942,9 +3949,9 @@ function renderMarket(banner = '') {
 
     ${banner ? `<div class="banner">${esc(banner)}</div>` : ''}
 
-    <div class="tabs" role="tablist">
-      ${visibleTabs().map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${t.label}${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}${t.id === 'squad' ? `<span class="tab__count${squad.length > capNow() ? ' tab__count--warn' : ''}">${squad.length}/${capNow()}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}</button>`).join('')}
-    </div>
+    <nav class="tabs mknav" role="tablist">
+      ${visibleTabs().map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${tabIcon(t.id)}<span class="tab__label">${t.label}</span>${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}${t.id === 'squad' ? `<span class="tab__count${squad.length > capNow() ? ' tab__count--warn' : ''}">${squad.length}/${capNow()}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}</button>`).join('')}
+    </nav>
     ${bodies[tab]}
   `, `<button class="cta" id="next-week-btn">${week === maxWeek ? (phase === 'summer' ? '전반기 시작' : '후반기 시작') : '다음 주로'}</button>`);
 
@@ -4084,6 +4091,11 @@ function renderMarket(banner = '') {
       });
     });
   }
+  document.getElementById('mk-more-btn')?.addEventListener('click', (e) => {
+    const box = document.getElementById('mk-more');
+    box.hidden = !box.hidden;
+    e.currentTarget.setAttribute('aria-expanded', String(!box.hidden));
+  });
   document.getElementById('funds-info-btn')?.addEventListener('click', () => {
     const box = document.getElementById('funds-info');
     box.hidden = !box.hidden;

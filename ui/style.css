@@ -2644,3 +2644,49 @@ html[data-theme] .mk__buy.deal__buy { padding: 0 18px; gap: 14px; }
 .mk__foot > span:empty { display: none; }
 .mk__foot:not(:has(.mk__seller)) .mk__buy { width: 100%; }
 .offers { gap: 10px; }
+
+/* ===== 디자인 v4: 시장 화면 머리말(두 줄)과 하단 내비 ===== */
+.mkhead { --n-panel: #18181b; --n-line: #2b2b30; --n-ivory: #f4f1e8; --n-mute: #8e8e96; padding: 10px 12px 6px; display: grid; gap: 8px; background: #0e0e10; border: 0; }
+.mkhead__top { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; }
+.mkhead__id { display: grid; min-width: 0; }
+.mkhead__id b { font-size: 16px; font-weight: 900; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mkhead__id small { font-size: 12px; color: var(--n-mute); }
+.mkhead__funds { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--n-ivory); border-radius: 999px; background: transparent; color: var(--n-ivory); cursor: pointer; font: inherit; }
+.mkhead__funds b { font: 400 20px/1 var(--num); }
+.mkhead__funds i { font-style: normal; font-size: 12px; }
+.mkhead__funds[aria-expanded='true'] { background: var(--n-ivory); color: #0e0e10; }
+.mkhead .weekdots { margin: 0; gap: 4px; }
+.mkhead .weekdots i { height: 6px; border-radius: 2px; background: var(--n-line); }
+.mkhead .weekdots i.is-done { background: var(--n-mute); }
+.mkhead .weekdots i.is-now, .mkhead .weekdots i.is-winter.is-now { background: var(--team); }
+.mkhead__more { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--n-line); border-radius: 24px; background: var(--n-panel); }
+.mkhead__more[hidden] { display: none; }
+.mkhead__more .res { margin: 0; }
+.mkhead__more .res__label, .mkhead__more .res__val i { color: var(--n-mute); }
+.mkhead__more .res__val { font: 400 20px/1 var(--num); color: var(--n-ivory); }
+.mkhead__more .goalstrip { margin: 0; }
+
+nav.tabs.mknav { position: fixed; left: 50%; transform: translateX(-50%); bottom: 0; width: 100%; max-width: 460px; z-index: 30; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; padding: 6px 8px calc(10px + env(safe-area-inset-bottom, 0px)); background: #18181b; border-top: 1px solid #2b2b30; top: auto; }
+.mknav .tab { display: grid; justify-items: center; gap: 2px; padding: 4px 0; border: 0; font-size: 12px; font-weight: 700; color: #8e8e96; letter-spacing: 0; background: transparent; position: relative; }
+.mknav .tab[aria-selected='true'] { color: #f4f1e8; border: 0; }
+.mknav .tab[aria-selected='true'] svg { color: var(--kit, #4b3a9a); }
+.mknav .tab__count { position: absolute; top: 0; right: calc(50% - 26px); margin: 0; font: 400 11px/1 var(--num); color: #f4f1e8; }
+.mknav .tab__dot { position: absolute; top: 2px; right: calc(50% - 22px); }
+body.has-mknav #screen { padding-bottom: 150px; }
+body.has-mknav #dock { bottom: 66px; padding-bottom: var(--s2); z-index: 25; }
+body.has-mknav #dock { background: linear-gradient(180deg, transparent, #0e0e10 45%); }
+body.has-mknav #dock .cta { height: 54px; padding: 0; border-radius: 999px; background: #ff2e3a; color: #fff; font: 900 18px var(--ui); letter-spacing: 0; border: 0; box-shadow: none; }
+.mknav .tab__count { right: auto; left: calc(50% + 8px); top: 0; }
+.mknav .tab__dot { right: auto; left: calc(50% + 6px); top: 2px; }
+.scoutorder { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; margin: 0 0 10px; border-radius: 24px; }
+.scoutorder .scoutbar__label { flex: none; font-size: 14px; }
+.scoutorder__sels { flex: 1; display: flex; flex-wrap: nowrap; gap: 6px; min-width: 0; }
+.scoutorder__sels select { flex: 1 1 0; min-width: 0; height: 36px; padding: 0 6px; font-size: 13px; }
+.scoutorder__note { flex: 1 1 100%; font-size: 12px; }
+.subtabs > button[role='tab'] { border-radius: 999px; background: transparent; border: 1px solid #2b2b30; color: #8e8e96; font-size: 13px; padding: 8px 16px; }
+.subtabs > button[aria-selected='true'] { background: #f4f1e8; border-color: #f4f1e8; color: #0e0e10; }
+.gapchip { border-radius: 999px; background: transparent; border: 1px solid #2b2b30; color: #f4f1e8; font-size: 13px; padding: 6px 12px; }
+.gapchip--thin { border-style: solid; opacity: 1; color: #8e8e96; }
+.gapchip.is-on { background: #f4f1e8; border-color: #f4f1e8; color: #0e0e10; }
+html[data-theme] .subtabs > button[aria-selected='true'] { background: #f4f1e8; border-color: #f4f1e8; color: #0e0e10; }
+html[data-theme] .subtabs > button[aria-selected='true'] i { color: #0e0e10; }
