@@ -3545,13 +3545,14 @@ function renderChemistryPanel(lineup, bench) {
 }
 
 const visibleTabs = () => TABS.filter((t) => t.id !== 'staff' || isUnlocked('staff'));
+// 하단 탭 아이콘: 선택되면 속을 꽉 채우고, 아니면 윤곽선
 const TAB_ICONS = {
-  draft: '<circle cx="11" cy="11" r="7"/><path d="M16 16 L21 21"/>',
-  tactics: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4 V20 M3 12 H21"/>',
-  squad: '<circle cx="9" cy="8" r="3.5"/><path d="M3 20 C3 16 6 14 9 14 C12 14 15 16 15 20 M16 5 A3 3 0 0 1 16 11 M18 14 C20 15 21 17 21 20"/>',
-  staff: '<circle cx="12" cy="8" r="4"/><path d="M5 21 C5 17 8 15 12 15 C16 15 19 17 19 21"/>',
+  draft: { off: '<circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M16 16 L21 21" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>', on: '<circle cx="11" cy="11" r="7.5" fill="currentColor"/><circle cx="11" cy="11" r="3.2" fill="#18181b"/><path d="M16.5 16.5 L21 21" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>' },
+  tactics: { off: '<rect x="3" y="4.5" width="18" height="15" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M12 4.5 V19.5" stroke="currentColor" stroke-width="2.4"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2.4"/>', on: '<rect x="3" y="4.5" width="18" height="15" rx="3" fill="currentColor"/><path d="M12 4.5 V19.5" stroke="#18181b" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="none" stroke="#18181b" stroke-width="2"/>' },
+  squad: { off: '<circle cx="9" cy="8" r="3.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M3 20 C3 15.5 6 14 9 14 C12 14 15 15.5 15 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="17" cy="9" r="2.6" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M17 14 C19.5 14 21.5 15.5 21.5 19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>', on: '<circle cx="9" cy="8" r="4" fill="currentColor"/><path d="M2 21 C2 15 6 13.5 9 13.5 C12 13.5 16 15 16 21Z" fill="currentColor"/><circle cx="17.5" cy="9" r="3" fill="currentColor"/><path d="M17.5 13.5 C20.5 13.5 22.5 15.5 22.5 21 L18 21 C18 17 17 15 15.5 14Z" fill="currentColor"/>' },
+  staff: { off: '<circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M4.5 21 C4.5 16 8 14.5 12 14.5 C16 14.5 19.5 16 19.5 21" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>', on: '<circle cx="12" cy="8" r="4.5" fill="currentColor"/><path d="M3.5 21.5 C3.5 15.5 8 14 12 14 C16 14 20.5 15.5 20.5 21.5Z" fill="currentColor"/>' },
 };
-const tabIcon = (id) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TAB_ICONS[id] ?? ''}</svg>`;
+const tabIcon = (id, on) => `<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">${TAB_ICONS[id]?.[on ? 'on' : 'off'] ?? ''}</svg>`;
 const TABS = [
   { id: 'draft', label: '영입' },
   { id: 'tactics', label: '전술' },
@@ -3950,7 +3951,7 @@ function renderMarket(banner = '') {
     ${banner ? `<div class="banner">${esc(banner)}</div>` : ''}
 
     <nav class="tabs mknav" role="tablist">
-      ${visibleTabs().map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${tabIcon(t.id)}<span class="tab__label">${t.label}</span>${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}${t.id === 'squad' ? `<span class="tab__count${squad.length > capNow() ? ' tab__count--warn' : ''}">${squad.length}/${capNow()}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}</button>`).join('')}
+      ${visibleTabs().map((t) => `<button class="tab" role="tab" data-tab="${t.id}" aria-selected="${t.id === tab}">${tabIcon(t.id, t.id === tab)}<span class="tab__label">${t.label}</span>${t.id === 'draft' ? `<span class="tab__count">${shopOffer.length}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}${t.id === 'squad' ? `<span class="tab__count${squad.length > capNow() ? ' tab__count--warn' : ''}">${squad.length}/${capNow()}</span>${listedForSale.length ? '<i class="tab__dot" aria-label="받은 오퍼"></i>' : ''}` : ''}</button>`).join('')}
     </nav>
     ${bodies[tab]}
   `, `<button class="cta" id="next-week-btn">${week === maxWeek ? (phase === 'summer' ? '전반기 시작' : '후반기 시작') : '다음 주로'}</button>`);

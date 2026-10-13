@@ -41,16 +41,18 @@ export function appearanceOf(card) {
 const cache = new Map();
 
 // kit: 유니폼 색. role: 'player' | 'manager' | 'coach' | 'scout' (없으면 카드 모양으로 추정).
-export function renderPortrait(card, { size = 44, kit = '#2c4239', role } = {}) {
+let V2 = false; // 도트 개선판(눈 흰자, 귀, 코 그림자, 깃, 배경 점무늬). false면 옛 그림
+export const setPortraitV2 = (on) => { V2 = !!on; cache.clear(); };
+export function renderPortrait(card, { size = 44, kit = '#2c4239', role, v2 = V2 } = {}) {
   const kind = role ?? (card.tacticalTag !== undefined ? 'manager' : (card.baseOVR === undefined && card.level !== undefined ? 'coach' : 'player'));
-  const key = `${card.id ?? card.name}|${kind}|${kit}|${card.continentTag}|${card.age >= 33}`;
+  const key = `${card.id ?? card.name}|${kind}|${kit}|${card.continentTag}|${card.age >= 33}|${v2}`;
   let body = cache.get(key);
-  if (!body) { body = drawPortrait(card, kit, kind); cache.set(key, body); }
+  if (!body) { body = drawPortrait(card, kit, kind, v2); cache.set(key, body); }
   return `<svg class="portrait portrait--px" width="${size}" height="${size}" viewBox="0 0 16 16" shape-rendering="crispEdges"
     role="img" aria-label="${(card.name ?? '').replace(/"/g, '')} 초상" focusable="false">${body}</svg>`;
 }
 
-function drawPortrait(card, kit, kind) {
+function drawPortrait(card, kit, kind, v2 = false) {
   const seed = hash(card.id ?? card.name ?? 'x');
   const guide = kind === 'guide'; // 튜토리얼 진행자: 얼굴이 고정이다(밝은 피부, 긴 갈색 머리)
   const skin = guide ? '#f8d6b7' : at(seed, 3, SKIN[card.continentTag] ?? SKIN.europe);
@@ -117,9 +119,23 @@ function drawPortrait(card, kit, kind) {
     put(g, 5, 7, f); put(g, 7, 7, f); put(g, 8, 7, f); put(g, 10, 7, f);
   }
 
+  if (v2) {
+    const free = (x, y) => !g[y][x];
+    // 귀(머리카락이 덮지 않은 곳만)
+    for (const [x, y, c] of [[3, 7, skin], [3, 8, skinShade], [12, 7, skin], [12, 8, skinShade]]) if (free(x, y)) put(g, x, y, c);
+    if (kind !== 'guide' && !guide) {
+      // 눈: 위는 흰자, 아래는 눈동자. 좌우로 흰자 한 칸을 더 둬서 눈이 커 보이게
+      for (const x of [6, 9]) { put(g, x, 7, '#ffffff'); put(g, x, 8, OUTC); }
+      put(g, 5, 8, '#e9e4dc'); put(g, 10, 8, '#e9e4dc');
+    }
+    put(g, 8, 8, mixHex(skin, '#000000', 0.16)); // 코 그림자
+    put(g, 7, 10, skinShade); put(g, 8, 10, skinShade); // 턱선
+    if (kind === 'player') { put(g, 6, 11, light(shirt, 0.35)); put(g, 9, 11, light(shirt, 0.35)); put(g, 3, 13, light(shirt, 0.15)); } // 깃·어깨 하이라이트
+  }
   outline(g);
   // 배경은 카드 등급 색(--tier)을 따라간다. 등급이 없는 곳에서는 유니폼 색을 쓴다.
   const bg = mixHex(kit, '#0c0b10', 0.55);
-  return `<rect width="16" height="16" style="fill:color-mix(in srgb,var(--tier,${bg}) 70%,#0c0b10)"/><rect y="15" width="16" height="1" style="fill:color-mix(in srgb,var(--tier,${bg}) 70%,#000)" opacity=".55"/>${gridToRects(g)}`;
+  const dither = v2 ? Array.from({ length: 16 }, (_, y) => Array.from({ length: 16 }, (_, x) => ((x + y) % 2 === 0 && y < 9 ? `<rect x="${x}" y="${y}" width="1" height="1" fill="#ffffff" opacity=".06"/>` : '')).join('')).join('') : '';
+  return `<rect width="16" height="16" style="fill:color-mix(in srgb,var(--tier,${bg}) 70%,#0c0b10)"/><rect y="15" width="16" height="1" style="fill:color-mix(in srgb,var(--tier,${bg}) 70%,#000)" opacity=".55"/>${dither}${gridToRects(g)}`;
 }
 const OUTC = '#1b1311';
