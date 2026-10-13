@@ -1238,21 +1238,21 @@ function tutorialTick(where) {
   // 대상이 화면에 없으면 그 단계는 건너뛴다
   const spotOrSkip = (selector, text, next) => { if (!showSpot({ selector, text, ...ok(next) })) { tutSet(next); tutorialTick(where); } };
   if (where === 'intro') {
-    if (step === 0) showSpot({ selector: '.goalline', text: '안녕하세요, 감독님! 사무국 신입 루비예요. 오늘부터 안내를 맡았어요! 감독님은 아직 임시 감독이라서, 첫 시즌을 이 승점 위로 마쳐야 정식이 된대요. 우선 여기까지만 버텨 봐요!', ...ok(1) });
+    if (step === 0) showSpot({ selector: '.goalline', text: '안녕하세요, 감독님! 사무국 신입 올리비아예요! 오늘부터 제가 쭉 안내할게요, 잘 부탁드려요! 감독님은 아직 임시 감독이라, 첫 시즌을 이 승점 위로 마치면 정식이 된대요. 우리 같이 힘내 봐요!', ...ok(1) });
     return;
   }
   if (where === 'half') {
-    if (step >= 15) { if (!showSpot({ selector: '.agingbox--reeval', text: '스카우터님이 전반기 활약을 보고 선수들을 다시 평가했어요! 새로 영입한 선수의 별 범위는 한 점으로 좁혀지고, 별은 앞으로도 계속 움직여요. 숨은 실력은 끝까지 정확히 모른대요… 신기하죠?', ...ok(16) })) tutSet(16); return; }
+    if (step >= 15) { if (!showSpot({ selector: '.agingbox--reeval', text: '스카우터님이 전반기 활약을 보고 선수들을 다시 평가했어요! 새로 영입한 선수의 별 범위는 한 점으로 좁혀지고, 별은 앞으로도 계속 움직여요. 숨은 실력은 끝까지 정확히 알 수 없어요. 그래서 더 재미있죠!', ...ok(16) })) tutSet(16); return; }
     showSpot({ selector: '.verdict', text: '전반기 결산이에요! 목표 페이스랑 비교해 보고, 겨울 시장에서 보강해요. 선수 평점은 아래 라인업에 있어요. 별이 높아도 평점이 낮을 수 있고, 반대도 있대요!', ...ok(15) });
     return;
   }
   const onTactics = currentState.tab === 'tactics';
   if (step === 1) {
     if (currentState.tab !== 'draft') { currentState.tab = 'draft'; renderMarket(); return; }
-    spotOrSkip('#scout-order', '선수 영입은 스카우터님께 부탁해요! 포지션·태그·나이대를 골라 두면 다음 주에 딱 맞는 3명이 와요. 바꾸면 새로 오고요. 저도 처음엔 헷갈렸어요.', 2);
+    spotOrSkip('#scout-order', '선수 영입은 스카우터님께 맡기면 돼요! 포지션·태그·나이대를 골라 두면 다음 주에 딱 맞는 3명이 짠 하고 와요. 조건을 바꾸면 새 3명이 오고요!', 2);
   } else if (step === 2) showSpot({ selector: '[data-tab="squad"]', text: '선수단 탭 눌러 볼래요? 우리 선수들이 있어요!', onSkip: tutSkip });
   else if (step === 3) {
-    if (currentState.tab === 'squad') spotOrSkip('.srow', '선수는 별(★)로 보여요! 근데 별은 세상의 평가라서 진짜 실력이랑 다를 수도 있대요… 어려워요. 태그, 성향 문구, 부상 이력이 힌트예요! 선수를 누르면 판매 등록도 돼요.', 4);
+    if (currentState.tab === 'squad') spotOrSkip('.srow', '선수는 별(★)로 보여요! 별은 세상의 평가라서 진짜 실력이랑 다를 수도 있어요. 태그, 성향 문구, 부상 이력이 힌트가 돼요! 선수를 누르면 판매 등록도 할 수 있어요.', 4);
     else { tutSet(2); tutorialTick(where); }
   } else if (step === 4) showSpot({ selector: '[data-tab="tactics"]', text: '이번엔 전술 탭이에요! 선발 11명이 여기 있어요.', onSkip: tutSkip });
   else if (step === 5) {
@@ -2177,7 +2177,7 @@ function showSeasonPreview(half, onDone) {
       <div class="eventmodal preview">
         <div class="eventmodal__kicker">${half === 1 ? '시즌 전망' : '후반기 전망'}</div>
         <div class="eventmodal__title">기자들의 예상 순위</div>
-        ${tutStep() >= 0 ? '<p class="eventmodal__detail">루비: 시즌 중엔 팀 전력이 비밀이에요! 기자님 3명의 예상은 서로 달라요. 분석가님이 제일 정확하지만 가끔 크게 틀려요.</p>' : ''}
+        ${tutStep() >= 0 ? '<p class="eventmodal__detail">올리비아: 시즌 중엔 팀 전력이 비밀이에요! 기자님 3명의 예상은 서로 달라요. 분석가님이 제일 정확하지만 가끔 크게 틀려요.</p>' : ''}
         <ul class="previewlist">${JOURNALISTS.map((j) => `<li><span class="previewlist__who"><b>${j.outlet}</b> ${j.name} 기자</span><em class="n">${ranks[j.key]}위</em><p>“${previewQuote(j.key, ranks[j.key])}”</p></li>`).join('')}</ul>
         <div class="eventmodal__title">이적시장 성적표 <b class="previewgrade">${report.grade}</b></div>
         <p class="eventmodal__detail">${report.summary}</p>
