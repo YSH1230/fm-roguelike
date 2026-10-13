@@ -3701,10 +3701,12 @@ function renderMarket(banner = '') {
       <div class="mk__tags">${tags}${growthBadge(c, 'headScout')}</div>
       ${hintsHtml(c)}
       ${compareHtml}
-      ${att ? `<div class="mk__seller"><span>${esc(c.seller)}</span><span class="mk__mood"><span class="neg__face" aria-label="태도 ${att.label}">${pixelFace(faceKindOfAttitude(att.label))}</span>태도 ${att.label}</span></div>` : ''}
-      <button class="mk__buy deal__buy" data-buy="${c.id}" ${can ? '' : 'disabled'} title="${decayNote}">
-        <span>${can ? (c.seller ? '협상' : '영입') : '부족'}</span><b class="mk__price">${price}<i>G</i></b>
-      </button>
+      <div class="mk__foot">
+        ${att ? `<div class="mk__seller"><span class="neg__face" aria-label="태도 ${att.label}">${pixelFace(faceKindOfAttitude(att.label))}</span><span class="mk__club">${esc(c.seller)}<small>태도 ${att.label}</small></span></div>` : '<span></span>'}
+        <button class="mk__buy deal__buy" data-buy="${c.id}" ${can ? '' : 'disabled'} title="${decayNote}">
+          <span>${can ? (c.seller ? '협상' : '영입') : '부족'}</span><b class="mk__price">${price}<i>G</i></b>
+        </button>
+      </div>
       <p class="offer__hint" hidden></p>
     </li>`;
   }).join('');

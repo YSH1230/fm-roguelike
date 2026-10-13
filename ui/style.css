@@ -2617,3 +2617,30 @@ html[data-theme] .mk__buy.deal__buy { flex-direction: row; justify-content: spac
 .mk__card .traithints { gap: 6px; }
 .mk__card .traithints span { color: var(--on-team); border: 1px solid color-mix(in srgb, var(--on-team) 35%, transparent); border-style: solid; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-style: normal; }
 .mk__card .traithints span.is-inj { color: var(--on-team); border-color: color-mix(in srgb, var(--on-team) 35%, transparent); }
+/* 영입 카드 컴팩트: 카드 3장이 한 화면에 더 들어오게 */
+html[data-theme] .offer.deal.mk__card { padding: 10px; gap: 8px; border-radius: 24px; }
+.mk__row { grid-template-columns: 80px 1fr; gap: 10px; }
+.mk__art { height: 80px; border-radius: 16px; }
+.mk__art .portrait { width: 80px; height: 80px; }
+.mk__pos { font-size: 12px; padding: 2px 8px 2px 6px; }
+.mk__name { font-size: 18px; }
+.mk__meta { font-size: 12px; }
+.mk__stars { margin-top: 4px; gap: 2px; }
+.mk__stars .pxstar { width: 16px; height: 16px; }
+.mk__tags { gap: 4px; }
+.mk__card .chip, .mk__card .growth, .mk__card .chip .chip__name { font-size: 12px; }
+.mk__card .chip, html[data-theme] .mk__card .growth { padding: 3px 9px; }
+.mk__card .traithints span { padding: 2px 8px; font-size: 11px; }
+.mk__card .deal__cmp { font-size: 12px; }
+.mk__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid color-mix(in srgb, var(--on-team) 30%, transparent); padding-top: 8px; }
+.mk__seller { display: flex; align-items: center; gap: 8px; border: 0; padding: 0; min-width: 0; }
+.mk__seller .neg__face { width: 28px; height: 28px; flex: none; }
+.mk__club { display: grid; font-size: 13px; font-weight: 800; line-height: 1.2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk__club small { font-size: 11px; font-weight: 700; opacity: .8; }
+.mk__buy { height: 44px; flex: none; min-width: 132px; padding: 0 18px; gap: 14px; }
+html[data-theme] .mk__buy.deal__buy { padding: 0 18px; gap: 14px; }
+.mk__buy.deal__buy span { font-size: 16px; }
+.mk__buy.deal__buy b { font-size: 18px; }
+.mk__foot > span:empty { display: none; }
+.mk__foot:not(:has(.mk__seller)) .mk__buy { width: 100%; }
+.offers { gap: 10px; }
