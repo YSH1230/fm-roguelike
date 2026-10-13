@@ -19,6 +19,8 @@ import { GOD_PLAYERS } from '../data/god-players.mjs';
 import { rollSeasonEvent, describeChoice, resolveChoice } from '../data/season-events.mjs';
 import { drawDemandOffer, getDemand, evaluateDemand, DIFFICULTY_LABELS } from '../data/board-demands.mjs';
 import { generateScoutDelivery } from '../data/draft-shop.mjs';
+import { randomName } from '../data/name-pools.mjs';
+import { CONTINENT_TAGS } from '../engine/constants.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
 import { judgeRunOutcome, nextMissedTargetCount, seasonPrestige, demandPrestige, uclPrestige, retirePrestige, gradeOf, titleProgress } from '../engine/run.mjs';
 import {
@@ -452,6 +454,62 @@ function showPhilosophyLevelUp(onDone) {
 
 const TALK_TONE = { safe: '안정적', risky: '모험적' };
 // 라커룸 토크 장면: 3장 중 하나. 반응은 고르고 나서 정해지므로 카드에는 장면 이름과 대사, 분위기만 보인다.
+// ===== 대사 장면(정식 선임 기자회견·강등 위기·엔딩) =====
+// 이사장은 판마다 이름과 얼굴이 새로 정해진다. 신뢰 단계(의심·조건부·신뢰)에 따라 말투가 달라진다.
+function ensureChairman() {
+  if (!currentState.chairman) {
+    const continentTag = Object.keys(CONTINENT_TAGS)[Math.floor(Math.random() * Object.keys(CONTINENT_TAGS).length)];
+    const name = randomName(continentTag, Math.random);
+    currentState.chairman = { id: `chair-${name}-${Math.floor(Math.random() * 1e6)}`, name, continentTag, age: 62 };
+  }
+  return currentState.chairman;
+}
+const DIALOGUE_BG = { press: 'press', office: 'office', end: 'end' };
+// beats: [{ who: 'chairman' | 'reporter' | 'captain', text, person? }]. 탭하면 다음 줄, 마지막 줄 다음에 onDone.
+function showDialogueScene({ kind, beats, flash = false }, onDone = () => {}) {
+  const chairman = ensureChairman();
+  const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const captain = pickCaptain(lineup);
+  const reporter = { id: 'reporter-1', name: '기자', continentTag: 'europe', age: 34 };
+  const who = {
+    chairman: { card: chairman, label: `이사장 ${chairman.name}`, role: 'manager' },
+    reporter: { card: reporter, label: '기자', role: 'scout' },
+    captain: captain ? { card: captain, label: `${captain.name} · 주장`, role: 'player' } : { card: reporter, label: '선수단', role: 'scout' },
+  };
+  const el = document.createElement('div');
+  el.className = `dlg dlg--${DIALOGUE_BG[kind] ?? 'office'}`;
+  document.body.appendChild(el);
+  let i = 0;
+  const finish = () => { el.remove(); onDone(); };
+  const draw = () => {
+    const b = beats[i];
+    const w = who[b.who];
+    el.innerHTML = `
+      ${flash && i === 0 ? '<div class="dlg__flash"></div>' : ''}
+      <button class="dlg__skip" id="dlg-skip">건너뛰기</button>
+      <div class="dlg__stage">${renderPortrait(w.card, { size: 112, kit: currentState.club.kit, role: w.role })}</div>
+      <div class="dlg__box"><small>${esc(w.label)}</small><p>${esc(b.text)}</p><i class="dlg__next" aria-hidden="true">${i === beats.length - 1 ? '확인' : '▼'}</i></div>`;
+    el.querySelector('#dlg-skip').onclick = (e) => { e.stopPropagation(); finish(); };
+  };
+  el.onclick = () => { i += 1; if (i >= beats.length) finish(); else draw(); };
+  draw();
+}
+const APPOINT_QA = [
+  ['임시 감독이 정식으로요? 이유가 뭡니까?', ['잔류했으니까요. 결과가 이유입니다.', '다른 후보는 비쌌습니다.', '저도 놀랐습니다. 숫자는 거짓말을 안 하더군요.']],
+  ['구단 매각설은 사실입니까?', ['오늘은 선임 얘기만 하죠.', '그 얘기는 다음 기자회견에서 하겠습니다.']],
+  ['성적이 나쁘면 어떻게 됩니까?', ['그때는 다른 기자회견을 열겠죠.', '숫자가 말해 줄 겁니다.']],
+];
+const CRISIS_LINES = [
+  ['숫자가 말해 줍니다. 변명은 필요 없습니다.', '솔직히 말하죠. 대체할 사람은 이미 알아보고 있습니다.', '이 표를 보십시오. 읽는 데 오래 걸리지 않을 겁니다.'],
+  ['걱정됩니다만, 겨울 시장에서 뭘 하실 겁니까?', '아직 후반기가 남았습니다. 그게 위안이군요.', '여기까지 올려놓은 것도 당신입니다. 내려가는 것도 당신 몫입니까?'],
+  ['저는 당신을 믿습니다. 방법만 찾으세요.', '이 정도 위기는 지난 시즌에도 있었죠. 그땐 어떻게 하셨습니까?', '필요한 게 있으면 말하세요. 예산은… 협의해 보죠.'],
+];
+const ENDING_LINES = {
+  relegation: { chairman: ['당신을 고른 건 틀리지 않았습니다. 숫자가 아쉬웠을 뿐입니다.', '이 구단에서 가장 오래 버틴 임시 감독이었습니다.', '계약서는 없지만… 감사 인사는 적어 두겠습니다.'], captain: ['다음에 만나면 상대 감독으로 오지 마요.', '…고생하셨습니다, {호칭}.', '선수들한테는 제가 잘 말해 둘게요.'] },
+  missedTargets: { chairman: ['승격 없이 시즌이 쌓였습니다. 저도 이사회에 설명해야 합니다.', '당신 탓만은 아닙니다. 하지만 숫자는 숫자입니다.'], captain: ['아쉽습니다, {호칭}. 정말로요.', '…좋은 감독이었다고 기억하겠습니다.'] },
+  victory: { chairman: ['구단은 팔지 않기로 했습니다. 당신 때문입니다.', '이 구단은 당신 덕에 이름이 생겼습니다.'], captain: ['…오래 기억할게요, {호칭}.', '다음 판에서도 같이 뛰고 싶었는데요.'] },
+};
+
 // ===== 라커룸 장면(시즌 시작·마무리 토크의 무대) =====
 // 신뢰 단계: 이미 쌓이는 기록(사다리 위치·우승)으로 계산한다. 0 의심 / 1 조건부 / 2 신뢰.
 function trustStage() {
@@ -1657,6 +1715,7 @@ function startNewSeason() {
   currentState.squad = aged.squad.map((p) => ({ ...p, obsErr: Math.round((0.5 * (p.obsErr ?? 0) + 0.5 * (p.form ?? 0)) * 10) / 10, unproven: false })).map(repricePlayer).map((p) => ({ ...p, form: rollForm(p.volatility) })); // 몸값도 다시 매기고, 시즌 폼은 새로 정해진다
   currentState.windowBuys = [];
   currentState.halfObsDone = false;
+  currentState.crisisShown = false;
   currentState.halfStarChanges = null;
   currentState.halfInjuries = null;
   currentState.secondInjuries = null;
@@ -2393,7 +2452,11 @@ function renderHalfTimeVerdict(saleMessage, lineup, slotted, bench) {
   `, `<button class="cta" id="to-winter-btn">겨울 이적시장으로</button>`);
 
   document.getElementById('to-winter-btn').addEventListener('click', () => { clearSpot(); enterWinterMarket(); });
-  tutorialTick('half');
+  if (pace === 'relegation' && !currentState.crisisShown) {
+    currentState.crisisShown = true;
+    const stage = trustStage();
+    showDialogueScene({ kind: 'office', beats: [{ who: 'chairman', text: pickLine(CRISIS_LINES[stage], `crisis${stage}`) }] }, () => tutorialTick('half'));
+  } else tutorialTick('half');
 }
 
 function enterWinterMarket() {
@@ -3069,7 +3132,12 @@ function runSecondHalfAndFinish(saleMessage = '') {
 function maybeAppoint(survived, next) {
   if (currentState.appointed || !survived) { next(); return; }
   currentState.appointed = true;
-  showPhilosophyPick(next);
+  const [q, answers] = APPOINT_QA[Math.floor(Math.random() * APPOINT_QA.length)];
+  showDialogueScene({ kind: 'press', flash: true, beats: [
+    { who: 'reporter', text: q },
+    { who: 'chairman', text: answers[Math.floor(Math.random() * answers.length)] },
+    { who: 'reporter', text: '감독님, 당신의 축구는 어떤 축구입니까?' },
+  ] }, () => showPhilosophyPick(next));
 }
 // 시즌 마무리 라커룸 토크: 이미 정식 감독이던 시즌부터(임명을 방금 받은 시즌은 건너뛴다)
 function endTalkThen(wasAppointed, next) {
@@ -3115,6 +3183,15 @@ const RUN_END = {
 };
 
 function renderRunEnd(reason, finalPoints, boardTrustMessage = '', uclResultId = null) {
+  const lines = ENDING_LINES[reason];
+  if (!lines) { renderRunEndScreen(reason, finalPoints, boardTrustMessage, uclResultId); return; }
+  const call = CALL_NAME[trustStage()];
+  showDialogueScene({ kind: 'end', beats: [
+    { who: 'chairman', text: pickLine(lines.chairman, `end-c-${reason}`) },
+    { who: 'captain', text: pickLine(lines.captain, `end-p-${reason}`).replace('{호칭}', call) },
+  ] }, () => renderRunEndScreen(reason, finalPoints, boardTrustMessage, uclResultId));
+}
+function renderRunEndScreen(reason, finalPoints, boardTrustMessage = '', uclResultId = null) {
   const copy = RUN_END[reason];
   const p = prestigeState();
   if (reason === 'victory' && !p.retired) { p.retired = true; awardPrestige(retirePrestige()); }
@@ -4207,4 +4284,4 @@ if (UCL_DEMO) {
 }
 
 // 확인용 훅(#dev): 감독 장면(철학·라커룸 토크)을 바로 띄워 본다. 일반 플레이에는 영향이 없다.
-if (location.hash.includes('dev')) window.__dev = { showTrophy, showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
+if (location.hash.includes('dev')) window.__dev = { maybeAppoint, renderRunEnd, showDialogueScene, showTrophy, showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
