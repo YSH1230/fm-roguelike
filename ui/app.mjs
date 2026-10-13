@@ -275,6 +275,7 @@ function potentialOf(p, role) {
 // 선수단 정리 조언: 선발 추천 / 유망(키울 만함) / 정리 후보. 선발·벤치 구성을 모르는 사람이 판단할 재료.
 // 유망·정리 후보는 자동 추천 대신 플레이어가 직접 찍는다(currentState.marks: id -> 'prospect'|'cut'). 선발 추천만 자동.
 const MARK_INFO = { prospect: { label: '유망', icon: '★', why: '내가 유망으로 표시한 선수예요' }, cut: { label: '정리 후보', icon: '✂', why: '내가 정리 후보로 표시한 선수예요' } };
+const markIconSvg = (mark) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="${mark === 'prospect' ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${mark === 'cut' ? '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.500 8 L20 19 M8.500 16 L20 5"/>' : '<path d="M12 3l2.700 5.600 6.100.8-4.500 4.300 1.100 6.100L12 17l-5.400 2.800 1.100-6.100L3.200 9.400l6.100-.8z"/>'}</svg>`;
 const nextMark = (m) => (m === 'prospect' ? 'cut' : m === 'cut' ? undefined : 'prospect'); // 없음 → ★ → ✂ → 없음
 function squadAdvice(p, group, xi) {
   const mark = currentState.marks?.[p.id];
@@ -3937,13 +3938,12 @@ function renderMarket(banner = '') {
       ? `<button class="act" data-swap-out="${p.id}">벤치로</button>`
       : `<button class="act act--main" data-swap-in="${p.id}" ${p.out > 0 ? 'disabled title="부상 중이라 뛸 수 없습니다"' : FORMATIONS[formationId].slots.includes(p.position) ? '' : 'disabled title="이 포메이션엔 그 자리가 없습니다"'}>선발 투입</button>`;
     return `<li class="srow srow--${group}" data-row="${p.id}" data-advice="${advice?.id ?? ''}" data-tags="${(p.playstyleTags ?? []).join(' ')}" style="--tier:var(--t-${tierOfP(p)})">
-      <span class="srow__pos">${p.position}</span>
-      <b class="srow__ovr n">${starLabel(p)}</b>
+      <div class="srow__ph">${renderPortrait(p, { size: 52, kit: club.kit ?? '#4b3a9a' })}<span class="srow__pos">${p.position}</span></div>
       <div class="srow__main">
-        <div class="srow__name">${esc(p.name)}<small>${p.age}세</small>${p.out > 0 ? `<span class="tag tag--inj"><i class="cross">✚</i> ${INJURY_LABELS[p.outKind] ?? '부상'}</span>` : ''}${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
+        <div class="srow__name">${esc(p.name)}<small>${p.age}세</small><b class="srow__ovr n">${starLabel(p)}</b>${p.out > 0 ? `<span class="tag tag--inj"><i class="cross">✚</i> ${INJURY_LABELS[p.outKind] ?? '부상'}</span>` : ''}${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
         <div class="srow__line2">${tagIconsHtml(p, null, true)}${growthBadge(p, 'headCoach')}</div>
       </div>
-      <div class="srow__side">${advice ? `<b class="advice advice--${advice.id}">${advice.label}</b>` : ''}<button type="button" class="markbtn${currentState.marks?.[p.id] ? ' is-on' : ''}" data-mark="${p.id}" aria-label="유망·정리 표시" title="눌러서 유망 → 정리 후보 → 없음">${MARK_INFO[currentState.marks?.[p.id]]?.icon ?? '☆'}</button><i class="srow__chev" aria-hidden="true">⌄</i></div>
+      <div class="srow__side">${advice ? `<b class="advice advice--${advice.id}">${advice.label}</b>` : ''}<button type="button" class="markbtn${currentState.marks?.[p.id] ? ' is-on' : ''}" data-mark="${p.id}" aria-label="유망·정리 표시" title="눌러서 유망 → 정리 후보 → 없음">${markIconSvg(currentState.marks?.[p.id])}</button><i class="srow__chev" aria-hidden="true"></i></div>
       <div class="srow__acts" data-actions="${p.id}">
         ${hintsHtml(p)}
         ${advice ? `<span class="srow__why advice--${advice.id}">${esc(advice.why)}</span>` : ''}
