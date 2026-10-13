@@ -1628,6 +1628,8 @@ button:not(:disabled):active { transform: scale(0.98); }
 .srow__name small { margin-left: 6px; font-weight: 500; font-size: var(--fs-micro); color: var(--muted-dim); }
 .srow__main .ticons { justify-content: flex-start; }
 .srow__side { display: flex; align-items: center; gap: 6px; }
+.markbtn { background: none; border: 0; color: var(--muted-dim); font-size: 16px; line-height: 1; padding: 6px; cursor: pointer; }
+.markbtn.is-on { color: var(--gold); }
 .srow__chev { font-style: normal; color: var(--muted-dim); transition: transform 140ms var(--ease); }
 .srow.is-open .srow__chev { transform: rotate(180deg); }
 .srow__acts { display: none; grid-column: 1 / -1; flex-wrap: wrap; gap: var(--s2); padding-top: var(--s2); border-top: 1px solid var(--line-soft); }
@@ -2744,3 +2746,10 @@ html[data-theme] .mk__card .growth.grade-C { color: #9a9aa4; }
 .nm .partrow button { height: 44px; }
 .nm .partrow i { font: 400 18px var(--num); }
 html[data-theme] #dock .cta#naming-next { height: 54px; padding: 0; border-radius: 999px; background: #ff2e3a; color: #fff; font: 900 18px var(--ui); letter-spacing: 0; border: 0; }
+
+/* 선수단 태그 요약(기획 2번): 내가 가진 태그만 한 줄 칩으로, 누르면 해당 선수 강조 */
+.tagbar { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 8px; }
+.tagchip { flex: none; display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line, rgba(255,255,255,.12)); background: none; color: inherit; font-size: var(--fs-micro); cursor: pointer; }
+.tagchip i { font-style: normal; color: var(--muted-dim); }
+.tagchip.is-on { border-color: var(--gold); color: var(--gold); }
+.srow.is-hl { outline: 1px solid var(--gold); outline-offset: -1px; }

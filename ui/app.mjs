@@ -272,14 +272,15 @@ function potentialOf(p, role) {
 }
 
 // 선수단 정리 조언: 선발 추천 / 유망(키울 만함) / 정리 후보. 선발·벤치 구성을 모르는 사람이 판단할 재료.
+// 유망·정리 후보는 자동 추천 대신 플레이어가 직접 찍는다(currentState.marks: id -> 'prospect'|'cut'). 선발 추천만 자동.
+const MARK_INFO = { prospect: { label: '유망', icon: '★', why: '내가 유망으로 표시한 선수예요' }, cut: { label: '정리 후보', icon: '✂', why: '내가 정리 후보로 표시한 선수예요' } };
+const nextMark = (m) => (m === 'prospect' ? 'cut' : m === 'cut' ? undefined : 'prospect'); // 없음 → ★ → ✂ → 없음
 function squadAdvice(p, group, xi) {
+  const mark = currentState.marks?.[p.id];
+  if (mark) return { id: mark, label: MARK_INFO[mark].label, why: MARK_INFO[mark].why };
   if (group === 'xi') return null;
-  const grade = potentialOf(p, 'headCoach');
-  const stage = growthStage(p);
   const same = xi.filter((q) => q.position === p.position).map((q) => starsFor(q));
   if (same.length && starsFor(p) > Math.min(...same)) return { id: 'start', label: '선발 추천', why: `같은 자리 선발보다 평가가 높아요(${starLabel(p)} > ${starText(Math.min(...same))})` };
-  if (grade === 'S' || grade === 'A' || grade === 'B') return { id: 'prospect', label: '유망', why: `성장 ${grade}등급이에요 — 키워서 비싸게 팔 만해요` };
-  if (group === 'reserve' && (stage === 'veteran' || !grade && stage !== 'prime')) return { id: 'cut', label: '정리 후보', why: stage === 'veteran' ? '베테랑이고 선발·벤치 밖이에요 — 오퍼를 받아 정리해도 좋아요' : '더 오를 여지가 거의 없고 선발·벤치 밖이에요' };
   return null;
 }
 
@@ -373,7 +374,7 @@ function staffChips(role, level) {
   return chip(`지시 조건 ${slots}개`, '포지션·태그·나이대 중 걸 수 있는 조건 수예요. 많이 걸수록 원하는 선수가 와요')
     + chip(`평가 범위 ±${{ academy: 2, proLicense: 1.5, veteran: 1, master: 0.5 }[level]}★`, '영입 전에 보이는 별 범위의 폭이에요. 좁을수록 정확해요')
     + (SCOUT_QUALITY_BOOST_BY_LEVEL[level] ? chip(`상위 카드 +${Math.round(SCOUT_QUALITY_BOOST_BY_LEVEL[level] * 100)}%`, '톱클래스 이상 카드가 나올 확률') : '')
-    + (hint ? chip(`협상 힌트 ±${Math.round(hint.half * 100)}%`, '협상 슬라이더에 구단 하한선 추정 구간을 보여 줘요(가끔 틀려요)') : '');
+    + (hint ? chip(`협상 힌트 ±${Math.round(hint.half * 100)}%`, '협상 슬라이더에 구단 예상 이적료 구간을 보여 줘요(가끔 틀려요)') : '');
 }
 
 // 영입 탭 > 스태프 목록(코치/스카우터)
@@ -804,12 +805,17 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     rateRounds += 1;
     for (const p of xi) {
       const s = (base * (0.5 + Math.random()) + (p.baseOVR + (p.form ?? 0) - 50) / 25 + (Math.random() < 0.08 ? 3 : 0)) * form.get(p.id);
-      currentState.mvpPoints[p.id] = (currentState.mvpPoints[p.id] ?? 0) + Math.max(0, s);
       rateAcc.set(p.id, rateAcc.get(p.id) + Math.max(0, s));
     }
   };
+  // 반기 평점(클램프 전 원점수)을 시즌 누적에 합친다: MVP = 시즌 평점(반기 평균) 1위. 벤치는 평점이 없다.
   const finishRatings = () => {
-    currentState.halfRatings = Object.fromEntries([...rateAcc].map(([id, sum]) => [id, Math.max(4.8, Math.min(9.8, Math.round((5.2 + sum / Math.max(1, rateRounds) * 1.1) * 10) / 10))]));
+    const raw = [...rateAcc].map(([id, sum]) => [id, 5.2 + sum / Math.max(1, rateRounds) * 1.1]);
+    for (const [id, r] of raw) {
+      const acc = typeof currentState.mvpPoints[id] === 'object' ? currentState.mvpPoints[id] : (currentState.mvpPoints[id] = { sum: 0, n: 0 }); // 옛 세이브(숫자)는 새로 시작
+      acc.sum += r; acc.n += 1;
+    }
+    currentState.halfRatings = Object.fromEntries(raw.map(([id, r]) => [id, shownRating(r)]));
   };
   let round = 0;
   let delay = 430;
@@ -1640,7 +1646,7 @@ function bidHtml({ min, max, value, askLabel, askValue, meLabel, zone = null }) 
       <div class="neg__col neg__col--me" id="neg-me"><small>${meLabel}</small><b class="neg__num"><span id="bid-val">${value}</span><i>G</i></b></div>
     </div>
     <div class="neg__track" style="--f:${f(value).toFixed(3)}">${zone ? '<i class="neg__zone"></i>' : ''}<input type="range" class="neg__range" id="bid-range" min="${min}" max="${max}" step="1" value="${value}" aria-label="부를 가격"></div>
-    ${zone ? `<small class="neg__hint">하한선 추정 ${zone.lo}~${zone.hi}G</small>` : ''}
+    ${zone ? `<small class="neg__hint">예상 이적료 ${zone.lo}~${zone.hi}G</small>` : ''}
     <div class="neg__steps">
       <button type="button" data-bid-step="-5">−5</button><button type="button" data-bid-step="-1">−1</button><button type="button" data-bid-step="1">+1</button><button type="button" data-bid-step="5">+5</button>
     </div>
@@ -2406,6 +2412,7 @@ function nextWeek() {
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
   renderMarket([saleMessage, chemMessage].filter(Boolean).join(' / '));
   if (injuries.length) showInjuryPopup(injuries);
+  else if (currentState.week === mEnd) maybeAskPlayDemand();
 }
 
 // 플레이스타일 태그 진행도(문턱은 태그 등급별, engine/constants.mjs).
@@ -2465,6 +2472,54 @@ function showInjuryPopup(list) {
     </div>`;
   document.getElementById('injury-close').onclick = () => { root.innerHTML = ''; };
 }
+// 출전 요구 이벤트: 2반기 이상 벤치였고 같은 자리 선발만큼 평가가 높은 선수가 시장 마지막 주에 요구한다(반기당 최대 1건).
+// "선발로 넣는다"를 골랐는데 반기 시작 때 선발이 아니면 "거절"과 같다. 거절하면 조직력이 깎이고, 같은 선수가 또 거절당하면 이적 요구로 이어진다.
+const PLAY_DEMAND_MIN_BENCH_HALVES = 2;
+const PLAY_REFUSE_CHEMISTRY = 3;
+function maybeAskPlayDemand() {
+  if (tutStep() >= 0 || currentState.playDemand) return;
+  const xi = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
+  const cand = currentState.squad
+    .filter((p) => (currentState.benchHalves?.[p.id] ?? 0) >= PLAY_DEMAND_MIN_BENCH_HALVES && !(p.out > 0) && !xi.some((q) => q.id === p.id)
+      && starsFor(p) >= Math.min(...xi.filter((q) => q.position === p.position).map(starsFor)))
+    .sort((a, b) => b.baseOVR - a.baseOVR)[0];
+  if (!cand) return;
+  currentState.playDemand = { id: cand.id, name: cand.name };
+  const root = document.getElementById('eventmodal-root');
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--goal">
+        <div class="eventmodal__kicker">출전 요구</div>
+        <div class="eventmodal__title">${esc(cand.name)}(${cand.position})이(가) 출전을 요구합니다</div>
+        <p class="eventmodal__detail">${currentState.benchHalves[cand.id]}반기째 벤치에 있어요. 선발로 넣겠다고 하면 이번 반기 선발에 포함돼야 해요. 빼면 거절한 걸로 처리돼요.</p>
+        <button class="cta" id="pd-start">선발로 넣는다</button>
+        <button class="reroll" id="pd-refuse" style="margin-top:var(--s2);width:100%">거절한다 <small>조직력 −${PLAY_REFUSE_CHEMISTRY}</small></button>
+      </div>
+    </div>`;
+  document.getElementById('pd-start').onclick = () => { currentState.playDemand.choice = 'start'; root.innerHTML = ''; swapIntoLineup(cand.id); };
+  document.getElementById('pd-refuse').onclick = () => { currentState.playDemand.choice = 'refuse'; root.innerHTML = ''; };
+}
+// 반기 시뮬 직전: 요구를 들어줬는지 확인하고, 벤치 반기 수를 센다. 돌려주는 문장은 시장 배너에 붙인다.
+function settlePlayDemand(lineup) {
+  const d = currentState.playDemand;
+  currentState.playDemand = null;
+  const ids = new Set(lineup.map((p) => p.id));
+  currentState.benchHalves ??= {};
+  currentState.refusedPlay ??= {};
+  let msg = '';
+  const p = d && currentState.squad.find((x) => x.id === d.id);
+  if (p && !(p.out > 0)) {
+    if (d.choice === 'start' && ids.has(p.id)) { delete currentState.refusedPlay[p.id]; msg = `${p.name}이(가) 약속대로 선발로 뛰었습니다`; }
+    else {
+      currentState.chemistry = Math.max(0, currentState.chemistry - PLAY_REFUSE_CHEMISTRY);
+      if (currentState.refusedPlay[p.id]) currentState.pendingTransferDemand = { id: p.id, name: p.name, reason: 'play' };
+      currentState.refusedPlay[p.id] = true;
+      msg = `${p.name}의 출전 요구를 들어주지 않아 조직력 -${PLAY_REFUSE_CHEMISTRY}`;
+    }
+  }
+  for (const q of currentState.squad) currentState.benchHalves[q.id] = ids.has(q.id) ? 0 : (currentState.benchHalves[q.id] ?? 0) + 1;
+  return msg;
+}
 function rollHalfInjuries(lineup) {
   const list = [];
   let points = 0;
@@ -2497,6 +2552,8 @@ function runFirstHalf(saleMessage = '') {
   }
 
   const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const playMsg = settlePlayDemand(lineup);
+  if (playMsg) saleMessage = saleMessage ? `${saleMessage} / ${playMsg}` : playMsg;
   // 승점은 정수로 쓴다: 화면에 보이는 승점과 승/강등 판정에 쓰는 승점이 같아야 한다.
   const inj1 = rollHalfInjuries(lineup);
   currentState.halfInjuries = inj1.list;
@@ -2518,9 +2575,10 @@ function runFirstHalf(saleMessage = '') {
 // 여름시장 다음에 바로 겨울시장 화면이 뜨면 시즌을 건너뛴 것처럼 보인다.
 // 시즌 결산 화면처럼 전반기에도 확인 화면을 하나 끼워 넣는다.
 // MVP 레이스: 활약 점수 상위 N명. 전반기 결산(중간 순위)과 시즌 결산(최종)에서 쓴다.
+const shownRating = (r) => Math.max(4.8, Math.min(9.8, Math.round(r * 10) / 10)); // 화면용: 소수 한 자리 + 4.8~9.8
 function mvpRanking(limit = 3) {
   const pts = currentState.mvpPoints ?? {};
-  return currentState.squad.filter((p) => pts[p.id] > 0).map((p) => ({ p, pts: pts[p.id] }))
+  return currentState.squad.filter((p) => pts[p.id]?.n > 0).map((p) => ({ p, pts: pts[p.id].sum / pts[p.id].n })) // pts = 시즌 평점(원점수)
     .sort((x, y) => y.pts - x.pts).slice(0, limit);
 }
 function mvpRaceHtml(title, rows, winner = false) {
@@ -2528,7 +2586,7 @@ function mvpRaceHtml(title, rows, winner = false) {
   return `<div class="panel mvprace">
     <div class="panel__head"><h2>${title}</h2></div>
     <ol class="mvprace__list">${rows.map((r, i) => `<li class="${winner && i === 0 ? 'is-winner' : ''}" style="--tier:var(--t-${tierOfP(r.p)})">
-      <b class="n">${i + 1}</b><span>${esc(r.p.name)}<small>${r.p.position} · ${starLabel(r.p)}</small></span><em class="n">${Math.round(r.pts)}점</em>
+      <b class="n">${i + 1}</b><span>${esc(r.p.name)}<small>${r.p.position} · ${starLabel(r.p)}</small></span><em class="n">평점 ${shownRating(r.pts).toFixed(1)}</em>
     </li>`).join('')}</ol>
   </div>`;
 }
@@ -2541,10 +2599,10 @@ function mvpAwardHtml(rows) {
     <div class="mvpaward__winner" style="--tier:var(--t-${tierOfP(w.p)})">
       ${renderPortrait(w.p, { size: 96, kit: currentState.club.kit })}
       <b>${esc(w.p.name)}</b>
-      <span>${w.p.position} · ${starLabel(w.p)} · 활약 ${Math.round(w.pts)}점</span>
+      <span>${w.p.position} · ${starLabel(w.p)} · 평점 ${shownRating(w.pts).toFixed(1)}</span>
       ${(currentState.mvpSeasons?.[w.p.id] ?? 0) > 1 ? `<em>통산 MVP ${currentState.mvpSeasons[w.p.id]}회</em>` : ''}
     </div>
-    ${rest.length ? `<ol class="mvpaward__rest">${rest.map((r, i) => `<li><b class="n">${i + 2}</b><span>${esc(r.p.name)}<small>${r.p.position} · ${starLabel(r.p)}</small></span><em class="n">${Math.round(r.pts)}점</em></li>`).join('')}</ol>` : ''}
+    ${rest.length ? `<ol class="mvpaward__rest">${rest.map((r, i) => `<li><b class="n">${i + 2}</b><span>${esc(r.p.name)}<small>${r.p.position} · ${starLabel(r.p)}</small></span><em class="n">평점 ${shownRating(r.pts).toFixed(1)}</em></li>`).join('')}</ol>` : ''}
   </div>`;
 }
 // 시즌 MVP 확정: 1위에게 "시즌 MVP 1회"를 남긴다.
@@ -3078,6 +3136,8 @@ function runSecondHalfAndFinish(saleMessage = '') {
     saleMessage = saleMessage ? `${saleMessage} / ${msg}` : msg;
   }
   const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const playMsg = settlePlayDemand(lineup);
+  if (playMsg) saleMessage = saleMessage ? `${saleMessage} / ${playMsg}` : playMsg;
   const inj2 = rollHalfInjuries(lineup);
   currentState.secondInjuries = inj2.list;
   const secondHalf = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(2), currentState.direction ?? 'balance', halfBonus(2) + inj2.points));
@@ -3153,7 +3213,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   const ace = lineup.find((p) => p.specialTrait === 'seongGolYouth');
   currentState.pendingTransferDemand = ace && Math.random() < SEONGGOL_TRANSFER_DEMAND_CHANCE
     ? { id: ace.id, name: ace.name }
-    : null;
+    : (currentState.pendingTransferDemand ?? null);
   const goal = currentBoardGoal();
   const reward = boardReward(totalPoints, goal, seasonBaseGrant());
   const chosen = currentState.boardDemand;
@@ -3834,14 +3894,14 @@ function renderMarket(banner = '') {
     const swap = group === 'xi'
       ? `<button class="act" data-swap-out="${p.id}">벤치로</button>`
       : `<button class="act act--main" data-swap-in="${p.id}" ${p.out > 0 ? 'disabled title="부상 중이라 뛸 수 없습니다"' : FORMATIONS[formationId].slots.includes(p.position) ? '' : 'disabled title="이 포메이션엔 그 자리가 없습니다"'}>선발 투입</button>`;
-    return `<li class="srow srow--${group}" data-row="${p.id}" data-advice="${advice?.id ?? ''}" style="--tier:var(--t-${tierOfP(p)})">
+    return `<li class="srow srow--${group}" data-row="${p.id}" data-advice="${advice?.id ?? ''}" data-tags="${(p.playstyleTags ?? []).join(' ')}" style="--tier:var(--t-${tierOfP(p)})">
       <span class="srow__pos">${p.position}</span>
       <b class="srow__ovr n">${starLabel(p)}</b>
       <div class="srow__main">
         <div class="srow__name">${esc(p.name)}<small>${p.age}세</small>${p.out > 0 ? `<span class="tag tag--inj"><i class="cross">✚</i> ${INJURY_LABELS[p.outKind] ?? '부상'}</span>` : ''}${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
         <div class="srow__line2">${tagIconsHtml(p, null, true)}${growthBadge(p, 'headCoach')}</div>
       </div>
-      <div class="srow__side">${advice ? `<b class="advice advice--${advice.id}">${advice.label}</b>` : ''}<i class="srow__chev" aria-hidden="true">⌄</i></div>
+      <div class="srow__side">${advice ? `<b class="advice advice--${advice.id}">${advice.label}</b>` : ''}<button type="button" class="markbtn${currentState.marks?.[p.id] ? ' is-on' : ''}" data-mark="${p.id}" aria-label="유망·정리 표시" title="눌러서 유망 → 정리 후보 → 없음">${MARK_INFO[currentState.marks?.[p.id]]?.icon ?? '☆'}</button><i class="srow__chev" aria-hidden="true">⌄</i></div>
       <div class="srow__acts" data-actions="${p.id}">
         ${hintsHtml(p)}
         ${advice ? `<span class="srow__why advice--${advice.id}">${esc(advice.why)}</span>` : ''}
@@ -3869,8 +3929,13 @@ function renderMarket(banner = '') {
       ${l.offers.map((o, i) => `<button class="offerrow2" data-sale="${l.card.id}:${i}"><span>${esc(o.club)} ${attitudeFace(sellerAttitude(o.club).label)}</span><b class="n">${o.amount}G</b><small class="${offerWeeksLeft(o) === 1 ? 'is-last' : ''}">${offerWeeksLeft(o) === 1 ? '이번 주까지' : `${offerWeeksLeft(o)}주 남음`}</small></button>`).join('')}
     </li>`).join('') + (listedForSale.length ? '<li class="listed__hint">오퍼는 시간이 지나면 사라지고, 다 사라지거나 시장이 끝나면 태업(능력 -3)해요</li>' : '');
 
+  // 내가 가진 태그만 "선발 N · 보유 M"으로 보여 준다. 누르면 그 태그 선수를 목록에서 강조한다.
+  const tagBar = (() => {
+    const chips = TAG_IDS.map((id) => [id, squad.filter((p) => p.playstyleTags?.includes(id)).length, lineup.filter((p) => p.playstyleTags?.includes(id)).length]).filter(([, have]) => have);
+    return chips.length ? `<div class="tagbar" role="group" aria-label="보유 태그">${chips.map(([id, have, start]) => `<button type="button" class="tagchip" data-tagpick="${id}">${TAG_LABELS[id] ?? id}<i class="n">선발 ${start} · 보유 ${have}</i></button>`).join('')}</div>` : '';
+  })();
   const adviceCount = { start: 0, prospect: 0, cut: 0 };
-  for (const [group, list] of [['bench', bench], ['reserve', reservePlayers]]) for (const p of list) { const a = squadAdvice(p, group, slotted.filter(Boolean)); if (a) adviceCount[a.id] += 1; }
+  for (const [group, list] of [['xi', slotted.filter(Boolean)], ['bench', bench], ['reserve', reservePlayers]]) for (const p of list) { const a = squadAdvice(p, group, slotted.filter(Boolean)); if (a) adviceCount[a.id] += 1; }
   const ADVICE_LABELS = { start: '선발 추천', prospect: '유망', cut: '정리 후보' };
   const adviceBar = Object.values(adviceCount).some(Boolean) ? `<div class="advicebar" role="group" aria-label="선수단 보기">
       <button type="button" class="is-on" data-advice-filter="">전체</button>
@@ -3935,6 +4000,7 @@ function renderMarket(banner = '') {
           <span>평균 <b class="n">${avgAge(squad)}</b>세${lineup.length ? ` · 선발 <b class="n">${avgAge(lineup)}</b>세` : ''}</span>
         </div>
         ${listedHtml ? `<ul class="listed">${listedHtml}</ul>` : ''}
+        ${tagBar}
         ${adviceBar}
         ${squadHtml}
       </section>`,
@@ -4234,6 +4300,22 @@ function renderMarket(banner = '') {
         row.classList.toggle('is-open');
       });
     });
+    document.querySelectorAll('[data-tagpick]').forEach((btn) => {
+      btn.onclick = () => {
+        const on = !btn.classList.contains('is-on');
+        document.querySelectorAll('[data-tagpick]').forEach((b) => b.classList.toggle('is-on', on && b === btn));
+        document.querySelectorAll('.squad .srow[data-row]').forEach((row) => row.classList.toggle('is-hl', on && row.dataset.tags.split(' ').includes(btn.dataset.tagpick)));
+      };
+    });
+    document.querySelectorAll('[data-mark]').forEach((btn) => {
+      btn.onclick = () => {
+        const id = btn.dataset.mark;
+        currentState.marks ??= {};
+        const next = nextMark(currentState.marks[id]);
+        if (next) currentState.marks[id] = next; else delete currentState.marks[id];
+        renderMarket();
+      };
+    });
     document.querySelectorAll('[data-swap-in]').forEach((btn) => { btn.onclick = () => swapIntoLineup(btn.dataset.swapIn); });
     document.querySelectorAll('[data-swap-out]').forEach((btn) => { btn.onclick = () => swapOutOfLineup(btn.dataset.swapOut); });
     document.querySelectorAll('[data-advice-filter]').forEach((btn) => {
@@ -4303,7 +4385,7 @@ function renderMarket(banner = '') {
       </div>` : '';
     const td = briefing.transferDemand;
     const transferHtml = td ? `<div class="transferdemand">
-        <p class="eventmodal__detail"><b>${esc(td.name)}</b>(신성)에게 빅클럽의 이적 요구가 왔습니다.</p>
+        <p class="eventmodal__detail"><b>${esc(td.name)}</b>${td.reason === 'play' ? '이(가) 계속 뛰지 못해 이적을 요구합니다.' : '(신성)에게 빅클럽의 이적 요구가 왔습니다.'}</p>
         <div class="transferdemand__btns">
           <button class="reroll" id="td-release">보내주기 <small>자유계약으로 이탈</small></button>
           <button class="reroll" id="td-keep">붙잡기 <small>능력 −${SEONGGOL_REJECT_OVR_PENALTY}</small></button>
