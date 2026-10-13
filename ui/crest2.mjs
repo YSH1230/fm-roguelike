@@ -234,31 +234,59 @@ export function renderCrest(club, { size = 40 } = {}) {
   const bannerOn = !ringText && !monogram && (seed >>> 5) % 2 === 0; // 이니셜 띠는 절반만
   const banner = `<g><path d="M6 45 H58 L54 51 L58 57 H6 L10 51Z" fill="${mix(c1, '#000000', 0.6)}" stroke="${rim}" stroke-width="1.800" stroke-linejoin="round"/><text x="32" y="55" text-anchor="middle" font-family="Anton, 'FM Square', sans-serif" font-size="9.500" letter-spacing=".9" fill="#f4f1e8">${esc(initials.slice(0, 3))}</text></g>`;
   // 상징은 크게(방패의 60% 이상)
-  const SYMBOL_SCALE = { antlers: 0.8, wingspread: 0.8, fin: 0.72, claws: 1, horns: 0.8, feather: 1, paw: 1, mane: 1 };
+  const SYMBOL_SCALE = { antlers: 0.8, wingspread: 0.8, fin: 0.72, claws: 0.95, horns: 0.8, feather: 0.95, paw: 0.88, mane: 0.76 };
   const cScale = ringText ? 0.78 : (bannerOn ? 1.2 : 1.42) * (SYMBOL_SCALE[chargeId] ?? 1);
   const cy = ringText ? 32 : bannerOn ? 28 : 31;
   const symbol = monogram
-    ? `<text x="32" y="${initials.length > 2 ? 40 : 43}" text-anchor="middle" font-family="Anton, 'FM Square', sans-serif" font-size="${initials.length > 2 ? 24 : 32}" letter-spacing="1" fill="${chargeFill}" stroke="${ink}" stroke-width="3.600" paint-order="stroke" stroke-linejoin="round">${esc(initials)}</text>`
-    : `<g transform="translate(32 ${cy}) scale(${cScale}) translate(-32 -28)">${CHARGES[chargeId](chargeFill, ink)}</g>`;
+    ? `<text x="32" y="${initials.length > 2 ? 40 : 43}" text-anchor="middle" font-family="Anton, 'FM Square', sans-serif" font-size="${initials.length > 2 ? 24 : 32}" letter-spacing="1" fill="url(#${id}f)" stroke="${ink}" stroke-width="3.600" paint-order="stroke" stroke-linejoin="round">${esc(initials)}</text>`
+    : `<g transform="translate(32 ${cy}) scale(${cScale}) translate(-32 -28)">${CHARGES[chargeId](`url(#${id}f)`, ink)}</g>`;
   const body = `${plate}${symbol}${bannerOn ? banner : ''}`;
   const decoRaw = DECOS[decoId](gold, ink, label);
   const deco = decoId === 'wings' || decoId === 'laurel' || decoId === 'none' ? decoRaw : `<g transform="translate(32 6) scale(1.28) translate(-32 -6)">${decoRaw}</g>`;
   const sideDeco = decoId === 'wings' || decoId === 'laurel';
   const shieldScale = decoId === 'none' ? 0.97 : decoId === 'ribbonTop' ? 0.8 : 0.86;
   const ty = decoId === 'none' ? 32 : decoId === 'ribbonTop' ? 38 : 36;
-  // 입체감: 왼쪽 위 하이라이트와 오른쪽 아래 그늘(완전 평면은 아니지만 그라디언트는 쓰지 않는다)
-  const gloss = `<path d="M0 0 H64 V20 C44 18 22 28 0 44Z" fill="#fff" opacity=".13"/><path d="M64 30 V64 H30 C46 58 58 46 64 30Z" fill="#000" opacity=".16"/>`;
+  // ---- 입체감: 금속 테두리 그라디언트, 바탕 음영, 상징에 윤광(베벨)과 그림자 ----
+  const lightOf = (hex, t) => mix(hex, '#ffffff', t);
+  const darkOf = (hex, t) => mix(hex, '#000000', t);
+  const rimTop = lum(rim) > 0.5 ? '#ffffff' : '#7b7b86';
+  const rimMid = rim;
+  const rimBot = lum(rim) > 0.5 ? '#9b9580' : '#0e0e12';
+  const fTop = lightOf(chargeFill, 0.5);
+  const fBot = darkOf(chargeFill, 0.32);
+  const defs = `<defs>
+    <linearGradient id="${id}r" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${rimTop}"/><stop offset=".45" stop-color="${rimMid}"/><stop offset="1" stop-color="${rimBot}"/></linearGradient>
+    <linearGradient id="${id}f" x1="14" y1="8" x2="50" y2="54" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="${fTop}"/><stop offset=".5" stop-color="${chargeFill}"/><stop offset="1" stop-color="${fBot}"/></linearGradient>
+    <radialGradient id="${id}s" cx="22" cy="14" r="52" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff" stop-opacity=".34"/><stop offset=".45" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#000" stop-opacity=".42"/></radialGradient>
+    <filter id="${id}b" x="-15%" y="-15%" width="130%" height="135%" color-interpolation-filters="sRGB">
+      <feDropShadow dx=".6" dy="1.5" stdDeviation=".9" flood-color="#000" flood-opacity=".55" result="ds"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1" result="bl"/>
+      <feSpecularLighting in="bl" surfaceScale="3.2" specularConstant=".9" specularExponent="22" lighting-color="#fff" result="sp"><fePointLight x="6" y="-8" z="46"/></feSpecularLighting>
+      <feComposite in="sp" in2="SourceAlpha" operator="in" result="sp2"/>
+      <feComposite in="SourceGraphic" in2="sp2" operator="arithmetic" k1="0" k2="1" k3=".55" k4="0" result="lit"/>
+      <feMerge><feMergeNode in="ds"/><feMergeNode in="lit"/></feMerge>
+    </filter>
+    <filter id="${id}i" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="1.600"/></filter>
+  </defs>`;
+  // 바탕 음영: 왼쪽 위 빛, 가장자리 안쪽 그늘
+  const shade = `<rect width="64" height="64" fill="url(#${id}s)"/><path d="${shape}" fill="none" stroke="#000" stroke-width="5" opacity=".5" filter="url(#${id}i)"/>`;
+  const bannerFilter = bannerOn ? ' filter="url(#' + id + 'b)"' : '';
   return `<svg class="crest crest--v3" width="${size}" height="${size}" viewBox="0 0 64 64" role="img" aria-label="${esc(name)} 엠블럼" focusable="false">
+    ${defs}
     ${sideDeco ? deco : ''}
     <g transform="translate(32 ${ty}) scale(${shieldScale}) translate(-32 -32)">
-      <path d="${shape}" fill="${rim}" stroke="${ink}" stroke-width="5" stroke-linejoin="round"/>
-      <path d="${shape}" fill="${rim}" stroke="${rim}" stroke-width="3.600" stroke-linejoin="round"/>
+      <g filter="url(#${id}b)">
+        <path d="${shape}" fill="url(#${id}r)" stroke="${ink}" stroke-width="5.200" stroke-linejoin="round"/>
+        <path d="${shape}" fill="none" stroke="${lightOf(rim, 0.55)}" stroke-width=".9" stroke-linejoin="round" transform="translate(32 32) scale(.985) translate(-32 -32)" opacity=".75"/>
+      </g>
       <clipPath id="${id}"><path d="${shape}"/></clipPath>
-      <g transform="translate(32 32) scale(.94) translate(-32 -32)"><g clip-path="url(#${id})">${FIELDS[fieldId](c1, c2)}${gloss}</g></g>
-      <path d="${shape}" fill="none" stroke="${ink}" stroke-width="1.200" stroke-linejoin="round" transform="translate(32 32) scale(.94) translate(-32 -32)" opacity=".7"/>
+      <g transform="translate(32 32) scale(.94) translate(-32 -32)"><g clip-path="url(#${id})">${FIELDS[fieldId](c1, c2)}${shade}</g></g>
+      <path d="${shape}" fill="none" stroke="${ink}" stroke-width="1.800" stroke-linejoin="round" transform="translate(32 32) scale(.94) translate(-32 -32)" opacity=".85"/>
+      <path d="${shape}" fill="none" stroke="${lightOf(c1, 0.45)}" stroke-width=".7" stroke-linejoin="round" transform="translate(32 32) scale(.9) translate(-32 -32)" opacity=".55"/>
       ${ring}
-      ${body}
+      <g filter="url(#${id}b)">${body.replace(bannerOn ? banner : '\u0000', '')}</g>
+      ${bannerOn ? `<g filter="url(#${id}b)">${banner}</g>` : ''}
     </g>
-    ${sideDeco ? '' : deco}
+    ${sideDeco ? '' : `<g filter="url(#${id}b)">${deco}</g>`}
   </svg>`;
 }
