@@ -2814,3 +2814,14 @@ html[data-theme] .srow__line2 .growth.grade-C { color: #9a9aa4; }
 .markbtn.is-on.is-cut { background: #ff9b3d; border-color: #ff9b3d; }
 .srow.is-cut { border-color: #ff9b3d; }
 .srow.is-prospect { border-color: #5eead4; }
+
+/* 판매 탭(기획 4-2): 등록 선수 카드 + 오퍼 줄. 임시 스타일, 디자인 세션이 샘플(plan-ui.html)대로 다듬을 것. */
+.sellcard { display: grid; gap: 8px; padding: 12px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); }
+.sellcard__head { display: grid; grid-template-columns: 48px 1fr auto; gap: 10px; align-items: center; }
+.sellcard__who b { display: block; }
+.sellcard__who small { color: var(--muted-dim); }
+.sellcard__range { display: block; font-size: var(--fs-micro); color: var(--muted); }
+.sellcard__empty { margin: 0; color: var(--muted); font-size: 13px; }
+.sellcut { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.sellcut li { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.sellcut small { margin-left: 6px; color: var(--muted-dim); }
