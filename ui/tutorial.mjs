@@ -1,3 +1,8 @@
+import { renderPortrait } from './portrait.mjs';
+
+// 튜토리얼 진행자: 구단 사무국 신입 직원 루비(고정 인물)
+const GUIDE = { id: 'guide-ruby', name: '루비 카터', continentTag: 'europe', age: 23 };
+
 // 튜토리얼 스포트라이트: 화면을 어둡게 하고 눌러야 할 곳만 밝힌다.
 // 어두운 부분은 클릭을 막고, 밝은 구멍은 그대로 통과해서 실제 버튼이 눌린다.
 // 대상이 사라지면(화면이 다시 그려지면) 스스로 닫히고, 호출한 쪽이 다음 그리기에서 다시 띄운다.
@@ -19,7 +24,7 @@ export function showSpot({ selector, text, ok = null, onOk = null, onSkip = null
   const el = document.createElement('div');
   el.className = 'tut';
   el.innerHTML = `<i class="tut__dim" data-p="t"></i><i class="tut__dim" data-p="b"></i><i class="tut__dim" data-p="l"></i><i class="tut__dim" data-p="r"></i><i class="tut__ring"></i>
-    <div class="tut__tip" role="dialog" aria-live="polite"><p class="tut__text"></p><div class="tut__btns"></div></div>`;
+    <div class="tut__tip" role="dialog" aria-live="polite"><div class="tut__av">${renderPortrait(GUIDE, { size: 52, role: 'guide' })}<b>루비</b></div><div class="tut__body"><p class="tut__text"></p><div class="tut__btns"></div></div></div>`;
   el.querySelector('.tut__text').textContent = text;
   const btns = el.querySelector('.tut__btns');
   if (ok) {

@@ -52,19 +52,24 @@ export function renderPortrait(card, { size = 44, kit = '#2c4239', role } = {}) 
 
 function drawPortrait(card, kit, kind) {
   const seed = hash(card.id ?? card.name ?? 'x');
-  const skin = at(seed, 3, SKIN[card.continentTag] ?? SKIN.europe);
+  const guide = kind === 'guide'; // 튜토리얼 진행자: 얼굴이 고정이다(밝은 피부, 긴 갈색 머리)
+  const skin = guide ? '#f8d6b7' : at(seed, 3, SKIN[card.continentTag] ?? SKIN.europe);
   const skinShade = shade(skin, 0.16);
-  const style = at(seed, 9, STYLES);
-  const hairColor = at(seed, 14, HAIR_COLORS);
+  const style = guide ? 'long' : at(seed, 9, STYLES);
+  const hairColor = guide ? '#c9814a' : at(seed, 14, HAIR_COLORS);
   const hairLight = light(hairColor, 0.3);
   const g = grid();
 
   // 몸통
-  const shirt = kind === 'manager' ? '#2a2f3d' : kind === 'scout' ? '#3f5f46' : kit;
+  const shirt = guide ? '#f1efe9' : kind === 'manager' ? '#2a2f3d' : kind === 'scout' ? '#3f5f46' : kit;
   rows(g, [[11, 4, 11], [12, 2, 13], [13, 2, 13], [14, 2, 13], [15, 2, 13]], shirt);
   rows(g, [[14, 2, 13], [15, 2, 13]], shade(shirt, 0.18));
   put(g, 7, 11, skinShade); put(g, 8, 11, skinShade); // 목
-  if (kind === 'player') {
+  if (guide) {
+    rows(g, [[11, 5, 10], [12, 4, 5], [12, 10, 11], [13, 4, 4], [13, 11, 11]], '#2b7a86'); // 조끼
+    rows(g, [[12, 7, 8], [13, 7, 8], [14, 7, 8]], '#2b7a86'); // 목걸이 끈
+    rows(g, [[14, 7, 8], [15, 7, 8]], '#ffffff'); put(g, 7, 15, '#e8a23a'); // 사원증
+  } else if (kind === 'player') {
     rows(g, [[12, 7, 8], [13, 7, 8]], light(shirt, 0.28)); // 가운데 줄무늬
     rows(g, [[11, 6, 9]], light(shirt, 0.18));
   } else if (kind === 'manager') {
@@ -95,6 +100,8 @@ function drawPortrait(card, kit, kind) {
     if (style !== 'bald') { put(g, 6, 2, hairLight); if (style === 'afro') put(g, 6, 1, hairLight); } else { put(g, 6, 3, light(skin, 0.3)); put(g, 7, 3, light(skin, 0.3)); }
   }
 
+  if (guide) { rows(g, [[3, 4, 11], [4, 4, 6], [4, 9, 11]], hairColor); put(g, 10, 3, '#f06a8c'); put(g, 11, 3, '#f06a8c'); } // 앞머리와 분홍 머리핀
+
   // 얼굴
   const browY = 6;
   const brow = ((seed >>> 27) % 3) === 0 ? mixHex(hairColor, '#000000', 0.2) : hairColor;
@@ -102,6 +109,7 @@ function drawPortrait(card, kit, kind) {
   put(g, 6, 7, OUTC); put(g, 6, 8, OUTC); put(g, 9, 7, OUTC); put(g, 9, 8, OUTC);
   put(g, 5, 9, mixHex(skin, '#e0605a', 0.35)); put(g, 10, 9, mixHex(skin, '#e0605a', 0.35)); // 볼
   put(g, 7, 9, '#7a3b32'); put(g, 8, 9, '#7a3b32'); // 입
+  if (guide) { put(g, 6, 8, '#7a3b32'); put(g, 9, 8, '#7a3b32'); put(g, 7, 7, '#ffffff'); put(g, 8, 7, '#ffffff'); put(g, 5, 9, mixHex(skin, '#f06a8c', 0.5)); put(g, 10, 9, mixHex(skin, '#f06a8c', 0.5)); } // 큰 눈의 하이라이트와 발그레한 볼, 웃는 입꼬리
   if (kind !== 'manager' && card.age >= 33 && (seed >>> 20) % 2) { rows(g, [[9, 4, 4], [9, 11, 11], [10, 5, 10]], hairColor); put(g, 7, 9, '#7a3b32'); put(g, 8, 9, '#7a3b32'); }
   if (kind === 'manager') { // 안경: 은색 얇은 테. 눈은 그대로 보이게 한다
     const f = '#c9ced6';

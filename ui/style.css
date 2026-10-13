@@ -2479,3 +2479,10 @@ button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
 .dlg__flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; animation: dlgFlash 1.6s ease-out; }
 @keyframes dlgFlash { 0% { opacity: 0.9; } 12% { opacity: 0; } 22% { opacity: 0.7; } 38% { opacity: 0; } 55% { opacity: 0.5; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .dlg__flash, .dlg__next { animation: none; } }
+
+/* 튜토리얼 진행자(루비) */
+.tut__tip { display: grid; grid-template-columns: 56px 1fr; gap: var(--s3); align-items: start; }
+.tut__av { display: grid; justify-items: center; gap: 2px; }
+.tut__av .portrait { width: 52px; height: 52px; border-radius: 6px; }
+.tut__av b { font-size: var(--fs-micro); color: var(--turf); }
+.tut__body { min-width: 0; }
