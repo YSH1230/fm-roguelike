@@ -3684,23 +3684,27 @@ function renderMarket(banner = '') {
       compareHtml = `<div class="deal__cmp"><span>내 선발 ${c.position} <b class="n">${starLabel(sameSlot)}</b></span></div>`; // 차이는 안 보여 준다(범위의 중심이 새 버리므로)
     }
     const decayNote = decay > 0 ? `조직력 −${decay}` : '';
-    return `<li class="offer deal" data-row="${c.id}" data-tier="${tier}" style="--tier:var(--t-${tier})">
-      <div class="pcard">
-        <b class="pcard__pos">${c.position}</b><b class="pcard__ovr n">${seenRange(c)}</b>
-        <div class="pcard__art">${renderPortrait(c, { size: 56 })}</div>
+    const kit = club.kit ?? '#4a5a52';
+    const can = affordable || (c.seller && funds >= Math.round(price * BID_MIN_RATIO));
+    const rng = starRange(c, leagueMid(), staffLevel('headScout'));
+    const starsHtml = [1, 2, 3, 4, 5].map((n) => pixelStar(n <= Math.floor(rng.lo) ? 'on' : n <= Math.ceil(rng.hi) ? 'mid' : 'off')).join('');
+    const att = c.seller ? sellerAttitude(c.seller) : null;
+    return `<li class="offer deal mk__card" data-row="${c.id}" style="--team:${kit};--on-team:${onColorOf(kit)}">
+      <div class="mk__row">
+        <div class="mk__art">${renderPortrait(c, { size: 112, kit })}<em class="mk__pos">${c.position}</em></div>
+        <div class="mk__info">
+          <b class="mk__name">${esc(c.name)}</b>
+          <span class="mk__meta">${c.age}세</span>
+          <div class="mk__stars" aria-label="별 ${rng.lo === rng.hi ? rng.lo : `${rng.lo}에서 ${rng.hi}`}">${starsHtml}<small>${rng.lo === rng.hi ? `<b class="n">${rng.lo}</b>` : `범위 <b class="n">${rng.lo}~${rng.hi}</b>`}</small></div>
+        </div>
       </div>
-      <div class="deal__body">
-        <div class="deal__top"><span class="deal__name">${esc(c.name)}</span><span class="deal__age">${c.age}세</span></div>
-        ${c.seller ? `<div class="deal__seller"><span>${esc(c.seller)}</span><span class="deal__att">태도 <b class="att att--${sellerAttitude(c.seller).label}">${sellerAttitude(c.seller).label}</b> ${attitudeFace(sellerAttitude(c.seller).label)}</span></div>` : ''}
-        <div class="deal__meta"><div class="deal__tags">${tags}</div>${growthBadge(c, 'headScout')}</div>
-        ${hintsHtml(c)}
-        ${compareHtml}
-      </div>
-      <div class="deal__act">
-        <button class="buy deal__buy" data-buy="${c.id}" ${affordable || (c.seller && funds >= Math.round(price * BID_MIN_RATIO)) ? '' : 'disabled'} title="${decayNote}">
-          <span>${affordable || (c.seller && funds >= Math.round(price * BID_MIN_RATIO)) ? (c.seller ? '협상' : '영입') : '부족'}</span><b class="n">${price}G</b>
-        </button>
-      </div>
+      <div class="mk__tags">${tags}${growthBadge(c, 'headScout')}</div>
+      ${hintsHtml(c)}
+      ${compareHtml}
+      ${att ? `<div class="mk__seller"><span>${esc(c.seller)}</span><span class="mk__mood"><span class="neg__face" aria-label="태도 ${att.label}">${pixelFace(faceKindOfAttitude(att.label))}</span>태도 ${att.label}</span></div>` : ''}
+      <button class="mk__buy deal__buy" data-buy="${c.id}" ${can ? '' : 'disabled'} title="${decayNote}">
+        <span>${can ? (c.seller ? '협상' : '영입') : '부족'}</span><b class="mk__price">${price}<i>G</i></b>
+      </button>
       <p class="offer__hint" hidden></p>
     </li>`;
   }).join('');

@@ -2568,3 +2568,52 @@ button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
 .neg__btn:disabled { opacity: .4; cursor: not-allowed; }
 .neg__btn:focus-visible, .neg__steps button:focus-visible, .neg__back:focus-visible { outline: 2px solid #1eaedb; outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .neg__col--me.is-warn .neg__num, .neg.is-thinking .neg__face { animation: none; } }
+
+/* ===== 디자인 v4: 영입 탭(스카우트 지시 + 후보 카드). 색 규칙은 DESIGN.md ===== */
+.mk__card, .scoutorder { --n-panel: #18181b; --n-line: #2b2b30; --n-ivory: #f4f1e8; --n-mute: #8e8e96; --n-red: #ff2e3a; }
+.offers { gap: 14px; }
+.scoutorder { gap: 10px; padding: 14px; margin: 0 0 14px; border: 1px solid var(--n-line); border-radius: 28px; background: var(--n-panel); }
+.scoutorder .scoutbar__label { color: var(--n-ivory); font-size: 16px; font-weight: 900; }
+.scoutorder__sels select { flex: 1 1 90px; height: 40px; padding: 0 14px; border-radius: 999px; background: transparent; color: var(--n-mute); border: 1px solid var(--n-line); font: 700 14px var(--ui); appearance: none; -webkit-appearance: none; text-align: center; }
+.scoutorder__sels select:has(option:checked:not([value=""])) { background: var(--kit, #4b3a9a); color: #fff; border-color: var(--kit, #4b3a9a); }
+.scoutorder__sels select:disabled { opacity: .4; }
+.scoutorder__note { color: var(--n-mute); font-size: 13px; }
+
+.offer.deal.mk__card { display: grid; grid-template-columns: 1fr; gap: 12px; padding: 14px; border: 0; border-radius: 28px; background: var(--team); color: var(--on-team); box-shadow: none; align-items: stretch; }
+.mk__row { display: grid; grid-template-columns: 112px 1fr; gap: 14px; }
+.mk__art { position: relative; height: 112px; border-radius: 20px; overflow: hidden; background: #0b0b0b; }
+.mk__art .portrait { display: block; width: 112px; height: 112px; image-rendering: pixelated; background: none; }
+.mk__pos { position: absolute; left: 0; bottom: 0; font-style: normal; font-weight: 800; font-size: 14px; letter-spacing: .05em; background: #1b1b1f; color: var(--n-ivory); border: 1px solid var(--n-ivory); border-left: 0; border-bottom: 0; padding: 4px 10px 4px 8px; border-radius: 0 10px 0 0; }
+.mk__name { display: block; font-size: 22px; font-weight: 900; line-height: 1.15; overflow-wrap: anywhere; }
+.mk__meta { font-size: 13px; opacity: .78; }
+.mk__stars { display: flex; align-items: center; gap: 3px; margin-top: 8px; }
+.mk__stars small { margin-left: 8px; font-size: 12px; font-weight: 800; }
+.mk__stars small b { font: 400 15px/1 var(--num); }
+.mk__stars .pxstar.is-on { fill: var(--on-team); }
+.mk__stars .pxstar.is-mid { fill: color-mix(in srgb, var(--on-team) 55%, transparent); }
+.mk__stars .pxstar.is-off { fill: color-mix(in srgb, var(--on-team) 24%, transparent); }
+.mk__tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.mk__card .chip { padding: 5px 12px; border-radius: 999px; background: transparent; border: 1px solid color-mix(in srgb, var(--on-team) 55%, transparent); color: var(--on-team); font-size: 13px; font-weight: 700; }
+.mk__card .chip .chip__name { color: inherit; font-size: 13px; }
+.mk__card .chip b { color: inherit; }
+.mk__card .chip--up1, .mk__card .chip--up2 { background: #0b0b0b; color: var(--team); border-color: #0b0b0b; }
+.mk__card .chip--up1 .chip__name, .mk__card .chip--up2 .chip__name, .mk__card .chip--up1 .badgeicon, .mk__card .chip--up2 .badgeicon { color: var(--team); }
+.mk__card .traithints { color: var(--on-team); }
+.mk__card .deal__cmp, .mk__card .deal__cmp b { color: var(--on-team); font-size: 13px; opacity: .85; }
+.mk__card .offer__hint { grid-column: auto; margin: 0; padding: 8px 0 0; border-top: 1px solid color-mix(in srgb, var(--on-team) 30%, transparent); color: var(--on-team); font-size: 13px; }
+.mk__seller { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; border-top: 1px solid color-mix(in srgb, var(--on-team) 30%, transparent); padding-top: 10px; }
+.mk__mood { display: inline-flex; align-items: center; gap: 8px; }
+.mk__mood .neg__face { width: 30px; height: 30px; }
+.mk__buy { height: 54px; border-radius: 999px; border: 1px solid transparent; background: #0b0b0b; color: var(--n-ivory); font: 900 18px var(--ui); display: flex; justify-content: space-between; align-items: center; padding: 0 24px; cursor: pointer; }
+.mk__price { font: 400 20px/1 var(--num); }
+.mk__price i { font: 400 12px/1 var(--ui); margin-left: 3px; }
+.mk__buy:disabled { background: transparent; border-color: color-mix(in srgb, var(--on-team) 55%, transparent); color: var(--on-team); opacity: .7; cursor: not-allowed; }
+.mk__buy:focus-visible { outline: 2px solid #1eaedb; outline-offset: 2px; }
+html[data-theme] .offer.deal.mk__card { background: var(--team); }
+html[data-theme] .mk__buy.deal__buy { flex-direction: row; justify-content: space-between; align-self: stretch; gap: 0; min-width: 0; padding: 0 24px; border-radius: 999px; }
+.mk__buy.deal__buy span { font-size: 18px; letter-spacing: 0; }
+.mk__buy.deal__buy b { font: 400 20px/1 var(--num); }
+.mk__card .growth, .mk__card .growth.grade-S, .mk__card .growth.grade-A, .mk__card .growth.grade-C, .mk__card .growth.is-peak, .mk__card .growth.is-down, .mk__card .growth.is-up { color: var(--on-team); padding: 5px 12px; border-radius: 999px; font-size: 13px; box-shadow: none; border: 1px solid color-mix(in srgb, var(--on-team) 55%, transparent); }
+.mk__card .traithints { gap: 6px; }
+.mk__card .traithints span { color: var(--on-team); border: 1px solid color-mix(in srgb, var(--on-team) 35%, transparent); border-style: solid; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-style: normal; }
+.mk__card .traithints span.is-inj { color: var(--on-team); border-color: color-mix(in srgb, var(--on-team) 35%, transparent); }
