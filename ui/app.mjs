@@ -2079,11 +2079,12 @@ function nextWeek() {
     return;
   }
   const marketStart = currentState.phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0];
-  const injuryMessage = currentState.week === marketStart + 2 ? rollMarketInjuries() : '';
+  const injuries = currentState.week === marketStart + 2 ? rollMarketInjuries() : [];
   currentState.shopOffer = newShopOffer();
   if (tutStep() >= 0 && loadRecords(localStorage).runs <= 1) ensureUpgradeOffer(); // 튜토리얼에서는 "영입해 보세요"가 막히지 않게
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
-  renderMarket([injuryMessage, saleMessage, chemMessage].filter(Boolean).join(' / '));
+  renderMarket([saleMessage, chemMessage].filter(Boolean).join(' / '));
+  if (injuries.length) showInjuryPopup(injuries);
 }
 
 // 플레이스타일 태그 진행도(문턱은 태그 등급별, engine/constants.mjs).
@@ -2117,16 +2118,31 @@ function recordInjury(id, kind) {
   currentState.squad = currentState.squad.map((p) => (p.id === id ? { ...p, injHistory: [...(p.injHistory ?? []), { kind, ago: 0 }] } : p));
 }
 function rollMarketInjuries() {
-  const msgs = [];
+  const hurt = [];
   currentState.squad = currentState.squad.map((p) => {
     if (p.out > 0 || p.emergencyYouth) return p;
     const kind = rollInjury(p, Math.random, ['half', 'season']);
     if (!kind) return p;
     const out = kind === 'half' ? 1 : currentState.phase === 'summer' ? 2 : 1; // 겨울에 터진 시즌 아웃은 후반기만 빠진다
-    msgs.push(`${p.name}(${p.position}) ${INJURY_LABELS[kind]} 부상`);
+    hurt.push({ name: p.name, position: p.position, kind });
     return { ...p, out, outKind: kind, injHistory: [...(p.injHistory ?? []), { kind, ago: 0 }] };
   });
-  return msgs.length ? `✚ ${msgs.join(', ')} - 선발에서 빠집니다. 대체 선수를 알아보세요.` : '';
+  return hurt;
+}
+// 큰 부상 알림: 다른 이벤트 팝업과 똑같이 담담하게 알린다.
+function showInjuryPopup(list) {
+  const root = document.getElementById('eventmodal-root');
+  const one = list.length === 1;
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--bad">
+        <div class="eventmodal__kicker">부상 소식</div>
+        <div class="eventmodal__title">${one ? `${esc(list[0].name)}(${list[0].position}) ${INJURY_LABELS[list[0].kind]} 부상` : `${list.length}명이 크게 다쳤습니다`}</div>
+        <div class="eventmodal__detail">${one ? '이번 기간 선발에서 빠집니다.' : list.map((x) => `${esc(x.name)}(${x.position}) · ${INJURY_LABELS[x.kind]}`).join('<br>') + '<br>선발에서 빠집니다.'}</div>
+        <button class="cta" id="injury-close">닫기</button>
+      </div>
+    </div>`;
+  document.getElementById('injury-close').onclick = () => { root.innerHTML = ''; };
 }
 function rollHalfInjuries(lineup) {
   const list = [];
