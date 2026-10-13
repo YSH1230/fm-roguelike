@@ -2825,3 +2825,51 @@ html[data-theme] .srow__line2 .growth.grade-C { color: #9a9aa4; }
 .sellcut { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
 .sellcut li { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .sellcut small { margin-left: 6px; color: var(--muted-dim); }
+
+/* ===== 디자인 v4: 시장 판매 탭 ===== */
+.sellcard, .sellcut, details.fold, .sellcard + .note, .tabpanel > p.note { --n-panel: #18181b; --n-line: #2b2b30; --n-ivory: #f4f1e8; --n-mute: #8e8e96; }
+.sellcard { gap: 0; padding: 0; margin: 0 0 10px; border: 1px solid #2b2b30; border-radius: 24px; background: #18181b; overflow: hidden; }
+.sellcard__head { grid-template-columns: 48px 1fr auto; gap: 10px; padding: 10px; }
+.sellcard__head .portrait { display: block; width: 48px; height: 48px; border-radius: 14px; background: #0b0b0b; image-rendering: pixelated; }
+.sellcard__who b { font-size: 15px; font-weight: 900; }
+.sellcard__who small { font-size: 12px; color: #8e8e96; }
+.sellcard__range { font-size: 12px; color: #8e8e96; }
+.sellcard__range b { font: 400 15px var(--num); color: #f4f1e8; }
+.sellcard__empty { padding: 12px 14px; border-top: 1px solid #2b2b30; color: #8e8e96; font-size: 13px; }
+.sellcard .act { height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid #2b2b30; background: transparent; color: #f4f1e8; font: 800 13px var(--ui); }
+.sellcard .offerrow2 { width: 100%; grid-template-columns: 1fr auto auto; gap: 10px; padding: 8px 10px; border: 0; border-top: 1px solid #2b2b30; border-radius: 0; background: transparent; color: #f4f1e8; text-align: left; cursor: pointer; }
+.offerrow2__club { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.offerrow2__club .crest { flex: none; }
+.offerrow2__name { display: grid; gap: 2px; font: 800 14px var(--ui); min-width: 0; }
+.offerrow2__name .neg__face { width: 22px; height: 22px; border-radius: 6px; }
+.offerrow2__name .neg__face .pxface { width: 16px; height: 16px; }
+.sellcard .offerrow2 b.n { font: 400 22px/1 var(--num); }
+.sellcard .offerrow2 small { font-size: 11px; color: #8e8e96; padding: 3px 10px; border-radius: 999px; border: 1px solid #2b2b30; white-space: nowrap; }
+.sellcard .offerrow2 small.is-last { color: #ff2e3a; border-color: #ff2e3a; }
+.sellcard .offerrow2:hover { background: #1f1f24; }
+.sellcut { gap: 6px; }
+.sellcut li { padding: 8px 10px 8px 14px; border: 1px solid #ff9b3d; border-radius: 22px; background: #18181b; font: 800 14px var(--ui); }
+.sellcut li small { font-weight: 600; font-size: 12px; color: #8e8e96; }
+.sellcut .act { height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid #2b2b30; background: transparent; color: #f4f1e8; font: 800 13px var(--ui); }
+details.fold { margin: 10px 0; border: 1px solid #2b2b30; border-radius: 24px; background: #18181b; }
+details.fold summary { list-style: none; display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; font-weight: 900; cursor: pointer; }
+details.fold summary::-webkit-details-marker { display: none; }
+details.fold summary small { color: #8e8e96; font-weight: 600; }
+details.fold p { margin: 0; padding: 6px 16px; font-size: 13px; color: #8e8e96; display: flex; justify-content: space-between; }
+details.fold p b.n { font: 400 15px var(--num); color: #f4f1e8; }
+details.fold[open] summary { border-bottom: 1px solid #2b2b30; }
+.empty { padding: 14px; color: #8e8e96; font-size: 13px; }
+.sellcard__range { white-space: nowrap; }
+.sellcard__range b.n { display: inline; }
+.mknav .tab__dot { width: 8px; height: 8px; border-radius: 50%; background: #ff2e3a; border: 0; }
+/* 선수단: 공석 행, 확인 줄 */
+.srow--gap { grid-template-columns: 52px minmax(0, 1fr) auto; border: 1px dashed #ff9b3d; border-radius: 22px; background: transparent; }
+.srow--gap .srow__ovr { display: none; }
+.srow--gap .srow__pos { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 14px; border: 1px dashed #f4f1e8; color: #f4f1e8; font: 800 13px var(--ui); }
+.srow--gap .srow__name { font-weight: 900; font-size: 15px; }
+.srow--gap .gapchip { height: 36px; padding: 0 14px; border-radius: 999px; background: transparent; border: 1px solid #f4f1e8; color: #f4f1e8; font: 800 13px var(--ui); }
+html[data-theme] .srow.player--confirm { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #2b2b30; border-radius: 22px; background: #18181b; }
+.srow.player--confirm .confirm__q { font: 700 13px var(--ui); color: #f4f1e8; }
+.srow.player--confirm .confirm__yes, .srow.player--confirm .confirm__no { height: 36px; padding: 0 16px; border-radius: 999px; font: 800 13px var(--ui); flex: none; }
+.srow.player--confirm .confirm__yes { background: #ff2e3a; border: 0; color: #fff; }
+.srow.player--confirm .confirm__no { background: transparent; border: 1px solid #f4f1e8; color: #f4f1e8; }
