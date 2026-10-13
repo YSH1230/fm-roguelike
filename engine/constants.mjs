@@ -161,6 +161,10 @@ export const COACH_GROWTH_BY_LEVEL = {
   master: { chance: 1, stall: 0.04 },
 };
 // 스카우터가 협상 슬라이더에 보여 주는 "구단 하한선 추정 구간": half = 구간 반폭(하한선 대비 비율), hit = 진짜 하한선이 구간 안에 있을 확률.
+// 탐색(단서) 하나당 예상 이적료 구간 폭이 이만큼 줄어든다(최대 3개). 아카데미(힌트 없음)는 단서를 얻어야 구간이 생기고 그때 시작 폭은 EXPLORE_BASE_HINT.
+export const EXPLORE_NARROW = 0.6;
+export const EXPLORE_MAX_CLUES = 3;
+export const EXPLORE_BASE_HINT = { half: 0.2, hit: 0.7 };
 export const SCOUT_HAGGLE_HINT_BY_LEVEL = {
   academy: null,
   proLicense: { half: 0.12, hit: 0.7 },

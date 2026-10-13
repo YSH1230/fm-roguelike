@@ -2753,3 +2753,11 @@ html[data-theme] #dock .cta#naming-next { height: 54px; padding: 0; border-radiu
 .tagchip i { font-style: normal; color: var(--muted-dim); }
 .tagchip.is-on { border-color: var(--gold); color: var(--gold); }
 .srow.is-hl { outline: 1px solid var(--gold); outline-offset: -1px; }
+
+/* 협상 탐색 3버튼(기획 4번): 디자인 샘플 neg3.html의 .exp를 게임 토큰으로 옮김. 첫 탐색 무료, 단서마다 예상 이적료 띠가 좁아진다. */
+.neg__explore { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 12px; border: 1px solid var(--n-line); border-radius: 28px; background: var(--n-panel); }
+.neg__explore button { display: grid; gap: 2px; justify-items: center; padding: 10px 4px 8px; border-radius: 20px; border: 1px solid var(--n-line); background: transparent; color: var(--n-ivory); font-size: 12px; font-weight: 800; line-height: 1.25; text-align: center; cursor: pointer; }
+.neg__explore button em { font-style: normal; font-size: 11px; font-weight: 700; color: var(--n-mute); }
+.neg__explore button.free em { color: #5eead4; }
+.neg__explore button.done, .neg__explore button:disabled { opacity: .4; cursor: default; }
+.neg__explore svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }

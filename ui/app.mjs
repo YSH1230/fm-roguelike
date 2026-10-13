@@ -88,7 +88,7 @@ import {
   PROMOTION_STAY_FUNDS_RATIO,
   REPUTATION_STREAK_BONUS,
   COACH_CHEMISTRY_DECAY_BY_LEVEL,
-  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_TARGET_SLOTS_BY_LEVEL, SCOUT_HAGGLE_HINT_BY_LEVEL, SCOUT_QUALITY_BOOST_BY_LEVEL, SCOUT_REROLL_DISCOUNT_BY_LEVEL, COACH_GROWTH_BY_LEVEL,
+  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_TARGET_SLOTS_BY_LEVEL, SCOUT_HAGGLE_HINT_BY_LEVEL, EXPLORE_NARROW, EXPLORE_MAX_CLUES, EXPLORE_BASE_HINT, SCOUT_QUALITY_BOOST_BY_LEVEL, SCOUT_REROLL_DISCOUNT_BY_LEVEL, COACH_GROWTH_BY_LEVEL,
   PROMOTION_TRANSFER_DEMAND_CHANCE,
   PLAYER_TIERS,
   MISSED_TARGET_LIMIT,
@@ -1642,7 +1642,7 @@ function negPlayerHtml(card, teamKit) {
     </section>`;
 }
 // 값을 고르는 조절기: 큰 숫자 두 개(상대 금액 / 내 금액) + 슬라이더 + ±1/±5. zone이 있으면 그 밖으로 나갈 때 내 금액이 빨갛게 경고한다.
-function bidHtml({ min, max, value, askLabel, askValue, meLabel, zone = null }) {
+function bidHtml({ min, max, value, askLabel, askValue, meLabel, zone = null, noZoneText = '' }) {
   const span = Math.max(1, max - min);
   const f = (v) => Math.max(0, Math.min(1, (v - min) / span));
   const z = zone ? ` style="--zl:${f(zone.lo).toFixed(3)};--zr:${f(zone.hi).toFixed(3)}"` : '';
@@ -1652,7 +1652,7 @@ function bidHtml({ min, max, value, askLabel, askValue, meLabel, zone = null }) 
       <div class="neg__col neg__col--me" id="neg-me"><small>${meLabel}</small><b class="neg__num"><span id="bid-val">${value}</span><i>G</i></b></div>
     </div>
     <div class="neg__track" style="--f:${f(value).toFixed(3)}">${zone ? '<i class="neg__zone"></i>' : ''}<input type="range" class="neg__range" id="bid-range" min="${min}" max="${max}" step="1" value="${value}" aria-label="부를 가격"></div>
-    ${zone ? `<small class="neg__hint">예상 이적료 ${zone.lo}~${zone.hi}G</small>` : ''}
+    ${zone ? `<small class="neg__hint">예상 이적료 ${zone.lo}~${zone.hi}G</small>` : noZoneText ? `<small class="neg__hint">${noZoneText}</small>` : ''}
     <div class="neg__steps">
       <button type="button" data-bid-step="-5">−5</button><button type="button" data-bid-step="-1">−1</button><button type="button" data-bid-step="1">+1</button><button type="button" data-bid-step="5">+5</button>
     </div>
@@ -1711,6 +1711,26 @@ function wireBid(root, { min, max, goLabel, canAfford = () => true, zone = null,
 }
 const BID_HINT = { mid: '조금만 더 올려 주세요', far: '말도 안 돼요! 그 가격에는 못 팔아요', counterBuy: (c) => `이 가격이면 팔게요: ${c}G`, finalBuy: (c) => `마지막 제안이에요: ${c}G` };
 
+// 탐색 행동 3종: 단서 하나씩(구간이 좁아짐). 아이콘 SVG 경로는 디자인 샘플(graphify-out/design-samples/neg3.html)과 같다.
+const EXPLORE_ACTIONS = [
+  ['body', '몸상태·사정 묻기', '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'],
+  ['rival', '다른 구단 관심 떠보기', '<circle cx="9" cy="9" r="4"/><path d="M3 20c0-4 3-6 6-6M16 8h5M16 12h5"/>'],
+  ['dead', '마감 묻기', '<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>'],
+];
+function exploreHtml(clues, free, pat) {
+  const full = clues.length >= EXPLORE_MAX_CLUES;
+  return `<section class="neg__explore" aria-label="탐색">${EXPLORE_ACTIONS.map(([id, label, path]) => {
+    const done = clues.includes(id);
+    const blocked = !done && (full || (!free && pat < 2)); // 유료 탐색은 인내심이 2 이상일 때만
+    return `<button type="button" data-explore="${id}" class="${done ? 'done' : free ? 'free' : ''}" ${done || blocked ? 'disabled' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>${label}<em>${done ? '확인함' : free ? '무료' : '인내심 -1'}</em></button>`;
+  }).join('')}</section>`;
+}
+function exploreNote(id, att, pressure, weeksLeft) {
+  if (id === 'body') return att.score >= 1 ? '사정이 급한 눈치예요.' : att.score <= -1 ? '꿈쩍도 안 할 분위기예요.' : '무난한 분위기예요. 큰 문제는 없어 보여요.';
+  if (id === 'rival') return pressure > 0 ? '다른 구단 눈치가 보여서 구단이 조금 급해 보여요.' : '다른 구단의 관심은 크지 않아 보여요.';
+  return `마감까지 ${weeksLeft}주 남았어요.${pressure > 0 ? ' 마감이 가까워 구단이 급해져요.' : ''}`;
+}
+
 // 영입 협상: 구단의 숨은 하한선 위로 부르면 수락, 조금 모자라면 역제안, 더 모자라면 "조금 더"/"말도 안 돼요".
 // 부를 때마다 인내심이 줄고, 바닥나면 결렬된다(역제안이 나온 뒤에는 마지막 제안으로 남는다).
 function openHaggle(card, note = '') {
@@ -1727,19 +1747,24 @@ function openHaggle(card, note = '') {
   const reserve = reservePrice({ trueValue: valuePrice(card, 0), score: att.score, u, pressure });
   const min = Math.max(1, Math.round(ask * BID_MIN_RATIO));
   const max = ask - 1;
-  const hint = haggleHint(card.id, reserve, SCOUT_HAGGLE_HINT_BY_LEVEL[isStaffFreshThisWeek('headScout') ? 'academy' : staffLevel('headScout')]); // 스카우터: 구단 하한선 추정 구간
+  // 예상 이적료 구간: 스카우터 등급이 시작 폭을 정하고, 탐색 단서 하나마다 ×0.6으로 좁아진다. 힌트 없는 등급은 단서가 있어야 구간이 생긴다.
+  currentState.clues ??= {};
+  const clues = currentState.clues[card.id] ?? [];
+  const base = SCOUT_HAGGLE_HINT_BY_LEVEL[isStaffFreshThisWeek('headScout') ? 'academy' : staffLevel('headScout')] ?? (clues.length ? EXPLORE_BASE_HINT : null);
+  const hint = base && haggleHint(card.id, reserve, { ...base, half: base.half * EXPLORE_NARROW ** clues.length });
   const counter = currentState.counterOffer[card.id] ?? null;
   const out = pat <= 0; // 인내심이 바닥났지만 마지막 제안이 남은 상태
   const value = Math.max(min, Math.min(max, currentState.bidMemory[card.id] ?? (hint ? Math.round((hint.lo + hint.hi) / 2) : Math.round(ask * 0.85)))); // 추정 구간이 있으면 그 한가운데에서 시작(처음부터 경고가 뜨지 않게)
   const afford = (v) => currentState.funds >= v;
   const canBid = !(out || max < min);
   const weeksLeft = Math.max(1, endWeek - currentState.week + 1);
+  const freeProbe = clues.length === 0; // 첫 탐색은 무료, 이후는 인내심 -1(바닥나지 않게 2 이상일 때만)
   const noteText = note || (pressure > 0 ? '시장 마감이 가까워 구단이 조금 급해요.' : '') || (tutStep() >= 0 ? '처음이라면 "요구액으로 영입"이 가장 안전해요. 더 싸게 사려면 가격을 정해 제안해 보세요. 구단 표정이 힌트예요.' : '');
   const zone = hint ? { lo: hint.lo, hi: hint.hi } : null;
   root.innerHTML = negScreen({
     title: '협상', club: card.seller, att, pat: Math.max(0, pat), patMax: Math.max(patienceFor(att.score) + fx().patienceBonus, 1),
     chip: { text: `마감 ${weeksLeft}주`, hot: pressure > 0 }, note: noteText, card,
-    deal: canBid ? bidHtml({ min, max, value, askLabel: '요구액', askValue: ask, meLabel: '내 제안', zone }) : negStaticDeal('요구액', ask),
+    deal: (canBid ? exploreHtml(clues, freeProbe, pat) : '') + (canBid ? bidHtml({ min, max, value, askLabel: '요구액', askValue: ask, meLabel: '내 제안', zone, noZoneText: '예상 이적료 추정 불가' }) : negStaticDeal('요구액', ask)),
     ctas: `${canBid ? `<button class="neg__btn neg__btn--primary" id="bid-go" ${afford(value) ? '' : 'disabled'}>${value}G 제안</button>` : ''}
       <button class="neg__btn ${canBid ? 'neg__btn--ghost' : 'neg__btn--primary'}" id="haggle-ask" ${afford(ask) ? '' : 'disabled'}>요구액 ${ask}G로 영입</button>
       ${counter ? `<button class="neg__btn neg__btn--counter" id="haggle-counter" ${afford(counter) ? '' : 'disabled'}>역제안 ${counter}G에 영입</button>` : ''}
@@ -1749,6 +1774,14 @@ function openHaggle(card, note = '') {
   document.getElementById('haggle-counter')?.addEventListener('click', () => { root.innerHTML = ''; buyCard(card, null, null, counter); });
   document.getElementById('haggle-close').onclick = () => { root.innerHTML = ''; };
   document.getElementById('neg-back').onclick = () => { root.innerHTML = ''; };
+  root.querySelectorAll('[data-explore]').forEach((b) => {
+    b.onclick = () => {
+      const id = b.dataset.explore;
+      currentState.clues[card.id] = [...clues, id];
+      if (!freeProbe) currentState.patience[card.id] = pat - 1;
+      openHaggle(card, exploreNote(id, att, pressure, weeksLeft));
+    };
+  });
   if (out || max < min) return;
   wireBid(root, {
     min, max, goLabel: '제안', canAfford: afford, zone,
