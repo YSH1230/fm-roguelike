@@ -2690,3 +2690,9 @@ body.has-mknav #dock .cta { height: 54px; padding: 0; border-radius: 999px; back
 .gapchip.is-on { background: #f4f1e8; border-color: #f4f1e8; color: #0e0e10; }
 html[data-theme] .subtabs > button[aria-selected='true'] { background: #f4f1e8; border-color: #f4f1e8; color: #0e0e10; }
 html[data-theme] .subtabs > button[aria-selected='true'] i { color: #0e0e10; }
+/* 성장 등급 색: 팀 색 카드 위에서도 읽히게 검정 알약 + 등급 색 글자 */
+html[data-theme] .mk__card .growth.is-up { background: #0b0b0b; border-color: #0b0b0b; font-weight: 800; }
+html[data-theme] .mk__card .growth.grade-S { color: #ff9b3d; }
+html[data-theme] .mk__card .growth.grade-A { color: #ffd24a; }
+html[data-theme] .mk__card .growth.grade-B { color: #f4f1e8; }
+html[data-theme] .mk__card .growth.grade-C { color: #9bd8a8; }
