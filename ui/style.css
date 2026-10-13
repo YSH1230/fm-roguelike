@@ -2809,3 +2809,8 @@ html[data-theme] .srow__line2 .growth.grade-A { color: #3fe0ff; }
 html[data-theme] .srow__line2 .growth.grade-B { color: #b79bff; }
 html[data-theme] .srow__line2 .growth.grade-C { color: #9a9aa4; }
 .srow__line2 .growth.is-peak { color: var(--n-mute); }
+.srow__side .advice--prospect, .srow__side .advice--cut { display: none; }
+.srow__side .advice--start { padding: 3px 8px; border-radius: 999px; border: 1px solid var(--n-ivory); background: transparent; color: var(--n-ivory); font: 800 11px var(--ui); }
+.markbtn.is-on.is-cut { background: #ff9b3d; border-color: #ff9b3d; }
+.srow.is-cut { border-color: #ff9b3d; }
+.srow.is-prospect { border-color: #5eead4; }
