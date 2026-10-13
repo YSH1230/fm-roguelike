@@ -63,6 +63,18 @@ const CHARGES = {
   rose: (f, d) => `<g fill="${f}" stroke="${d}" stroke-width="1.500">${[0, 72, 144, 216, 288].map((a) => `<circle cx="32" cy="18" r="6" transform="rotate(${a} 32 28)"/>`).join('')}<circle cx="32" cy="28" r="5" fill="${d}"/></g>`,
   boot: (f, d) => `<path d="M20 16 H31 V28 C31 32 36 33 42 35 C46 36 47 40 44 42 H20Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M22 42 V46 M28 42 V46 M34 42 V46 M40 42 V46" stroke="${d}" stroke-width="2.500" stroke-linecap="round"/>`,
   oak: (f, d) => `<path d="M32 44 V30 M32 30 C24 30 20 24 22 18 C26 18 30 21 32 25 C34 21 38 18 42 18 C44 24 40 30 32 30Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="16" r="3" fill="${f}" stroke="${d}" stroke-width="2"/>`,
+
+  // ---- 동물 (정면 머리 위주, 굵은 선) ----
+  lion: (f, d) => `<path d="M32 9 L36 14 L42 12 L43 18 L49 19 L47 25 L52 29 L47 33 L49 39 L43 40 L42 46 L36 44 L32 49 L28 44 L22 46 L21 40 L15 39 L17 33 L12 29 L17 25 L15 19 L21 18 L22 12 L28 14Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="29" r="11" fill="${f}" stroke="${d}" stroke-width="2"/><circle cx="32" cy="29" r="11" fill="#fff" opacity=".28"/><circle cx="27.500" cy="26" r="1.800" fill="${d}"/><circle cx="36.500" cy="26" r="1.800" fill="${d}"/><path d="M29.500 31 H34.500 L32 34Z" fill="${d}"/><path d="M32 34 V36 M27.500 37 Q32 40 36.500 37" fill="none" stroke="${d}" stroke-width="1.800" stroke-linecap="round"/><circle cx="24" cy="19" r="3" fill="${f}" stroke="${d}" stroke-width="1.600"/><circle cx="40" cy="19" r="3" fill="${f}" stroke="${d}" stroke-width="1.600"/>`,
+  wolf: (f, d) => `<path d="M17 9 L26 19 H38 L47 9 L50 30 L41 44 L32 49 L23 44 L14 30Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M32 26 L40 40 L32 47 L24 40Z" fill="#fff" opacity=".3"/><path d="M22 27 L28 29 M42 27 L36 29" stroke="${d}" stroke-width="2.600" stroke-linecap="round"/><circle cx="26" cy="29" r="1.500" fill="${d}"/><circle cx="38" cy="29" r="1.500" fill="${d}"/><path d="M29 41 H35 L32 46Z" fill="${d}"/><path d="M20 12 L24 18 M44 12 L40 18" stroke="${d}" stroke-width="1.400"/>`,
+  bull: (f, d) => `<path d="M24 22 H40 L39 38 C38 44 35 47 32 47 C29 47 26 44 25 38Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M24 24 C14 24 10 17 12 8 M40 24 C50 24 54 17 52 8" fill="none" stroke="${d}" stroke-width="7" stroke-linecap="round"/><path d="M24 24 C14 24 10 17 12 8 M40 24 C50 24 54 17 52 8" fill="none" stroke="#fff" stroke-width="3.400" stroke-linecap="round" opacity=".85"/><circle cx="28" cy="30" r="1.800" fill="${d}"/><circle cx="36" cy="30" r="1.800" fill="${d}"/><path d="M26 40 Q32 44 38 40" fill="none" stroke="${d}" stroke-width="2"/><circle cx="29.500" cy="41" r="1.200" fill="${d}"/><circle cx="34.500" cy="41" r="1.200" fill="${d}"/><path d="M19 24 L24 30 M45 24 L40 30" stroke="${d}" stroke-width="3" stroke-linecap="round"/>`,
+  stag: (f, d) => `<path d="M26 22 H38 L36 38 L32 46 L28 38Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><g fill="none" stroke="${d}" stroke-width="5" stroke-linecap="round"><path d="M27 22 L20 10 M20 10 L13 7 M23 15 L16 16 M20 10 L21 3"/><path d="M37 22 L44 10 M44 10 L51 7 M41 15 L48 16 M44 10 L43 3"/></g><g fill="none" stroke="${f}" stroke-width="2.200" stroke-linecap="round"><path d="M27 22 L20 10 M20 10 L13 7 M23 15 L16 16 M20 10 L21 3"/><path d="M37 22 L44 10 M44 10 L51 7 M41 15 L48 16 M44 10 L43 3"/></g><circle cx="29" cy="30" r="1.600" fill="${d}"/><circle cx="35" cy="30" r="1.600" fill="${d}"/><path d="M30 41 H34 L32 44Z" fill="${d}"/><path d="M24 24 L21 29 L27 28Z M40 24 L43 29 L37 28Z" fill="${f}" stroke="${d}" stroke-width="1.600" stroke-linejoin="round"/>`,
+  fox: (f, d) => `<path d="M14 10 L26 22 H38 L50 10 L48 34 L32 49 L16 34Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M32 30 L46 34 L32 49 L18 34Z" fill="#fff" opacity=".82"/><path d="M19 14 L25 22 M45 14 L39 22" stroke="${d}" stroke-width="2" opacity=".6"/><path d="M24 28 L29 30 M40 28 L35 30" stroke="${d}" stroke-width="2.600" stroke-linecap="round"/><path d="M29.500 41 H34.500 L32 45Z" fill="${d}"/>`,
+  eagle: (f, d) => `<path d="M30 28 L6 12 L10 22 L2 24 L10 29 L6 36 L16 35 L15 42 L30 38Z M34 28 L58 12 L54 22 L62 24 L54 29 L58 36 L48 35 L49 42 L34 38Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M26 31 L32 50 L38 31 Q32 26 26 31Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="22" r="7" fill="${f}" stroke="${d}" stroke-width="2"/><path d="M28.500 23 L32 31 L35.500 23Z" fill="#ffc400" stroke="${d}" stroke-width="1.600" stroke-linejoin="round"/><circle cx="29.500" cy="20" r="1.400" fill="${d}"/><circle cx="34.500" cy="20" r="1.400" fill="${d}"/>`,
+  owl: (f, d) => `<path d="M18 12 L24 18 H40 L46 12 L48 36 C48 44 40 50 32 50 C24 50 16 44 16 36Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><circle cx="25" cy="27" r="7.500" fill="#fff" stroke="${d}" stroke-width="2"/><circle cx="39" cy="27" r="7.500" fill="#fff" stroke="${d}" stroke-width="2"/><circle cx="25" cy="28" r="3.200" fill="${d}"/><circle cx="39" cy="28" r="3.200" fill="${d}"/><path d="M29.500 31 H34.500 L32 37Z" fill="#ffc400" stroke="${d}" stroke-width="1.400" stroke-linejoin="round"/><path d="M24 42 Q32 47 40 42" fill="none" stroke="${d}" stroke-width="1.600" opacity=".6"/>`,
+  bear: (f, d) => `<circle cx="20" cy="17" r="6" fill="${f}" stroke="${d}" stroke-width="2"/><circle cx="44" cy="17" r="6" fill="${f}" stroke="${d}" stroke-width="2"/><path d="M16 28 C16 16 24 14 32 14 C40 14 48 16 48 28 C48 40 42 47 32 47 C22 47 16 40 16 28Z" fill="${f}" stroke="${d}" stroke-width="2"/><ellipse cx="32" cy="36" rx="9" ry="7" fill="#fff" opacity=".3"/><circle cx="25" cy="27" r="1.800" fill="${d}"/><circle cx="39" cy="27" r="1.800" fill="${d}"/><ellipse cx="32" cy="34" rx="3.600" ry="2.600" fill="${d}"/><path d="M32 36 V39 M28 40 Q32 43 36 40" fill="none" stroke="${d}" stroke-width="1.800" stroke-linecap="round"/>`,
+  shark: (f, d) => `<path d="M6 35 C16 26 30 24 38 12 C40 22 46 29 58 35 C48 36 42 41 34 48 C30 41 20 38 6 35Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M34 48 L38 40 L42 44Z M14 33 L10 28 L20 31Z" fill="${f}" stroke="${d}" stroke-width="1.600" stroke-linejoin="round"/><circle cx="46" cy="33" r="1.600" fill="${d}"/><path d="M52 34 L56 34 M24 33 Q26 37 24 41 M28 32 Q30 36 28 40" fill="none" stroke="${d}" stroke-width="1.400" stroke-linecap="round"/><path d="M48 37 L50 39 L52 37 L54 39 L56 36" fill="#fff" stroke="${d}" stroke-width="1"/>`,
+  swan: (f, d) => `<path d="M14 40 C14 46 22 49 32 49 C44 49 50 44 48 38 C44 40 36 40 30 36 C26 32 30 28 34 24 C38 20 38 14 33 12 C28 10 25 14 27 18" fill="none" stroke="${d}" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 40 C14 46 22 49 32 49 C44 49 50 44 48 38 C44 40 36 40 30 36 C26 32 30 28 34 24 C38 20 38 14 33 12 C28 10 25 14 27 18" fill="none" stroke="${f}" stroke-width="4.200" stroke-linecap="round" stroke-linejoin="round"/><path d="M26 17 L20 19 L27 22Z" fill="#ff8a3d" stroke="${d}" stroke-width="1.400" stroke-linejoin="round"/><circle cx="29.500" cy="15" r="1.200" fill="${d}"/>`,
   flame: (f, d) => `<path d="M32 12 C36 20 44 24 42 34 C41 40 37 44 32 44 C27 44 22 40 22 34 C22 28 27 26 28 20 C30 22 31 24 32 12Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M32 30 C35 34 36 38 32 40 C28 38 29 34 32 30Z" fill="${d}" opacity=".55"/>`,
   moon: (f, d) => `<path d="M38 14 C27 14 20 21 20 30 C20 39 27 46 36 46 C40 46 43 45 45 43 C38 43 32 37 32 30 C32 23 36 17 42 15 C41 14 40 14 38 14Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M44 24 L45.500 28 L50 28.500 L46.500 31 L47.800 35 L44 32.800 L40.200 35 L41.500 31 L38 28.500 L42.500 28Z" fill="${f}" stroke="${d}" stroke-width="1.200"/>`,
   mountain: (f, d) => `<path d="M14 44 L28 20 L34 30 L40 22 L52 44Z" fill="${f}" stroke="${d}" stroke-width="2" stroke-linejoin="round"/><path d="M28 20 L24 28 L28 27 L31 30Z M40 22 L37 28 L41 27 L44 31Z" fill="#fff" opacity=".75"/>`,
@@ -72,12 +84,22 @@ const CHARGES = {
   trident: (f, d) => `<g fill="none" stroke="${f}" stroke-width="3.500" stroke-linecap="round" stroke-linejoin="round"><path d="M32 14 V46 M22 16 V26 C22 32 27 34 32 34 C37 34 42 32 42 26 V16"/></g><g fill="${f}"><path d="M32 10 L28 17 H36Z M22 12 L19 18 H25Z M42 12 L39 18 H45Z"/></g>`,
 };
 const NAME_CHARGES = [
-  [/colliery|mining|miners|steel|forge|works/i, ['hammer', 'wheel', 'bolt']], [/wanderer/i, ['boot', 'ship', 'anchor', 'sun', 'ball']], [/rover/i, ['wheel', 'ball', 'boot', 'star', 'wings']],
-  [/town/i, ['tower', 'crown', 'key', 'oak', 'rose']], [/city/i, ['crown', 'tower', 'star', 'ball']], [/united/i, ['star', 'ball', 'rose', 'wings']],
-  [/athletic|athletics/i, ['ball', 'wings', 'star', 'laurel', 'sun']], [/port|harbo|dock|marsh|sea/i, ['anchor', 'ship', 'trident']], [/rangers/i, ['bolt', 'star', 'trident', 'wings']],
-  [/royal|king|kings/i, ['crown', 'key', 'star']], [/forest|wood|oak|thorn/i, ['oak', 'rose', 'sun']], [/rose/i, ['rose']],
-  [/sun|dawn|east/i, ['sun', 'star']], [/wing|swift|eagle|hawk/i, ['wings']], [/trident|neptune|wave/i, ['trident']], [/key|gate/i, ['key', 'tower']],
+  [/colliery|mining|miners|steel|forge|works|quarry/i, ['hammer', 'wheel', 'bolt', 'bull']], [/wanderer/i, ['boot', 'fox', 'stag', 'eagle', 'ship', 'ball']], [/rover/i, ['wolf', 'wheel', 'ball', 'bear']],
+  [/town/i, ['tower', 'lion', 'stag', 'oak', 'key']], [/city/i, ['lion', 'crown', 'eagle', 'tower', 'ball']], [/united/i, ['lion', 'bull', 'star', 'eagle', 'rose']],
+  [/athletic|athletics/i, ['eagle', 'ball', 'stag', 'wings']], [/port|harbo|dock|marsh|sea|bay/i, ['shark', 'anchor', 'ship', 'swan', 'trident']], [/rangers/i, ['eagle', 'wolf', 'bear', 'bolt']],
+  [/royal|king|kings|sovereign/i, ['lion', 'crown', 'eagle']], [/forest|wood|oak|thorn|ash/i, ['oak', 'stag', 'owl', 'rose']], [/rose/i, ['rose']],
+  [/albion/i, ['swan', 'lion']], [/county|shire/i, ['stag', 'lion', 'oak']],
+  [/fox/i, ['fox']], [/wolf|wulf/i, ['wolf']], [/raven|crow|rook/i, ['eagle', 'owl']], [/hart|stag|deer/i, ['stag']], [/bull|ox/i, ['bull']], [/lion|leon/i, ['lion']], [/bear/i, ['bear']], [/swan|mere/i, ['swan']], [/hawk|eagle|falcon|kite/i, ['eagle']], [/owl/i, ['owl']],
+  [/sun|dawn|east/i, ['sun', 'star']], [/wing|swift/i, ['wings', 'eagle']], [/neptune|wave/i, ['trident', 'shark']], [/key|gate/i, ['key', 'tower']],
 ];
+// 구단 성격(색채)이 상징 취향을 만든다
+const COLOR_CHARGES = {
+  richOwner: ['crown', 'lion', 'key', 'star'], risingForce: ['flame', 'eagle', 'bolt', 'star'], attackingFlair: ['flame', 'bolt', 'wings', 'lion'], overseasScouting: ['ship', 'anchor', 'eagle', 'wings', 'trident'],
+  veteranCore: ['lion', 'stag', 'tower', 'oak'], youthDevelopment: ['oak', 'sun', 'ball', 'rose', 'swan'], defensiveWall: ['tower', 'bear', 'bull', 'key', 'mountain'], localRoots: ['rose', 'horseshoe', 'oak', 'wheel', 'fleur'],
+  counterAttack: ['wolf', 'fox', 'eagle', 'shark', 'bolt'], financialTrouble: ['horseshoe', 'moon', 'owl', 'anchor', 'mountain'],
+};
+// 강팀일수록 화려한 장식, 약팀은 소박하게
+const DECO_BY_KLASS = { strong: ['stars3', 'stars5', 'crownTop', 'crownStars', 'laurel', 'wings', 'stars2'], mid: null, weak: ['none', 'stars1', 'ribbonTop', 'none', 'stars2'] };
 const CHARGE_IDS = Object.keys(CHARGES);
 // 팀 색(kit)과 겹치지 않는 보조색
 const SECOND = ['#f4f1e8', '#ffc400', '#1b1b1f', '#e8e8ea'];
@@ -108,13 +130,16 @@ export { designKey };
 function designFromSeed(club, salt) {
   const name = club.name ?? 'x';
   const seed = hash(`${club.id ?? name}#${salt}`);
-  const byName = salt < 3 ? NAME_CHARGES.find(([re]) => re.test(name)) : null; // 충돌이 거듭되면 이름 단서를 버린다
+  const byName = salt < 6 ? NAME_CHARGES.find(([re]) => re.test(name)) : null; // 충돌이 거듭되면 이름 단서를 버린다
+  const byColor = salt < 6 ? COLOR_CHARGES[club.color] : null;
+  const pool = [...(byName ? byName[1] : []), ...(byColor ?? [])];
   const shape = pick(seed, 3, CREST_PARTS.shape);
+  const decoPool = salt < 6 && DECO_BY_KLASS[club.klass] ? DECO_BY_KLASS[club.klass] : CREST_PARTS.deco;
   return {
     shape,
     field: pick(seed, 7, CREST_PARTS.field),
-    charge: byName ? pick(seed, 11, byName[1]) : pick(seed, 11, CREST_PARTS.charge),
-    deco: pick(seed, 19, CREST_PARTS.deco),
+    charge: pool.length ? pick(seed, 11, pool) : pick(seed, 11, CREST_PARTS.charge),
+    deco: pick(seed, 19, decoPool),
     ring: (shape === 'round' || shape === 'oval') && (seed >>> 23) % 3 !== 0,
   };
 }
@@ -124,7 +149,7 @@ const USED = new Set();
 for (const tier of ['tier1', 'tier2', 'tier3', 'tier4', 'tier5']) {
   for (const c of CLUB_ROSTER[tier] ?? []) {
     let d;
-    for (let salt = 0; salt < 400; salt++) { d = designFromSeed(c, salt); if (!USED.has(designKey(d))) break; }
+    for (let salt = 0; salt < 600; salt++) { d = designFromSeed(c, salt); if (!USED.has(designKey(d))) break; }
     USED.add(designKey(d));
     ROSTER_DESIGN.set(c.name, d);
   }

@@ -1288,40 +1288,73 @@ const KIT2_CHOICES = ['#f4f1e8', '#ffc400', '#1b1b1f', '#ff2e3a', '#3aa0ff', '#2
 const CREST_PART_LABELS = [['shape', '모양'], ['field', '무늬'], ['charge', '상징'], ['deco', '장식']];
 const chevronIcon = (dir) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${dir > 0 ? 'style="transform:scaleX(-1)"' : ''}>${NEG_ICONS.back}</svg>`;
 
-// 구단주(단장) 이름, 구단 이름(미리 채워짐), 유니폼 색·보조색, 엠블럼. 전부 건너뛸 수 있다. 이름은 화면 문구에만 쓰고 통계로는 보내지 않는다.
-// 엠블럼은 리그 구단들이 쓰는 디자인과 겹치지 않게만 고를 수 있다.
+// 구단 만들기: 위에는 내 구단 미리보기(팀 색 블록), 아래는 이름 / 색 / 엠블럼 세 탭. 한 번에 한 가지만 보여 줘서 길이를 줄였다.
+// 엠블럼은 후보 6개 중에서 고르거나 세부 조정하고, 리그 구단이 쓰는 디자인과는 겹치지 않는다. 전부 건너뛸 수 있다.
+// 이름은 화면 문구에만 쓰고 통계로는 보내지 않는다.
 function renderNaming() {
   const { club } = currentState;
   let kit = club.kit;
   let kit2 = club.kit2 ?? null; // null = 자동(팀 색과 대비되는 색)
   const origDesign = designOf(club);
   let design = { ...origDesign };
+  let cands = [design, ...Array.from({ length: 5 }, () => randomFreeDesign())];
+  let tab = 'name';
   const nameNow = () => document.getElementById('club-input')?.value.trim().slice(0, 20) || club.name;
-  const crestNow = () => renderCrest({ ...club, name: nameNow(), kit, kit2: kit2 ?? undefined, crest: design }, { size: 96 });
+  const clubFor = (d, size) => renderCrest({ ...club, name: nameNow(), kit, kit2: kit2 ?? undefined, crest: d }, { size });
   const allowed = (d) => designKey(d) === designKey(origDesign) || isDesignFree(d);
   const swatches = (list, attr, cur) => list.map((k) => `<button type="button" class="kitdot${k === cur ? ' is-on' : ''}" data-${attr}="${k}" style="--kit:${k}" aria-label="색 ${k}"></button>`).join('');
   setScreen(`
-    <div class="verdict">
-      <div class="verdict__result" style="color:var(--light);font-size:var(--fs-title)">구단을 만들어 보세요</div>
-      <div id="crest-preview" class="naming__crest"></div>
+    <div class="nm">
+      <header class="nm__bar"><b>구단 만들기</b><small>건너뛰어도 돼요</small></header>
+      <section class="nm__card" id="nm-card">
+        <div class="nm__crest" id="crest-preview"></div>
+        <b class="nm__name" id="nm-name"></b>
+        <small class="nm__owner" id="nm-owner"></small>
+      </section>
+      <div class="nm__tabs" role="tablist">
+        <button type="button" role="tab" data-nm-tab="name" aria-selected="true">이름</button>
+        <button type="button" role="tab" data-nm-tab="color" aria-selected="false">색</button>
+        <button type="button" role="tab" data-nm-tab="crest" aria-selected="false">엠블럼</button>
+      </div>
+      <section class="nm__sec" data-nm-sec="name">
+        <label class="nm__field"><span>구단 이름</span><input id="club-input" maxlength="20" autocomplete="off" value="${esc(club.name)}"></label>
+        <label class="nm__field"><span>구단주 이름</span><input id="owner-input" maxlength="12" autocomplete="off" placeholder="비워 두어도 됩니다"></label>
+      </section>
+      <section class="nm__sec" data-nm-sec="color" hidden>
+        <div class="nm__group"><b>유니폼 색</b>
+          <div class="naming__kits" id="kit-list" role="group" aria-label="유니폼 색">${swatches(KIT_CHOICES, 'kit', kit)}<label class="kitdot kitdot--custom" aria-label="직접 고르기"><input type="color" id="kit-custom" value="${kit}"></label></div></div>
+        <div class="nm__group"><b>보조색 <small>엠블럼 무늬와 장식에 쓰여요</small></b>
+          <div class="naming__kits" id="kit2-list" role="group" aria-label="보조색"><button type="button" class="kitdot kitdot--auto${kit2 === null ? ' is-on' : ''}" data-kit2="" aria-label="자동"><i>자동</i></button>${swatches(KIT2_CHOICES, 'kit2', kit2)}<label class="kitdot kitdot--custom" aria-label="직접 고르기"><input type="color" id="kit2-custom" value="#f4f1e8"></label></div></div>
+      </section>
+      <section class="nm__sec" data-nm-sec="crest" hidden>
+        <div class="nm__group"><b>엠블럼 후보 <small>눌러서 고르세요</small></b>
+          <div class="nm__cands" id="nm-cands"></div>
+          <button type="button" class="nm__ghost" id="crest-roll">다른 후보 보기</button></div>
+        <div class="nm__group"><b>세부 조정</b>
+          <div class="partrows">${CREST_PART_LABELS.map(([key, label]) => `<div class="partrow"><span>${label}</span><button type="button" data-part="${key}" data-dir="-1" aria-label="${label} 이전">${chevronIcon(-1)}</button><i id="part-${key}"></i><button type="button" data-part="${key}" data-dir="1" aria-label="${label} 다음">${chevronIcon(1)}</button></div>`).join('')}</div></div>
+      </section>
     </div>
-    <div class="panel naming">
-      <label class="naming__field"><span>구단주 이름</span><input id="owner-input" maxlength="12" autocomplete="off" placeholder="비워 두어도 됩니다"></label>
-      <label class="naming__field"><span>구단 이름</span><input id="club-input" maxlength="20" autocomplete="off" value="${esc(club.name)}"></label>
-      <div class="naming__sec"><b>유니폼 색</b>
-        <div class="naming__kits" id="kit-list" role="group" aria-label="유니폼 색">${swatches(KIT_CHOICES, 'kit', kit)}<label class="kitdot kitdot--custom" aria-label="직접 고르기"><input type="color" id="kit-custom" value="${kit}"></label></div></div>
-      <div class="naming__sec"><b>보조색</b>
-        <div class="naming__kits" id="kit2-list" role="group" aria-label="보조색"><button type="button" class="kitdot kitdot--auto${kit2 === null ? ' is-on' : ''}" data-kit2="" aria-label="자동"><i>A</i></button>${swatches(KIT2_CHOICES, 'kit2', kit2)}<label class="kitdot kitdot--custom" aria-label="직접 고르기"><input type="color" id="kit2-custom" value="#f4f1e8"></label></div></div>
-      <div class="naming__sec"><b>엠블럼</b>
-        <div class="partrows">${CREST_PART_LABELS.map(([key, label]) => `<div class="partrow"><span>${label}</span><button type="button" data-part="${key}" data-dir="-1" aria-label="${label} 이전">${chevronIcon(-1)}</button><i id="part-${key}"></i><button type="button" data-part="${key}" data-dir="1" aria-label="${label} 다음">${chevronIcon(1)}</button></div>`).join('')}</div>
-        <button type="button" class="reroll" id="crest-roll" style="margin-top:var(--s2);width:100%">무작위 엠블럼</button></div>
-    </div>
-  `, '<button class="cta" id="naming-next">다음</button><button class="skiplink" id="naming-skip">기본값으로 시작</button>');
+  `, '<button class="cta" id="naming-next">이 구단으로 시작</button><button class="skiplink" id="naming-skip">기본값으로 시작</button>');
   const refresh = () => {
-    document.getElementById('crest-preview').innerHTML = crestNow();
-    for (const [key] of CREST_PART_LABELS) document.getElementById(`part-${key}`).textContent = `${CREST_PARTS[key].indexOf(design[key]) + 1}/${CREST_PARTS[key].length}`;
+    const card = document.getElementById('nm-card');
+    card.style.setProperty('--team', kit);
+    card.style.setProperty('--on-team', onColorOf(kit));
+    document.getElementById('crest-preview').innerHTML = clubFor(design, 112);
+    document.getElementById('nm-name').textContent = nameNow();
+    const owner = document.getElementById('owner-input').value.trim();
+    document.getElementById('nm-owner').textContent = owner ? `구단주 ${owner}` : '구단주 이름 없음';
+    for (const [key] of CREST_PART_LABELS) document.getElementById(`part-${key}`).textContent = `${CREST_PARTS[key].indexOf(design[key]) + 1} / ${CREST_PARTS[key].length}`;
+    document.getElementById('nm-cands').innerHTML = cands.map((d, i) => `<button type="button" class="nm__cand${designKey(d) === designKey(design) ? ' is-on' : ''}" data-cand="${i}" aria-label="엠블럼 후보 ${i + 1}">${clubFor(d, 64)}</button>`).join('');
+    document.querySelectorAll('[data-cand]').forEach((b) => { b.onclick = () => { design = cands[Number(b.dataset.cand)]; refresh(); }; });
   };
   const markOn = (listId, attr, value) => document.querySelectorAll(`#${listId} .kitdot`).forEach((x) => x.classList.toggle('is-on', x.dataset[attr] !== undefined && x.dataset[attr] === (value ?? '')));
+  document.querySelectorAll('[data-nm-tab]').forEach((b) => {
+    b.onclick = () => {
+      tab = b.dataset.nmTab;
+      document.querySelectorAll('[data-nm-tab]').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+      document.querySelectorAll('[data-nm-sec]').forEach((x) => { x.hidden = x.dataset.nmSec !== tab; });
+    };
+  });
   document.querySelectorAll('[data-kit]').forEach((b) => { b.onclick = () => { kit = b.dataset.kit; markOn('kit-list', 'kit', kit); refresh(); }; });
   document.getElementById('kit-custom').oninput = (e) => { kit = e.target.value; markOn('kit-list', 'kit', null); refresh(); };
   document.querySelectorAll('[data-kit2]').forEach((b) => { b.onclick = () => { kit2 = b.dataset.kit2 || null; markOn('kit2-list', 'kit2', kit2); refresh(); }; });
@@ -1341,8 +1374,9 @@ function renderNaming() {
       refresh();
     };
   });
-  document.getElementById('crest-roll').onclick = () => { design = randomFreeDesign(); refresh(); };
+  document.getElementById('crest-roll').onclick = () => { cands = [design, ...Array.from({ length: 5 }, () => randomFreeDesign())]; refresh(); };
   document.getElementById('club-input').oninput = refresh;
+  document.getElementById('owner-input').oninput = refresh;
   refresh();
   const done = (apply) => {
     if (apply) {

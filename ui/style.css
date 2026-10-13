@@ -2710,3 +2710,37 @@ html[data-theme] .mk__card .growth.grade-C { color: #9a9aa4; }
 .partrow i { font-style: normal; text-align: center; font: 400 18px var(--num); color: var(--light); }
 .partrow button { height: 36px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--light); display: grid; place-items: center; cursor: pointer; }
 .naming__crest .crest { width: 96px; height: 96px; }
+
+/* ===== 디자인 v4: 구단 만들기 ===== */
+.nm { --n-panel: #18181b; --n-line: #2b2b30; --n-ivory: #f4f1e8; --n-mute: #8e8e96; display: grid; gap: 14px; padding: 14px 14px 150px; }
+.nm__bar { display: flex; align-items: baseline; justify-content: space-between; }
+.nm__bar b { font-size: 22px; font-weight: 900; }
+.nm__bar small { font-size: 12px; color: var(--n-mute); }
+.nm__card { display: grid; justify-items: center; gap: 6px; padding: 22px 16px 18px; border-radius: 28px; background: var(--team, #4b3a9a); color: var(--on-team, #fff); text-align: center; transition: background 160ms; }
+.nm__crest .crest { width: 112px; height: 112px; display: block; }
+.nm__name { font-size: 22px; font-weight: 900; line-height: 1.15; overflow-wrap: anywhere; }
+.nm__owner { font-size: 13px; opacity: .8; }
+.nm__tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.nm__tabs button { height: 44px; border-radius: 999px; border: 1px solid var(--n-line); background: transparent; color: var(--n-mute); font: 800 15px var(--ui); cursor: pointer; }
+.nm__tabs button[aria-selected='true'] { background: var(--n-ivory); border-color: var(--n-ivory); color: #0e0e10; }
+.nm__sec { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--n-line); border-radius: 28px; background: var(--n-panel); }
+.nm__sec[hidden] { display: none; }
+.nm__field { display: grid; gap: 6px; font-size: 13px; color: var(--n-mute); font-weight: 700; }
+.nm__field input { height: 48px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--n-line); background: #0e0e10; color: var(--n-ivory); font: 700 16px var(--ui); }
+.nm__field input:focus-visible { outline: 2px solid #1eaedb; outline-offset: 2px; }
+.nm__group { display: grid; gap: 10px; }
+.nm__group > b { font-size: 15px; font-weight: 900; }
+.nm__group > b small { font-weight: 600; font-size: 12px; color: var(--n-mute); margin-left: 6px; }
+.nm .naming__kits { gap: 10px; }
+.nm .kitdot { width: 40px; height: 40px; }
+.nm .kitdot--auto i { font-size: 12px; }
+.nm__cands { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.nm__cand { display: grid; place-items: center; padding: 10px 0; border-radius: 20px; border: 1px solid var(--n-line); background: #0e0e10; cursor: pointer; }
+.nm__cand.is-on { border-color: var(--n-ivory); box-shadow: inset 0 0 0 1px var(--n-ivory); }
+.nm__cand .crest { width: 64px; height: 64px; display: block; }
+.nm__ghost { height: 44px; border-radius: 999px; border: 1px solid var(--n-ivory); background: transparent; color: var(--n-ivory); font: 800 15px var(--ui); cursor: pointer; }
+.nm .partrow { grid-template-columns: 48px 44px 1fr 44px; }
+.nm .partrow span { font-size: 14px; color: var(--n-ivory); font-weight: 700; }
+.nm .partrow button { height: 44px; }
+.nm .partrow i { font: 400 18px var(--num); }
+html[data-theme] #dock .cta#naming-next { height: 54px; padding: 0; border-radius: 999px; background: #ff2e3a; color: #fff; font: 900 18px var(--ui); letter-spacing: 0; border: 0; }
