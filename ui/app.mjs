@@ -64,7 +64,7 @@ import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs
 import { renderPortrait, appearanceOf } from './portrait.mjs';
 import { pixelMatchHtml } from './pixel.mjs';
 import { track, telemetryOn, telemetryConfigured, setTelemetry } from './telemetry.mjs';
-import { renderCrest } from './crest.mjs';
+import { renderCrest, CREST_PARTS, designOf, isDesignFree, designKey, randomFreeDesign } from './crest2.mjs';
 import { showSpot, clearSpot } from './tutorial.mjs';
 import { stadiumHtml, stadiumLevel } from './stadium.mjs';
 import { loadFlags, updateFlags, isUnlocked, markSeen } from '../data/flags.mjs';
@@ -1282,36 +1282,74 @@ function tutorialTick(where) {
   } else clearSpot();
 }
 
-const KIT_CHOICES = ['#ccff00', '#ff6a3d', '#e63946', '#ff8fab', '#ffd23a', '#f4a261', '#2ecc71', '#0b8f5a', '#3aa0ff', '#1d4ed8', '#22d3ee', '#c06bff', '#7c3aed', '#8d6e63', '#f2f2f2', '#6b7280'];
+const KIT_CHOICES = ['#ccff00', '#ff6a3d', '#e63946', '#ff8fab', '#ffd23a', '#f4a261', '#2ecc71', '#0b8f5a', '#3aa0ff', '#1d4ed8', '#22d3ee', '#c06bff', '#7c3aed', '#8d6e63', '#f2f2f2', '#6b7280',
+  '#b91c1c', '#9a3412', '#a16207', '#4d7c0f', '#047857', '#0f766e', '#0369a1', '#4338ca', '#a21caf', '#be185d', '#1f2937', '#fafaf9'];
+const KIT2_CHOICES = ['#f4f1e8', '#ffc400', '#1b1b1f', '#ff2e3a', '#3aa0ff', '#2ecc71', '#c06bff', '#ff8fab'];
+const CREST_PART_LABELS = [['shape', '모양'], ['field', '무늬'], ['charge', '상징'], ['deco', '장식']];
+const chevronIcon = (dir) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" ${dir > 0 ? 'style="transform:scaleX(-1)"' : ''}>${NEG_ICONS.back}</svg>`;
 
-// 구단주(단장) 이름, 구단 이름(미리 채워짐), 유니폼 색. 전부 건너뛸 수 있다. 이름은 화면 문구에만 쓰고 통계로는 보내지 않는다.
+// 구단주(단장) 이름, 구단 이름(미리 채워짐), 유니폼 색·보조색, 엠블럼. 전부 건너뛸 수 있다. 이름은 화면 문구에만 쓰고 통계로는 보내지 않는다.
+// 엠블럼은 리그 구단들이 쓰는 디자인과 겹치지 않게만 고를 수 있다.
 function renderNaming() {
   const { club } = currentState;
   let kit = club.kit;
+  let kit2 = club.kit2 ?? null; // null = 자동(팀 색과 대비되는 색)
+  const origDesign = designOf(club);
+  let design = { ...origDesign };
+  const nameNow = () => document.getElementById('club-input')?.value.trim().slice(0, 20) || club.name;
+  const crestNow = () => renderCrest({ ...club, name: nameNow(), kit, kit2: kit2 ?? undefined, crest: design }, { size: 96 });
+  const allowed = (d) => designKey(d) === designKey(origDesign) || isDesignFree(d);
+  const swatches = (list, attr, cur) => list.map((k) => `<button type="button" class="kitdot${k === cur ? ' is-on' : ''}" data-${attr}="${k}" style="--kit:${k}" aria-label="색 ${k}"></button>`).join('');
   setScreen(`
     <div class="verdict">
       <div class="verdict__result" style="color:var(--light);font-size:var(--fs-title)">구단을 만들어 보세요</div>
-      <div id="crest-preview" class="naming__crest">${renderCrest({ ...club, kit }, { size: 72 })}</div>
+      <div id="crest-preview" class="naming__crest"></div>
     </div>
     <div class="panel naming">
       <label class="naming__field"><span>구단주 이름</span><input id="owner-input" maxlength="12" autocomplete="off" placeholder="비워 두어도 됩니다"></label>
       <label class="naming__field"><span>구단 이름</span><input id="club-input" maxlength="20" autocomplete="off" value="${esc(club.name)}"></label>
-      <div class="naming__kits" role="group" aria-label="유니폼 색">${KIT_CHOICES.map((k) => `<button type="button" class="kitdot${k === kit ? ' is-on' : ''}" data-kit="${k}" style="--kit:${k}" aria-label="유니폼 색 ${k}"></button>`).join('')}</div>
+      <div class="naming__sec"><b>유니폼 색</b>
+        <div class="naming__kits" id="kit-list" role="group" aria-label="유니폼 색">${swatches(KIT_CHOICES, 'kit', kit)}<label class="kitdot kitdot--custom" aria-label="직접 고르기"><input type="color" id="kit-custom" value="${kit}"></label></div></div>
+      <div class="naming__sec"><b>보조색</b>
+        <div class="naming__kits" id="kit2-list" role="group" aria-label="보조색"><button type="button" class="kitdot kitdot--auto${kit2 === null ? ' is-on' : ''}" data-kit2="" aria-label="자동"><i>A</i></button>${swatches(KIT2_CHOICES, 'kit2', kit2)}<label class="kitdot kitdot--custom" aria-label="직접 고르기"><input type="color" id="kit2-custom" value="#f4f1e8"></label></div></div>
+      <div class="naming__sec"><b>엠블럼</b>
+        <div class="partrows">${CREST_PART_LABELS.map(([key, label]) => `<div class="partrow"><span>${label}</span><button type="button" data-part="${key}" data-dir="-1" aria-label="${label} 이전">${chevronIcon(-1)}</button><i id="part-${key}"></i><button type="button" data-part="${key}" data-dir="1" aria-label="${label} 다음">${chevronIcon(1)}</button></div>`).join('')}</div>
+        <button type="button" class="reroll" id="crest-roll" style="margin-top:var(--s2);width:100%">무작위 엠블럼</button></div>
     </div>
   `, '<button class="cta" id="naming-next">다음</button><button class="skiplink" id="naming-skip">기본값으로 시작</button>');
-  document.querySelectorAll('[data-kit]').forEach((b) => {
+  const refresh = () => {
+    document.getElementById('crest-preview').innerHTML = crestNow();
+    for (const [key] of CREST_PART_LABELS) document.getElementById(`part-${key}`).textContent = `${CREST_PARTS[key].indexOf(design[key]) + 1}/${CREST_PARTS[key].length}`;
+  };
+  const markOn = (listId, attr, value) => document.querySelectorAll(`#${listId} .kitdot`).forEach((x) => x.classList.toggle('is-on', x.dataset[attr] !== undefined && x.dataset[attr] === (value ?? '')));
+  document.querySelectorAll('[data-kit]').forEach((b) => { b.onclick = () => { kit = b.dataset.kit; markOn('kit-list', 'kit', kit); refresh(); }; });
+  document.getElementById('kit-custom').oninput = (e) => { kit = e.target.value; markOn('kit-list', 'kit', null); refresh(); };
+  document.querySelectorAll('[data-kit2]').forEach((b) => { b.onclick = () => { kit2 = b.dataset.kit2 || null; markOn('kit2-list', 'kit2', kit2); refresh(); }; });
+  document.getElementById('kit2-custom').oninput = (e) => { kit2 = e.target.value; markOn('kit2-list', 'kit2', null); refresh(); };
+  document.querySelectorAll('[data-part]').forEach((b) => {
     b.onclick = () => {
-      kit = b.dataset.kit;
-      document.querySelectorAll('[data-kit]').forEach((x) => x.classList.toggle('is-on', x === b));
-      document.getElementById('crest-preview').innerHTML = renderCrest({ ...club, kit }, { size: 72 });
+      const key = b.dataset.part;
+      const list = CREST_PARTS[key];
+      const dir = Number(b.dataset.dir);
+      let i = list.indexOf(design[key]);
+      for (let n = 0; n < list.length; n++) { // 다른 구단이 쓰는 조합은 건너뛴다
+        i = (i + dir + list.length) % list.length;
+        const next = { ...design, [key]: list[i] };
+        next.ring = next.shape === 'round' || next.shape === 'oval';
+        if (allowed(next)) { design = next; break; }
+      }
+      refresh();
     };
   });
+  document.getElementById('crest-roll').onclick = () => { design = randomFreeDesign(); refresh(); };
+  document.getElementById('club-input').oninput = refresh;
+  refresh();
   const done = (apply) => {
     if (apply) {
       const owner = document.getElementById('owner-input').value.trim().slice(0, 12);
-      const name = document.getElementById('club-input').value.trim().slice(0, 20);
+      const name = nameNow();
       currentState.ownerName = owner;
-      currentState.club = { ...club, name: name || club.name, kit };
+      currentState.club = { ...club, name, kit, kit2: kit2 ?? undefined, crest: design };
     }
     renderCareerIntro();
   };

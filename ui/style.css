@@ -2696,3 +2696,17 @@ html[data-theme] .mk__card .growth.grade-S { color: #ff5cc8; }
 html[data-theme] .mk__card .growth.grade-A { color: #3fe0ff; }
 html[data-theme] .mk__card .growth.grade-B { color: #b79bff; }
 html[data-theme] .mk__card .growth.grade-C { color: #9a9aa4; }
+
+/* 구단 만들기: 색·엠블럼 고르기 */
+.naming__sec { display: grid; gap: 8px; }
+.naming__sec > b { font-size: var(--fs-label); color: var(--muted); }
+.kitdot--custom { position: relative; background: conic-gradient(#f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); overflow: hidden; display: block; }
+.kitdot--custom input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.kitdot--auto { display: grid; place-items: center; background: var(--surface-hi); }
+.kitdot--auto i { font: 800 12px var(--ui); font-style: normal; color: var(--light); }
+.partrows { display: grid; gap: 6px; }
+.partrow { display: grid; grid-template-columns: 48px 40px 1fr 40px; align-items: center; gap: 6px; }
+.partrow span { font-size: var(--fs-label); color: var(--muted); }
+.partrow i { font-style: normal; text-align: center; font: 400 18px var(--num); color: var(--light); }
+.partrow button { height: 36px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--light); display: grid; place-items: center; cursor: pointer; }
+.naming__crest .crest { width: 96px; height: 96px; }
