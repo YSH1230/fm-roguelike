@@ -117,7 +117,7 @@ const DECOS = {
   crownTop: (gold, d) => `<path d="M22 11 L23.500 2.500 L28 7 L32 1.500 L36 7 L40.500 2.500 L42 11Z" fill="${gold}" stroke="${d}" stroke-width="1.200" stroke-linejoin="round"/>`,
   wings: (gold, d) => `<g fill="${gold}" stroke="${d}" stroke-width="1" stroke-linejoin="round"><path d="M9 30 C4 22 0 22 -1 24 C2 25 3 27 2 29 C5 28 7 30 6 33 C8 32 9 33 9 30Z" transform="translate(1 0)"/><path d="M55 30 C60 22 64 22 65 24 C62 25 61 27 62 29 C59 28 57 30 58 33 C56 32 55 33 55 30Z" transform="translate(-1 0)"/></g>`,
   laurel: (gold, d) => `<g fill="${gold}" stroke="${d}" stroke-width=".8">${Array.from({ length: 6 }, (_, i) => `<ellipse cx="${3.500 + Math.sin(i * 0.5) * 1.500}" cy="${52 - i * 8}" rx="2.200" ry="4" transform="rotate(${-25 + i * 6} 3.500 ${52 - i * 8})"/><ellipse cx="${60.500 - Math.sin(i * 0.5) * 1.500}" cy="${52 - i * 8}" rx="2.200" ry="4" transform="rotate(${25 - i * 6} 60.500 ${52 - i * 8})"/>`).join('')}</g>`,
-  ribbonTop: (gold, d, label) => `<path d="M10 3 H54 L51 8 L54 13 H10 L13 8Z" fill="${gold}" stroke="${d}" stroke-width="1.200" stroke-linejoin="round"/><text x="32" y="10.500" text-anchor="middle" font-family="Anton, 'FM Square', sans-serif" font-size="6.500" letter-spacing=".6" fill="${d}">${label}</text>`,
+  ribbonTop: (gold, d, label) => `<path d="M10 3 H54 L51 8 L54 13 H10 L13 8Z" fill="${gold}" stroke="${d}" stroke-width="1.200" stroke-linejoin="round"/><text x="32" y="10.500" text-anchor="middle" font-family="Anton, 'FM Square', sans-serif" font-size="6.500" textLength="${Math.min(38, 4.4 * label.length + 2)}" lengthAdjust="spacingAndGlyphs" fill="${d}">${label}</text>`,
 };
 const DECO_IDS = Object.keys(DECOS);
 export const CREST_PARTS = { shape: Object.keys(SHAPES), field: Object.keys(FIELDS), charge: Object.keys(CHARGES), deco: DECO_IDS };
@@ -229,7 +229,7 @@ export function renderCrest(club, { size = 40 } = {}) {
   // 날개·가지뿔·발자국은 금빛으로, 나머지는 아이보리로(바탕과 어울리게)
   const chargeFill = ['wingspread', 'antlers', 'paw', 'mane'].includes(chargeId) && Math.abs(lum(gold) - lum(c1)) > 0.25 && (seed >>> 13) % 2 === 0 ? gold : pickFill();
   const plate = busy ? `<circle cx="32" cy="29" r="${monogram ? 17 : 19}" fill="${mix(c1, '#000000', 0.5)}" stroke="${rim}" stroke-width="2"/>` : '';
-  const label = esc(words[0].slice(0, 6).toUpperCase());
+  const label = esc(words[0].slice(0, 9).toUpperCase());
   const ring = ringText ? `<circle cx="32" cy="32" r="25.500" fill="${mix(c1, '#000000', 0.45)}"/><path id="${id}r" d="M32 32 m-23 0 a23 23 0 1 1 46 0 a23 23 0 1 1 -46 0" fill="none"/><text font-family="Anton, 'FM Square', sans-serif" font-size="7.600" letter-spacing="1.600" fill="#f4f1e8"><textPath href="#${id}r" startOffset="25%" text-anchor="middle">${esc(name.toUpperCase())}</textPath></text><circle cx="32" cy="32" r="19" fill="${c1}"/><circle cx="32" cy="32" r="19" fill="none" stroke="${rim}" stroke-width="1.600"/>` : '';
   const bannerOn = !ringText && !monogram && (seed >>> 5) % 2 === 0; // 이니셜 띠는 절반만
   const banner = `<g><path d="M6 45 H58 L54 51 L58 57 H6 L10 51Z" fill="${mix(c1, '#000000', 0.6)}" stroke="${rim}" stroke-width="1.800" stroke-linejoin="round"/><text x="32" y="55" text-anchor="middle" font-family="Anton, 'FM Square', sans-serif" font-size="9.500" letter-spacing=".9" fill="#f4f1e8">${esc(initials.slice(0, 3))}</text></g>`;
