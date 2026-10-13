@@ -452,17 +452,74 @@ function showPhilosophyLevelUp(onDone) {
 
 const TALK_TONE = { safe: '안정적', risky: '모험적' };
 // 라커룸 토크 장면: 3장 중 하나. 반응은 고르고 나서 정해지므로 카드에는 장면 이름과 대사, 분위기만 보인다.
+// ===== 라커룸 장면(시즌 시작·마무리 토크의 무대) =====
+// 신뢰 단계: 이미 쌓이는 기록(사다리 위치·우승)으로 계산한다. 0 의심 / 1 조건부 / 2 신뢰.
+function trustStage() {
+  const idx = getLadderIndex(currentState.leagueTierId);
+  return idx >= 3 || (currentState.titles ?? 0) > 0 ? 2 : idx >= 1 ? 1 : 0;
+}
+const CALL_NAME = ['감독', '감독님', '보스'];
+// 최근에 쓴 대사 2개는 피해서 뽑는다(같은 말이 반복되지 않게)
+function pickLine(pool, key) {
+  const seen = (currentState.seenLines ??= []);
+  const fresh = pool.filter((_, i) => !seen.includes(`${key}:${i}`));
+  const idx = pool.indexOf((fresh.length ? fresh : pool)[Math.floor(Math.random() * (fresh.length || pool.length))]);
+  seen.push(`${key}:${idx}`);
+  if (seen.length > 8) seen.shift();
+  return pool[idx];
+}
+// 주장: 가장 오래 뛴 선발(동률이면 별이 높은 선수)
+function pickCaptain(lineup) {
+  return [...lineup].sort((a, b) => (b.seasonsAtClub ?? 0) - (a.seasonsAtClub ?? 0) || starsFor(b) - starsFor(a))[0] ?? null;
+}
+const LOCKER_CAPTIONS = {
+  promo: ['승격 첫 시즌. 라커룸 샤워기는 여전히 차갑다.', '윗리그 상대들은 다르다고들 한다. 선수들은 말이 없다.', '승격 파티는 어제로 끝났다. 오늘부터 다시 시작이다.'],
+  stay: ['한 시즌 더 버텼다. 신입들은 아직 서먹하다.', '올해는 몇 명이 바뀔까. 다들 서로를 가늠하고 있다.', '낯익은 라커룸. 낯익은 얼굴들. 그리고 새 얼굴 몇.'],
+  champ: ['트로피는 이사장실에 있다. 선수들은 다음 것을 보고 있다.', '챔피언 유니폼이 벌써 작아 보인다.', '우승 다음 시즌. 모두가 우리를 이기려 이를 간다.'],
+  close: ['지난 시즌은 심장에 안 좋았다. 다들 조금 불안하다.', '버텼다. 그걸로 충분하다고 말하기는 어렵다.', '라커룸이 조용하다. 아슬아슬했던 시즌의 기억이 남아 있다.'],
+  end: ['시즌이 끝났다. 라커룸이 조용하다.', '한 해가 지났다. 짐을 정리하는 소리만 들린다.'],
+};
+const CAPTAIN_LINES = {
+  good: ['{호칭}, 이번엔 해 볼 만하겠는데요.', '알겠습니다. 한번 가 봅시다.', '그 말, 선수들 다 들었습니다. 믿고 따르겠습니다.', '오늘은 제대로 와닿았어요, {호칭}.'],
+  mixed: ['…일단 따르겠습니다. 결과로 보여 주시죠.', '말은 알겠는데, 몇 명은 아직 표정이 안 풀렸어요.', '나쁘지 않았습니다. 다만 모두가 같은 생각은 아닐 겁니다.', '{호칭}, 해 보면 알겠죠.'],
+  bad: ['…그렇게 말씀하실 줄은 몰랐습니다.', '분위기가 좀 싸늘해졌네요, {호칭}.', '솔직히, 몇 명은 불편해합니다.', '다음엔 선수들 입장도 생각해 주세요.'],
+};
+function applyTalkOutcome(outcome) {
+  if (outcome.kind === 'start') {
+    currentState.stance = outcome;
+    if (outcome.fx.chemNow) currentState.chemistry = Math.max(0, Math.min(100, currentState.chemistry + outcome.fx.chemNow));
+  } else {
+    currentState.offseason = outcome;
+  }
+}
 function showTalkPick(kind, onDone) {
   const root = document.getElementById('eventmodal-root');
   const choices = drawTalkChoices(kind);
   const isStart = kind === 'start';
+  const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const captain = pickCaptain(lineup);
+  const mates = lineup.filter((p) => p.id !== captain?.id).slice(0, 9);
+  const last = currentState.lastSeason;
+  const situation = !isStart ? 'end' : last?.result === 'promotion' ? 'promo' : last?.result === 'champion' ? 'champ' : (last?.margin ?? 99) <= 4 ? 'close' : 'stay';
+  const caption = pickLine(LOCKER_CAPTIONS[situation], `cap-${situation}`);
+  const kit = currentState.club.kit;
+  const seats = mates.map((p, i) => `<div class="lr__seat lr__seat--${i % 2}" style="--d:${(i * 0.06).toFixed(2)}s">${renderPortrait(p, { size: 40, kit })}</div>`).join('');
+  const stage = `
+    <div class="lr__caption">${esc(caption)}</div>
+    <div class="lr__room">
+      <div class="lr__bench"></div>
+      <div class="lr__seats">${seats}</div>
+      <div class="lr__captain">${captain ? `${renderPortrait(captain, { size: 56, kit })}<span class="lr__armband">C</span><b class="lr__name">${esc(captain.name)}</b>` : ''}</div>
+    </div>`;
   root.innerHTML = `
     <div class="eventmodal-backdrop">
-      <div class="eventmodal eventmodal--goal specpick">
+      <div class="eventmodal eventmodal--goal lockerroom">
         <div class="eventmodal__kicker">라커룸 토크 · ${isStart ? '시즌 시작' : '시즌 마무리'}</div>
-        <div class="eventmodal__title">${isStart ? '선수들이 라커룸에서 당신을 바라본다' : '시즌이 끝났다. 라커룸이 조용하다'}</div>
-        <p class="eventmodal__detail">${isStart ? '이번 시즌, 어떤 말로 시작할까요? 선수들이 어떻게 받아들일지는 말해 봐야 알아요.' : '한 해를 어떤 말로 마무리할까요? 이 말은 오프시즌에 영향을 줘요.'}</p>
-        <div class="specpick__list">${choices.map((id, i) => `<button class="spec" data-talk="${i}"><span class="spec__head"><b class="spec__name">${esc(TALKS[kind][id].name)}</b><i class="spec__tone is-${TALKS[kind][id].tone}">${TALK_TONE[TALKS[kind][id].tone]}</i></span><span class="spec__line">${esc(TALKS[kind][id].line)}</span></button>`).join('')}</div>
+        ${stage}
+        <div class="lr__panel" id="lr-panel">
+          <p class="lr__ask">${isStart ? '선수들이 당신을 바라본다. 어떤 말로 시작할까요?' : '한 해를 어떤 말로 마무리할까요? 이 말은 오프시즌에 영향을 줘요.'}</p>
+          <div class="specpick__list">${choices.map((id, i) => `<button class="spec" data-talk="${i}"><span class="spec__head"><b class="spec__name">${esc(TALKS[kind][id].name)}</b><i class="spec__tone is-${TALKS[kind][id].tone}">${TALK_TONE[TALKS[kind][id].tone]}</i></span><span class="spec__line">${esc(TALKS[kind][id].line)}</span></button>`).join('')}</div>
+        </div>
       </div>
     </div>`;
   root.querySelectorAll('[data-talk]').forEach((b) => {
@@ -470,7 +527,20 @@ function showTalkPick(kind, onDone) {
       const id = choices[Number(b.dataset.talk)];
       const outcome = rollTalkOutcome(kind, id);
       track('talk', { k: kind, id, s: currentState.seasonNumber });
-      showTalkResult(outcome, onDone);
+      const lines = describeTalkFx(outcome.fx);
+      const good = lines.filter((l) => l.good).length;
+      const tone = good > lines.length - good ? 'good' : good < lines.length - good ? 'bad' : 'mixed';
+      const captainLine = pickLine(CAPTAIN_LINES[tone], `cap-${tone}`).replace('{호칭}', CALL_NAME[trustStage()]);
+      document.getElementById('lr-panel').innerHTML = `
+        <div class="lr__bubble lr__bubble--you" style="--d:0s"><small>감독</small>${esc(TALKS[kind][id].line)}</div>
+        <p class="lr__react" style="--d:0.9s">${esc(outcome.text)}</p>
+        ${captain ? `<div class="lr__bubble lr__bubble--cap" style="--d:1.8s"><small>${esc(captain.name)} · 주장</small>${esc(captainLine)}</div>` : ''}
+        <div class="lr__result" style="--d:2.6s">
+          <b class="lr__resulttitle">${esc(outcome.name)}</b>
+          <ul class="buyres__list">${lines.map((l) => `<li class="buyres__row is-${l.good ? 'good' : 'bad'}"><i></i><span>${esc(l.text)}</span></li>`).join('')}</ul>
+          <button class="cta" id="talk-ok">확인</button>
+        </div>`;
+      document.getElementById('talk-ok').onclick = () => { root.innerHTML = ''; applyTalkOutcome(outcome); onDone(); };
     };
   });
 }
@@ -491,12 +561,7 @@ function showTalkResult(outcome, onDone) {
     </div>`;
   document.getElementById('talk-ok').onclick = () => {
     root.innerHTML = '';
-    if (outcome.kind === 'start') {
-      currentState.stance = outcome;
-      if (outcome.fx.chemNow) currentState.chemistry = Math.max(0, Math.min(100, currentState.chemistry + outcome.fx.chemNow));
-    } else {
-      currentState.offseason = outcome;
-    }
+    applyTalkOutcome(outcome);
     onDone();
   };
 }
@@ -2078,8 +2143,9 @@ function nextWeek() {
     showSeasonPreview(2, () => askDirection(() => runSecondHalfAndFinish(saleMessage)));
     return;
   }
-  const marketStart = currentState.phase === 'summer' ? SUMMER_MARKET_WEEKS[0] : WINTER_MARKET_WEEKS[0];
-  const injuries = currentState.week === marketStart + 2 ? rollMarketInjuries() : [];
+  // 반기 아웃·시즌 아웃은 시장 2주차부터 마지막 주 직전까지 매주 조금씩 굴린다(합계는 한 시장 한 번 굴린 확률과 같다). 마지막 주에는 안 터져서 대응할 한 주가 남는다.
+  const [mStart, mEnd] = currentState.phase === 'summer' ? SUMMER_MARKET_WEEKS : WINTER_MARKET_WEEKS;
+  const injuries = currentState.week > mStart && currentState.week < mEnd ? rollMarketInjuries(1 / (mEnd - mStart - 1)) : [];
   currentState.shopOffer = newShopOffer();
   if (tutStep() >= 0 && loadRecords(localStorage).runs <= 1) ensureUpgradeOffer(); // 튜토리얼에서는 "영입해 보세요"가 막히지 않게
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
@@ -2117,11 +2183,11 @@ const roundHalfPoints = (p) => Math.min(55, Math.round(p));
 function recordInjury(id, kind) {
   currentState.squad = currentState.squad.map((p) => (p.id === id ? { ...p, injHistory: [...(p.injHistory ?? []), { kind, ago: 0 }] } : p));
 }
-function rollMarketInjuries() {
+function rollMarketInjuries(scale = 1) {
   const hurt = [];
   currentState.squad = currentState.squad.map((p) => {
     if (p.out > 0 || p.emergencyYouth) return p;
-    const kind = rollInjury(p, Math.random, ['half', 'season']);
+    const kind = rollInjury(p, Math.random, ['half', 'season'], scale);
     if (!kind) return p;
     const out = kind === 'half' ? 1 : currentState.phase === 'summer' ? 2 : 1; // 겨울에 터진 시즌 아웃은 후반기만 빠진다
     hurt.push({ name: p.name, position: p.position, kind });
@@ -2771,6 +2837,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
     boardTrustMessage = '<div class="banner banner--alert">수습 기간: 잔류선을 넘기지 못했지만 이사진이 한 시즌 더 기회를 줍니다. 임시 감독이 연장됩니다.</div>';
   }
 
+  currentState.lastSeason = { result: effResult, margin: totalPoints - tier.safePoints }; // 라커룸 장면 캡션에 쓴다
   if (result === 'champion') currentState.titles += 1;
   currentState.missedTargetCount = nextMissedTargetCount(effResult, currentState.missedTargetCount);
 

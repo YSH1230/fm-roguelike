@@ -188,10 +188,10 @@ function playCareer() {
     let injPts = 0;
     const halfFx = (half) => ({ ...fxNow, leagueIdx: getLadderIndex(tierId), half });
     const observe = (half) => { squad = squad.map((p) => ({ ...p, obsErr: r1(0.5 * (p.obsErr ?? 0) + 0.5 * ((p.form ?? 0) + hiddenShift(p, halfFx(half)))), unproven: false })); };
-    const marketInjuries = () => {
+    const marketInjuries = (scale = 1) => {
       squad = squad.map((p) => {
         if (p.out > 0) return p;
-        const kind = rollInjury(p, Math.random, ['half', 'season']);
+        const kind = rollInjury(p, Math.random, ['half', 'season'], scale);
         return kind ? { ...p, out: kind === 'half' ? 1 : phaseNow === 'summer' ? 2 : 1, outKind: kind } : p;
       });
     };
@@ -205,7 +205,7 @@ function playCareer() {
       }
       for (let w = 0; w < (phase === 'summer' ? 8 : 4); w++) {
         week += 1;
-        if (w === 2) marketInjuries(); // 시장 3주차: 반기 아웃·시즌 아웃 발생
+        if (w >= 1 && w < (phase === 'summer' ? 7 : 3)) marketInjuries(1 / (phase === 'summer' ? 6 : 2)); // 시장 2주차~마지막 주 직전, 매주 조금씩
         // 지난주에 낸 판매 등록 정산
         const due = listed.filter((l) => l.resolveWeek <= week);
         listed = listed.filter((l) => l.resolveWeek > week);

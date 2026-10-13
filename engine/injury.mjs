@@ -9,8 +9,8 @@ export const INJURY_CHIP_COUNT = { academy: 1, proLicense: 1, veteran: 2, master
 export const injuryMult = (p) => (DURABILITY_MULT[p.durability] ?? 1) * ((p.age ?? 0) >= 33 ? 1.3 : 1);
 
 // 한 번 굴려서 kinds 중 하나(또는 없음)
-export function rollInjury(p, rng = Math.random, kinds = INJURY_KINDS) {
-  const m = injuryMult(p);
+export function rollInjury(p, rng = Math.random, kinds = INJURY_KINDS, scale = 1) {
+  const m = injuryMult(p) * scale;
   let r = rng();
   for (const k of kinds) {
     const pr = Math.min(0.9, INJURY_BASE[k] * m);

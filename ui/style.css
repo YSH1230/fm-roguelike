@@ -2392,3 +2392,27 @@ button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
 .previewlist em { font-style: normal; font-size: 20px; color: var(--light); }
 .previewlist p { grid-column: 1 / -1; margin: 0; font-size: var(--fs-body); }
 .previewgrade { margin-left: 8px; padding: 0 8px; border: 2px solid var(--turf, #ccff00); border-radius: 4px; color: var(--turf, #ccff00); }
+
+/* ===== 라커룸 장면 ===== */
+.lockerroom { max-height: 92vh; overflow-y: auto; }
+.lr__caption { margin: 6px 0 10px; font-size: var(--fs-body); color: var(--muted); font-style: italic; text-align: center; }
+.lr__room { position: relative; height: 150px; border-radius: 6px; overflow: hidden; background: linear-gradient(180deg, #1a1f1c 0%, #0e1210 100%); border: 1px solid var(--line); }
+.lr__room::before { content: ''; position: absolute; inset: 0 0 52% 0; background: repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 2px, transparent 2px 36px); } /* 사물함 */
+.lr__bench { position: absolute; left: 6%; right: 6%; bottom: 26px; height: 8px; background: #3a2c20; border-radius: 2px; box-shadow: 0 3px 0 #1e150e; }
+.lr__seats { position: absolute; left: 7%; right: 7%; bottom: 30px; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 0; }
+.lr__seat { opacity: 0; transform: translateY(8px); animation: lr-in 360ms ease-out forwards; animation-delay: var(--d, 0s); }
+.lr__seat--1 { margin-top: -6px; }
+.lr__captain { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); display: grid; justify-items: center; }
+.lr__armband { position: absolute; top: 2px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: var(--turf, #ccff00); color: #101410; font: 800 11px/16px var(--num); text-align: center; }
+.lr__name { font-size: var(--fs-micro); background: rgba(8,12,10,0.85); padding: 1px 6px; border-radius: 3px; }
+.lr__panel { display: grid; gap: 10px; margin-top: 10px; }
+.lr__ask { margin: 0; text-align: center; }
+.lr__bubble { max-width: 88%; padding: 8px 12px; border-radius: 10px; opacity: 0; animation: lr-in 360ms ease-out forwards; animation-delay: var(--d, 0s); }
+.lr__bubble small { display: block; font-size: var(--fs-micro); color: var(--muted); margin-bottom: 2px; }
+.lr__bubble--you { justify-self: end; background: color-mix(in srgb, var(--turf, #ccff00) 18%, var(--surface)); border: 1px solid color-mix(in srgb, var(--turf, #ccff00) 45%, transparent); }
+.lr__bubble--cap { justify-self: start; background: var(--surface); border: 1px solid var(--line); }
+.lr__react { margin: 0; text-align: center; color: var(--muted); font-style: italic; opacity: 0; animation: lr-in 360ms ease-out forwards; animation-delay: var(--d, 0s); }
+.lr__result { opacity: 0; animation: lr-in 360ms ease-out forwards; animation-delay: var(--d, 0s); }
+.lr__resulttitle { display: block; margin-bottom: 4px; }
+@keyframes lr-in { to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .lr__seat, .lr__bubble, .lr__react, .lr__result { animation-duration: 1ms; animation-delay: 0s; } }
