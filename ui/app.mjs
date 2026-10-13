@@ -1473,7 +1473,6 @@ function sellerAttitude(name) {
   return { score, label: attitudeLabel(score) };
 }
 // 인내심을 얼굴로: 3 이상 😄 / 2 🙂 / 1 😠
-const patienceFace = (pat) => (pat >= 3 ? '😄' : pat === 2 ? '🙂' : '😠');
 const attitudeFace = (label) => (label === '유연' ? '😄' : label === '보통' ? '🙂' : '😠');
 
 function setMood(name, event) {
@@ -1484,9 +1483,14 @@ function setMood(name, event) {
 // 구단이 답하기 전 잠깐 생각하는 연출(바로 답이 나오면 긴장감이 없다)
 function thinking(root, then, ms = 1000) {
   root.querySelectorAll('button').forEach((b) => { b.disabled = true; });
-  const face = root.querySelector('.haggle__face');
-  if (face) { face.textContent = '🤔'; face.classList.add('is-thinking'); }
-  root.querySelector('.eventmodal__detail')?.insertAdjacentHTML('afterend', '<p class="eventmodal__detail haggle__note is-thinking">생각하는 중…</p>');
+  const neg = root.querySelector('.neg');
+  if (neg) {
+    neg.classList.add('is-thinking');
+    const face = neg.querySelector('.neg__face');
+    if (face) face.innerHTML = pixelFace('think');
+    const note = neg.querySelector('.neg__note');
+    if (note) { note.hidden = false; note.textContent = '생각하는 중'; }
+  }
   setTimeout(then, ms);
 }
 
@@ -1500,33 +1504,125 @@ function waitForOffers(text, then, ms = 1400) {
 }
 
 // 흥정 창: 깎아 달라는 비율을 고르면 구단이 답한다. 거절하면 인내심이 줄고, 바닥나면 협상이 깨진다.
-// 값을 고르는 조절기(슬라이더 + ±1/±5). 영입 협상과 판매 협상이 같이 쓴다.
-function bidHtml({ min, max, value, goLabel, canAfford = () => true, hint = null }) {
-  const span = Math.max(1, max - min);
-  const zone = hint ? { left: Math.max(0, Math.min(100, ((hint.lo - min) / span) * 100)), right: Math.max(0, Math.min(100, ((hint.hi - min) / span) * 100)) } : null;
-  return `<div class="bid">
-    <div class="bid__row">
-      <button type="button" class="bid__step" data-bid-step="-5">−5</button><button type="button" class="bid__step" data-bid-step="-1">−1</button>
-      <output class="bid__val n" id="bid-val">${value}<i>G</i></output>
-      <button type="button" class="bid__step" data-bid-step="1">+1</button><button type="button" class="bid__step" data-bid-step="5">+5</button>
-    </div>
-    <div class="bid__track">${zone && zone.right > zone.left ? `<i class="bid__zone" style="left:${zone.left.toFixed(1)}%;width:${(zone.right - zone.left).toFixed(1)}%"></i>` : ''}<input type="range" class="bid__range" id="bid-range" min="${min}" max="${max}" step="1" value="${value}" aria-label="부를 가격"></div>
-    ${hint ? `<small class="bid__hint">스카우터 추정: 구단은 보통 ${hint.lo}~${hint.hi}G부터 팔아요(가끔 틀려요)</small>` : ''}
-    <button class="cta" id="bid-go" ${canAfford(value) ? '' : 'disabled'}>${value}G ${goLabel}</button>
-  </div>`;
+// ===== 협상 화면(디자인 v4): 영입 협상과 판매 협상이 같이 쓴다 =====
+const PIX_FACES = {
+  happy: ['.......', '.#...#.', '.......', '#.....#', '.#####.', '.......', '.......'],
+  neutral: ['.......', '.#...#.', '.......', '.......', '.#####.', '.......', '.......'],
+  angry: ['#.....#', '.#...#.', '.#...#.', '.......', '.#####.', '#.....#', '.......'],
+  think: ['.......', '.#...#.', '.......', '.......', '.#.#.#.', '.......', '.......'],
+};
+function pixelFace(kind, size = 28) {
+  const rows = PIX_FACES[kind] ?? PIX_FACES.neutral;
+  const rects = rows.map((row, y) => [...row].map((c, x) => (c === '#' ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : '')).join('')).join('');
+  return `<svg class="pxface" width="${size}" height="${size}" viewBox="0 0 7 7" shape-rendering="crispEdges" aria-hidden="true">${rects}</svg>`;
 }
-function wireBid(root, { min, max, goLabel, canAfford = () => true, onBid }) {
+const faceKindOfAttitude = (label) => (label === '유연' ? 'happy' : label === '보통' ? 'neutral' : 'angry');
+const faceKindOfPatience = (pat) => (pat >= 3 ? 'happy' : pat === 2 ? 'neutral' : 'angry');
+const PIX_STAR = ['...#...', '..###..', '#######', '.#####.', '..###..', '.##.##.', '##...##'];
+function pixelStar(state) { // 'on' 확실히 이만큼 / 'mid' 범위 안 / 'off'
+  const rects = PIX_STAR.map((row, y) => [...row].map((c, x) => (c === '#' ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : '')).join('')).join('');
+  return `<svg class="pxstar is-${state}" width="21" height="21" viewBox="0 0 7 7" shape-rendering="crispEdges" aria-hidden="true">${rects}</svg>`;
+}
+const NEG_ICONS = {
+  back: '<path d="M15 5 L8 12 L15 19"/>',
+  coin: '<circle cx="12" cy="12" r="9"/><path d="M9 12 H15 M12 8 V16"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7 V12 L15.5 14"/>',
+  grow: '<path d="M4 18 L10 11 L14 15 L20 6"/><path d="M14 6 H20 V12"/>',
+  heal: '<path d="M12 4 V20 M4 12 H20"/>',
+};
+const negIcon = (name) => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NEG_ICONS[name]}</svg>`;
+function kitOfClub(name) {
+  const hit = buildLeagueRivals(currentState.leagueTierId, 20).find((c) => c.name === name);
+  return hit?.kit ?? '#6b7280';
+}
+const onColorOf = (hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255 > 0.55 ? '#0b0b0b' : '#ffffff';
+};
+function negPlayerHtml(card, teamKit) {
+  const level = staffLevel('headScout');
+  const r = starRange(card, leagueMid(), level);
+  const stars = [1, 2, 3, 4, 5].map((n) => pixelStar(n <= Math.floor(r.lo) ? 'on' : n <= Math.ceil(r.hi) ? 'mid' : 'off')).join('');
+  const grade = potentialOf(card, 'headScout');
+  const hints = [...traitHints(card, level), ...injuryChips(card, level)].slice(0, 3);
+  const tags = (card.playstyleTags ?? []).map((t) => `<span class="neg__chip">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}${esc(TAG_LABELS[t] ?? t)}</span>`).join('');
+  return `<section class="neg__player">
+      <div class="neg__art">${renderPortrait(card, { size: 112, kit: teamKit })}<em class="neg__pos">${card.position}</em></div>
+      <div class="neg__pinfo">
+        <b class="neg__pname">${esc(card.name)}</b>
+        <span class="neg__pmeta">${card.age}세</span>
+        <div class="neg__stars" aria-label="별 ${r.lo === r.hi ? r.lo : `${r.lo}에서 ${r.hi}`}">${stars}<small>${r.lo === r.hi ? `${r.lo}` : `범위 ${r.lo}~${r.hi}`}</small></div>
+      </div>
+      <div class="neg__tags">${tags}${grade ? `<span class="neg__chip neg__chip--up">${negIcon('grow')}성장 ${grade}</span>` : ''}${hints.map((h) => `<span class="neg__chip">${esc(h)}</span>`).join('')}</div>
+    </section>`;
+}
+// 값을 고르는 조절기: 큰 숫자 두 개(상대 금액 / 내 금액) + 슬라이더 + ±1/±5. zone이 있으면 그 밖으로 나갈 때 내 금액이 빨갛게 경고한다.
+function bidHtml({ min, max, value, askLabel, askValue, meLabel, zone = null }) {
+  const span = Math.max(1, max - min);
+  const f = (v) => Math.max(0, Math.min(1, (v - min) / span));
+  const z = zone ? ` style="--zl:${f(zone.lo).toFixed(3)};--zr:${f(zone.hi).toFixed(3)}"` : '';
+  return `<section class="neg__deal" id="neg-deal"${z}>
+    <div class="neg__nums">
+      <div class="neg__col"><small>${askLabel}</small><b class="neg__num">${askValue}<i>G</i></b></div>
+      <div class="neg__col neg__col--me" id="neg-me"><small>${meLabel}</small><b class="neg__num"><span id="bid-val">${value}</span><i>G</i></b></div>
+    </div>
+    <div class="neg__track" style="--f:${f(value).toFixed(3)}">${zone ? '<i class="neg__zone"></i>' : ''}<input type="range" class="neg__range" id="bid-range" min="${min}" max="${max}" step="1" value="${value}" aria-label="부를 가격"></div>
+    ${zone ? `<small class="neg__hint">하한선 추정 ${zone.lo}~${zone.hi}G</small>` : ''}
+    <div class="neg__steps">
+      <button type="button" data-bid-step="-5">−5</button><button type="button" data-bid-step="-1">−1</button><button type="button" data-bid-step="1">+1</button><button type="button" data-bid-step="5">+5</button>
+    </div>
+  </section>`;
+}
+function negStaticDeal(label, value) {
+  return `<section class="neg__deal"><div class="neg__nums"><div class="neg__col"><small>${label}</small><b class="neg__num">${value}<i>G</i></b></div></div></section>`;
+}
+// 화면 전체 조립. deal: bidHtml/negStaticDeal, ctas: 버튼 묶음 html
+function negScreen({ title, club, att, pat, patMax, chip, note, card, deal, ctas }) {
+  const teamKit = currentState.club.kit;
+  const pips = Array.from({ length: Math.max(patMax, pat, 1) }, (_, k) => `<i class="${k < pat ? 'on' : ''}"></i>`).join('');
+  return `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal neg" style="--team:${teamKit};--on-team:${onColorOf(teamKit)}">
+        <header class="neg__bar">
+          <button type="button" class="neg__back" id="neg-back" aria-label="그만두기">${negIcon('back')}</button>
+          <b class="neg__title">${title}</b>
+          <span class="neg__funds">${negIcon('coin')}<b>${currentState.funds}</b><i>G</i></span>
+        </header>
+        <section class="neg__seller">
+          <div class="neg__crest">${renderCrest({ id: club, name: club, kit: kitOfClub(club) }, { size: 48 })}</div>
+          <div class="neg__sinfo"><b>${esc(club)}</b>
+            <div class="neg__mood"><span class="neg__face" aria-label="인내심 ${pat}">${pixelFace(faceKindOfPatience(pat))}</span><span>태도 ${att.label}</span><span class="neg__pips" aria-label="인내심 ${pat}칸">${pips}</span></div>
+          </div>
+          ${chip ? `<span class="neg__deadline${chip.hot ? ' is-hot' : ''}">${negIcon('clock')}${esc(chip.text)}</span>` : ''}
+        </section>
+        <p class="neg__note"${note ? '' : ' hidden'}>${esc(note ?? '')}</p>
+        ${negPlayerHtml(card, teamKit)}
+        ${deal}
+        <footer class="neg__cta">${ctas}</footer>
+      </div>
+    </div>`;
+}
+function wireBid(root, { min, max, goLabel, canAfford = () => true, zone = null, onBid }) {
   const range = root.querySelector('#bid-range');
   const val = root.querySelector('#bid-val');
   const go = root.querySelector('#bid-go');
+  const track = root.querySelector('.neg__track');
+  const me = root.querySelector('#neg-me');
+  const deal = root.querySelector('#neg-deal');
+  const span = Math.max(1, max - min);
   const set = (v) => {
     v = Math.max(min, Math.min(max, Math.round(v)));
-    range.value = v; val.innerHTML = `${v}<i>G</i>`;
+    range.value = v; val.textContent = v;
+    track.style.setProperty('--f', ((v - min) / span).toFixed(3));
     go.textContent = `${v}G ${goLabel}`; go.disabled = !canAfford(v);
+    const out = !!zone && (v < zone.lo || v > zone.hi); // 하한선 추정 구간 밖: 한 번 흔들리며 빨갛게
+    me.classList.toggle('is-warn', out);
+    deal.classList.toggle('is-warn', out);
   };
   range.addEventListener('input', () => set(Number(range.value)));
   root.querySelectorAll('[data-bid-step]').forEach((b) => { b.onclick = () => set(Number(range.value) + Number(b.dataset.bidStep)); });
   go.onclick = () => onBid(Number(range.value));
+  set(Number(range.value));
 }
 const BID_HINT = { mid: '조금만 더 올려 주세요', far: '말도 안 돼요! 그 가격에는 못 팔아요', counterBuy: (c) => `이 가격이면 팔게요: ${c}G`, finalBuy: (c) => `마지막 제안이에요: ${c}G` };
 
@@ -1549,30 +1645,28 @@ function openHaggle(card, note = '') {
   const hint = haggleHint(card.id, reserve, SCOUT_HAGGLE_HINT_BY_LEVEL[isStaffFreshThisWeek('headScout') ? 'academy' : staffLevel('headScout')]); // 스카우터: 구단 하한선 추정 구간
   const counter = currentState.counterOffer[card.id] ?? null;
   const out = pat <= 0; // 인내심이 바닥났지만 마지막 제안이 남은 상태
-  const value = Math.max(min, Math.min(max, currentState.bidMemory[card.id] ?? Math.round(ask * 0.85)));
+  const value = Math.max(min, Math.min(max, currentState.bidMemory[card.id] ?? (hint ? Math.round((hint.lo + hint.hi) / 2) : Math.round(ask * 0.85)))); // 추정 구간이 있으면 그 한가운데에서 시작(처음부터 경고가 뜨지 않게)
   const afford = (v) => currentState.funds >= v;
-  root.innerHTML = `
-    <div class="eventmodal-backdrop">
-      <div class="eventmodal eventmodal--goal haggle">
-        <div class="eventmodal__kicker">${esc(card.seller)} (태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)})</div>
-        <div class="eventmodal__title">${esc(card.name)}</div>
-        <div class="haggle__face" aria-label="인내심 ${Math.max(0, pat)}">${patienceFace(Math.max(0, pat))}</div>
-        <p class="eventmodal__detail">${esc(card.seller)}의 요구액은 ${ask}G입니다.</p>
-        ${pressure > 0 ? '<p class="eventmodal__detail haggle__hint">시장 마감이 가까워 구단이 조금 급해요.</p>' : ''}
-        ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
-        ${tutStep() >= 0 && !note ? '<p class="eventmodal__detail haggle__hint">처음이라면 "요구액으로 영입"이 가장 안전해요. 더 싸게 사려면 아래에서 가격을 정해 제안해 보세요. 구단 표정이 힌트예요.</p>' : ''}
-        <button class="cta" id="haggle-ask" ${afford(ask) ? '' : 'disabled'}>요구액 ${ask}G로 영입</button>
-        ${counter ? `<button class="cta cta--alt" id="haggle-counter" ${afford(counter) ? '' : 'disabled'}>역제안 ${counter}G에 영입</button>` : ''}
-        ${out || max < min ? '' : bidHtml({ min, max, value, goLabel: '제안', canAfford: afford, hint })}
-        <button class="reroll" id="haggle-close" style="margin-top:var(--s2);width:100%">그만두기</button>
-      </div>
-    </div>`;
+  const canBid = !(out || max < min);
+  const weeksLeft = Math.max(1, endWeek - currentState.week + 1);
+  const noteText = note || (pressure > 0 ? '시장 마감이 가까워 구단이 조금 급해요.' : '') || (tutStep() >= 0 ? '처음이라면 "요구액으로 영입"이 가장 안전해요. 더 싸게 사려면 가격을 정해 제안해 보세요. 구단 표정이 힌트예요.' : '');
+  const zone = hint ? { lo: hint.lo, hi: hint.hi } : null;
+  root.innerHTML = negScreen({
+    title: '협상', club: card.seller, att, pat: Math.max(0, pat), patMax: Math.max(patienceFor(att.score) + fx().patienceBonus, 1),
+    chip: { text: `마감 ${weeksLeft}주`, hot: pressure > 0 }, note: noteText, card,
+    deal: canBid ? bidHtml({ min, max, value, askLabel: '요구액', askValue: ask, meLabel: '내 제안', zone }) : negStaticDeal('요구액', ask),
+    ctas: `${canBid ? `<button class="neg__btn neg__btn--primary" id="bid-go" ${afford(value) ? '' : 'disabled'}>${value}G 제안</button>` : ''}
+      <button class="neg__btn ${canBid ? 'neg__btn--ghost' : 'neg__btn--primary'}" id="haggle-ask" ${afford(ask) ? '' : 'disabled'}>요구액 ${ask}G로 영입</button>
+      ${counter ? `<button class="neg__btn neg__btn--counter" id="haggle-counter" ${afford(counter) ? '' : 'disabled'}>역제안 ${counter}G에 영입</button>` : ''}
+      <button class="neg__btn neg__btn--text" id="haggle-close">그만두기</button>`,
+  });
   document.getElementById('haggle-ask').onclick = () => { root.innerHTML = ''; buyCard(card); };
   document.getElementById('haggle-counter')?.addEventListener('click', () => { root.innerHTML = ''; buyCard(card, null, null, counter); });
   document.getElementById('haggle-close').onclick = () => { root.innerHTML = ''; };
+  document.getElementById('neg-back').onclick = () => { root.innerHTML = ''; };
   if (out || max < min) return;
   wireBid(root, {
-    min, max, goLabel: '제안', canAfford: afford,
+    min, max, goLabel: '제안', canAfford: afford, zone,
     onBid: (bid) => thinking(root, () => {
       currentState.bidMemory[card.id] = bid;
       const r = buyBid({ bid, ask, reserve });
@@ -2039,23 +2133,20 @@ function openSale(cardId, index, note = '') {
   const counter = currentState.counterOffer[key] ?? null;
   const out = pat <= 0;
   const value = Math.max(min, Math.min(top, currentState.bidMemory[key] ?? Math.round(offer.amount * 1.06)));
-  root.innerHTML = `
-    <div class="eventmodal-backdrop">
-      <div class="eventmodal eventmodal--goal haggle">
-        <div class="eventmodal__kicker">${esc(offer.club)} (태도 <b class="att att--${att.label}">${att.label}</b> ${attitudeFace(att.label)})</div>
-        <div class="eventmodal__title">${esc(l.card.name)}</div>
-        <p class="eventmodal__detail">${esc(offer.club)}의 제시 금액은 ${offer.amount}G입니다. (${offerDeadlineText(offer)})</p>
-        <div class="haggle__face" aria-label="인내심 ${Math.max(0, pat)}">${patienceFace(Math.max(0, pat))}</div>
-        ${note ? `<p class="eventmodal__detail haggle__note">${esc(note)}</p>` : ''}
-        <button class="cta" id="sale-accept">${offer.amount}G에 판매</button>
-        ${counter ? `<button class="cta cta--alt" id="sale-counter">역제안 ${counter}G에 판매</button>` : ''}
-        ${out || offer.amount <= 0 ? '' : bidHtml({ min, max: top, value, goLabel: '요구' })}
-        <button class="reroll" id="sale-close" style="margin-top:var(--s2);width:100%">그만두기</button>
-      </div>
-    </div>`;
+  const canBid = !(out || offer.amount <= 0);
+  root.innerHTML = negScreen({
+    title: '판매 협상', club: offer.club, att, pat: Math.max(0, pat), patMax: Math.max(patienceFor(att.score), 1),
+    chip: { text: offerDeadlineText(offer).replace('오퍼 기한: ', ''), hot: offerWeeksLeft(offer) === 1 }, note, card: l.card,
+    deal: canBid ? bidHtml({ min, max: top, value, askLabel: '제시 금액', askValue: offer.amount, meLabel: '내 요구' }) : negStaticDeal('제시 금액', offer.amount),
+    ctas: `${canBid ? `<button class="neg__btn neg__btn--primary" id="bid-go">${value}G 요구</button>` : ''}
+      <button class="neg__btn ${canBid ? 'neg__btn--ghost' : 'neg__btn--primary'}" id="sale-accept">${offer.amount}G에 판매</button>
+      ${counter ? `<button class="neg__btn neg__btn--counter" id="sale-counter">역제안 ${counter}G에 판매</button>` : ''}
+      <button class="neg__btn neg__btn--text" id="sale-close">그만두기</button>`,
+  });
   document.getElementById('sale-accept').onclick = () => { root.innerHTML = ''; acceptSaleOffer(cardId, index, offer.amount); };
   document.getElementById('sale-counter')?.addEventListener('click', () => { root.innerHTML = ''; acceptSaleOffer(cardId, index, counter, true); });
   document.getElementById('sale-close').onclick = () => { root.innerHTML = ''; };
+  document.getElementById('neg-back').onclick = () => { root.innerHTML = ''; };
   if (out || offer.amount <= 0) return;
   wireBid(root, {
     min, max: top, goLabel: '요구',
@@ -4284,4 +4375,4 @@ if (UCL_DEMO) {
 }
 
 // 확인용 훅(#dev): 감독 장면(철학·라커룸 토크)을 바로 띄워 본다. 일반 플레이에는 영향이 없다.
-if (location.hash.includes('dev')) window.__dev = { maybeAppoint, renderRunEnd, showDialogueScene, showTrophy, showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
+if (location.hash.includes('dev')) window.__dev = { openHaggle, openSale, maybeAppoint, renderRunEnd, showDialogueScene, showTrophy, showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };

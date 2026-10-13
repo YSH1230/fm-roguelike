@@ -2486,3 +2486,85 @@ button.spec:hover { border-color: var(--turf); background: var(--surface-hi); }
 .tut__av .portrait { width: 52px; height: 52px; border-radius: 6px; }
 .tut__av b { font-size: var(--fs-micro); color: var(--turf); }
 .tut__body { min-width: 0; }
+
+/* ===== 협상 화면(디자인 v4: 영입·판매 공통) =====
+   색 규칙: 바탕은 어두운 무채색, 선수 카드 블록은 내 팀 색, 내 금액은 노랑, 하한선·제안 버튼·경고는 빨강, 보유 금액은 아이보리 고정. */
+.eventmodal-backdrop:has(.neg) { padding: 0; align-items: stretch; background: #0e0e10; backdrop-filter: none; }
+.eventmodal.neg {
+  --n-bg: #0e0e10; --n-panel: #18181b; --n-line: #2b2b30; --n-ivory: #f4f1e8; --n-mute: #8e8e96; --n-yellow: #ffc400; --n-red: #ff2e3a;
+  max-width: 430px; max-height: none; height: 100%; margin: 0 auto; padding: 14px 16px 24px; border: 0; border-radius: 0; box-shadow: none; text-align: left;
+  background: var(--n-bg); color: #fff; overflow-y: auto; display: grid; gap: 14px; align-content: start; font-family: var(--ui);
+}
+.neg button { font: inherit; color: inherit; cursor: pointer; }
+.neg__bar { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 8px; }
+.neg__back { width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--n-line); background: transparent; display: grid; place-items: center; }
+.neg__title { font-size: 22px; font-weight: 900; }
+.neg__funds { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--n-ivory); border-radius: 999px; color: var(--n-ivory); }
+.neg__funds b { font: 400 20px/1 var(--num); color: var(--n-ivory); }
+.neg__funds i { font-style: normal; font-size: 12px; }
+
+.neg__seller { display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--n-line); border-radius: 24px; background: var(--n-panel); }
+.neg__sinfo b { font-size: 16px; display: block; }
+.neg__mood { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 13px; color: var(--n-mute); }
+.neg__face { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--n-ivory); color: #0e0e10; }
+.neg__face .pxface { fill: currentColor; display: block; width: 22px; height: 22px; }
+.neg__pips { display: inline-flex; gap: 4px; }
+.neg__pips i { width: 16px; height: 8px; border-radius: 2px; background: var(--n-line); }
+.neg__pips i.on { background: var(--team); }
+.neg__deadline { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--n-line); font-size: 13px; font-weight: 700; white-space: nowrap; color: var(--n-mute); }
+.neg__deadline.is-hot { border-color: var(--n-red); color: var(--n-red); }
+.neg__note { margin: -4px 0 0; padding: 10px 14px; border-radius: 14px; background: var(--n-panel); border: 1px solid var(--n-line); font-size: 14px; color: var(--n-ivory); }
+.neg.is-thinking .neg__note { color: var(--n-mute); }
+.neg.is-thinking .neg__face { animation: neg-think 700ms ease-in-out infinite; }
+@keyframes neg-think { 50% { transform: translateY(-3px); } }
+
+.neg__player { display: grid; grid-template-columns: 112px 1fr; gap: 12px 14px; padding: 14px; border-radius: 28px; background: var(--team); color: var(--on-team); }
+.neg__art { position: relative; height: 112px; border-radius: 20px; overflow: hidden; background: #0b0b0b; }
+.neg__art .portrait { display: block; width: 112px; height: 112px; image-rendering: pixelated; background: none; }
+.neg__pos { position: absolute; left: 0; bottom: 0; font-style: normal; font-weight: 800; font-size: 14px; letter-spacing: .05em; background: #1b1b1f; color: var(--n-ivory); border: 1px solid var(--n-ivory); border-left: 0; border-bottom: 0; padding: 4px 10px 4px 8px; border-radius: 0 10px 0 0; }
+.neg__pname { display: block; font-size: 22px; font-weight: 900; line-height: 1.15; overflow-wrap: anywhere; }
+.neg__pmeta { font-size: 13px; opacity: .78; }
+.neg__stars { display: flex; align-items: center; gap: 3px; margin-top: 8px; }
+.neg__stars small { margin-left: 8px; font-size: 12px; font-weight: 700; }
+.pxstar.is-on { fill: var(--on-team); }
+.pxstar.is-mid { fill: color-mix(in srgb, var(--on-team) 55%, transparent); }
+.pxstar.is-off { fill: color-mix(in srgb, var(--on-team) 24%, transparent); }
+.neg__tags { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.neg__chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--on-team) 55%, transparent); font-size: 13px; font-weight: 700; white-space: nowrap; }
+.neg__chip .badgeicon { width: 16px; height: 16px; }
+.neg__chip--up { background: #0b0b0b; color: var(--team); border-color: #0b0b0b; }
+
+.neg__deal { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--n-line); border-radius: 28px; background: var(--n-panel); }
+.neg__nums { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.neg__col small { display: block; font-size: 13px; color: var(--n-mute); margin-bottom: 2px; }
+.neg__col--me { text-align: right; }
+.neg__num { display: inline-block; font: 400 64px/1 var(--num); letter-spacing: .01em; font-variant-numeric: tabular-nums; transform-origin: 50% 100%; }
+.neg__num i { font-style: normal; font-size: .5em; margin-left: 2px; color: var(--n-mute); }
+.neg__col--me .neg__num { color: var(--n-yellow); transition: color 120ms; }
+.neg__col--me.is-warn .neg__num { color: var(--n-red); animation: neg-shake 420ms ease-in-out 1; }
+.neg__col--me.is-warn small { color: var(--n-red); }
+@keyframes neg-shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-7px); } 40% { transform: translateX(6px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(2px); } }
+.neg__track { position: relative; display: grid; align-items: center; margin: 4px 0; --fill: var(--n-yellow); }
+.neg__deal.is-warn .neg__track { --fill: var(--n-red); }
+.neg__zone { position: absolute; top: 50%; height: 22px; translate: 0 -50%; left: calc(14px + (100% - 28px) * var(--zl)); width: calc((100% - 28px) * (var(--zr) - var(--zl))); border: 2px solid var(--n-red); border-radius: 999px; pointer-events: none; z-index: 1; }
+.neg__range { appearance: none; -webkit-appearance: none; width: 100%; height: 28px; margin: 0; background: transparent; position: relative; z-index: 2; cursor: pointer; }
+.neg__range::-webkit-slider-runnable-track { height: 12px; border-radius: 999px; background: linear-gradient(to right, var(--fill) calc(14px + (100% - 28px) * var(--f)), var(--n-line) calc(14px + (100% - 28px) * var(--f))); }
+.neg__range::-moz-range-track { height: 12px; border-radius: 999px; background: var(--n-line); }
+.neg__range::-moz-range-progress { height: 12px; border-radius: 999px; background: var(--fill); }
+.neg__range::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; margin-top: -8px; border-radius: 50%; background: #fff; border: 4px solid var(--fill); }
+.neg__range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 4px solid var(--fill); }
+.neg__range:focus-visible { outline: 2px solid #1eaedb; outline-offset: 4px; border-radius: 999px; }
+.neg__hint { font-size: 12px; font-weight: 700; color: var(--n-red); text-align: center; margin-top: -6px; }
+.neg__steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.neg__steps button { height: 44px; border-radius: 999px; border: 1px solid var(--n-line); background: transparent; font-weight: 800; font-size: 16px; }
+.neg__steps button:active { background: var(--n-line); }
+
+.neg__cta { display: grid; gap: 10px; }
+.neg__btn { height: 54px; border-radius: 999px; font-weight: 900; font-size: 18px; border: 1px solid transparent; }
+.neg__btn--primary { background: var(--n-red); color: #fff; }
+.neg__btn--ghost { background: transparent; border-color: #fff; }
+.neg__btn--counter { background: transparent; border-color: var(--n-yellow); color: var(--n-yellow); }
+.neg__btn--text { background: none; color: var(--n-mute); height: 40px; font-weight: 500; font-size: 15px; }
+.neg__btn:disabled { opacity: .4; cursor: not-allowed; }
+.neg__btn:focus-visible, .neg__steps button:focus-visible, .neg__back:focus-visible { outline: 2px solid #1eaedb; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .neg__col--me.is-warn .neg__num, .neg.is-thinking .neg__face { animation: none; } }
