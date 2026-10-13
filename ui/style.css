@@ -2761,3 +2761,4 @@ html[data-theme] #dock .cta#naming-next { height: 54px; padding: 0; border-radiu
 .neg__explore button.free em { color: #5eead4; }
 .neg__explore button.done, .neg__explore button:disabled { opacity: .4; cursor: default; }
 .neg__explore svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.neg__explore button { word-break: keep-all; text-wrap: balance; }
