@@ -47,9 +47,9 @@ import {
   STAFF_LEVELS, STAFF_PRICE_TABLE,
 } from '../engine/constants.mjs';
 import { computeTeamPower, computeAverageOVR } from '../engine/team-power.mjs';
-import { starsOf, starRange, starText, rangeText, tierFromStars, rollForm, observedOVR, hideHidden, hiddenShift } from '../engine/stars.mjs';
-import { traitHints } from '../engine/traits.mjs';
-import { rollInjury, injuryChips, INJURY_LABELS, INJURY_POINTS } from '../engine/injury.mjs';
+import { starsOf, starText, tierFromStars, nextForm, obsUpdate, anchorOf, observedOVR, hideHidden, hiddenShift } from '../engine/stars.mjs';
+import { reportFor, GRADED_COUNT } from '../engine/report.mjs';
+import { rollInjury, rollInjuryPart, injuryChips, INJURY_LABELS, INJURY_PART_NAME, INJURY_POINTS } from '../engine/injury.mjs';
 import { resolveCaptain, sortCapOverflow } from '../engine/captain.mjs';
 import { personalityReaction, benchHalvesNeeded, rollBenchTransferDemand, CAPTAIN_TAIL } from '../engine/personality.mjs';
 import { rankFromPoints, predictRanks, marketReport } from '../engine/preview.mjs';
@@ -89,7 +89,7 @@ import {
   PROMOTION_STAY_FUNDS_RATIO,
   REPUTATION_STREAK_BONUS,
   COACH_CHEMISTRY_DECAY_BY_LEVEL,
-  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_TARGET_SLOTS_BY_LEVEL, SCOUT_HAGGLE_HINT_BY_LEVEL, EXPLORE_NARROW, EXPLORE_MAX_CLUES, EXPLORE_BASE_HINT, SCOUT_QUALITY_BOOST_BY_LEVEL, SCOUT_REROLL_DISCOUNT_BY_LEVEL, COACH_GROWTH_BY_LEVEL,
+  SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_TARGET_SLOTS_BY_LEVEL, SCOUT_HAGGLE_HINT_BY_LEVEL, EXPLORE_NARROW, EXPLORE_MAX_CLUES, EXPLORE_BASE_HINT, SCOUT_QUALITY_BOOST_BY_LEVEL, COACH_GROWTH_BY_LEVEL,
   PROMOTION_TRANSFER_DEMAND_CHANCE,
   PLAYER_TIERS,
   MISSED_TARGET_LIMIT,
@@ -214,25 +214,67 @@ function seasonBaseGrant() {
 const BOARD_RULE_TEXT = `목표를 넘긴 승점 1점당 다음 시즌 자금 +${BOARD_REWARD_FUNDS_PER_POINT * 100}%(최대 +${BOARD_REWARD_FUNDS_CAP * 100}%), 한 점이라도 넘기면 조직력 +${BOARD_REWARD_CHEMISTRY}.`;
 
 // v3: 화면에는 OVR 숫자 대신 별(현재 리그 기준 상대 평가)만 보인다.
-// 성향 문구: 숨은 특성의 힌트(스카우터 등급이 낮으면 가끔 틀린다)
-function hintsHtml(p) {
-  const lvl = staffLevel('headScout');
-  const hints = traitHints(p, lvl);
-  const inj = injuryChips(p, lvl);
-  return `<div class="traithints">${hints.map((h) => `<span>${esc(h)}</span>`).join('')}${inj.map((h) => `<span class="is-inj">${esc(h)}</span>`).join('')}</div>`;
+// ===== 스태프 리포트(engine/report.mjs): 시장 카드·협상은 스카우터, 내 선수단은 코치 =====
+// 접힘: 성장폭·작년 흐름 칩 + 기존 칩 줄의 부상 이력 칩. 펼침: 접힘에 없던 항목(부상 부위 + 등급 차등)만. 정확도 숫자는 화면에 쓰지 않는다.
+const STAFF_SHORT = { academy: '아카데미', proLicense: '프로', veteran: '베테랑', master: '마스터' };
+const ARROW_PATH = { '↗': '<path d="M5 17L17 5M8 5h9v9"/>', '→': '<path d="M4 12h16M14 6l6 6-6 6"/>', '↘': '<path d="M5 7l12 12M8 19h9v-9"/>' };
+const arrowSvg = (a) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ARROW_PATH[a] ?? ARROW_PATH['→']}</svg>`;
+function myLineup() {
+  return pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides ?? {}, currentState.benchOverrides ?? {}).lineup;
+}
+// who: 'scout'(시장 카드·협상) | 'coach'(내 선수단)
+function staffReport(p, who = 'scout') {
+  const role = who === 'coach' ? 'headCoach' : 'headScout';
+  const level = staffLevel(role);
+  const ctx = { anchor: anchorOf(currentState.leagueTierId), role: who, lineup: myLineup(), ...(who === 'coach' ? { seasonsHeld: p.seasonsAtClub ?? 0 } : {}) };
+  const { always, graded } = reportFor(p, level, ctx);
+  const [growth, lastYear, injury] = always;
+  const parts = injury.expanded.filter((x) => x !== '이력 없음' && !injury.collapsed.includes(x)); // 접힘 칩에 이미 있는 말(잔부상 많음, 부위 이름이 없을 때의 대체 문구)은 펼침에서 뺀다
+  return { level, who, growth, lastYear, injury, parts, graded, count: 3 + graded.length };
+}
+const staffChipHtml = (r) => `<span class="staffchip">${r.who === 'coach' ? '코치' : '스카우터'} ${STAFF_SHORT[r.level] ?? r.level} · 리포트 <b>${r.count}</b>항목</span>`;
+const growthChipHtml = (g) => `<span class="rc rc--grow">성장폭 <em>${esc(g.text)}</em>${arrowSvg(g.arrow)}${g.grade ? `<span class="rc__gr">${g.grade}</span>` : ''}</span>`;
+const lastYearChipHtml = (l) => `<span class="rc">작년 <em>${esc(l.text)}</em></span>`;
+const injLabel = (h) => (h === '이력 없음' ? '부상 이력 없음' : h); // 엔진 문구는 그대로 두고 화면에서만 풀어 쓴다
+const injuryChipsHtml = (inj) => inj.collapsed.map((h) => `<span class="chip chip--plain chip--inj">${esc(injLabel(h))}</span>`).join('');
+// 영입 카드 펼침 줄: 부상 부위 + 등급 차등 항목
+const expandRowsHtml = (r) => [...(r.parts.length ? [['부상 부위', r.parts.join(' · ')]] : []), ...r.graded.map((g) => [g.label, g.text])]
+  .map(([k, v]) => `<div><b>${esc(k)}</b><span>${esc(v)}</span></div>`).join('');
+const expandCount = (r) => (r.parts.length ? 1 : 0) + r.graded.length;
+// 내 선수단 펼침: 코치 리포트 박스 전체(접힘엔 별·▲▼만 있으므로 전부 나열)
+function coachBoxHtml(p) {
+  const r = staffReport(p, 'coach');
+  const cell = (k, v, wide) => `<div class="${wide ? 'wide' : ''}"><small>${esc(k)}</small><b>${v}</b></div>`;
+  return `<div class="coachbox"><div class="coachbox__head"><span>코치 리포트</span>${staffChipHtml(r)}</div>
+    <div class="coachbox__grid">
+      ${cell('성장폭', `${esc(r.growth.text)}${arrowSvg(r.growth.arrow)}${r.growth.grade ? ` · 성장 ${r.growth.grade}` : ''}`, true)}
+      ${cell('작년 흐름', esc(r.lastYear.text))}
+      ${cell('부상 이력', esc(r.injury.collapsed.map(injLabel).join(' · ')) + (r.parts.length ? ` · ${esc(r.parts.join(' · '))}` : ''), true)}
+      ${r.graded.map((g) => cell(g.label, esc(g.text), g.id === 'traits' && g.text.length > 14)).join('')}
+    </div>
+    <p class="coachbox__est">${negIcon('info')}코치 추정</p></div>`;
 }
 
-function leagueMid() {
-  const t = getLeagueTier(currentState.leagueTierId);
-  return (t.averageOVR[0] + t.averageOVR[1]) / 2 + 6; // 리그 평균 전력 + 6 = 그 리그 평균 선수(선수 능력은 전력 지표보다 6쯤 높다)
-}
-const starsFor = (p) => starsOf(p, leagueMid());
-// 영입한 지 얼마 안 된 선수(unproven)는 아직 범위로 보이고, 첫 결산에서 한 점으로 좁아진다
-const starLabel = (p) => (p.unproven ? seenRange(p) : starText(starsFor(p)));
+// 별 눈금 기준: 그 리그 영입 풀 중앙값(고정 상수표, engine/stars.mjs)
+const starsFor = (p) => starsOf(p, anchorOf(currentState.leagueTierId));
+const starLabel = (p) => starText(starsFor(p)); // 모든 선수 단일 별(범위·검증 전 표시 없음)
 const tierOfP = (p) => tierFromStars(starsFor(p));
 // 화면에 칠하는 등급색: 일반 선수는 중립(등급색 폐지), GOD 카드만 현행 표시를 유지한다. 내부 tier id(tierOfP)는 가격·생성 쪽이 쓰므로 그대로 둔다.
 const tierColorOf = (p) => (p?.id?.startsWith?.('god-') ? tierOfP(p) : 'neutral');
-const seenRange = (p) => rangeText(starRange(p, leagueMid(), staffLevel('headScout')));
+// 별 한 줄(픽셀 별 5개): 반 칸은 'mid'
+const pixelStars = (s) => [1, 2, 3, 4, 5].map((n) => pixelStar(n <= s ? 'on' : n - 0.5 === s ? 'mid' : 'off')).join('');
+// 시즌 시작 대비 별 변화(▲/▼ + 칸 수). 시작 기록이 없는 선수(옛 세이브)는 표시하지 않는다.
+function starDelta(p) {
+  const s0 = currentState.seasonStartStars?.[p.id];
+  return s0 == null ? 0 : starsFor(p) - s0;
+}
+const starArrowHtml = (p) => { const d = starDelta(p); return d ? `<i class="stararrow ${d > 0 ? 'is-up' : 'is-down'}"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="${d > 0 ? 'M5 1L9 8H1Z' : 'M5 9L1 2H9Z'}"/></svg>${Math.abs(d)}</i>` : ''; };
+// 시즌이 시작될 때(새 시즌·새 런)와 영입 때 별을 적어 둔다. 이미 적힌 선수는 그대로 둔다(영입 선수는 영입 때 별이 기준).
+function snapshotStars(reset = false) {
+  const prev = reset ? {} : currentState.seasonStartStars ?? {};
+  currentState.seasonStartStars = Object.fromEntries(currentState.squad.map((p) => [p.id, prev[p.id] ?? starsFor(p)]));
+}
+
 
 function tierOf(ovr) {
   if (ovr >= 95) return 'god';
@@ -377,10 +419,13 @@ function staffChips(role, level) {
   const slots = SCOUT_TARGET_SLOTS_BY_LEVEL[level];
   const hint = SCOUT_HAGGLE_HINT_BY_LEVEL[level];
   return chip(`지시 조건 ${slots}개`, '포지션·태그·나이대 중 걸 수 있는 조건 수예요. 많이 걸수록 원하는 선수가 와요')
-    + chip(`평가 범위 ±${{ academy: 2, proLicense: 1.5, veteran: 1, master: 0.5 }[level]}★`, '영입 전에 보이는 별 범위의 폭이에요. 좁을수록 정확해요')
+    + chip(`리포트 ${REPORT_LINES_BY_LEVEL[level]}항목`, '영입 전에 보이는 선수 리포트 줄 수예요. 등급이 높을수록 많아요')
     + (SCOUT_QUALITY_BOOST_BY_LEVEL[level] ? chip(`상위 카드 +${Math.round(SCOUT_QUALITY_BOOST_BY_LEVEL[level] * 100)}%`, '톱클래스 이상 카드가 나올 확률') : '')
     + (hint ? chip(`협상 힌트 ±${Math.round(hint.half * 100)}%`, '협상 슬라이더에 구단 예상 이적료 구간을 보여 줘요(가끔 틀려요)') : '');
 }
+
+// 리포트 줄 수(항상 3 + 등급별 차등 1~4). 리포트 내용 자체는 engine/report.mjs 단계에서 붙는다.
+const REPORT_LINES_BY_LEVEL = { academy: 4, proLicense: 5, veteran: 6, master: 7 };
 
 // 영입 탭 > 스태프 목록(코치/스카우터)
 function draftStaffHtml(funds) {
@@ -1242,6 +1287,7 @@ function startRun(club) {
     freshBudget: false,
     pendingTransferProceeds: 0,
   };
+  snapshotStars(true);
   currentState.shopOffer = []; // v3: 1주차는 지시를 내려 보는 주 - 스카우터가 찾은 3명은 2주차에 도착한다
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
   renderNaming();
@@ -1272,7 +1318,7 @@ function tutorialTick(where) {
     return;
   }
   if (where === 'half') {
-    if (step >= 15) { if (!showSpot({ selector: '.agingbox--reeval', text: '스카우터님이 전반기 활약을 보고 선수들을 다시 평가했어요! 새로 영입한 선수의 별 범위는 한 점으로 좁혀지고, 별은 앞으로도 계속 움직여요. 숨은 실력은 끝까지 정확히 알 수 없어요. 그래서 더 재미있죠!', ...ok(16) })) tutSet(16); return; }
+    if (step >= 15) { if (!showSpot({ selector: '.agingbox--reeval', text: '스카우터님이 전반기 활약을 보고 선수들을 다시 평가했어요! 별은 앞으로도 조금씩 계속 움직여요. 숨은 실력은 끝까지 정확히 알 수 없어요. 그래서 더 재미있죠!', ...ok(16) })) tutSet(16); return; }
     showSpot({ selector: '.verdict', text: '전반기 결산이에요! 목표 페이스랑 비교해 보고, 겨울 시장에서 보강해요. 선수 평점은 아래 라인업에 있어요. 별이 높아도 평점이 낮을 수 있고, 반대도 있대요!', ...ok(15) });
     return;
   }
@@ -1307,7 +1353,7 @@ function tutorialTick(where) {
   } else if (step === 13) {
     if (currentState.tab !== 'draft') { currentState.tab = 'draft'; renderMarket(); return; }
     const pick = currentState.shopOffer.find((c) => hasUpgrade([c]));
-    if (!showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '스카우터님이 데려온 3명이에요! 별 범위가 넓을수록 불확실한 선수래요. 마음에 드는 선수를 협상해서 영입해 봐요!', onSkip: tutSkip })) clearSpot();
+    if (!showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '스카우터님이 데려온 3명이에요! 별은 세상의 평가라서 진짜 실력과 다를 수 있어요. 마음에 드는 선수를 협상해서 영입해 봐요!', onSkip: tutSkip })) clearSpot();
   } else clearSpot();
 }
 
@@ -1621,7 +1667,7 @@ function pixelFace(kind, size = 28) {
 const faceKindOfAttitude = (label) => (label === '유연' ? 'happy' : label === '보통' ? 'neutral' : 'angry');
 const faceKindOfPatience = (pat) => (pat >= 3 ? 'happy' : pat === 2 ? 'neutral' : 'angry');
 const PIX_STAR = ['...#...', '..###..', '#######', '.#####.', '..###..', '.##.##.', '##...##'];
-function pixelStar(state) { // 'on' 확실히 이만큼 / 'mid' 범위 안 / 'off'
+function pixelStar(state) { // 'on' 꽉 찬 별 / 'mid' 반 칸 / 'off' 빈 별
   const rects = PIX_STAR.map((row, y) => [...row].map((c, x) => (c === '#' ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : '')).join('')).join('');
   return `<svg class="pxstar is-${state}" width="21" height="21" viewBox="0 0 7 7" shape-rendering="crispEdges" aria-hidden="true">${rects}</svg>`;
 }
@@ -1631,6 +1677,7 @@ const NEG_ICONS = {
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7 V12 L15.5 14"/>',
   grow: '<path d="M4 18 L10 11 L14 15 L20 6"/><path d="M14 6 H20 V12"/>',
   heal: '<path d="M12 4 V20 M4 12 H20"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.500v.5"/>',
 };
 const negIcon = (name) => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NEG_ICONS[name]}</svg>`;
 function kitOfClub(name) {
@@ -1642,20 +1689,19 @@ const onColorOf = (hex) => {
   return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255 > 0.55 ? '#0b0b0b' : '#ffffff';
 };
 function negPlayerHtml(card, teamKit) {
-  const level = staffLevel('headScout');
-  const r = starRange(card, leagueMid(), level);
-  const stars = [1, 2, 3, 4, 5].map((n) => pixelStar(n <= Math.floor(r.lo) ? 'on' : n <= Math.ceil(r.hi) ? 'mid' : 'off')).join('');
-  const grade = potentialOf(card, 'headScout');
-  const hints = [...traitHints(card, level), ...injuryChips(card, level)].slice(0, 3);
+  const sv = starsFor(card);
+  const stars = pixelStars(sv);
+  const r = staffReport(card, 'scout');
   const tags = (card.playstyleTags ?? []).map((t) => `<span class="neg__chip">${renderTagIcon(PLAYSTYLE_ICON_PATHS, t)}${esc(TAG_LABELS[t] ?? t)}</span>`).join('');
   return `<section class="neg__player">
       <div class="neg__art">${renderPortrait(card, { size: 112, kit: teamKit })}<em class="neg__pos">${card.position}</em></div>
       <div class="neg__pinfo">
         <b class="neg__pname">${esc(card.name)}</b>
         <span class="neg__pmeta">${card.age}세</span>
-        <div class="neg__stars" aria-label="별 ${r.lo === r.hi ? r.lo : `${r.lo}에서 ${r.hi}`}">${stars}<small>${r.lo === r.hi ? `${r.lo}` : `범위 ${r.lo}~${r.hi}`}</small></div>
+        <div class="neg__stars" aria-label="별 ${sv}">${stars}<small>${sv}</small></div>
       </div>
-      <div class="neg__tags">${tags}${grade ? `<span class="neg__chip neg__chip--up">${negIcon('grow')}성장 ${grade}</span>` : ''}${hints.map((h) => `<span class="neg__chip">${esc(h)}</span>`).join('')}</div>
+      <div class="neg__tags">${tags}${r.injury.collapsed.map((h) => `<span class="neg__chip">${esc(injLabel(h))}</span>`).join('')}</div>
+      <div class="neg__rep">${growthChipHtml(r.growth)}${lastYearChipHtml(r.lastYear)}${staffChipHtml(r)}</div>
     </section>`;
 }
 // 값을 고르는 조절기: 큰 숫자 두 개(상대 금액 / 내 금액) + 슬라이더 + ±1/±5. zone이 있으면 그 밖으로 나갈 때 내 금액이 빨갛게 경고한다.
@@ -1940,15 +1986,16 @@ function startNewSeason() {
     extraGrowth: (currentState.stance?.fx.growthBoost ?? 0) + (offFx.youthGrowth ?? 0), // 격려(시즌)·세대교체(마무리) 토크
     vetRelief: offFx.vetRelief ?? 0,
   });
-  // 시즌이 끝났으니 평가 오차의 절반을 그 시즌 폼으로 갱신하고(범위는 점으로), 나이에 따른 능력 변화와 함께 별이 움직인다.
-  currentState.squad = aged.squad.map((p) => ({ ...p, obsErr: Math.round((0.5 * (p.obsErr ?? 0) + 0.5 * (p.form ?? 0)) * 10) / 10, unproven: false })).map(repricePlayer).map((p) => ({ ...p, form: rollForm(p.volatility) })); // 몸값도 다시 매기고, 시즌 폼은 새로 정해진다
+  // 시즌이 끝났으니 별 오차를 그 시즌 폼 쪽으로 칼만 방식으로 갱신하고, 나이에 따른 능력 변화와 함께 별이 움직인다.
+  const anchor = anchorOf(currentState.leagueTierId);
+  currentState.squad = aged.squad.map((p) => ({ ...p, ...obsUpdate(p, p.form ?? 0) })).map(repricePlayer).map((p) => ({ ...p, ...nextForm(p, anchor) })); // 별은 시즌 폼을 향해 조금 움직이고(칼만), 몸값을 다시 매기고, 새 시즌 폼이 정해진다
   currentState.windowBuys = [];
   currentState.halfObsDone = false;
   currentState.crisisShown = false;
   currentState.halfStarChanges = null;
   currentState.halfInjuries = null;
   currentState.secondInjuries = null;
-  currentState.squad = currentState.squad.map((p) => ({ ...p, out: 0, outKind: null, injHistory: (p.injHistory ?? []).map((h) => ({ ...h, ago: h.ago + 1 })).filter((h) => h.ago <= 1) }));
+  currentState.squad = currentState.squad.map((p) => ({ ...p, out: 0, outKind: null, outPart: null, injHistory: (p.injHistory ?? []).map((h) => ({ ...h, ago: h.ago + 1 })).filter((h) => h.ago <= 1) }));
   // 오래 뛴 선수(3시즌 이상)나 클럽 레전드가 은퇴하면 따로 인사한다.
   const tribute = aged.retired.map((r) => preAge.get(r.id)).filter((p) => p && ((p.seasonsAtClub ?? 0) >= 3 || isLegend(p)))
     .map((p) => ({ name: p.name, seasons: p.seasonsAtClub ?? 0, mvp: currentState.mvpSeasons?.[p.id] ?? 0, legend: isLegend(p) }));
@@ -1956,11 +2003,12 @@ function startNewSeason() {
   const starMoves = currentState.squad.map((p) => {
     const o = preAge.get(p.id);
     if (!o) return null;
-    const s0 = starsFor(o);
+    const s0 = currentState.seasonStartStars?.[p.id] ?? starsFor(o); // 시즌 시작 대비(기록이 없으면 시즌 끝 별)
     const s1 = starsFor(p);
     return s0 === s1 ? null : { id: p.id, name: p.name, age: p.age, s0, s1, kind: changeBy.get(p.id)?.kind, coach: changeBy.get(p.id)?.coach };
   }).filter(Boolean);
   const agingReport = { peaked: aged.peaked ?? [], coachHelped: aged.coachHelped ?? [], changes: aged.changes, starMoves, retired: aged.retired, youthLeft: youthLeft.map((p) => ({ name: p.name, position: p.position })) };
+  snapshotStars(true); // 새 시즌의 별 변화는 지금 별이 기준
   applySeasonEvent('summer'); // 지난 시즌 이벤트 문구는 여기서 새로 덮어쓴다
   currentState.shopOffer = newShopOffer();
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
@@ -2002,7 +2050,7 @@ function transactionDecayAmount() {
     ? CHEMISTRY_DECAY_PER_TRANSACTION
     : COACH_CHEMISTRY_DECAY_BY_LEVEL[coachLevel] ?? CHEMISTRY_DECAY_PER_TRANSACTION;
   const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
-  const captainRelief = lineup.some((p) => p.specialTrait === 'veteranLeader' && p.age >= 33) ? 1 : 0;
+  const captainRelief = lineup.some((p) => p.specialTrait === 'veteranLeader' && p.age >= 34) ? 1 : 0;
   return Math.max(0, (coachReduced - captainRelief) * fx().txDecayMult); // 호통 토크: 거래 벌칙 2배
 }
 
@@ -2092,7 +2140,8 @@ function buyCard(card, rowEl = null, outgoing = null, priceOverride = null) {
     : diff >= 0.07 ? { tone: 'bad', text: `스카우트 오판 · 시세보다 ${Math.round(diff * 100)}% 비싸게 샀어요` }
     : { tone: 'flat', text: '적정가 · 시세와 비슷하게 샀어요' };
   if (card.seller && !priceOverride) setMood(card.seller, 'asking');
-  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, unproven: true, paidPrice: price, price: trueValue }];
+  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, paidPrice: price, price: trueValue }];
+  (currentState.seasonStartStars ??= {})[card.id] = starsFor(card); // 영입 선수는 영입 때 별이 기준
   currentState.windowBuys = [...(currentState.windowBuys ?? []), card.id];
   const tiersAfter = tagTiers();
   const activated = Object.keys(tiersAfter).filter((t) => tiersAfter[t] > tiersBefore[t])
@@ -2518,9 +2567,12 @@ const tagLadderText = (req, values) => req.map((n, i) => `${n}명 +${values[i]}`
 const roundHalfPoints = (p) => Math.min(55, Math.round(p));
 
 // v3 부상: 시장 3주차에 반기 아웃·시즌 아웃이 터진다(알림 후 대응). 잔부상·중간 부상은 반기 시뮬 때 선발에게 터져 승점만 깎는다.
+// 이력에는 시즌·반기 아웃(부위 포함)과 잔부상만 남긴다. 중간 부상은 승점만 깎고 기록하지 않는다.
 function recordInjury(id, kind) {
+  if (kind !== 'minor') return;
   currentState.squad = currentState.squad.map((p) => (p.id === id ? { ...p, injHistory: [...(p.injHistory ?? []), { kind, ago: 0 }] } : p));
 }
+const injuryTitle = (x) => (x.part ? `${INJURY_PART_NAME[x.part]} · ${INJURY_LABELS[x.kind]}` : INJURY_LABELS[x.kind]);
 function rollMarketInjuries(scale = 1) {
   const hurt = [];
   currentState.squad = currentState.squad.map((p) => {
@@ -2528,8 +2580,9 @@ function rollMarketInjuries(scale = 1) {
     const kind = rollInjury(p, Math.random, ['half', 'season'], scale);
     if (!kind) return p;
     const out = kind === 'half' ? 1 : currentState.phase === 'summer' ? 2 : 1; // 겨울에 터진 시즌 아웃은 후반기만 빠진다
-    hurt.push({ name: p.name, position: p.position, kind });
-    return { ...p, out, outKind: kind, injHistory: [...(p.injHistory ?? []), { kind, ago: 0 }] };
+    const part = rollInjuryPart(p, kind, Math.random);
+    hurt.push({ name: p.name, position: p.position, kind, part });
+    return { ...p, out, outKind: kind, outPart: part, injHistory: [...(p.injHistory ?? []), { kind, ago: 0, part }] };
   });
   return hurt;
 }
@@ -2541,8 +2594,8 @@ function showInjuryPopup(list) {
     <div class="eventmodal-backdrop">
       <div class="eventmodal eventmodal--bad">
         <div class="eventmodal__kicker">부상 소식</div>
-        <div class="eventmodal__title">${one ? `${esc(list[0].name)}(${list[0].position}) ${INJURY_LABELS[list[0].kind]} 부상` : `${list.length}명이 크게 다쳤습니다`}</div>
-        <div class="eventmodal__detail">${one ? '이번 기간 선발에서 빠집니다.' : list.map((x) => `${esc(x.name)}(${x.position}) · ${INJURY_LABELS[x.kind]}`).join('<br>') + '<br>선발에서 빠집니다.'}</div>
+        <div class="eventmodal__title">${one ? `${esc(list[0].name)}(${list[0].position}) ${esc(injuryTitle(list[0]))}` : `${list.length}명이 크게 다쳤습니다`}</div>
+        <div class="eventmodal__detail">${one ? '이번 기간 선발에서 빠집니다.' : list.map((x) => `${esc(x.name)}(${x.position}) · ${esc(injuryTitle(x))}`).join('<br>') + '<br>선발에서 빠집니다.'}</div>
         <button class="cta" id="injury-close">닫기</button>
       </div>
     </div>`;
@@ -2611,11 +2664,11 @@ function rollHalfInjuries(lineup) {
 }
 // 한 반기가 지나면 아웃 기간이 줄어든다
 function tickInjuries() {
-  currentState.squad = currentState.squad.map((p) => (p.out > 0 ? (p.out > 1 ? { ...p, out: p.out - 1 } : { ...p, out: 0, outKind: null }) : p));
+  currentState.squad = currentState.squad.map((p) => (p.out > 0 ? (p.out > 1 ? { ...p, out: p.out - 1 } : { ...p, out: 0, outKind: null, outPart: null }) : p));
 }
 function injuriesHtml(list) {
   if (!list?.length) return '';
-  return `<div class="agingbox"><b>부상</b><ul>${list.map((x) => `<li class="is-down"><i class="cross">✚</i> ${esc(x.name)} <span>${x.position} · ${INJURY_LABELS[x.kind]}</span></li>`).join('')}</ul></div>`;
+  return `<div class="agingbox"><b>부상</b><ul>${list.map((x) => `<li class="is-down"><i class="cross">✚</i> ${esc(x.name)} <span>${x.position} · ${esc(injuryTitle(x))}</span></li>`).join('')}</ul></div>`;
 }
 
 function runFirstHalf(saleMessage = '') {
@@ -2691,18 +2744,16 @@ function decideSeasonMvp() {
   return top;
 }
 
-// v3: 한 반기가 끝나면 스카우터가 선수를 다시 평가한다. 평가 오차의 절반은 그 반기에 보인 활약(시즌 폼 등)으로 바뀐다.
-// 영입한 지 얼마 안 된 선수의 범위는 이때 한 점으로 좁아진다. 변화가 생긴 선수 목록을 돌려준다.
+// v3: 한 반기가 끝나면 스카우터가 선수를 다시 평가한다. 별 오차는 그 반기에 보인 활약(시즌 폼 등)을 향해 칼만 방식으로 움직인다.
+// 변화가 생긴 선수 목록을 돌려준다.
 function updateObservations(half) {
   const f = fx(half);
   const changes = [];
   currentState.squad = currentState.squad.map((p) => {
-    const before = starLabel(p);
     const sb = starsFor(p);
-    const perf = (p.form ?? 0) + hiddenShift(p, f);
-    const np = { ...p, obsErr: Math.round((0.5 * (p.obsErr ?? 0) + 0.5 * perf) * 10) / 10, unproven: false };
+    const np = { ...p, ...obsUpdate(p, (p.form ?? 0) + hiddenShift(p, f)) };
     const sa = starsFor(np);
-    if (p.unproven || sa !== sb) changes.push({ name: p.name, before, after: starLabel(np), up: sa > sb, down: sa < sb });
+    if (sa !== sb) changes.push({ name: p.name, before: starText(sb), after: starText(sa), up: sa > sb, down: sa < sb });
     return np;
   });
   return changes;
@@ -3629,7 +3680,7 @@ function renderPitch(slotted, formationId, kit, { interactive = false, selectedS
     return `<div class="slot${p.offPosition ? ' slot--offpos' : ''}${selected}${boostClass}" style="${style};--tier:var(--t-${tierColorOf(p)})"
       ${slotAttr} title="${esc(p.name)} · ${p.position} · ${starLabel(p)}${boost ? ` (팀 효과 +${boost})` : ''}">
       <div class="slot__card">
-        <span class="slot__ovr n">${starLabel(p)}</span>
+        <span class="slot__ovr n">${starLabel(p)}</span>${ratings ? starArrowHtml(p) : ''}
         <span class="slot__pos">${pos}</span>
         ${boost > 0 ? `<span class="slot__boost n">+${boost}</span>` : ''}
         ${renderPortrait(p, { size: 36, kit })}
@@ -3903,11 +3954,12 @@ function renderMarket(banner = '') {
       compareHtml = `<div class="deal__cmp"><span>내 선발 ${c.position} <b class="n">${starLabel(sameSlot)}</b></span></div>`; // 차이는 안 보여 준다(범위의 중심이 새 버리므로)
     }
     const decayNote = decay > 0 ? `조직력 −${decay}` : '';
+    const rep = staffReport(c, 'scout');
     const isGod = c.id.startsWith('god-'); // GOD 카드 표시는 현행 유지(등급색)
     const kit = c.seller ? kitOfClub(c.seller) : '#2b2b30'; // 카드 전체 = 소속 구단 팀 색(소속 없는 GOD는 현행 등급색)
     const can = affordable || (c.seller && funds >= Math.round(price * BID_MIN_RATIO));
-    const rng = starRange(c, leagueMid(), staffLevel('headScout'));
-    const starsHtml = [1, 2, 3, 4, 5].map((n) => pixelStar(n <= Math.floor(rng.lo) ? 'on' : n <= Math.ceil(rng.hi) ? 'mid' : 'off')).join('');
+    const sv = starsFor(c);
+    const starsHtml = pixelStars(sv);
     const att = c.seller ? sellerAttitude(c.seller) : null;
     return `<li class="offer deal mk__card" data-row="${c.id}" style="--team:${isGod ? 'var(--t-legendary)' : kit};--on-team:${isGod ? '#ffffff' : onColorOf(kit)}">
       <div class="mk__up">
@@ -3916,11 +3968,12 @@ function renderMarket(banner = '') {
         <div class="mk__info">
           <b class="mk__name">${esc(c.name)}</b>
           <span class="mk__meta">${c.age}세</span>
-          <div class="mk__stars" aria-label="별 ${rng.lo === rng.hi ? rng.lo : `${rng.lo}에서 ${rng.hi}`}">${starsHtml}<small>${rng.lo === rng.hi ? `<b class="n">${rng.lo}</b>` : `범위 <b class="n">${rng.lo}~${rng.hi}</b>`}</small></div>
+          <div class="mk__stars" aria-label="별 ${sv}">${starsHtml}<small><b class="n">${sv}</b></small></div>
         </div>
       </div>
-      <div class="mk__tags">${tags}${growthBadge(c, 'headScout')}</div>
-      ${hintsHtml(c)}
+      <div class="mk__tags">${tags}${injuryChipsHtml(rep.injury)}</div>
+      <div class="mk__rep">${growthChipHtml(rep.growth)}${lastYearChipHtml(rep.lastYear)}<button type="button" class="mk__more" data-more="${c.id}" aria-expanded="false"><span class="mk__more-n">+${expandCount(rep)}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button></div>
+      <div class="mk__exp" hidden>${expandRowsHtml(rep)}<p class="mk__est">${negIcon('info')}스태프 추정</p></div>
       ${compareHtml}
       </div>
       <div class="mk__foot">
@@ -3957,10 +4010,14 @@ function renderMarket(banner = '') {
   const orderFilled = ['pos', 'tag', 'age'].filter((k) => scoutOrder[k]).length;
   const tagOpts = (sel) => TAG_IDS.map((t) => `<option value="${t}"${sel === t ? ' selected' : ''}>${esc(TAG_LABELS[t] ?? t)}</option>`).join('');
   const posOpts = (sel) => POSITIONS.map((p) => `<option value="${p}"${sel === p ? ' selected' : ''}>${p}</option>`).join('');
-  const ageOpts = (sel) => [['young', '유망(~22세)'], ['prime', '즉전력(23~29)'], ['vet', '베테랑(30~)']].map(([v, l]) => `<option value="${v}"${sel === v ? ' selected' : ''}>${l}</option>`).join('');
+  const ageOpts = (sel) => [['young', '유망(~23세)'], ['prime', '즉전력(24~30)'], ['vet', '베테랑(31~)']].map(([v, l]) => `<option value="${v}"${sel === v ? ' selected' : ''}>${l}</option>`).join('');
   const orderSel = (key, label, opts) => `<select data-order="${key}" aria-label="${label}" ${!scoutOrder[key] && orderFilled >= orderCap ? 'disabled' : ''}><option value="">${label}</option>${opts}</select>`;
+  const scoutLevel = staffLevel('headScout');
+  const scoutChip = `<span class="staffchip">스카우터 ${STAFF_SHORT[scoutLevel] ?? scoutLevel} · 리포트 <b>${3 + (GRADED_COUNT[scoutLevel] ?? 1)}</b>항목</span>`;
+  const coachLevel = staffLevel('headCoach');
+  const coachChip = `<span class="staffchip">코치 ${STAFF_SHORT[coachLevel] ?? coachLevel} · 리포트 <b>${3 + (GRADED_COUNT[coachLevel] ?? 1)}</b>항목</span>`;
   const scoutTargetHtml = `<div class="scoutorder" id="scout-order">
-      <span class="scoutbar__label">${renderTagIcon(TRAIT_ICON_PATHS, 'scout')}스카우트 지시</span>
+      <span class="scoutbar__label">${renderTagIcon(TRAIT_ICON_PATHS, 'scout')}스카우트 지시</span>${scoutChip}
       <span class="scoutorder__sels">${orderSel('pos', '포지션', posOpts(scoutOrder.pos))}${orderSel('tag', '태그', tagOpts(scoutOrder.tag))}${orderSel('age', '나이대', ageOpts(scoutOrder.age))}</span>
       <small class="scoutorder__note">조건 ${orderFilled}/${orderCap}개 · 다음 주에 이 조건으로 3명이 도착해요${orderCap < 3 ? ' (스카우터 등급이 높으면 조건을 더 걸 수 있어요)' : ''}</small>
     </div>`;
@@ -3981,17 +4038,17 @@ function renderMarket(banner = '') {
     return `<li class="srow srow--${group}${currentState.marks?.[p.id] ? ` is-${currentState.marks[p.id]}` : ''}" data-row="${p.id}" data-advice="${advice?.id ?? ''}" data-tags="${(p.playstyleTags ?? []).join(' ')}" style="--tier:var(--t-${tierColorOf(p)})">
       <div class="srow__ph">${renderPortrait(p, { size: 52, kit: club.kit ?? '#4b3a9a' })}<span class="srow__pos">${p.position}</span></div>
       <div class="srow__main">
-        <div class="srow__name">${capTag(p)}${esc(p.name)}<small>${p.age}세</small><b class="srow__ovr n">${starLabel(p)}</b>${p.out > 0 ? `<span class="tag tag--inj"><i class="cross">✚</i> ${INJURY_LABELS[p.outKind] ?? '부상'}</span>` : ''}${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
-        <div class="srow__line2">${tagIconsHtml(p, null, true)}${growthBadge(p, 'headCoach')}</div>
+        <div class="srow__name">${capTag(p)}${esc(p.name)}<small>${p.age}세</small><b class="srow__ovr n">${starLabel(p)}</b>${p.out > 0 ? `<span class="tag tag--inj"><i class="cross">✚</i> ${p.outPart ? `${INJURY_PART_NAME[p.outPart]}(${INJURY_LABELS[p.outKind]})` : INJURY_LABELS[p.outKind] ?? '부상'}</span>` : ''}${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
+        <div class="srow__line2">${tagIconsHtml(p, null, true)}${starArrowHtml(p)}</div>
       </div>
       <div class="srow__side">${advice ? `<b class="advice advice--${advice.id}">${advice.label}</b>` : ''}<button type="button" class="markbtn${currentState.marks?.[p.id] ? ` is-on is-${currentState.marks[p.id]}` : ''}" data-mark="${p.id}" aria-label="유망·정리 표시" title="눌러서 유망 → 정리 후보 → 없음">${markIconSvg(currentState.marks?.[p.id])}</button><i class="srow__chev" aria-hidden="true"></i></div>
       <div class="srow__acts" data-actions="${p.id}">
+        ${coachBoxHtml(p)}
         <div class="tri">
           <button type="button" class="${mk === 'prospect' ? 'on g' : ''}" data-markset="${p.id}:prospect" aria-pressed="${mk === 'prospect'}">${markIconSvg('prospect')}유망</button>
           <button type="button" class="${mk === 'cut' ? 'on o' : ''}" data-markset="${p.id}:cut" aria-pressed="${mk === 'cut'}">${markIconSvg('cut')}정리</button>
           <button type="button" class="${p.id === capId ? 'on c' : ''}" data-captain="${p.id}" aria-pressed="${p.id === capId}"><span class="cl">C</span>주장</button>
         </div>
-        ${hintsHtml(p)}
         ${advice ? `<span class="srow__why advice--${advice.id}">${esc(advice.why)}</span>` : ''}
         ${(currentState.mvpSeasons?.[p.id] || p.seasonsAtClub) ? `<span class="srow__paid">${p.seasonsAtClub ? `${p.seasonsAtClub + 1}시즌째` : ''}${currentState.mvpSeasons?.[p.id] ? ` · 시즌 MVP ${currentState.mvpSeasons[p.id]}회` : ''}${isLegend(p) ? ' · 팔면 조직력 -' + HOMETOWN_RELEASE_CHEMISTRY_PENALTY : ''}</span>` : ''}
         ${p.paidPrice ? `<span class="srow__paid">산 값 <b class="n">${p.paidPrice}G</b> · 시세 <b class="n">${p.price}G</b> <em class="${p.price > p.paidPrice ? 'up' : p.price < p.paidPrice ? 'down' : 'flat'}">${p.price >= p.paidPrice ? '+' : ''}${p.price - p.paidPrice}</em></span>` : p.price ? `<span class="srow__paid">시세 <b class="n">${p.price}G</b></span>` : ''}
@@ -4096,6 +4153,7 @@ function renderMarket(banner = '') {
       ${renderChemistryPanel(lineup, bench)}`,
     squad: `
       <section class="panel tabpanel">
+        <div class="staffline">${coachChip}</div>
         <div class="sqsum">
           <span><b class="n${squad.length > capNow() ? ' is-over' : ''}">${squad.length}</b>/${capNow()}명</span>
           <span>평균 <b class="n">${avgAge(squad)}</b>세${lineup.length ? ` · 선발 <b class="n">${avgAge(lineup)}</b>세` : ''}</span>
@@ -4213,6 +4271,16 @@ function renderMarket(banner = '') {
     };
   }
   if (tab === 'draft') {
+    document.querySelectorAll('[data-more]').forEach((btn) => { // 영입 카드 '+N' 펼치기: 접힘에 없던 리포트 줄을 연다
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const li = btn.closest('.mk__card');
+        const open = li.classList.toggle('is-open');
+        li.querySelector('.mk__exp').hidden = !open;
+        btn.setAttribute('aria-expanded', String(open));
+        btn.querySelector('.mk__more-n').textContent = open ? '접기' : `+${li.querySelectorAll('.mk__exp > div').length}`;
+      };
+    });
     for (const card of shopOffer) {
       const btn = document.querySelector(`[data-buy="${card.id}"]`);
       if (!btn) continue; // 공석 필터로 가려진 카드는 화면에 없다
@@ -4497,8 +4565,8 @@ function renderMarket(banner = '') {
         ${(ag.coachHelped ?? []).length ? `<p class="agingbox__coach">코치 덕분에 ${ag.coachHelped.length}명이 추가로 성장했어요: ${esc(ag.coachHelped.slice(0, 4).map((x) => x.name).join(', '))}${ag.coachHelped.length > 4 ? ' 외' : ''}</p>` : ''}
         <ul>
           ${(ag.peaked ?? []).map((x) => `<li class="is-up">★ ${esc(x.name)} <span>전성기 도달</span></li>`).join('')}
-          ${ups.map((c) => `<li class="is-up">▲ ${esc(c.name)} <span>${c.age}세 · ${starText(c.s0)}→${starText(c.s1)}${c.kind === 'leap' ? ' 도약!' : ''}${c.coach ? ' (코치 +1)' : ''}</span></li>`).join('')}
-          ${downs.map((c) => `<li class="is-down">▼ ${esc(c.name)} <span>${c.age}세 · ${starText(c.s0)}→${starText(c.s1)}${c.kind === 'stall' ? ' 정체' : ''}</span></li>`).join('')}
+          ${ups.map((c) => `<li class="is-up">▲${c.s1 - c.s0} ${esc(c.name)} <span>${c.age}세 · ${starText(c.s0)}→${starText(c.s1)}${c.kind === 'leap' ? ' 도약!' : ''}${c.coach ? ' (코치 +1)' : ''}</span></li>`).join('')}
+          ${downs.map((c) => `<li class="is-down">▼${c.s0 - c.s1} ${esc(c.name)} <span>${c.age}세 · ${starText(c.s0)}→${starText(c.s1)}${c.kind === 'stall' ? ' 정체' : ''}</span></li>`).join('')}
           ${ag.retired.map((r) => `<li class="is-retire">은퇴 ${esc(r.name)} <span>${r.age}세</span></li>`).join('')}
           ${ag.youthLeft.map((y) => `<li class="is-retire">보충 선수 퇴단 ${esc(y.name)} <span>${y.position}</span></li>`).join('')}
         </ul>

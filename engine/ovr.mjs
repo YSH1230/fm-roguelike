@@ -28,8 +28,8 @@ export function computeTeamTraitBonuses(lineup, bench) {
     bonuses.set(playerId, (bonuses.get(playerId) ?? 0) + amount);
   };
 
-  if (lineup.some((p) => p.specialTrait === 'veteranLeader' && p.age >= 33)) {
-    for (const p of lineup) if (p.age <= 23) addBonus(p.id, 3);
+  if (lineup.some((p) => p.specialTrait === 'veteranLeader' && p.age >= 34)) {
+    for (const p of lineup) if (p.age <= 24) addBonus(p.id, 3);
   }
   if (bench.some((p) => p.specialTrait === 'superSub')) {
     for (const p of lineup) addBonus(p.id, 1);
@@ -107,7 +107,7 @@ export function computePlayerBonusBreakdown(player, lineup, bench, fx = null) {
   const self = computeSelfTraitBonus(player);
   if (self) parts.push({ kind: 'self', id: player.specialTrait, value: self });
 
-  if (player.age <= 23 && lineup.some((p) => p.specialTrait === 'veteranLeader' && p.age >= 33)) {
+  if (player.age <= 24 && lineup.some((p) => p.specialTrait === 'veteranLeader' && p.age >= 34)) {
     parts.push({ kind: 'team', id: 'veteranLeader', value: 3 });
   }
   if (bench.some((p) => p.specialTrait === 'superSub')) parts.push({ kind: 'team', id: 'superSub', value: 1 });

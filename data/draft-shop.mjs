@@ -45,7 +45,7 @@ function targetedCard(tag, tierId, rng, position = null, pool = tierPool(tierId)
 // targets: 스카우터가 매주 맨 앞에서부터 한 칸에 한 장씩 보장하는 목표 카드들. 칸 하나는 { tag?, position? } - 태그만, 포지션만, 둘 다 가능하다(둘 다면 둘을 함께 만족하는 카드 1장).
 // qualityBoost: 스카우터가 올려 주는 상위 등급 확률.
 // v3: 스카우트 지시 → 3명 도착. 지시 조건(포지션·태그·나이대)은 3명 모두 만족하고, 3명은 등급이 서로 달라지게 뽑는다.
-export const SCOUT_AGE_BANDS = { young: [18, 22], prime: [23, 29], vet: [30, 35] };
+export const SCOUT_AGE_BANDS = { young: [19, 23], prime: [24, 30], vet: [31, 37] };
 export function generateScoutDelivery(order = {}, size = 3, availableGods = [], rng = Math.random, tierId = 'tier1', qualityBoost = 0) {
   const pool = tierPool(tierId, qualityBoost);
   const tag = order.tag && PLAYSTYLE_TAGS[order.tag] ? order.tag : null;

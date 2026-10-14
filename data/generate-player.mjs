@@ -71,14 +71,14 @@ export function generateProceduralPlayer(tierId, rng = Math.random, position = n
   const continentTag = pick(Object.keys(CONTINENT_TAGS), rng);
   const name = randomName(continentTag, rng);
   const baseOVR = randomInt(tier.minOVR, tier.maxOVR, rng);
-  const age = ageRange ? randomInt(ageRange[0], ageRange[1], rng) : randomInt(18, 35, rng);
+  const age = ageRange ? randomInt(ageRange[0], ageRange[1], rng) : randomInt(19, 36, rng);
 
   // 30% 확률로 특수 성향 하나 부여 (스펙: 등급 무관 0~1개).
   // 베테랑 리더는 33세 이상에서만 발동하므로(engine/ovr.mjs), 어린 선수에게는
   // 뽑히지 않게 후보에서 뺀다 — 안 그러면 평생 효과 없는 카드가 생긴다.
   // forceTag(스카우터 목표 태그)를 주면 그 태그를 보너스로 받는 포지션으로 뽑고 태그를 반드시 단다.
   const pos = position ?? pick(forceTag ? PLAYSTYLE_TAGS[forceTag].positions : POSITIONS, rng);
-  const eligibleTraits = age >= 33 ? SPECIAL_TRAITS : SPECIAL_TRAITS.filter((t) => t !== 'veteranLeader');
+  const eligibleTraits = age >= 34 ? SPECIAL_TRAITS : SPECIAL_TRAITS.filter((t) => t !== 'veteranLeader');
   const specialTrait = rng() < SPECIAL_TRAIT_CHANCE ? pick(eligibleTraits, rng) : null;
 
   // 전성기(보이지 않는 잠재력)와, 시장이 그걸 ±7% 정도 잘못 보는 가격(스카우트가 좋으면 어긋남을 찾아낸다)
@@ -117,7 +117,7 @@ export function generateEmergencyYouth(position, rng = Math.random) {
     name,
     baseOVR: tier.minOVR, // 긴급 콜업은 등급 최저 능력치
     price: 0,
-    age: randomInt(17, 20, rng),
+    age: randomInt(19, 21, rng),
     position,
     playstyleTags: [], // 긴급 콜업은 태그·특수 성향이 아무것도 없는 무명 유스
     continentTag: null,

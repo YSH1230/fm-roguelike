@@ -167,9 +167,9 @@ export const EXPLORE_MAX_CLUES = 3;
 export const EXPLORE_BASE_HINT = { half: 0.2, hit: 0.7 };
 export const SCOUT_HAGGLE_HINT_BY_LEVEL = {
   academy: null,
-  proLicense: { half: 0.12, hit: 0.7 },
-  veteran: { half: 0.07, hit: 0.8 },
-  master: { half: 0.03, hit: 0.85 },
+  proLicense: { half: 0.12, hit: 0.6 },
+  veteran: { half: 0.07, hit: 0.7 },
+  master: { half: 0.05, hit: 0.8 },
 };
 // 스카우터 목표 지정 칸 수: 칸마다 태그 또는 포지션 하나를 정해 두면 매주 그 조건의 카드를 1장씩 보장한다.
 export const SCOUT_TARGET_SLOTS_BY_LEVEL = { academy: 1, proLicense: 1, veteran: 2, master: 3 }; // v3: 지시에 걸 수 있는 조건(포지션·태그·나이대) 수
@@ -187,8 +187,7 @@ export const STAFF_LEVELS_BY_TIER = {
 // 스카우터 능력 4가지: 매물 장수 / 상위 등급 카드 확률 / 다시 뽑기 할인 / 목표 지정(매주 보장 카드).
 export const SCOUT_SHOP_OFFER_SIZE_BY_LEVEL = { academy: 3, proLicense: 3, veteran: 3, master: 3 }; // v3: 지시 한 번에 항상 3명
 // 톱클래스 이상 카드가 나올 가중치 배율 증가분(리그에 없는 등급은 그대로 0).
-export const SCOUT_QUALITY_BOOST_BY_LEVEL = { academy: 0, proLicense: 0.25, veteran: 0.5, master: 0.9 };
-export const SCOUT_REROLL_DISCOUNT_BY_LEVEL = { academy: 0, proLicense: 0.2, veteran: 0.35, master: 0.5 };
+export const SCOUT_QUALITY_BOOST_BY_LEVEL = { academy: 0, proLicense: 0.25, veteran: 0.5, master: 1.2 };
 
 // GOD 카드(선수)가 상점에 뜰 확률 — 전 세계 2명뿐이라 극희귀. 1부 상점에서만
 // 굴린다(data/draft-shop.mjs) - 하부리그에 최상위 카드가 섞이면 위화감이 크다.

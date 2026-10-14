@@ -48,17 +48,18 @@ test('모든 선수의 나이가 1 오르고 OVR은 1~99다', () => {
 });
 
 test('전성기에 처음 닿는 시즌이 peaked에 담긴다', () => {
-  const p = { ...mk('a', 24, 70), peakOVR: 76, peakBodyAge: 25 };
+  const p = { ...mk('a', 25, 70), peakOVR: 76, peakBodyAge: 25 }; // 몸 나이 24 → 25
   const { peaked } = ageSquad([p], () => 0.5);
   assert.equal(peaked.length, 1);
-  assert.ok(hasPeaked({ ...p, age: 25 }));
+  assert.ok(hasPeaked({ ...p, age: 26 }));
 });
 
-test('37세 이상은 반드시 은퇴하고 35~36세는 확률로 은퇴한다', () => {
-  assert.equal(retireChance(FORCED_RETIRE_AGE), 1);
-  assert.equal(retireChance(34), 0);
-  assert.ok(retireChance(35) > 0 && retireChance(36) > retireChance(35));
-  const { squad, retired } = ageSquad([mk('old', 36), mk('young', 20)], () => 0.99);
+test('은퇴: 몸 나이 33세부터 확률(3·8·15·28·45%, 38+는 65%), 실제 나이 40세는 확정', () => {
+  assert.equal(FORCED_RETIRE_AGE, 40);
+  assert.equal(retireChance(32, 36), 0);
+  assert.deepEqual([33, 34, 35, 36, 37, 38, 45].map((b) => retireChance(b, 30)), [0.03, 0.08, 0.15, 0.28, 0.45, 0.65, 0.65]);
+  assert.equal(retireChance(30, FORCED_RETIRE_AGE), 1);
+  const { squad, retired } = ageSquad([mk('old', 39), mk('young', 20)], () => 0.99); // 39 → 40세
   assert.equal(retired.length, 1);
   assert.equal(retired[0].id, 'old');
   assert.equal(squad.length, 1);
@@ -71,10 +72,12 @@ test('OVR은 1~99로 제한되고, 변화가 있었던 선수만 changes에 담�
 });
 
 test('포지션별 노화: 골키퍼는 늦게, 공격수는 빨리 늙는다', () => {
-  assert.equal(bodyAge(34, 'GK'), 31);
-  assert.equal(bodyAge(34, 'ST'), 35);
+  assert.equal(bodyAge(34, 'GK'), 30);
+  assert.equal(bodyAge(34, 'ST'), 34);
+  assert.equal(bodyAge(34, 'CMF'), 33); // 몸 나이는 포지션 보정에 −1이 더 붙는다
   assert.ok(ovrChangeRange(34, 'GK')[0] > ovrChangeRange(34, 'ST')[0]);
-  assert.equal(retireChance(bodyAge(36, 'GK')), 0);
+  assert.equal(retireChance(bodyAge(37, 'GK'), 37), 0.03); // GK 37세 → 몸 나이 33
+
 });
 
 test('도약(+2)은 변화에 더해진다', () => {
@@ -84,31 +87,45 @@ test('도약(+2)은 변화에 더해진다', () => {
   assert.ok(leap.baseOVR >= 60 + LEAP_BONUS - 1);
 });
 
-test('추세 화살표와 33세 이상 가격 보정', () => {
+test('추세 화살표와 34세 이상 가격 보정', () => {
   assert.equal(playerTrend({ age: 19, position: 'ST', baseOVR: 55, peakOVR: 70, peakBodyAge: 26 }), '↗');
   assert.equal(playerTrend({ age: 27, position: 'CMF', baseOVR: 70, peakOVR: 70, peakBodyAge: 26 }), '→');
   assert.equal(playerTrend({ age: 34, position: 'ST', baseOVR: 70, peakOVR: 70, peakBodyAge: 26 }), '↘');
   assert.equal(agePriceMult(20), 1);
+  assert.equal(agePriceMult(33), 1);
   assert.equal(agePriceMult(34), 0.85);
 });
 
-test('성장 단계: 전성기까지 2년 이상 early, 1년 late, 정점~30 prime, 31+ veteran', () => {
+test('성장 단계: 전성기까지 2년 이상 early, 1년 late, 정점~31 prime, 32+ veteran', () => {
   const base = { position: 'CMF', baseOVR: 60, peakOVR: 72, peakBodyAge: 27 };
   assert.equal(growthStage({ ...base, age: 21 }), 'early');
-  assert.equal(growthStage({ ...base, age: 25 }), 'early');
-  assert.equal(growthStage({ ...base, age: 26 }), 'late'); // 몸 나이 26 - CMF는 지연 0
-  assert.equal(growthStage({ ...base, age: 27 }), 'prime');
-  assert.equal(growthStage({ ...base, age: PRIME_END_BODY_AGE - 1 }), 'prime');
-  assert.equal(growthStage({ ...base, age: PRIME_END_BODY_AGE }), 'veteran');
+  assert.equal(growthStage({ ...base, age: 26 }), 'early'); // 몸 나이 25 - CMF 지연 0, 보정 −1
+  assert.equal(growthStage({ ...base, age: 27 }), 'late');
+  assert.equal(growthStage({ ...base, age: 28 }), 'prime');
+  assert.equal(growthStage({ ...base, age: PRIME_END_BODY_AGE }), 'prime');
+  assert.equal(growthStage({ ...base, age: PRIME_END_BODY_AGE + 1 }), 'veteran');
 });
 
 test('전성기는 약 4년: 몸 나이 30까지는 한 시즌에 -1 이상 떨어지지 않고, 베테랑이 되면 더 떨어진다', () => {
   const at = (age) => ({ id: 'x', name: 'X', age, baseOVR: 70, position: 'CMF', peakOVR: 70, peakBodyAge: 27 });
   let worstPrime = 0; let worstVet = 0;
   for (let i = 0; i < 400; i++) {
-    for (const age of [27, 28, 29, 30]) { const n = ageSquad([at(age)], Math.random).squad[0]; if (n) worstPrime = Math.min(worstPrime, n.baseOVR - 70); }
-    const v = ageSquad([at(33)], Math.random).squad[0]; if (v) worstVet = Math.min(worstVet, v.baseOVR - 70);
+    for (const age of [28, 29, 30, 31]) { const n = ageSquad([at(age)], Math.random).squad[0]; if (n) worstPrime = Math.min(worstPrime, n.baseOVR - 70); }
+    const v = ageSquad([at(36)], Math.random).squad[0]; if (v) worstVet = Math.min(worstVet, v.baseOVR - 70);
   }
   assert.ok(worstPrime >= -1, `전성기 최악 ${worstPrime}`);
   assert.ok(worstVet <= -2, `베테랑 최악 ${worstVet}`);
+});
+
+test('19세 시작 평균 은퇴 나이: GK 39.6 / CB 38.5 / CMF 37.6 / ST 36.6(±0.35), 최대 40', () => {
+  const want = { GK: 39.6, CB: 38.5, CMF: 37.6, ST: 36.6 };
+  for (const [pos, avg] of Object.entries(want)) {
+    let sum = 0; let max = 0; const n = 3000;
+    for (let i = 0; i < n; i++) {
+      let p = { id: 'a', name: 'a', age: 19, baseOVR: 60, position: pos, playstyleTags: [] };
+      for (;;) { const r = ageSquad([p], Math.random, 'academy'); if (!r.squad.length) { sum += p.age + 1; max = Math.max(max, p.age + 1); break; } p = r.squad[0]; }
+    }
+    assert.ok(Math.abs(sum / n - avg) < 0.35, `${pos} ${sum / n}`);
+    assert.ok(max <= 40);
+  }
 });

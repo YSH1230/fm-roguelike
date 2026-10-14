@@ -7,17 +7,17 @@ import { COACH_GROWTH_BY_LEVEL } from './constants.mjs';
 // 전성기를 지나면 아래 곡선대로 꺾인다. 전성기는 보이지 않는 값이고, 스카우터·코치가 추정 범위로만 알려 준다(engine/scouting.mjs).
 // 매 시즌 시작에 10%는 도약(변화 +2 추가), 10%는 정체(변화 0 이하)한다.
 
-export const FORCED_RETIRE_AGE = 37;
-// 전성기(약 4년): 정점 이후에도 몸 나이 31이 되기 전까지는 거의 안 떨어진다(0 또는 -1). 그 뒤부터가 베테랑이고, 내리막 곡선은 2년 늦게 시작한다.
-export const PRIME_END_BODY_AGE = 31;
-export const DECLINE_SHIFT = 2;
+export const FORCED_RETIRE_AGE = 40; // 실제 나이 40세는 강제 은퇴
+// 전성기(약 4년): 정점 이후에도 몸 나이 32가 되기 전까지는 거의 안 떨어진다(0 또는 -1). 그 뒤부터가 베테랑이고, 내리막 곡선은 2년 늦게 시작한다.
+export const PRIME_END_BODY_AGE = 32;
+export const DECLINE_SHIFT = 3;
 export const LEAP_CHANCE = 0.1;
 export const STALL_CHANCE = 0.1;
 export const LEAP_BONUS = 2;
 
 const AGE_DELAY = { GK: 3, CB: 1, DMF: 1, W: -1, WB: -1, ST: -1 };
 // 나이 곡선에 대입하는 "몸 나이". 은퇴 확률에도 쓴다.
-export const bodyAge = (age, position) => age - (AGE_DELAY[position] ?? 0);
+export const bodyAge = (age, position) => age - (AGE_DELAY[position] ?? 0) - 1;
 
 // 나이(올해 시즌을 마친 시점의 나이) -> 다음 시즌 OVR 변화 범위(정수, 양끝 포함)
 export function ovrChangeRange(age, position = null) {
@@ -64,12 +64,12 @@ export function growthStage(p) {
   return ba >= PRIME_END_BODY_AGE ? 'veteran' : 'prime';
 }
 
-// 새 나이 기준 은퇴 확률: 35세 35%, 36세 60%, 37세 이상 확정
-export function retireChance(newAge) {
+// 은퇴 확률(새 몸 나이 기준): 33세 3% … 37세 45%, 38세 이상 65%. 실제 나이가 40세면 확정.
+const RETIRE_BY_BODY_AGE = { 33: 0.03, 34: 0.08, 35: 0.15, 36: 0.28, 37: 0.45 };
+export function retireChance(newBodyAge, newAge = 0) {
   if (newAge >= FORCED_RETIRE_AGE) return 1;
-  if (newAge === 36) return 0.6;
-  if (newAge === 35) return 0.35;
-  return 0;
+  if (newBodyAge >= 38) return 0.65;
+  return RETIRE_BY_BODY_AGE[newBodyAge] ?? 0;
 }
 
 // 카드에 붙는 추세 화살표: ↗ 전성기를 향해 오른다 / → 비슷 / ↘ 내려간다
@@ -80,9 +80,9 @@ export function playerTrend(p) {
   return '→';
 }
 
-// 나이에 따른 몸값 보정: 33세 이상 -15%. (어린 선수의 프리미엄은 전성기=잠재력이 가격에 들어가므로 따로 없다)
+// 나이에 따른 몸값 보정: 34세 이상 -15%. (어린 선수의 프리미엄은 전성기=잠재력이 가격에 들어가므로 따로 없다)
 export function agePriceMult(age) {
-  return age >= 33 ? 0.85 : 1;
+  return age >= 34 ? 0.85 : 1;
 }
 
 // coachLevel: 수석 코치 등급(성장 단계 선수의 성장 +1 확률과 정체 확률). 결과의 coachHelped는 코치 덕에 +1 더 오른 선수들.
@@ -97,7 +97,7 @@ export function ageSquad(squad, rng = Math.random, coachLevel = 'academy', opts 
   for (const raw of squad) {
     const p = ensurePotential(raw, rng);
     const newAge = p.age + 1;
-    if (p.retiresAfterSeason || rng() < retireChance(bodyAge(newAge, p.position))) { retired.push({ id: p.id, name: p.name, age: newAge, baseOVR: p.baseOVR }); continue; }
+    if (p.retiresAfterSeason || rng() < retireChance(bodyAge(newAge, p.position), newAge)) { retired.push({ id: p.id, name: p.name, age: newAge, baseOVR: p.baseOVR }); continue; }
     const ba = bodyAge(p.age, p.position);
     let delta;
     let helped = false;

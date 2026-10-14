@@ -1,10 +1,15 @@
 // v3: 화면에는 OVR 숫자 대신 "별"만 보인다. 별 = 세상의 평가(관측값)이고, 진짜 실력(baseOVR + 시즌 폼)은 숨는다.
 // 관측값 = baseOVR + obsErr(선수마다 고정된 평가 오차: 양수면 이름값이 높은 "거품", 음수면 저평가된 "보석").
-import { hash32 } from './scouting.mjs';
 
-export const OBS_ERR_SIGMA = 4.5; // 평가 오차 표준편차(OVR). 별 약 0.75칸
-export const OVR_PER_STAR = 4; // 리그 평균 선수 = ★3, OVR 4가 별 1칸
-export const FORM_SIGMA = { steady: 1.5, normal: 2.5, streaky: 5 }; // 시즌 폼 표준편차(OVR)
+// 별 눈금(S4): OVR 6점 = 별 1칸. 기준은 그 리그 영입 풀 중앙값(고정 상수표, 영입 풀 가중치를 바꾸면 시뮬로 다시 계산).
+export const OVR_PER_STAR = 6;
+export const STAR_ANCHOR_BY_TIER = { tier5: 59, tier4: 64, tier3: 72, tier2: 77, tier1: 83 };
+export const anchorOf = (tierId) => STAR_ANCHOR_BY_TIER[tierId] ?? STAR_ANCHOR_BY_TIER.tier5;
+export const FORM_SIGMA = { steady: 1.5, normal: 2.5, streaky: 4 }; // 시즌 폼 표준편차(OVR)
+export const FORM_RHO = { steady: 0.5, normal: 0.25, streaky: 0.05 }; // 폼이 작년에서 이어지는 정도
+export const OBS_R = { steady: 38, normal: 66, streaky: 25 }; // 칼만 관측 분산
+export const OBS_KMIN = { steady: 0.25, normal: 0.15, streaky: 0.15 }; // 칼만 이득 하한(유형별)
+export const EVAL_NOISE_SIGMA = 3.0; // 영입 직전 평가 잡음(OVR)
 
 function gauss(rng) {
   return Math.sqrt(-2 * Math.log(1 - rng())) * Math.cos(2 * Math.PI * rng());
@@ -18,7 +23,7 @@ export function rollHiddenTraits(rng = Math.random) {
   const d = rng();
   return {
     durability: d < 0.2 ? 'iron' : d < 0.8 ? 'normal' : 'fragile', // 내구성(부상 확률, engine/injury.mjs)
-    obsErr: Math.round(gauss(rng) * OBS_ERR_SIGMA * 10) / 10, volatility, form: rollForm(volatility, rng),
+    ...rollInitialObservation(volatility, rng), volatility,
     curve: axis('late', 'early'), rhythm: axis('slow', 'fast'), team: axis('team', 'solo'), adapt: axis('riser', 'lowking'), settle: axis('fast', 'slow'),
   };
 }
@@ -35,34 +40,51 @@ export function hiddenShift(p, fx = null) {
 // 화면 표시용: 숨은 값을 전부 지운 선수(팀 효과 표시가 숨은 값을 새지 않게)
 export const hideHidden = (p) => ({ ...p, form: 0, team: null, adapt: null, settle: null, rhythm: null });
 
-// 시즌 폼: 시즌이 시작될 때 선수마다 정해져 그 시즌 내내 유지된다.
-export function rollForm(volatility = 'normal', rng = Math.random) {
-  return Math.round(gauss(rng) * (FORM_SIGMA[volatility] ?? FORM_SIGMA.normal) * 10) / 10;
+const r1 = (x) => Math.round(x * 10) / 10;
+const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
+// 폼 지속 계수: 유형별 기본값 + OVR 연동(기준보다 높을수록 오래). anchor가 없으면 OVR 연동 없음.
+export const formRho = (p, anchor = null) => {
+  const vol = p.volatility ?? 'normal';
+  const link = anchor == null ? 0 : 0.15 * clamp(((p.baseOVR ?? anchor) - anchor) / 12, -1, 1);
+  return clamp(FORM_RHO[vol] + link, 0, 0.85);
+};
+// 영입 시 초기값(C-2): 작년 폼 prev, 평가 잡음 3.0 + 0.5×prev, 올해 폼, 별 오차 분산 obsP.
+export function rollInitialObservation(volatility = 'normal', rng = Math.random) {
+  const sig = FORM_SIGMA[volatility] ?? FORM_SIGMA.normal;
+  const rho = FORM_RHO[volatility] ?? FORM_RHO.normal;
+  const prev = sig * gauss(rng);
+  return {
+    obsErr: r1(EVAL_NOISE_SIGMA * gauss(rng) + 0.5 * prev),
+    form: r1(rho * prev + Math.sqrt(1 - rho * rho) * sig * gauss(rng)),
+    prevForm: r1(prev),
+    obsP: EVAL_NOISE_SIGMA ** 2 + (0.5 * sig) ** 2,
+  };
+}
+// 시즌 시작마다 폼이 새로 정해진다(작년에서 ρ만큼 이어진다). 갱신 전 폼은 prevForm에 남긴다.
+export function nextForm(p, anchor, rng = Math.random) {
+  const sig = FORM_SIGMA[p.volatility] ?? FORM_SIGMA.normal;
+  const rho = formRho(p, anchor);
+  const prev = p.form ?? 0;
+  return { form: r1(rho * prev + Math.sqrt(1 - rho * rho) * sig * gauss(rng)), prevForm: prev };
+}
+// 칼만 갱신: 별 오차(obsErr)가 이번 활약(perf)을 향해 움직인다. 유형별 이득 하한 때문에 기복형도 수렴한다. 옛 세이브(obsP 없음)는 초기값으로 본다.
+export function obsUpdate(p, perf) {
+  const vol = p.volatility ?? 'normal';
+  const sig = FORM_SIGMA[vol] ?? FORM_SIGMA.normal;
+  const P = p.obsP ?? EVAL_NOISE_SIGMA ** 2 + (0.5 * sig) ** 2;
+  const K = Math.max(P / (P + OBS_R[vol]), OBS_KMIN[vol]);
+  return { obsErr: r1((p.obsErr ?? 0) + K * (perf - (p.obsErr ?? 0))), obsP: (1 - K) ** 2 * P + K * K * sig * sig };
 }
 
 export const observedOVR = (p) => p.baseOVR + (p.obsErr ?? 0);
 
-// 리그 평균 OVR(mid) 기준 별: 0.5 단위, 1~5
-export function starsOf(p, mid) {
-  const raw = 3 + (observedOVR(p) - mid) / OVR_PER_STAR;
+// 리그 기준(anchor) 별: 0.5 단위, 1~5
+export function starsOf(p, anchor) {
+  const raw = 3 + (observedOVR(p) - anchor) / OVR_PER_STAR;
   return Math.min(5, Math.max(1, Math.round(raw * 2) / 2));
 }
 
-// 스카우터 등급별 범위 반폭(별 단위). 중심은 선수·등급마다 고정으로 어긋난다.
-export const STAR_RANGE_HALF = { academy: 2, proLicense: 1.5, veteran: 1, master: 0.5 };
-export function starRange(p, mid, level = 'academy') {
-  const half = STAR_RANGE_HALF[level] ?? 2;
-  const s = starsOf(p, mid);
-  const jitter = ((hash32(`${p.id}|${level}|star`) % 1001) / 1000 - 0.5) * half * 0.8; // 중심 어긋남 ±0.4×half
-  const snap = (v) => Math.min(5, Math.max(1, Math.round(v * 2) / 2));
-  const lo = snap(s + jitter - half);
-  const hi = snap(s + jitter + half);
-  // 관측값 자체는 항상 범위 안에 둔다(범위가 거짓말하지는 않는다)
-  return { lo: Math.min(lo, s), hi: Math.max(hi, s) };
-}
-
 export const starText = (s) => `★${Number.isInteger(s) ? s : s.toFixed(1)}`;
-export const rangeText = ({ lo, hi }) => (lo === hi ? starText(lo) : `${starText(lo)}~${hi}`);
 
 // 별 → 카드 색 등급(기존 CSS 변수 --t-<id> 재사용)
 export function tierFromStars(s) {

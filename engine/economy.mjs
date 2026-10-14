@@ -55,7 +55,7 @@ export const fundsScale = (tierId, seasonNumber) => (seasonNumber <= 1 ? FUNDS_S
 // 안 팔리는 선수: 능력이 낮거나 나이가 많거나 가치가 없는(0G) 선수는 오퍼가 한 건도 안 올 수 있다. 그러면 자유계약으로 떠난다.
 export function noOfferChance(p) {
   if (!p.price) return 1;
-  return Math.min(0.6, 0.12 + (p.baseOVR < 58 ? 0.2 : 0) + (p.age >= 33 ? 0.25 : 0));
+  return Math.min(0.6, 0.12 + (p.baseOVR < 58 ? 0.2 : 0) + (p.age >= 34 ? 0.25 : 0));
 }
 
 // 판매 오퍼(2시즌~): 선수 가치(OVR)에 비례해 1~3건. 금액은 기존 판매 범위(여름 50~100%, 겨울 70~110%)에서 굴린다.

@@ -19,7 +19,7 @@ export function hash32(str) {
   return h >>> 0;
 }
 // 문자열에서 고정된 표준정규 난수 하나
-function fixedGauss(seed) {
+export function fixedGauss(seed) {
   const u1 = (hash32(`${seed}|a`) + 1) / 4294967297;
   const u2 = (hash32(`${seed}|b`) + 1) / 4294967297;
   return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
@@ -39,13 +39,13 @@ export function estimatePeak(p, level = 'academy', seasonsKnown = 0) {
 // 잠재력 등급(A/B/C): 전성기까지 오를 폭으로 나눈다. 스카우터·코치가 보는 값은 정확하지 않아서
 // 등급이 한 칸 틀릴 수 있다(좋은 등급일수록 덜 틀린다). 같은 선수·같은 등급이면 항상 같은 답이다.
 export const GRADE_CUTS = { S: 12, A: 7, B: 4, C: 1 }; // 전성기까지 +12 이상 S, +7~11 A, +4~6 B, +1~3 C
-export const GRADE_NOISE = { academy: 3.5, proLicense: 2.5, veteran: 1.8, master: 1.2 };
+export const GRADE_NOISE = { academy: 3.5, proLicense: 2.5, veteran: 1.8, master: 1.55 };
 const gradeOf = (up) => (up >= GRADE_CUTS.S ? 'S' : up >= GRADE_CUTS.A ? 'A' : up >= GRADE_CUTS.B ? 'B' : up >= GRADE_CUTS.C ? 'C' : null);
 export function potentialGrade(p, level = 'academy', seasonsKnown = 0, noiseMult = 1) {
   if (p.peakOVR == null) return null;
   const up = p.peakOVR - p.baseOVR;
   if (up < GRADE_CUTS.C) return null; // 더 오를 여지가 없다
-  const sigma = Math.max(0.8, (GRADE_NOISE[level] ?? GRADE_NOISE.academy) - 0.3 * seasonsKnown) * noiseMult; // 데이터 분석가 특기는 오차를 줄인다
+  const sigma = Math.max(1.55, (GRADE_NOISE[level] ?? GRADE_NOISE.academy) - 0.3 * seasonsKnown) * noiseMult; // 데이터 분석가 특기는 오차를 줄인다
   const seen = up + fixedGauss(`${p.id}|${level}|grade`) * sigma;
   return gradeOf(seen) ?? 'C'; // 오를 선수를 "성장 없음"으로 보여 주지는 않는다
 }
@@ -55,7 +55,7 @@ export function potentialGrade(p, level = 'academy', seasonsKnown = 0, noiseMult
 export function haggleHint(cardId, reserve, hint) {
   if (!hint || !Number.isFinite(reserve)) return null;
   const half = Math.max(1, Math.round(reserve * hint.half));
-  const z = { 0.7: 1.0364, 0.8: 1.2816, 0.85: 1.4395 }[hint.hit] ?? 1.2816;
+  const z = { 0.6: 0.8416, 0.7: 1.0364, 0.8: 1.2816, 0.85: 1.4395 }[hint.hit] ?? 1.2816;
   const sigma = half / z;
   const center = reserve + fixedGauss(`${cardId}|haggle`) * sigma;
   return { lo: Math.max(1, Math.round(center - half)), hi: Math.round(center + half) };

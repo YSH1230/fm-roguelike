@@ -94,8 +94,8 @@ const EVENTS = [
   {
     id: 'mentor', name: '베테랑의 조언', tone: 'good',
     apply: ({ squad }) => {
-      const vet = squad.filter((p) => p.age >= 30).sort((a, b) => b.age - a.age)[0];
-      const kid = youngestOf(squad.filter((p) => p.age <= 22));
+      const vet = squad.filter((p) => p.age >= 31).sort((a, b) => b.age - a.age)[0];
+      const kid = youngestOf(squad.filter((p) => p.age <= 23));
       if (!vet || !kid) return { message: '베테랑의 조언: 라커룸이 차분하게 가라앉았습니다' };
       return {
         squad: squad.map((p) => (p.id === kid.id ? { ...p, baseOVR: clamp(p.baseOVR + 1, 1, 99) } : p)),
@@ -168,24 +168,24 @@ const CHOICES = [
   {
     id: 'youthTrial', name: '유망주 테스트',
     prepare: (_ctx, rng) => {
-      const youth = { ...generateProceduralPlayer('local', rng), age: 18, price: 0, isDraftedYouth: true, specialTrait: null };
+      const youth = { ...generateProceduralPlayer('local', rng), age: 19, price: 0, isDraftedYouth: true, specialTrait: null };
       return { youth };
     },
     describe: ({ baseFunds }, payload) => ({
-      detail: `${payload.youth.name}(18세, OVR ${payload.youth.baseOVR})이(가) 입단 테스트를 받았습니다. 어린 선수는 시즌마다 크게 성장합니다.`,
+      detail: `${payload.youth.name}(19세, OVR ${payload.youth.baseOVR})이(가) 입단 테스트를 받았습니다. 어린 선수는 시즌마다 크게 성장합니다.`,
       options: [
         { label: '영입', hint: '무료로 선수단에 합류' },
         { label: '사양', hint: `지원금 +${Math.round(baseFunds * 0.04)}G` },
       ],
     }),
     resolve: ({ squad, funds, baseFunds }, payload, i) => (i === 0
-      ? { squad: [...squad, payload.youth], message: `유망주 테스트: ${payload.youth.name} 합류(18세, OVR ${payload.youth.baseOVR})` }
+      ? { squad: [...squad, payload.youth], message: `유망주 테스트: ${payload.youth.name} 합류(19세, OVR ${payload.youth.baseOVR})` }
       : { funds: funds + Math.round(baseFunds * 0.04), message: `유망주 테스트: 사양하고 지원금 +${Math.round(baseFunds * 0.04)}G` }),
   },
   {
     id: 'playtimeDemand', name: '유망주 면담',
     prepare: ({ squad }, rng) => {
-      const pool = squad.filter((p) => p.age <= 22);
+      const pool = squad.filter((p) => p.age <= 23);
       const kid = pool.length ? pool[Math.floor(rng() * pool.length)] : youngest(squad);
       return { playerId: kid.id };
     },

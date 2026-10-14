@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import { FORMATIONS } from '../ui/formations.mjs';
 import { generateStartingSquad } from '../data/generate-player.mjs';
 import { generateScoutDelivery } from '../data/draft-shop.mjs';
-import { starsOf, starRange, observedOVR, rollForm, hiddenShift, OVR_PER_STAR } from '../engine/stars.mjs';
+import { starsOf, observedOVR, nextForm, obsUpdate, anchorOf, hiddenShift, OVR_PER_STAR } from '../engine/stars.mjs';
 import { traitHints } from '../engine/traits.mjs';
 import { rollInjury, injuryChips, INJURY_POINTS } from '../engine/injury.mjs';
 import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardReward } from '../engine/season.mjs';
@@ -40,17 +40,16 @@ const N = Number(argv[0] ?? 100);
 const OUT = argv.includes('--out') ? argv[argv.indexOf('--out') + 1] : null;
 const MAX_SEASONS = 25;
 const BOT = process.env.BOT ?? 'normal';
-const midOf = (tierId) => { const t = getLeagueTier(tierId); return (t.averageOVR[0] + t.averageOVR[1]) / 2 + 6; }; // ui leagueMid와 같다
+const midOf = anchorOf; // 별 눈금 기준(리그별 고정 상수표)
 const r1 = (x) => Math.round(x * 10) / 10;
 const healthy = (sq) => sq.filter((p) => !(p.out > 0));
 
 // 봇이 "믿는" 능력: 별(범위면 중앙값)에서 거꾸로 환산한다. skilled는 성향 문구·부상 이력으로 보정한다.
 const HINT_ADJ = { '저평가받는 편': 4, '이름값이 앞서는 편': -4, '자주 다치는 편': -1.5, '잘 다치지 않는 편': 0.5, '지난 시즌 시즌 아웃': -1, '지난 시즌 반기 아웃': -0.7, '잔부상 많음': -0.5, '기복이 큰 편': -0.5, '꾸준한 편': 0.5, '혼자 해결하는 타입': 0.7, '새 팀 적응이 느린 편': -1, '적응이 빠른 편': 0.5 };
 function believedOVR(p, mid, level) {
-  let stars;
-  if (p.unproven) { const r = starRange(p, mid, level); stars = (r.lo + r.hi) / 2; } else stars = starsOf(p, mid);
+  const stars = starsOf(p, mid);
   let o = mid + (stars - 3) * OVR_PER_STAR;
-  if (BOT === 'skilled') for (const h of [...traitHints(p, level), ...injuryChips(p, level)]) o += HINT_ADJ[h] ?? 0;
+  if (BOT === 'skilled') for (const h of [...traitHints(p, level), ...injuryChips(p).collapsed]) o += HINT_ADJ[h] ?? 0;
   return { ...p, baseOVR: o, obsErr: 0, form: 0, team: null, adapt: null, settle: null, rhythm: null };
 }
 const BASE_SLOTS = FORMATIONS['4-3-3'].slots;
@@ -143,8 +142,8 @@ function playCareer() {
 
     if (!first) {
       squad = ageSquad(squad, Math.random, coachLevel, { extraGrowth: (stanceOut?.fx.growthBoost ?? 0) + (offseasonOut?.fx.youthGrowth ?? 0), vetRelief: offseasonOut?.fx.vetRelief ?? 0 }).squad
-        .map((p) => ({ ...p, obsErr: r1(0.5 * (p.obsErr ?? 0) + 0.5 * (p.form ?? 0)), unproven: false })).map(repricePlayer)
-        .map((p) => ({ ...p, form: rollForm(p.volatility), out: 0, outKind: null, seasonsAtClub: (p.seasonsAtClub ?? 0) + 1, acquiredThisSeason: false, boughtThisSeason: false }));
+        .map((p) => ({ ...p, ...obsUpdate(p, p.form ?? 0) })).map(repricePlayer)
+        .map((p) => ({ ...p, ...nextForm(p, midOf(tierId)), out: 0, outKind: null, seasonsAtClub: (p.seasonsAtClub ?? 0) + 1, acquiredThisSeason: false, boughtThisSeason: false }));
     }
     first = false;
 
@@ -187,7 +186,7 @@ function playCareer() {
     let order = {}; // 스카우트 지시(다음 주에 이 조건으로 3명이 온다)
     let injPts = 0;
     const halfFx = (half) => ({ ...fxNow, leagueIdx: getLadderIndex(tierId), half });
-    const observe = (half) => { squad = squad.map((p) => ({ ...p, obsErr: r1(0.5 * (p.obsErr ?? 0) + 0.5 * ((p.form ?? 0) + hiddenShift(p, halfFx(half)))), unproven: false })); };
+    const observe = (half) => { squad = squad.map((p) => ({ ...p, ...obsUpdate(p, (p.form ?? 0) + hiddenShift(p, halfFx(half))) })); };
     const marketInjuries = (scale = 1) => {
       squad = squad.map((p) => {
         if (p.out > 0) return p;
@@ -220,7 +219,7 @@ function playCareer() {
           return m;
         };
         let pool = (s === 0 && week === 1 ? [] : generateScoutDelivery(BOT === 'light' ? {} : order, size, [], Math.random, tierId, SCOUT_QUALITY_BOOST_BY_LEVEL[scoutLevel]))
-          .map((c0) => { const card = lockStrip(c0, s + 1); return { card: { ...card, unproven: true }, price: applyCostModifiers(card.price, priceMods(card)) }; });
+          .map((c0) => { const card = lockStrip(c0, s + 1); return { card, price: applyCostModifiers(card.price, priceMods(card)) }; });
         let boughtThisWeek = 0;
         let hadTx = false; let txCount = 0;
         const cap = squadCapFor(s + 1);
@@ -257,7 +256,7 @@ function playCareer() {
           if (full && !spare().length) break; // 정원이 차고 내보낼 선수도 없다
           if (BOT === 'light' && boughtThisWeek >= 1) break; // 라이트: 한 주에 한 명만
           const ranked = pool.filter((o) => funds >= o.price)
-            .map((o) => ({ ...o, gain: BOT === 'light' ? believedOVR({ ...toSquad(o.card), unproven: true }, MID, scoutLevel).baseOVR - MID : optimalAvg([...squad, { ...toSquad(o.card), unproven: true }]) - baseAvg + progressCredit(squad, o.card, targetTag) }))
+            .map((o) => ({ ...o, gain: BOT === 'light' ? believedOVR(toSquad(o.card), MID, scoutLevel).baseOVR - MID : optimalAvg([...squad, toSquad(o.card)]) - baseAvg + progressCredit(squad, o.card, targetTag) }))
             .sort((x, y) => y.gain - x.gain);
           if (!ranked.length || ranked[0].gain <= (BOT === 'light' ? 0 : 0.02)) break; // 라이트: 자리와 상관없이 별이 가장 높은 선수를 산다(리그 평균 선수보다 좋아 보이면)
           const best = ranked[0];
@@ -277,7 +276,7 @@ function playCareer() {
           if (funds < best.price) { pool = pool.filter((o) => o.card !== best.card); continue; }
           if (full) sellOut(spare()[0]); // 교체 영입은 한 건으로 센다
           funds -= best.price; spent += best.price; buys += 1;
-          squad = [...squad, { ...toSquad(best.card, true), unproven: true }];
+          squad = [...squad, toSquad(best.card, true)];
           boughtThisWeek += 1;
           decayNow();
           pool = pool.filter((o) => o.card !== best.card);
