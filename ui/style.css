@@ -2873,3 +2873,136 @@ html[data-theme] .srow.player--confirm { display: flex; align-items: center; gap
 .srow.player--confirm .confirm__yes, .srow.player--confirm .confirm__no { height: 36px; padding: 0 16px; border-radius: 999px; font: 800 13px var(--ui); flex: none; }
 .srow.player--confirm .confirm__yes { background: #ff2e3a; border: 0; color: #fff; }
 .srow.player--confirm .confirm__no { background: transparent; border: 1px solid #f4f1e8; color: #f4f1e8; }
+
+/* ===== 디자인 v4 승인판: 영입 카드 = 위 등급색 / 아래 구단 줄 팀 색 / 초상화 배경 중립 ===== */
+html[data-theme] .offer.deal.mk__card { display: block; padding: 0; gap: 0; border: 2px solid var(--tc, #8a8a8a); border-radius: 24px; background: #131316; color: #f4f1e8; overflow: hidden; }
+.mk__up { display: grid; gap: 8px; padding: 10px; background: linear-gradient(165deg, color-mix(in srgb, var(--tc, #8a8a8a) 34%, #1e1e24) 0%, #131316 85%); }
+.mk__art { --tier: #34343b; background: #34343b; }
+.mk__art .portrait { background: none; }
+.mk__stars .pxstar.is-on { fill: var(--tc, #f4f1e8); }
+.mk__stars .pxstar.is-mid { fill: color-mix(in srgb, var(--tc, #f4f1e8) 55%, transparent); }
+.mk__stars .pxstar.is-off { fill: color-mix(in srgb, var(--tc, #f4f1e8) 24%, transparent); }
+.mk__stars small { color: #f4f1e8; }
+.mk__card .chip { color: #f4f1e8; border-color: #ffffff40; }
+.mk__card .chip .chip__name { color: #f4f1e8; }
+.mk__card .chip--up1, .mk__card .chip--up2 { background: #0b0b0b; color: var(--tc, #f4f1e8); border-color: #0b0b0b; }
+.mk__card .chip--up1 .chip__name, .mk__card .chip--up2 .chip__name, .mk__card .chip--up1 .badgeicon, .mk__card .chip--up2 .badgeicon { color: var(--tc, #f4f1e8); }
+.mk__card .growth, .mk__card .growth.is-up, .mk__card .growth.is-peak, .mk__card .growth.is-down { border: 0; }
+.mk__card .traithints span, .mk__card .traithints span.is-inj { color: #f4f1e8; border-color: #ffffff40; }
+.mk__card .deal__cmp, .mk__card .deal__cmp b { color: #f4f1e8; }
+.mk__card .offer__hint { color: #f4f1e8; border-top-color: #ffffff30; margin: 0; padding: 8px 10px; }
+html[data-theme] .mk__card .mk__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 8px 12px; border: 0; background: var(--team, #2b2b30); color: var(--on-team, #fff); }
+.mk__card .mk__foot .mk__seller { border: 0; padding: 0; }
+.mk__card .mk__foot:not(:has(.mk__seller)) .mk__buy { flex: 1; }
+html[data-theme] .mk__buy:disabled { background: #0b0b0bcc; border-color: transparent; color: #8e8e96; opacity: 1; }
+
+/* ===== 디자인 v4 승인판: 선수단 - 초상화 배경 통일, C 표기, 펼친 영역 유망/정리/주장 ===== */
+.srow__ph { --tier: #34343b; background: #34343b; }
+.srow__ph .portrait { background: none; }
+.cn { display: inline-block; padding: 0 5px; margin-right: 5px; border-radius: 4px; background: #f4f1e8; color: #0b0b0b; font: 400 12px/1.4 var(--num); flex: none; }
+.srow__name .cn { align-self: center; }
+.srow .markbtn { width: 44px; height: 44px; border: 1.5px solid #8e8e96; background: #0e0e10; transition: transform 80ms; }
+.srow .markbtn:active { transform: scale(.9); }
+.srow .markbtn svg { width: 20px; height: 20px; }
+.srow .markbtn.is-on { border-color: #5eead4; }
+.srow .markbtn.is-on.is-cut { border-color: #ff9b3d; }
+.tri { flex-basis: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tri button { height: 44px; border-radius: 999px; border: 1px solid #2b2b30; background: transparent; color: #f4f1e8; display: flex; align-items: center; justify-content: center; gap: 6px; font: 800 13px var(--ui); cursor: pointer; }
+.tri button svg { width: 16px; height: 16px; }
+.tri button.on.g { background: #5eead4; border-color: #5eead4; color: #0b0b0b; }
+.tri button.on.g svg { fill: #0b0b0b; }
+.tri button.on.o { background: #ff9b3d; border-color: #ff9b3d; color: #0b0b0b; }
+.tri button.on.c { background: #f4f1e8; border-color: #f4f1e8; color: #0b0b0b; }
+.tri .cl { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid currentColor; font: 400 12px/1 var(--num); }
+.tri button.on.c .cl { background: #0b0b0b; color: #f4f1e8; border-color: #0b0b0b; }
+.srow .markbtn.is-on { background: #5eead4; border-color: #5eead4; color: #0b0b0b; }
+.srow .markbtn.is-on.is-cut { background: #ff9b3d; border-color: #ff9b3d; color: #0b0b0b; }
+html[data-theme] .banner { margin: 0 12px 10px; padding: 10px 16px; border: 1px solid #2b2b30; border-left: 1px solid #2b2b30; border-radius: 999px; background: #18181b; color: #f4f1e8; font: 700 13px var(--ui); }
+.srow__why.advice--prospect, .srow__why.advice--cut { display: none; }
+.srow__acts .traithints span, .srow__acts .traithints span.is-inj { color: #8e8e96; border: 1px solid #2b2b30; border-style: solid; background: transparent; }
+
+/* ===== 디자인 v4 승인판: 전술 탭 ===== */
+.panel.tabpanel:has(.formations), .panel:has(.stylerows) { --n-panel: #18181b; --n-line: #2b2b30; --n-ivory: #f4f1e8; --n-mute: #8e8e96; }
+.panel.tabpanel:has(.formations) { padding: 0 12px; display: grid; gap: 10px; align-content: start; }
+.panel.tabpanel:has(.formations) > .panel__head { margin: 0; display: block; }
+.panel.tabpanel:has(.formations) > .panel__head h2 { display: none; }
+.formations { display: flex; flex-wrap: wrap; gap: 6px; }
+.formations button { height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid #2b2b30; background: transparent; color: #8e8e96; font: 400 16px var(--num); }
+.formations button[aria-pressed='true'] { background: #f4f1e8; border-color: #f4f1e8; color: #0e0e10; }
+html[data-theme] .formationnote { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 14px; border: 1px solid #2b2b30; border-radius: 999px; background: #18181b; font-size: 13px; color: #8e8e96; }
+.formationnote b { padding: 2px 10px; border-radius: 999px; background: var(--kit, #4b3a9a); color: #fff; font-size: 12px; font-weight: 800; flex: none; }
+.formationnote span { color: #8e8e96; }
+.tactics__acts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0; }
+.tactics__acts .reroll { height: 44px; border-radius: 999px; border: 1px solid #2b2b30; background: transparent; color: #f4f1e8; font: 800 14px var(--ui); }
+.tactics__acts #auto-lineup-btn { background: #0b0b0b; border-color: #f4f1e8; }
+.tactics__acts .reroll:disabled { opacity: .45; }
+.specline { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 14px; border: 1px solid #2b2b30; border-radius: 999px; background: #18181b; color: #f4f1e8; font-size: 13px; text-align: left; }
+.specline b { font-weight: 800; flex: none; }
+.specline span { color: #8e8e96; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pitch { border-radius: 28px; border: 1px solid #2b2b30; background: #1d3a24; }
+.pitch::before, .pitch::after { opacity: .55; }
+.slot__name .cn { padding: 0 3px; margin: 0 2px 0 0; font-size: 9px; line-height: 1.3; }
+.benchstrip { display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; border: 1px solid #2b2b30; border-radius: 24px; background: #18181b; }
+.benchstrip__label { font-size: 13px; font-weight: 800; color: #8e8e96; margin-top: 10px; }
+.benchchip { display: grid; justify-items: center; gap: 2px; border: 0; background: none; padding: 0; }
+.benchchip .portrait { width: 40px; height: 40px; border-radius: 12px; --tier: #34343b; }
+.benchchip__pos { display: none; }
+.benchchip__ovr { font: 400 13px var(--num); color: #f4f1e8; }
+.benchchip__name { max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 10px var(--ui); color: #8e8e96; }
+.benchchip__name .cn { font-size: 8px; padding: 0 3px; margin-right: 2px; }
+.panel:has(.stylerows) { padding: 0 12px; }
+.panel:has(.stylerows) .panel__head h2 { font-size: 15px; font-weight: 900; }
+.panel:has(.stylerows) .panel__head .stylename { color: #8e8e96; font-size: 12px; }
+.stylerows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.stylerow { display: grid; grid-template-columns: 34px 1fr auto auto; gap: 10px; align-items: center; padding: 8px 12px; border: 1px solid #2b2b30; border-radius: 22px; background: #18181b; }
+.stylerow__icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #0e0e10; border: 1px solid #2b2b30; color: #8e8e96; }
+.stylerow__icon svg { width: 18px; height: 18px; }
+.stylerow.is-main { border-color: var(--kit, #4b3a9a); }
+.stylerow.is-main .stylerow__icon { background: var(--kit, #4b3a9a); border-color: var(--kit, #4b3a9a); color: #fff; }
+.stylerow__name { display: block; font-size: 14px; font-weight: 900; color: #f4f1e8; }
+.stylerow__name small { display: block; font-size: 12px; font-weight: 500; color: #8e8e96; }
+.stylerow__gauge { display: flex; gap: 3px; }
+.stylerow__gauge i { width: 14px; height: 8px; border-radius: 2px; background: #2b2b30; font-size: 0; border: 0; }
+.stylerow__gauge i.is-on { background: #cfd3d8; }
+.stylerow.medal-1 .stylerow__gauge i.is-on { background: #c98a52; }
+.stylerow.medal-2 .stylerow__gauge i.is-on { background: #cfd3d8; }
+.stylerow.medal-3 .stylerow__gauge i.is-on { background: #ffc400; }
+.stylerow__bonus { font: 400 16px var(--num); color: #f4f1e8; min-width: 24px; text-align: right; }
+.panel:has(.stylerows) details.fold { margin: 10px 0 0; }
+.traitrows { list-style: none; margin: 0; padding: 6px 16px 10px; display: grid; gap: 6px; }
+.traitrow { display: grid; grid-template-columns: 24px 1fr auto auto; gap: 8px; align-items: center; font-size: 13px; color: #8e8e96; }
+.traitrow__name { color: #f4f1e8; font-weight: 800; }
+.traitrow__state { font-size: 12px; font-weight: 800; color: #5eead4; }
+.traitrow.is-off .traitrow__state { color: #8e8e96; }
+html[data-theme] .formations button { border-color: #2b2b30; color: #8e8e96; background: transparent; }
+html[data-theme] .formations button[aria-pressed='true'] { background: #f4f1e8; border-color: #f4f1e8; color: #0e0e10; }
+html[data-theme] .formationnote b { background: var(--kit, #4b3a9a); color: #fff; }
+html[data-theme] .specline b { color: #f4f1e8; }
+html[data-theme] .panel:has(.stylerows) .panel__head .stylename { color: #8e8e96; }
+html[data-theme] .tactics__acts .reroll:disabled { border-style: solid; }
+
+/* ===== 등급색 폐지(표시만): 중립 톤. 내부 tier 변수는 그대로 두고 일반 선수는 --t-neutral을 쓴다 ===== */
+:root, html[data-theme] { --t-neutral: #5d5d68; }
+.slot__ovr { color: #f4f1e8; font-size: 12px; background: rgba(8, 12, 10, .9); border: 1px solid #5d5d68; }
+.srow__name .srow__ovr, .benchchip__ovr { color: #f4f1e8; }
+
+/* 영입 카드: 카드 전체가 소속 구단 팀 색(위·아래 구분 없이), 별이 주된 평가 표시 */
+html[data-theme] .offer.deal.mk__card { border: 0; background: var(--team, #2b2b30); color: var(--on-team, #fff); }
+.mk__up { background: none; }
+html[data-theme] .mk__card .mk__foot { background: rgba(0, 0, 0, .22); color: var(--on-team, #fff); }
+.mk__card .mk__stars { gap: 3px; margin-top: 6px; }
+.mk__card .mk__stars .pxstar { width: 21px; height: 21px; }
+.mk__card .mk__stars .pxstar.is-on { fill: var(--on-team, #fff); }
+.mk__card .mk__stars .pxstar.is-mid { fill: color-mix(in srgb, var(--on-team, #fff) 55%, transparent); }
+.mk__card .mk__stars .pxstar.is-off { fill: color-mix(in srgb, var(--on-team, #fff) 22%, transparent); }
+.mk__card .mk__stars small { color: var(--on-team, #fff); font-size: 13px; }
+.mk__card .mk__stars small b { font-size: 18px; }
+.mk__card .chip { color: var(--on-team, #fff); border-color: color-mix(in srgb, var(--on-team, #fff) 55%, transparent); }
+.mk__card .chip .chip__name { color: inherit; }
+.mk__card .chip--up1, .mk__card .chip--up2 { background: #0b0b0b; color: var(--team, #fff); border-color: #0b0b0b; }
+.mk__card .chip--up1 .chip__name, .mk__card .chip--up2 .chip__name, .mk__card .chip--up1 .badgeicon, .mk__card .chip--up2 .badgeicon { color: var(--team, #fff); }
+.mk__card .traithints span, .mk__card .traithints span.is-inj { color: var(--on-team, #fff); border-color: color-mix(in srgb, var(--on-team, #fff) 40%, transparent); }
+.mk__card .deal__cmp, .mk__card .deal__cmp b { color: var(--on-team, #fff); }
+.mk__card .offer__hint { color: var(--on-team, #fff); border-top-color: color-mix(in srgb, var(--on-team, #fff) 30%, transparent); }
+html[data-theme] .slot .slot__ovr { color: #f4f1e8; font-size: 13px; line-height: 1.25; padding: 0 4px; background: #0b0b0b; border: 1px solid #f4f1e866; border-radius: 4px; }
+html[data-theme] .slot .slot__card { border-color: #5d5d68; }
