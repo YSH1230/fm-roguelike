@@ -3057,3 +3057,23 @@ html[data-theme] .slot .slot__card { border-color: #5d5d68; }
 .scoutorder > .staffchip { order: 1; flex: 0 0 auto; width: fit-content; }
 .scoutorder > .scoutorder__sels { order: 2; flex: 1 1 100%; }
 .scoutorder > .scoutorder__note { order: 3; }
+
+/* ===== 겹침 수정: 선수단 행(별·▲▼·부상), 하단 내비 배지 ===== */
+.srow__main { min-width: 0; }
+.srow__name { flex-wrap: wrap; row-gap: 2px; }
+.srow__line2 { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 3px; }
+.srow__line2 .srow__ovr { margin: 0; font: 400 17px/1 var(--num); color: #f4f1e8; }
+.stararrow { position: static; }
+.stararrow.is-up { color: #f4f1e8; }
+.stararrow.is-down { color: #8e8e96; }
+.srow__inj { margin-top: 4px; }
+.srow__inj .tag--inj { display: inline-flex; align-items: flex-start; gap: 5px; max-width: 100%; padding: 3px 10px 3px 8px; border-radius: 12px; border: 1px solid #ff6a5a66; background: transparent; color: #ff8a7c; font: 700 12px/1.35 var(--ui); white-space: normal; overflow-wrap: anywhere; }
+.srow__inj .tag--inj svg { flex: none; width: 12px; height: 12px; margin-top: 2px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; }
+/* 하단 내비: 개수는 라벨 옆에 붙이고, 빨간 점은 아이콘 오른쪽 위 모서리에만 */
+nav.tabs.mknav .tab { position: relative; display: grid; grid-template-columns: auto auto; justify-content: center; align-items: center; column-gap: 4px; row-gap: 2px; }
+.mknav .tab > svg { grid-column: 1 / -1; justify-self: center; }
+.mknav .tab .tab__label { grid-column: 1; }
+.mknav .tab .tab__count { position: static; grid-column: 2; margin: 0; font: 400 12px/1 var(--num); color: #8e8e96; }
+.mknav .tab[aria-selected='true'] .tab__count { color: #f4f1e8; }
+.mknav .tab .tab__dot { position: absolute; top: 2px; left: calc(50% + 10px); width: 9px; height: 9px; margin: 0; border-radius: 50%; background: #ff2e3a; border: 2px solid #18181b; box-sizing: content-box; }
+.srow__name .tag--new, .srow__name .tag--legend { padding: 1px 8px; border-radius: 999px; border: 1px solid #f4f1e8; background: transparent; color: #f4f1e8; font: 800 11px var(--ui); }

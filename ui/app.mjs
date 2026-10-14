@@ -4038,8 +4038,9 @@ function renderMarket(banner = '') {
     return `<li class="srow srow--${group}${currentState.marks?.[p.id] ? ` is-${currentState.marks[p.id]}` : ''}" data-row="${p.id}" data-advice="${advice?.id ?? ''}" data-tags="${(p.playstyleTags ?? []).join(' ')}" style="--tier:var(--t-${tierColorOf(p)})">
       <div class="srow__ph">${renderPortrait(p, { size: 52, kit: club.kit ?? '#4b3a9a' })}<span class="srow__pos">${p.position}</span></div>
       <div class="srow__main">
-        <div class="srow__name">${capTag(p)}${esc(p.name)}<small>${p.age}세</small><b class="srow__ovr n">${starLabel(p)}</b>${p.out > 0 ? `<span class="tag tag--inj"><i class="cross">✚</i> ${p.outPart ? `${INJURY_PART_NAME[p.outPart]}(${INJURY_LABELS[p.outKind]})` : INJURY_LABELS[p.outKind] ?? '부상'}</span>` : ''}${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
-        <div class="srow__line2">${tagIconsHtml(p, null, true)}${starArrowHtml(p)}</div>
+        <div class="srow__name">${capTag(p)}${esc(p.name)}<small>${p.age}세</small>${currentState.justBoughtIds?.includes(p.id) ? '<span class="tag tag--new">NEW</span>' : ''}${isLegend(p) ? '<span class="tag tag--legend">레전드</span>' : ''}</div>
+        <div class="srow__line2"><b class="srow__ovr n">${starLabel(p)}</b>${starArrowHtml(p)}${tagIconsHtml(p, null, true)}</div>
+        ${p.out > 0 ? `<div class="srow__inj"><span class="tag tag--inj"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>${p.outPart ? `${INJURY_PART_NAME[p.outPart]}(${INJURY_LABELS[p.outKind]})` : INJURY_LABELS[p.outKind] ?? '부상'}</span></div>` : ''}
       </div>
       <div class="srow__side">${advice ? `<b class="advice advice--${advice.id}">${advice.label}</b>` : ''}<button type="button" class="markbtn${currentState.marks?.[p.id] ? ` is-on is-${currentState.marks[p.id]}` : ''}" data-mark="${p.id}" aria-label="유망·정리 표시" title="눌러서 유망 → 정리 후보 → 없음">${markIconSvg(currentState.marks?.[p.id])}</button><i class="srow__chev" aria-hidden="true"></i></div>
       <div class="srow__acts" data-actions="${p.id}">
