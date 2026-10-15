@@ -1011,7 +1011,7 @@ function renderRecords() {
         const on = have.has(a.id);
         const prog = a.progress ? a.progress(r) : null;
         return `<li class="ach__item${on ? ' is-on' : ''}">
-          <span class="ach__icon">${on ? '🏆' : '🔒'}</span>
+          <span class="ach__icon">${on ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v4a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3M12 13v4M8 20h8"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'}</span>
           <div><b>${esc(a.label)}</b><small>${esc(a.desc)}</small>${prog && !on ? `<em>${prog[0]} / ${prog[1]}</em>` : ''}</div>
         </li>`;
       }).join('')}

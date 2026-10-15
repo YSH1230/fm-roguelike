@@ -3219,3 +3219,65 @@ html[data-theme] .scoutorder__clear { flex: 0 0 auto; height: 40px; padding: 0 1
 
 /* 철학 선택(8종)·변경 모달: 카드가 많아 화면보다 길어지므로 모달 안에서 스크롤한다 */
 .eventmodal.specpick { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+
+/* ===== 옛 디자인 정리(v4 톤): 타이틀, 감독·스태프 탭 ===== */
+html[data-theme] .start__title { color: #f4f1e8; }
+html[data-theme] .start__sub { color: #8e8e96; }
+html[data-theme] .rankcard { border: 1px solid #2b2b30; border-left: 1px solid #2b2b30; border-radius: 24px; background: #18181b; padding: 16px; }
+html[data-theme] .rankcard__top b { font-size: 20px; font-weight: 900; color: #f4f1e8; }
+html[data-theme] .rankcard__top span { color: #8e8e96; font-size: 12px; }
+html[data-theme] .rankbar { height: 8px; border-radius: 4px; background: #2b2b30; overflow: hidden; }
+html[data-theme] .rankbar i { background: #f4f1e8; border-radius: 4px; }
+html[data-theme] .start__records { height: 48px; border-radius: 999px; border: 1px solid #2b2b30; background: transparent; color: #f4f1e8; font-weight: 800; }
+html[data-theme] .linkbtn { color: #f4f1e8; text-decoration: underline; }
+html[data-theme] .club--resume { border: 2px solid #f4f1e8; border-radius: 28px; background: #18181b; color: #f4f1e8; }
+html[data-theme] .club--resume * { color: inherit; }
+html[data-theme] .mgrpanel { border: 1px solid #2b2b30; border-radius: 24px; background: #18181b; padding: 14px 16px; }
+html[data-theme] .mgrpanel__head b { font-size: 18px; font-weight: 900; color: #f4f1e8; }
+html[data-theme] .mgrpanel__head span { color: #8e8e96; font-size: 12px; }
+html[data-theme] .mgrpanel__head .n { color: #5eead4; font-size: 18px; }
+html[data-theme] .spec--own { border: 1px solid #2b2b30; border-radius: 20px; background: #0e0e10; padding: 12px 14px; }
+html[data-theme] .spec--own .spec__name { color: #f4f1e8; font-size: 18px; font-weight: 900; }
+html[data-theme] .spec--own .spec__lv { color: #0b0b0b; background: #f4f1e8; border-radius: 999px; padding: 1px 10px; font-style: normal; font-weight: 900; font-size: 12px; }
+html[data-theme] .spec--own .spec__fx { color: #5eead4; font-weight: 800; }
+html[data-theme] .crew { gap: 10px; }
+html[data-theme] .crewcard { grid-template-columns: 56px 1fr; padding: 12px; border: 1px solid #2b2b30; border-left: 1px solid #2b2b30; border-radius: 24px; background: #18181b; align-items: center; }
+html[data-theme] .crewcard .portrait { width: 56px; height: 56px; border-radius: 16px; background: #34343b; }
+html[data-theme] .crewcard .player__name, html[data-theme] .crewcard b { font-size: 16px; font-weight: 900; }
+html[data-theme] .crewcard__role { color: #8e8e96; }
+html[data-theme] .crewcard .chips .chip { border: 1px solid #ffffff30; border-radius: 999px; padding: 2px 9px; font-size: 12px; background: transparent; }
+
+/* ===== 옛 디자인 정리(v4 톤): 모달·버튼·선택 카드 전반 ===== */
+html[data-theme] .eventmodal { border-radius: 28px; background: #18181b; border: 1px solid #2b2b30; border-top: 1px solid #2b2b30; }
+html[data-theme] .eventmodal__kicker { color: #8e8e96; font-size: 12px; font-weight: 700; letter-spacing: 0; }
+html[data-theme] .eventmodal__title { color: #f4f1e8; font-weight: 900; }
+html[data-theme] .eventmodal .cta { height: 54px; border-radius: 999px; border: 0; background: #f4f1e8; color: #0b0b0b; font: 900 17px/1 "FM Square", sans-serif; letter-spacing: 0; width: 100%; box-shadow: none; }
+html[data-theme] .eventmodal .cta--ghost { background: transparent; color: #f4f1e8; border: 1px solid #2b2b30; }
+html[data-theme] .eventmodal .cta--danger { background: #ff2e3a; color: #fff; }
+html[data-theme] .eventmodal .cta:disabled { opacity: .4; }
+html[data-theme] .spec { border-radius: 20px; border-color: #2b2b30; background: #0e0e10; padding: 12px 14px; }
+html[data-theme] button.spec:hover { border-color: #f4f1e8; background: #222226; }
+html[data-theme] .spec__name { color: #f4f1e8; font-weight: 900; }
+html[data-theme] .spec__lv { color: #8e8e96; }
+html[data-theme] .spec__fx { color: #5eead4; font-weight: 800; }
+html[data-theme] .spec__line { color: #8e8e96; }
+html[data-theme] .crewcard__role { font-size: 12px; }
+html[data-theme] .crewcard__role .staff__level { font-size: 12px; color: #8e8e96; }
+
+/* v4: 옛 연두·노랑 포인트를 v4 팔레트로(아이보리 포인트, 금액 노랑 #ffc400, 경고 주황) + 얇은 스크롤바 */
+html[data-theme='kiwi'] { --turf: #f4f1e8; --gold: #ffc400; --debit: #ff9b3d; --kit: #4b3a9a; }
+html[data-theme='kiwi'] .topbar { border-top-color: #2b2b30; }
+html[data-theme='kiwi'] .pw--total .pw__label, html[data-theme='kiwi'] .pw.is-strong .pw__val { color: #f4f1e8; }
+html[data-theme] * { scrollbar-width: thin; scrollbar-color: #3a3a40 transparent; }
+
+/* 기록·업적: v4 카드/알약 톤 */
+html[data-theme] .records .panel { border: 1px solid #2b2b30; border-radius: 24px; background: #18181b; padding: 14px 16px; }
+html[data-theme] .records__title { font-weight: 900; }
+html[data-theme] .recstat { padding: 10px 6px; border-radius: 16px; background: #0e0e10; border: 1px solid #2b2b30; }
+html[data-theme] .recstat b.n { color: #f4f1e8; }
+html[data-theme] .ach { gap: 8px; }
+html[data-theme] .ach__item { grid-template-columns: 36px 1fr; padding: 10px 12px; border-radius: 18px; border: 1px solid #2b2b30; background: #0e0e10; align-items: center; }
+html[data-theme] .ach__icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 12px; background: #18181b; color: #8e8e96; }
+html[data-theme] .ach__icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+html[data-theme] .ach__item.is-on .ach__icon, html[data-theme] .ach__item.is-done .ach__icon { color: #ffc400; }
+html[data-theme] .ach__item small { color: #8e8e96; }
