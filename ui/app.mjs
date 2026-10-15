@@ -58,7 +58,7 @@ import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } 
 import { ageSquad, playerTrend, ensurePotential, hasPeaked, bodyAge, growthStage } from '../engine/aging.mjs';
 import { potentialGrade, haggleHint } from '../engine/scouting.mjs';
 import {
-  PHILOSOPHIES, MAX_PHILOSOPHY_LEVEL, drawPhilosophyChoices, levelUpPhilosophy, philosophyText,
+  PHILOSOPHIES, PHILOSOPHY_IDS, MAX_PHILOSOPHY_LEVEL, drawPhilosophyChoices, levelUpPhilosophy, philosophyText,
   TALKS, drawTalkChoices, rollTalkOutcome, describeTalkFx, specialtyEffects,
 } from '../engine/specialties.mjs';
 import { BID_MIN_RATIO, buyBid, sellBid, reservePrice, maxSalePrice, deadlinePressure, patienceCost, toleranceFor, patienceFor, attitudeScore, attitudeLabel, clubBaseAttitude, cardUniform, moodAfter } from '../engine/haggle.mjs';
@@ -413,15 +413,12 @@ function staffChips(role, level) {
     const g = COACH_GROWTH_BY_LEVEL[level];
     return chip(v === 0 ? '거래 조직력 유지' : `거래당 조직력 −${v}`, '영입·판매 한 건마다 떨어지는 조직력')
       + (g.chance ? chip(`성장 +1 (${Math.round(g.chance * 100)}%)`, '성장 단계(초반·막바지) 선수가 시즌마다 이 확률로 능력이 +1 더 올라요') : '')
-      + (g.stall < 0.1 ? chip(`정체 ${Math.round(g.stall * 100)}%`, '성장 단계 선수의 성장이 한 시즌 멈출 확률(기본 10%)') : '')
       + chip(`등급 정확도 ${['보통', '좋음', '매우 좋음', '최고'][STAFF_LEVELS.indexOf(level)] ?? ''}`, '내 선수의 잠재력 등급을 얼마나 정확히 보는지');
   }
   const slots = SCOUT_TARGET_SLOTS_BY_LEVEL[level];
-  const hint = SCOUT_HAGGLE_HINT_BY_LEVEL[level];
   return chip(`지시 조건 ${slots}개`, '포지션·태그·나이대 중 걸 수 있는 조건 수예요. 많이 걸수록 원하는 선수가 와요')
     + chip(`리포트 ${REPORT_LINES_BY_LEVEL[level]}항목`, '영입 전에 보이는 선수 리포트 줄 수예요. 등급이 높을수록 많아요')
-    + (SCOUT_QUALITY_BOOST_BY_LEVEL[level] ? chip(`상위 카드 +${Math.round(SCOUT_QUALITY_BOOST_BY_LEVEL[level] * 100)}%`, '톱클래스 이상 카드가 나올 확률') : '')
-    + (hint ? chip(`협상 힌트 ±${Math.round(hint.half * 100)}%`, '협상 슬라이더에 구단 예상 이적료 구간을 보여 줘요(가끔 틀려요)') : '');
+    + (SCOUT_QUALITY_BOOST_BY_LEVEL[level] ? chip(`상위 카드 +${Math.round(SCOUT_QUALITY_BOOST_BY_LEVEL[level] * 100)}%`, '톱클래스 이상 카드가 나올 확률') : '');
 }
 
 // 리포트 줄 수(항상 3 + 등급별 차등 1~4). 리포트 내용 자체는 engine/report.mjs 단계에서 붙는다.
@@ -436,7 +433,7 @@ function draftStaffHtml(funds) {
       const isCurrent = currentState.staff[role].level === level;
       const candidate = currentState.staffOffer[`${role}:${level}`];
       return `<li class="mgroffer${isCurrent ? ' is-current' : ''}" data-row="staff-${role}-${level}" style="--tier:var(--${STAFF_LEVEL_COLOR[level] ?? 't-local'})">
-        ${renderPortrait(candidate, { size: 40, role: role === 'headScout' ? 'scout' : 'coach' })}
+        ${renderPortrait(candidate, { size: 56, role: role === 'headScout' ? 'scout' : 'coach' })}
         <div class="mgroffer__body">
           <div class="player__name">${esc(candidate.name)} <small class="staff__level">${STAFF_LEVEL_LABELS[level]}${isCurrent ? ' · 현재' : ''}</small></div>
           <div class="chips">${staffChips(role, level)}</div>
@@ -483,24 +480,42 @@ function showPhilosophyPick(onDone) {
   });
 }
 
-// 승격: 철학이 한 단계 깊어진다(자동)
+// 승격: 철학을 유지하면 Lv+1, 바꾸면 8종 중 새 철학을 Lv max(1, 현재−2)로 시작
 function showPhilosophyLevelUp(onDone) {
   const ph = currentState.philosophy;
-  if (!ph || ph.level >= MAX_PHILOSOPHY_LEVEL) { onDone(); return; }
-  const before = ph.level;
-  currentState.philosophy = levelUpPhilosophy(ph);
+  if (!ph) { onDone(); return; }
   const root = document.getElementById('eventmodal-root');
-  root.innerHTML = `
-    <div class="eventmodal-backdrop">
-      <div class="eventmodal eventmodal--goal specpick">
-        <div class="eventmodal__kicker">승격 · 전술 노트</div>
-        <div class="eventmodal__title">철학이 깊어졌어요</div>
-        <p class="eventmodal__detail">승격을 이끈 전술에 확신이 생겼어요. 전술 노트에 한 줄을 더합니다.</p>
-        <div class="specpick__list"><div class="spec spec--own">${philosophyCardHtml(ph.id, before + 1, { from: before })}</div></div>
-        <button class="cta" id="phil-ok">확인</button>
-      </div>
-    </div>`;
-  document.getElementById('phil-ok').onclick = () => { root.innerHTML = ''; onDone(); };
+  const cur = PHILOSOPHIES[ph.id];
+  const keepLv = Math.min(MAX_PHILOSOPHY_LEVEL, ph.level + 1);
+  const newLv = Math.max(1, ph.level - 2);
+  const finish = (next) => { currentState.philosophy = next; root.innerHTML = ''; track('philosophy', { id: next.id, lv: next.level, s: currentState.seasonNumber }); onDone(); };
+  const open = (mode, pick) => {
+    const row = (id) => {
+      const p = PHILOSOPHIES[id];
+      const n = p.kind === 'tag' ? currentState.squad.filter((x) => x.playstyleTags?.includes(p.tag)).length : null;
+      const cnt = n == null ? '' : `<span class="cnt ${n >= 3 ? 'ok' : n ? 'low' : 'none'}">${n}<i>명</i></span>`;
+      const bl = n == null ? p.blurb : `${TAG_LABELS[p.tag]} 태그${n && n < 3 ? ` · ${3 - n}명 더 필요` : ''}`;
+      return `<button class="ph${pick === id ? ' on' : ''}" data-ph="${id}"><b>${esc(p.name)}</b>${cnt}<span class="bl">${esc(bl)}</span>${pick === id ? `<span class="ex"><q>${esc(p.line)}</q>${esc(philosophyText(id, newLv))}${p.kind === 'tag' ? ' · 3명 이상이면 효과가 나요' : ''}</span>` : ''}</button>`;
+    };
+    const ids = PHILOSOPHY_IDS.filter((id) => id !== ph.id);
+    root.innerHTML = `
+      <div class="eventmodal-backdrop">
+        <div class="eventmodal eventmodal--goal specpick philup">
+          <div class="eventmodal__kicker">승격 · 전술 노트</div>
+          <div class="eventmodal__title">승격 축하해요</div>
+          <p class="eventmodal__detail">철학을 이어갈지, 새로 고를지 정하세요.</p>
+          <div class="philseg"><button class="${mode === 'keep' ? 'on' : ''}" data-mode="keep"><b>유지</b><small>${esc(cur.name)} Lv${ph.level}${keepLv > ph.level ? ` → Lv${keepLv}` : ' (최대)'}</small></button><button class="${mode === 'swap' ? 'on' : ''}" data-mode="swap"><b>바꾸기</b><small>새 철학 Lv${newLv} (현재 Lv${ph.level} −2)</small></button></div>
+          ${mode === 'keep' ? `<div class="specpick__list"><div class="spec spec--own">${philosophyCardHtml(ph.id, keepLv, { from: ph.level })}</div></div><button class="cta" id="phil-ok">${esc(cur.name)} 유지</button>`
+          : `<div class="philgrp">태그형 · 내 선수단 해당 태그 인원</div><div class="phlist">${ids.filter((id) => PHILOSOPHIES[id].kind === 'tag').map(row).join('')}</div>
+             <div class="philgrp">상시형 · 태그 조건 없음</div><div class="phlist">${ids.filter((id) => PHILOSOPHIES[id].kind !== 'tag').map(row).join('')}</div>
+             <button class="cta" id="phil-ok" ${pick ? '' : 'disabled'}>${pick ? `${esc(PHILOSOPHIES[pick].name)} Lv${newLv}로 바꾸기` : '철학을 골라 주세요'}</button>`}
+        </div>
+      </div>`;
+    root.querySelectorAll('[data-mode]').forEach((b) => { b.onclick = () => open(b.dataset.mode, null); });
+    root.querySelectorAll('[data-ph]').forEach((b) => { b.onclick = () => open('swap', b.dataset.ph); });
+    document.getElementById('phil-ok').onclick = () => finish(mode === 'keep' ? { ...ph, level: keepLv } : { id: pick, level: newLv });
+  };
+  open('keep', null);
 }
 
 const TALK_TONE = { safe: '안정적', risky: '모험적' };
@@ -625,13 +640,20 @@ function showTalkPick(kind, onDone) {
   const situation = !isStart ? 'end' : last?.result === 'promotion' ? 'promo' : last?.result === 'champion' ? 'champ' : (last?.margin ?? 99) <= 4 ? 'close' : 'stay';
   const caption = pickLine(LOCKER_CAPTIONS[situation], `cap-${situation}`);
   const kit = currentState.club.kit;
-  const seats = mates.map((p, i) => `<div class="lr__seat lr__seat--${i % 2}" style="--d:${(i * 0.06).toFixed(2)}s">${renderPortrait(p, { size: 40, kit })}</div>`).join('');
+  const seat = (p, i, size) => `<div class="lr__seat" style="--d:${(i * 0.06).toFixed(2)}s"><span class="lr__rx" hidden></span>${renderPortrait(p, { size, kit })}</div>`;
+  const back = mates.slice(0, 6).map((p, i) => seat(p, i, 34)).join('');
+  const front = mates.slice(6, 9).map((p, i) => seat(p, i + 6, 44));
+  const capHtml = captain ? `<div class="lr__seat lr__captain"><span class="lr__rx" hidden></span>${renderPortrait(captain, { size: 56, kit })}<b class="lr__name"><span class="lr__armband">C</span>${esc(captain.name)}</b></div>` : '';
+  front.splice(Math.min(2, front.length), 0, capHtml);
   const stage = `
-    <div class="lr__caption">${esc(caption)}</div>
     <div class="lr__room">
+      <div class="lr__wall">${[0, 1, 0, 0, 1, 0].map((o) => `<i class="${o ? 'is-open' : ''}"></i>`).join('')}</div>
+      <svg class="lr__board" viewBox="0 0 64 40" aria-hidden="true"><rect x="1" y="1" width="62" height="38" rx="3"/><path d="M32 4v32M4 20h56M20 12l10 8-10 8M44 12l-10 8 10 8"/><circle cx="32" cy="20" r="5"/></svg>
+      <div class="lr__back">${back}</div>
       <div class="lr__bench"></div>
-      <div class="lr__seats">${seats}</div>
-      <div class="lr__captain">${captain ? `${renderPortrait(captain, { size: 56, kit })}<span class="lr__armband">C</span><b class="lr__name">${esc(captain.name)}</b>` : ''}</div>
+      <div class="lr__front">${front.join('')}</div>
+      <div class="lr__mgr"><i></i><b></b></div>
+      <div class="lr__say" id="lr-say">${esc(caption)}</div>
     </div>`;
   root.innerHTML = `
     <div class="eventmodal-backdrop">
@@ -658,6 +680,9 @@ function showTalkPick(kind, onDone) {
       const good = lines.filter((l) => l.good).length;
       const tone = good > lines.length - good ? 'good' : good < lines.length - good ? 'bad' : 'mixed';
       const captainLine = `${pickLine(CAPTAIN_LINES[tone], `cap-${tone}`)} ${CAPTAIN_TAIL[captain?.personality]?.[tone] ?? ''}`.trim().replace(/\{호칭\}/g, CALL_NAME[trustStage()]);
+      const rx = pixelFace({ good: 'happy', mixed: 'neutral', bad: 'angry' }[tone], 16);
+      root.querySelectorAll('.lr__rx').forEach((el, i) => { el.innerHTML = rx; el.hidden = false; el.style.setProperty('--d', `${0.2 + i * 0.07}s`); });
+      document.getElementById('lr-say').textContent = TALKS[kind][id].line;
       document.getElementById('lr-panel').innerHTML = `
         <div class="lr__bubble lr__bubble--you" style="--d:0s"><small>감독</small>${esc(TALKS[kind][id].line)}</div>
         <p class="lr__react" style="--d:0.9s">${esc(outcome.text)}</p>
@@ -2467,20 +2492,36 @@ function showSeasonPreview(half, onDone) {
   }).filter(Boolean);
   const report = marketReport(entries);
   const root = document.getElementById('eventmodal-root');
-  root.innerHTML = `
+  const kicker = half === 1 ? '시즌 전망' : '후반기 전망';
+  const bars = (n) => `<div class="prevsteps"><i${n === 1 ? ' class="on"' : ''}></i><i${n === 2 ? ' class="on"' : ''}></i></div>`;
+  const step1 = () => {
+    root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal preview">
-        <div class="eventmodal__kicker">${half === 1 ? '시즌 전망' : '후반기 전망'}</div>
+        ${bars(1)}
+        <div class="eventmodal__kicker">${kicker} · 1/2</div>
         <div class="eventmodal__title">기자들의 예상 순위</div>
-        ${tutStep() >= 0 ? '<p class="eventmodal__detail">올리비아: 시즌 중엔 팀 전력이 비밀이에요! 기자님 3명의 예상은 서로 달라요. 분석가님이 제일 정확하지만 가끔 크게 틀려요.</p>' : ''}
-        <ul class="previewlist">${JOURNALISTS.map((j) => `<li><span class="previewlist__who"><b>${j.outlet}</b> ${j.name} 기자</span><em class="n">${ranks[j.key]}위</em><p>“${previewQuote(j.key, ranks[j.key])}”</p></li>`).join('')}</ul>
-        <div class="eventmodal__title">이적시장 성적표 <b class="previewgrade">${report.grade}</b></div>
-        <p class="eventmodal__detail">${report.summary}</p>
-        ${report.lines.length ? `<ul class="previewlist previewlist--buys">${report.lines.map((l, i) => `<li><span class="previewlist__who"><b>${esc(l.name)}</b> ${entries[i].stars}</span><p>${l.text}${l.bargain ? ' · 가성비 좋은 계약' : ''}</p></li>`).join('')}</ul>` : ''}
-        <button class="reroll" id="preview-go" style="margin-top:var(--s2);width:100%">경기 시작</button>
+        <ul class="previewlist">${JOURNALISTS.map((j) => `<li><span class="previewlist__who"><b>${j.outlet}</b> ${j.name} 기자</span><em class="n">${ranks[j.key]}<small>위</small></em><p>“${previewQuote(j.key, ranks[j.key])}”</p></li>`).join('')}</ul>
+        <button class="reroll preview__next" id="preview-next">다음</button>
       </div>
     </div>`;
-  document.getElementById('preview-go').onclick = () => { root.innerHTML = ''; onDone(); };
+    document.getElementById('preview-next').onclick = step2;
+  };
+  const step2 = () => {
+    root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal preview">
+        ${bars(2)}
+        <div class="eventmodal__kicker">${kicker} · 2/2</div>
+        <div class="eventmodal__title">이적시장 성적표</div>
+        <div class="previewgradebox"><b class="previewgrade">${report.grade}</b><p>${report.summary}</p></div>
+        ${report.lines.length ? `<ul class="previewlist previewlist--buys">${report.lines.map((l, i) => `<li><span class="previewlist__who"><b>${esc(l.name)}</b>${l.bargain ? ' <span class="previewlist__bg">가성비</span>' : ''}</span><em class="n previewlist__stars">${entries[i].stars}</em><p>${l.text}</p></li>`).join('')}</ul>` : ''}
+        <button class="reroll preview__go" id="preview-go">경기 시작</button>
+      </div>
+    </div>`;
+    document.getElementById('preview-go').onclick = () => { root.innerHTML = ''; onDone(); };
+  };
+  step1();
 }
 
 function askDirection(onPick) {
@@ -4073,6 +4114,13 @@ function renderMarket(banner = '') {
   // 판매 탭: 등록한 선수(예상 시세 구간 + 오퍼), 정리 후보 바로 등록, 이적 기록.
   const listed = listedForSale.filter((l) => squad.some((p) => p.id === l.card.id));
   const cutPool = squad.filter((p) => currentState.marks?.[p.id] === 'cut' && !p.boughtThisSeason && !listed.some((l) => l.card.id === p.id));
+  const roleOf = (id) => (slotted.some((x) => x?.id === id) ? '선발' : bench.some((x) => x.id === id) ? '벤치' : '예비');
+  const saleZoneHtml = listed.length ? `<details class="salezone" open><summary>판매 중 <i class="n">${listed.length}명</i></summary>${listed.map((l) => {
+    const left = l.offers.length ? Math.min(...l.offers.map(offerWeeksLeft)) : null;
+    return `<div class="salezone__row"><div class="salezone__who"><b>${esc(l.card.name)}</b><span class="n">${starLabel(l.card)}</span></div>
+      <div class="salezone__chips"><span>원래 ${roleOf(l.card.id)} ${l.card.position}</span><span class="${l.offers.length ? 'is-offer' : ''}">${l.offers.length ? `오퍼 ${l.offers.length}건` : '오퍼 없음'}</span>${left != null ? `<span class="${left === 1 ? 'is-last' : ''}">${left === 1 ? '이번 주 만료' : `만료 ${left}주`}</span>` : ''}</div>
+      <button type="button" class="salezone__cx" data-unlist="${l.card.id}">등록 취소</button></div>`;
+  }).join('')}</details>` : '';
   const sellHtml = `
     ${listed.map((l) => `<section class="sellcard">
       <div class="sellcard__head">${renderPortrait(l.card, { size: 48, kit: club.kit ?? '#4b3a9a' })}
@@ -4162,6 +4210,7 @@ function renderMarket(banner = '') {
         ${tagBar}
         ${adviceBar}
         ${squadHtml}
+        ${saleZoneHtml}
       </section>`,
     staff: `
       <section class="panel tabpanel">
@@ -4189,19 +4238,20 @@ function renderMarket(banner = '') {
         ${renderCrest(club, { size: 36 })}
         <div class="mkhead__id"><b>${esc(club.name)}</b><small>${phaseLabel} · ${week === maxWeek ? '이번 주가 마지막' : `${phase === 'summer' ? '전반기' : '후반기'} 시작까지 ${maxWeek - week}주`}</small></div>
         <button type="button" class="mkhead__funds" id="mk-more-btn" aria-expanded="${tutStep() === 10}" aria-label="자금·조직력·명성 자세히">${negIcon('coin')}<b>${funds.toLocaleString('ko-KR')}</b><i>G</i></button>
+        <button type="button" class="mkhead__funds mkhead__chem${chemistry < 40 ? ' is-low' : ''}" id="chem-info-btn" aria-label="조직력 ${chemistry.toFixed(1)} 설명"><b>${chemistry.toFixed(1)}</b><i class="chemdelta${chemDelta < -0.05 ? ' is-neg' : chemDelta > 0.05 ? ' is-pos' : ''}">${chemDelta >= 0 ? '+' : '−'}${Math.abs(chemDelta).toFixed(1)}</i></button>
       </div>
+      <p class="note chem-info" id="chem-info" hidden>
+        <b>조직력</b>은 선수들이 얼마나 손발이 맞는지예요. 높을수록 팀 전력이 오르고 낮을수록 깎입니다(지금 ×${chemistryMultiplier(chemistry).toFixed(3)}).<br>
+        <b>오르는 때:</b> 거래가 없는 주마다 +1, 팀 컬러 완성 시 매주 +1, 감독 선호 전술 발동, 이사진 목표 초과, 승격.<br>
+        <b>깎이는 때:</b> 영입·판매 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'}. 한 주의 첫 거래는 깎이지 않고, 영입하면서 내보내는 교체는 한 건입니다.<br>
+        그래서 자주 갈아치울수록 손해, 굵직하게 바꾸고 기다릴수록 이득입니다.
+      </p>
       <div class="weekdots">${dots}</div>
       <div class="mkhead__more" id="mk-more" ${tutStep() === 10 ? '' : 'hidden'}>
       <div class="res">
         <div class="res__item res__item--btn" id="funds-info-btn" role="button" tabindex="0">
           <span class="res__label">자금 <i class="res__hint">ⓘ</i></span>
           <span class="res__val n">${funds.toLocaleString('ko-KR')}<i>G</i></span>
-        </div>
-        <div class="res__item res__item--btn" id="chem-info-btn" role="button" tabindex="0">
-          <span class="res__label">조직력 <i class="res__hint">ⓘ</i></span>
-          <span class="res__stack"><span class="res__val n">${chemistry.toFixed(1)}</span>
-          <i class="res__best chemdelta${chemDelta < -0.05 ? ' is-neg' : chemDelta > 0.05 ? ' is-pos' : ''}">전력 ${chemDelta >= 0 ? '+' : '−'}${Math.abs(chemDelta).toFixed(1)}</i></span>
-          <div class="chembar${chemistry < 40 ? ' is-low' : ''}"><i style="width:${Math.min(100, chemistry)}%"></i></div>
         </div>
         <div class="res__item res__item--score" title="이번 런의 명성 점수">
           <span class="res__label">명성</span>
@@ -4220,12 +4270,6 @@ function renderMarket(banner = '') {
         방출/판매 수입 <b>+${track.income.toLocaleString('ko-KR')}G</b> ·
         그 밖(겨울 지원금·이벤트 등) <b>${otherFlow >= 0 ? '+' : '−'}${Math.abs(otherFlow).toLocaleString('ko-KR')}G</b><br>
         <b>이적 손익 ${net >= 0 ? '+' : '−'}${Math.abs(net).toLocaleString('ko-KR')}G</b> (수입 − 영입 지출). 선수는 판매 등록 뒤 오퍼를 받아 팝니다(오퍼가 모두 만료되거나 시장이 끝나면 조직력이 조금 떨어집니다).
-      </p>
-      <p class="note chem-info" id="chem-info" hidden>
-        <b>조직력</b>은 선수들이 얼마나 손발이 맞는지예요. 높을수록 팀 전력이 오르고 낮을수록 깎입니다(지금 ×${chemistryMultiplier(chemistry).toFixed(3)}).<br>
-        <b>오르는 때:</b> 거래가 없는 주마다 +1, 팀 컬러 완성 시 매주 +1, 감독 선호 전술 발동, 이사진 목표 초과, 승격.<br>
-        <b>깎이는 때:</b> 영입·판매 한 건마다 −${decay || 0}${decay ? '' : '(지금은 감독·스태프 덕에 면제)'}. 한 주의 첫 거래는 깎이지 않고, 영입하면서 내보내는 교체는 한 건입니다.<br>
-        그래서 자주 갈아치울수록 손해, 굵직하게 바꾸고 기다릴수록 이득입니다.
       </p>
       </div>
     </header>
@@ -4460,7 +4504,7 @@ function renderMarket(banner = '') {
     for (const p of squad) {
       const relBtn = document.querySelector(`[data-release-listed="${p.id}"]`);
       if (relBtn) relBtn.onclick = () => {
-        confirmRelease(p.id, `${p.name} 이적 명단에 올리시겠습니까?`, () => listForSale(p), banner);
+        confirmRelease(p.id, `${p.name} 이적 명단에 올리시겠습니까? 판매 등록하면 선발에서 빠져요.`, () => listForSale(p), banner);
       };
     }
     // 선수 행을 누르면 관리 버튼(판매 등록/방출)이 펼쳐진다.
