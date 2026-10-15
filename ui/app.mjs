@@ -123,7 +123,9 @@ function missingPositions(squad, formationId) {
 // 시즌 시뮬레이션 직전(runFirstHalf/runSecondHalfAndFinish)에 호출해서
 // 실제로 경기를 뛰기 전에 자리를 채운다.
 function ensurePositionCoverage() {
-  const missing = missingPositions(currentState.squad.filter((p) => !(p.out > 0)), currentFormation());
+  // 이미 들어온 임시 유스는 다친 뒤에도 그 자리를 덮은 것으로 센다(같은 공석에 또 만들지 않는다). 판매 중 선수는 덮은 것으로 세지 않는다.
+  const sold = listedIds();
+  const missing = missingPositions(currentState.squad.filter((p) => (!(p.out > 0) || p.emergencyYouth) && !sold.has(p.id)), currentFormation());
   if (!missing.length) return [];
   const callUps = missing.map((pos) => toSquadPlayer(generateEmergencyYouth(pos)));
   currentState.squad = [...currentState.squad, ...callUps];
@@ -534,7 +536,7 @@ function ensureChairman() {
   }
   return currentState.chairman;
 }
-const DIALOGUE_BG = { press: 'press', office: 'office', end: 'end', squad: 'squad' };
+const DIALOGUE_BG = { press: 'press', office: 'office', end: 'end' };
 // beats: [{ who: 'chairman' | 'reporter' | 'captain', text, person? }]. 탭하면 다음 줄, 마지막 줄 다음에 onDone.
 function showDialogueScene({ kind, beats, flash = false }, onDone = () => {}) {
   const chairman = ensureChairman();
@@ -545,9 +547,7 @@ function showDialogueScene({ kind, beats, flash = false }, onDone = () => {}) {
     chairman: { card: chairman, label: `이사장 ${chairman.name}`, role: 'manager' },
     reporter: { card: reporter, label: '기자', role: 'scout' },
     captain: captain ? { card: captain, label: `${captain.name} · 주장`, role: 'player' } : { card: reporter, label: '선수단', role: 'scout' },
-    guide: { card: { id: 'guide-olivia', name: '올리비아 하트', continentTag: 'europe', age: 23 }, label: '올리비아', role: 'guide' },
   };
-  const mates = lineup.filter((p) => p.id !== captain?.id).slice(0, 9);
   const el = document.createElement('div');
   el.className = `dlg dlg--${DIALOGUE_BG[kind] ?? 'office'}`;
   document.body.appendChild(el);
@@ -559,9 +559,7 @@ function showDialogueScene({ kind, beats, flash = false }, onDone = () => {}) {
     el.innerHTML = `
       ${flash && i === 0 ? '<div class="dlg__flash"></div>' : ''}
       <button class="dlg__skip" id="dlg-skip">건너뛰기</button>
-      ${kind === 'squad'
-        ? `<div class="dlg__stage dlg__stage--squad">${lockerSceneHtml({ mates, captain, kit: currentState.club.kit, say: null, focus: [captain?.id, ...(b.focus ?? [])].filter(Boolean), mgr: false })}</div>`
-        : `<div class="dlg__stage">${renderPortrait(w.card, { size: 112, kit: currentState.club.kit, role: w.role })}</div>`}
+      <div class="dlg__stage">${renderPortrait(w.card, { size: 112, kit: currentState.club.kit, role: w.role })}</div>
       <div class="dlg__box"><small>${esc(w.label)}</small><p>${esc(b.text)}</p><i class="dlg__next" aria-hidden="true">${i === beats.length - 1 ? '확인' : '▼'}</i></div>`;
     el.querySelector('#dlg-skip').onclick = (e) => { e.stopPropagation(); finish(); };
   };
@@ -616,24 +614,6 @@ function appointCaptain(cardId) {
   if (!p) return;
   currentState.captainId = p.id;
   renderMarket(`${p.name}을(를) 주장으로 임명했어요`);
-}
-// 라커룸 장면 마크업: 사물함·전술판·벤치·선수 좌석(뒤 6 + 앞 3 + 주장) + 감독 실루엣과 말풍선. focus는 강조할 선수 id.
-function lockerSceneHtml({ mates, captain, kit, say, focus = [], mgr = true }) {
-  const seat = (p, i, size) => `<div class="lr__seat${focus.includes(p.id) ? ' is-focus' : ''}" style="--d:${(i * 0.06).toFixed(2)}s"><span class="lr__rx" hidden></span>${renderPortrait(p, { size, kit })}</div>`;
-  const back = mates.slice(0, 6).map((p, i) => seat(p, i, 34)).join('');
-  const front = mates.slice(6, 9).map((p, i) => seat(p, i + 6, 44));
-  const capHtml = captain ? `<div class="lr__seat lr__captain${focus.includes(captain.id) ? ' is-focus' : ''}"><span class="lr__rx" hidden></span>${renderPortrait(captain, { size: 56, kit })}<b class="lr__name"><span class="lr__armband">C</span>${esc(captain.name)}</b></div>` : '';
-  front.splice(Math.min(2, front.length), 0, capHtml);
-  return `
-    <div class="lr__room${mgr ? '' : ' lr__room--nomgr'}">
-      <div class="lr__wall">${[0, 1, 0, 0, 1, 0].map((o) => `<i class="${o ? 'is-open' : ''}"></i>`).join('')}</div>
-      <svg class="lr__board" viewBox="0 0 64 40" aria-hidden="true"><rect x="1" y="1" width="62" height="38" rx="3"/><path d="M32 4v32M4 20h56M20 12l10 8-10 8M44 12l-10 8 10 8"/><circle cx="32" cy="20" r="5"/></svg>
-      <div class="lr__back">${back}</div>
-      <div class="lr__bench"></div>
-      <div class="lr__front">${front.join('')}</div>
-      ${mgr ? '<div class="lr__mgr"><i></i><b></b></div>' : ''}
-      ${say != null ? `<div class="lr__say" id="lr-say">${esc(say)}</div>` : ''}
-    </div>`;
 }
 // 전술 탭 한 줄 요약
 function specSummaryHtml() {
@@ -1252,29 +1232,18 @@ function leaveTutorialRun(skipped = false) {
     renderClubButtons();
   };
   if (skipped) { finish(); return true; }
-  const intro = () => {
-    const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
-    const star = [...lineup].sort((a, b) => starsFor(b) - starsFor(a))[0];
-    const names = [star].filter(Boolean);
-    showDialogueScene({ kind: 'squad', beats: [
-      { who: 'captain', text: '감독님, 전반기 수고하셨습니다. 우리 선수단을 소개할게요.' },
-      { who: 'captain', text: names.length ? `${names[0].name}은(는) 우리 팀에서 가장 평가가 높아요.` : '선수들이 팀을 이끌고 있어요.', focus: names.map((p) => p.id) },
-      { who: 'guide', text: '이제 진짜 시즌이 기다리고 있어요. 같이 힘내 봐요!' },
-    ] }, () => {
-      const root = document.getElementById('eventmodal-root');
-      root.innerHTML = `
-        <div class="eventmodal-backdrop">
-          <div class="eventmodal">
-            <div class="eventmodal__kicker">튜토리얼 끝</div>
-            <div class="eventmodal__title">튜토리얼이 끝났어요</div>
-            <p class="eventmodal__detail">이제 진짜 구단을 만들어 볼까요?</p>
-            <button class="cta" id="tut-end-go">구단 만들기</button>
-          </div>
-        </div>`;
-      document.getElementById('tut-end-go').onclick = () => { root.innerHTML = ''; finish(); };
-    });
-  };
-  intro();
+  // 종료 안내 → 샌드박스 폐기 → 구단 만들기
+  const root = document.getElementById('eventmodal-root');
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal">
+        <div class="eventmodal__kicker">튜토리얼 끝</div>
+        <div class="eventmodal__title">튜토리얼이 끝났어요</div>
+        <p class="eventmodal__detail">이제 진짜 구단을 만들어 볼까요?</p>
+        <button class="cta" id="tut-end-go">구단 만들기</button>
+      </div>
+    </div>`;
+  document.getElementById('tut-end-go').onclick = () => { root.innerHTML = ''; finish(); };
   return true;
 }
 // 튜토리얼 런은 이어하기 저장을 만들지 않는다.
