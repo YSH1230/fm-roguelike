@@ -57,11 +57,16 @@ export function showSpot({ selector, text, ok = null, onOk = null, onSkip = null
     const top = Math.max(0, r.top - pad); const bottom = Math.min(vh, r.bottom + pad);
     const left = Math.max(0, r.left - pad); const right = Math.min(vw, r.right + pad);
     const set = (p, css) => Object.assign(el.querySelector(`[data-p="${p}"]`).style, css);
+    const tiny = r.width < 24 || r.height < 24; // 가리킬 대상이 없는 단계(인사 등): 링 없이 전체를 어둡게
+    el.querySelector('.tut__ring').style.display = tiny ? 'none' : '';
+    if (tiny) { set('t', { left: 0, top: 0, width: '100%', height: `${vh}px` }); set('b', { height: 0 }); set('l', { width: 0 }); set('r', { width: 0 }); }
+    if (!tiny) {
     set('t', { left: 0, top: 0, width: '100%', height: `${top}px` });
-    set('b', { left: 0, top: `${bottom}px`, width: '100%', height: `${Math.max(0, vh - bottom)}px` });
-    set('l', { left: 0, top: `${top}px`, width: `${left}px`, height: `${bottom - top}px` });
-    set('r', { left: `${right}px`, top: `${top}px`, width: `${Math.max(0, vw - right)}px`, height: `${bottom - top}px` });
-    Object.assign(el.querySelector('.tut__ring').style, { left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px` });
+      set('b', { left: 0, top: `${bottom}px`, width: '100%', height: `${Math.max(0, vh - bottom)}px` });
+      set('l', { left: 0, top: `${top}px`, width: `${left}px`, height: `${bottom - top}px` });
+      set('r', { left: `${right}px`, top: `${top}px`, width: `${Math.max(0, vw - right)}px`, height: `${bottom - top}px` });
+      Object.assign(el.querySelector('.tut__ring').style, { left: `${left}px`, top: `${top}px`, width: `${right - left}px`, height: `${bottom - top}px` });
+    }
     const tip = el.querySelector('.tut__tip');
     const below = top <= vh / 2; // 대상이 위쪽이면 시트는 아래, 아래쪽이면 위(대상을 가리지 않는다)
     tip.style.top = below ? '' : '10px'; tip.style.bottom = below ? '10px' : '';

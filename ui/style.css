@@ -3334,3 +3334,20 @@ html[data-theme] .backlink { position: fixed; top: 14px; left: calc(50% - min(50
 /* 커리어 시작 화면: 이사장 한마디 */
 .chairman-quote { margin: var(--s3) 0; padding: var(--s2) var(--s3); border-left: 3px solid var(--turf); color: var(--muted); font-size: var(--fs-body); line-height: 1.45; text-align: left; }
 .chairman-quote small { display: block; margin-top: 4px; font-size: var(--fs-micro); color: var(--muted); opacity: .8; }
+
+/* ===== 커리어 시작·이사장 대사·이사진 목표 칸 (v4 톤) ===== */
+html[data-theme] .chairman-quote { margin: 12px 16px; padding: 12px 16px; border: 1px solid #2b2b30; border-left: 1px solid #2b2b30; border-radius: 20px; background: #18181b; color: #f4f1e8; font-size: 14px; line-height: 1.5; }
+html[data-theme] .chairman-quote small { display: inline-block; margin-top: 8px; padding: 2px 10px; border-radius: 999px; border: 1px solid #ffffff30; color: #8e8e96; font-size: 11px; font-weight: 700; opacity: 1; }
+html[data-theme] .goalline b { color: #f4f1e8; font-size: 22px; }
+html[data-theme] .goalstrip { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 14px; border: 1px solid #2b2b30; border-radius: 999px; background: #18181b; }
+html[data-theme] .goalstrip span { color: #8e8e96; font-size: 12px; }
+html[data-theme] .goalstrip b { color: #f4f1e8; font: 400 18px var(--num); margin-left: auto; }
+html[data-theme] .dlg__box { margin: 0 12px 24px; padding: 16px 18px 14px; border: 1px solid #3a3a40; border-radius: 28px; background: #18181b; }
+html[data-theme] .dlg__box small { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid #ffffff30; color: #f4f1e8; font-size: 11px; font-weight: 800; }
+html[data-theme] .dlg__box p { color: #f4f1e8; font-size: 17px; font-weight: 700; line-height: 1.5; margin-top: 8px; }
+html[data-theme] .dlg__next { color: #8e8e96; font-style: normal; font-size: 12px; font-weight: 800; }
+html[data-theme] .dlg__skip { color: #8e8e96; text-decoration: underline; text-underline-offset: 3px; }
+html[data-theme] .dlg__stage .portrait { border-radius: 24px; background: #34343b; }
+html[data-theme] .cta { height: 56px; border-radius: 999px; border: 0; background: #f4f1e8; color: #0b0b0b; font: 900 18px/1 "FM Square", sans-serif; letter-spacing: 0; box-shadow: none; }
+html[data-theme] .cta--ghost { background: transparent; color: #f4f1e8; border: 1px solid #2b2b30; }
+html[data-theme] .cta--danger { background: #ff2e3a; color: #fff; }
