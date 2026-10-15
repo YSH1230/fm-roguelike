@@ -1789,7 +1789,7 @@ function openHaggle(card, note = '') {
     min, max, goLabel: '제안', canAfford: afford, zone,
     onBid: (bid) => thinking(root, () => {
       currentState.bidMemory[card.id] = bid;
-      const r = tutH ? (bid >= reserve ? { result: 'accept' } : { result: 'mid' }) : buyBid({ bid, ask, reserve });
+      const r = tutH ? (bid >= (zone ? Math.min(reserve, zone.lo) : reserve) ? { result: 'accept' } : { result: 'mid' }) : buyBid({ bid, ask, reserve }); // 튜토리얼: 예상 이적료 범위 안이면 항상 성사
       if (r.result === 'accept') { root.innerHTML = ''; buyCard(card, null, null, bid); return; }
       const left = pat - patienceCost(r.result);
       currentState.patience[card.id] = left;
@@ -2322,7 +2322,7 @@ function openSale(cardId, index, note = '') {
     min, max: top, goLabel: '요구',
     onBid: (bid) => thinking(root, () => {
       currentState.bidMemory[key] = bid;
-      const r = sellBid({ bid, offer: offer.amount, max });
+      const r = currentState.tutorial ? { result: 'accept' } : sellBid({ bid, offer: offer.amount, max }); // 튜토리얼: 요구 범위 안이면 항상 성사(결렬·오퍼 철회 없음)
       if (r.result === 'accept') { root.innerHTML = ''; acceptSaleOffer(cardId, index, bid, true); return; }
       const left = pat - patienceCost(r.result);
       currentState.patience[key] = left;

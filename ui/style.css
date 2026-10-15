@@ -3351,3 +3351,8 @@ html[data-theme] .banner { border: 1px solid #2b2b30; border-left: 1px solid #2b
 html[data-theme] .banner--alert { border-color: #ff9b3d; }
 html[data-theme] .banner--ucl { border-color: #f4f1e8; background: #18181b; }
 html[data-theme] .goalstrip { border: 1px solid #2b2b30; border-radius: 999px; background: #18181b; }
+
+/* 뒤로 버튼: 왼쪽 위 + 밑줄, 튜토리얼 건너뛰기에도 밑줄 */
+html[data-theme] .backlink { align-self: flex-start; justify-self: start; width: fit-content; margin: 14px 0 0 16px; text-align: left; font-size: 14px; color: #f4f1e8; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+html[data-theme] .tut__skip { text-decoration: underline; text-underline-offset: 3px; }
+html[data-theme] .backlink { position: fixed; top: 14px; left: calc(50% - min(50vw, 230px) + 16px); margin: 0; z-index: 5; }
