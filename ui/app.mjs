@@ -13,7 +13,7 @@ import {
   loadRecords, saveRecords, recordRunStart, recordTrait, recordLegend, recordStyleTitle, recordPromotion, recordSeason, recordUcl, recordRunEnd,
   uclReached, ACHIEVEMENTS, unlockedIds, newlyUnlocked,
 } from '../data/records.mjs';
-import { generateSquadPool, generateStartingSquad, generateEmergencyYouth, reservePlayerIds } from '../data/generate-player.mjs';
+import { generateSquadPool, generateStartingSquad, generateEmergencyYouth, reservePlayerIds, resetPlayerIds } from '../data/generate-player.mjs';
 import { assignRandomStaff, generateStaffOffer, generateStaffCandidate } from '../data/staff.mjs';
 import { GOD_PLAYERS } from '../data/god-players.mjs';
 import { rollSeasonEvent, describeChoice, resolveChoice } from '../data/season-events.mjs';
@@ -537,7 +537,7 @@ function ensureChairman() {
   }
   return currentState.chairman;
 }
-const DIALOGUE_BG = { press: 'press', office: 'office', end: 'end' };
+const DIALOGUE_BG = { press: 'press', office: 'office', end: 'end', squad: 'squad' };
 // beats: [{ who: 'chairman' | 'reporter' | 'captain', text, person? }]. 탭하면 다음 줄, 마지막 줄 다음에 onDone.
 function showDialogueScene({ kind, beats, flash = false }, onDone = () => {}) {
   const chairman = ensureChairman();
@@ -548,7 +548,9 @@ function showDialogueScene({ kind, beats, flash = false }, onDone = () => {}) {
     chairman: { card: chairman, label: `이사장 ${chairman.name}`, role: 'manager' },
     reporter: { card: reporter, label: '기자', role: 'scout' },
     captain: captain ? { card: captain, label: `${captain.name} · 주장`, role: 'player' } : { card: reporter, label: '선수단', role: 'scout' },
+    guide: { card: { id: 'guide-olivia', name: '올리비아 하트', continentTag: 'europe', age: 23 }, label: '올리비아', role: 'guide' },
   };
+  const mates = lineup.filter((p) => p.id !== captain?.id).slice(0, 9);
   const el = document.createElement('div');
   el.className = `dlg dlg--${DIALOGUE_BG[kind] ?? 'office'}`;
   document.body.appendChild(el);
@@ -560,7 +562,9 @@ function showDialogueScene({ kind, beats, flash = false }, onDone = () => {}) {
     el.innerHTML = `
       ${flash && i === 0 ? '<div class="dlg__flash"></div>' : ''}
       <button class="dlg__skip" id="dlg-skip">건너뛰기</button>
-      <div class="dlg__stage">${renderPortrait(w.card, { size: 112, kit: currentState.club.kit, role: w.role })}</div>
+      ${kind === 'squad'
+        ? `<div class="dlg__stage dlg__stage--squad">${lockerSceneHtml({ mates, captain, kit: currentState.club.kit, say: null, focus: [captain?.id, ...(b.focus ?? [])].filter(Boolean), mgr: false })}</div>`
+        : `<div class="dlg__stage">${renderPortrait(w.card, { size: 112, kit: currentState.club.kit, role: w.role })}</div>`}
       <div class="dlg__box"><small>${esc(w.label)}</small><p>${esc(b.text)}</p><i class="dlg__next" aria-hidden="true">${i === beats.length - 1 ? '확인' : '▼'}</i></div>`;
     el.querySelector('#dlg-skip').onclick = (e) => { e.stopPropagation(); finish(); };
   };
@@ -648,9 +652,34 @@ function capTalkFx(kind, fx) {
   for (const k of Object.keys(out)) if (out[k] === 0) delete out[k];
   return out;
 }
-function showTalkPick(kind, onDone) {
+// opts.fixed: 고를 수 있는 토크 id 고정(튜토리얼), opts.tutorial: 효과를 적용하지 않고 버린다.
+// 전반기 종료 순위(전반기 누적 승점표 기준). 표가 없으면 빈 문자열.
+function firstHalfRankText() {
+  const b = currentState.firstHalfBase;
+  if (!b?.me && b?.me !== 0) return '';
+  return ` · ${1 + Object.entries(b).filter(([id, v]) => id !== 'me' && v > b.me).length}위`;
+}
+// 라커룸 장면 마크업: 사물함·전술판·벤치·선수 좌석(뒤 6 + 앞 3 + 주장) + 감독 실루엣과 말풍선. focus는 강조할 선수 id.
+function lockerSceneHtml({ mates, captain, kit, say, focus = [], mgr = true }) {
+  const seat = (p, i, size) => `<div class="lr__seat${focus.includes(p.id) ? ' is-focus' : ''}" style="--d:${(i * 0.06).toFixed(2)}s"><span class="lr__rx" hidden></span>${renderPortrait(p, { size, kit })}</div>`;
+  const back = mates.slice(0, 6).map((p, i) => seat(p, i, 34)).join('');
+  const front = mates.slice(6, 9).map((p, i) => seat(p, i + 6, 44));
+  const capHtml = captain ? `<div class="lr__seat lr__captain${focus.includes(captain.id) ? ' is-focus' : ''}"><span class="lr__rx" hidden></span>${renderPortrait(captain, { size: 56, kit })}<b class="lr__name"><span class="lr__armband">C</span>${esc(captain.name)}</b></div>` : '';
+  front.splice(Math.min(2, front.length), 0, capHtml);
+  return `
+    <div class="lr__room${mgr ? '' : ' lr__room--nomgr'}">
+      <div class="lr__wall">${[0, 1, 0, 0, 1, 0].map((o) => `<i class="${o ? 'is-open' : ''}"></i>`).join('')}</div>
+      <svg class="lr__board" viewBox="0 0 64 40" aria-hidden="true"><rect x="1" y="1" width="62" height="38" rx="3"/><path d="M32 4v32M4 20h56M20 12l10 8-10 8M44 12l-10 8 10 8"/><circle cx="32" cy="20" r="5"/></svg>
+      <div class="lr__back">${back}</div>
+      <div class="lr__bench"></div>
+      <div class="lr__front">${front.join('')}</div>
+      ${mgr ? '<div class="lr__mgr"><i></i><b></b></div>' : ''}
+      ${say != null ? `<div class="lr__say" id="lr-say">${esc(say)}</div>` : ''}
+    </div>`;
+}
+function showTalkPick(kind, onDone, opts = {}) {
   const root = document.getElementById('eventmodal-root');
-  const choices = drawTalkChoices(kind);
+  const choices = opts.fixed ?? drawTalkChoices(kind);
   const isStart = kind === 'start';
   const isPre = kind === 'pre1' || kind === 'pre2';
   const chemKey = kind === 'end' ? 'nextStartChem' : 'chemNow';
@@ -659,23 +688,9 @@ function showTalkPick(kind, onDone) {
   const mates = lineup.filter((p) => p.id !== captain?.id).slice(0, 9);
   const last = currentState.lastSeason;
   const situation = isPre ? kind : !isStart ? 'end' : last?.result === 'promotion' ? 'promo' : last?.result === 'champion' ? 'champ' : (last?.margin ?? 99) <= 4 ? 'close' : 'stay';
-  const caption = isPre ? (kind === 'pre1' ? '전반기를 앞둔 라커룸' : `전반기가 끝난 라커룸 · 승점 ${currentState.firstHalfPoints ?? 0}`) : pickLine(LOCKER_CAPTIONS[situation], `cap-${situation}`);
+  const caption = isPre ? (kind === 'pre1' ? '전반기를 앞둔 라커룸' : `전반기가 끝난 라커룸${firstHalfRankText()} · 승점 ${currentState.firstHalfPoints ?? 0}`) : pickLine(LOCKER_CAPTIONS[situation], `cap-${situation}`);
   const kit = currentState.club.kit;
-  const seat = (p, i, size) => `<div class="lr__seat" style="--d:${(i * 0.06).toFixed(2)}s"><span class="lr__rx" hidden></span>${renderPortrait(p, { size, kit })}</div>`;
-  const back = mates.slice(0, 6).map((p, i) => seat(p, i, 34)).join('');
-  const front = mates.slice(6, 9).map((p, i) => seat(p, i + 6, 44));
-  const capHtml = captain ? `<div class="lr__seat lr__captain"><span class="lr__rx" hidden></span>${renderPortrait(captain, { size: 56, kit })}<b class="lr__name"><span class="lr__armband">C</span>${esc(captain.name)}</b></div>` : '';
-  front.splice(Math.min(2, front.length), 0, capHtml);
-  const stage = `
-    <div class="lr__room">
-      <div class="lr__wall">${[0, 1, 0, 0, 1, 0].map((o) => `<i class="${o ? 'is-open' : ''}"></i>`).join('')}</div>
-      <svg class="lr__board" viewBox="0 0 64 40" aria-hidden="true"><rect x="1" y="1" width="62" height="38" rx="3"/><path d="M32 4v32M4 20h56M20 12l10 8-10 8M44 12l-10 8 10 8"/><circle cx="32" cy="20" r="5"/></svg>
-      <div class="lr__back">${back}</div>
-      <div class="lr__bench"></div>
-      <div class="lr__front">${front.join('')}</div>
-      <div class="lr__mgr"><i></i><b></b></div>
-      <div class="lr__say" id="lr-say">${esc(caption)}</div>
-    </div>`;
+  const stage = lockerSceneHtml({ mates, captain, kit, say: caption });
   root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal eventmodal--goal lockerroom">
@@ -714,7 +729,8 @@ function showTalkPick(kind, onDone) {
           <ul class="buyres__list">${lines.map((l) => `<li class="buyres__row is-${l.good ? 'good' : 'bad'}"><i></i><span>${esc(l.text)}</span></li>`).join('')}</ul>
           <button class="cta" id="talk-ok">확인</button>
         </div>`;
-      document.getElementById('talk-ok').onclick = () => { root.innerHTML = ''; applyTalkOutcome(outcome); onDone(); };
+      if (opts.tutorial) document.querySelector('.lr__result')?.insertAdjacentHTML('afterbegin', '<p class="note">튜토리얼에서는 적용되지 않아요</p>');
+      document.getElementById('talk-ok').onclick = () => { root.innerHTML = ''; if (!opts.tutorial) applyTalkOutcome(outcome); onDone(); };
     };
   });
 }
@@ -1352,16 +1368,42 @@ function tutSet(step) {
   track('tutorial', { step });
   if (step > 15) leaveTutorialRun();
 }
-// 튜토리얼 격리: 튜토리얼 중 한 모든 행동(영입·판매·지시·자금·선수단)은 이 런에서만 일어난다.
-// 튜토리얼 런은 저장·기록·업적에 남지 않고, 끝나거나 건너뛰면 시작 상태(구단 이름·엠블럼 유지)로 진짜 런을 새로 연다.
-function leaveTutorialRun() {
-  const b = currentState?.tutorialBackup;
-  if (!b) return false;
+// 튜토리얼 샌드박스: 튜토리얼 중 한 모든 행동(영입·판매·지시·자금·선수단)은 이 임시 런에서만 일어난다.
+// 튜토리얼 런은 저장·기록·업적에 남지 않고, 끝나면 상태를 통째로 버린다. 끝은 선수단 인사 → 토크(고정 3장, 효과 없음) → 안내 → 구단 만들기부터 새 본 게임.
+// 건너뛰면 인사·토크 없이 바로 새 본 게임이다.
+function leaveTutorialRun(skipped = false) {
+  if (!currentState?.tutorialBackup) return false;
   clearSpot();
-  currentState = withRunDefaults(JSON.parse(JSON.stringify(b)), DEFAULT_FORMATION);
-  updateRecords(recordRunStart);
-  persistRun();
-  startTalkThen(() => renderMarket('튜토리얼이 끝났어요. 이제부터 진짜 시즌이에요!'));
+  const finish = () => {
+    currentState = null; // 샌드박스 폐기(선수 id 카운터·GOD 풀·구단 기분 등 런 상태 전부)
+    resetPlayerIds();
+    renderClubButtons();
+  };
+  if (skipped) { finish(); return true; }
+  const intro = () => {
+    const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+    const star = [...lineup].sort((a, b) => starsFor(b) - starsFor(a))[0];
+    const oldest = [...lineup].sort((a, b) => b.age - a.age)[0];
+    const names = [star, oldest].filter(Boolean).filter((p, i, a) => a.indexOf(p) === i);
+    showDialogueScene({ kind: 'squad', beats: [
+      { who: 'captain', text: '감독님, 전반기 수고하셨습니다. 우리 선수단을 소개할게요.' },
+      { who: 'captain', text: names.length > 1 ? `${names[0].name}은(는) 우리 팀에서 가장 평가가 높고, ${names[1].name}은(는) 가장 경험이 많아요.` : `${names[0]?.name ?? '선수들'}이(가) 팀을 이끌고 있어요.` },
+      { who: 'guide', text: '이제 라커룸에서 한마디 해 주실 차례예요!' },
+    ] }, () => showTalkPick('pre2', () => {
+      const root = document.getElementById('eventmodal-root');
+      root.innerHTML = `
+        <div class="eventmodal-backdrop">
+          <div class="eventmodal">
+            <div class="eventmodal__kicker">튜토리얼 끝</div>
+            <div class="eventmodal__title">튜토리얼이 끝났어요</div>
+            <p class="eventmodal__detail">이제 진짜 구단을 만들어 볼까요?</p>
+            <button class="cta" id="tut-end-go">구단 만들기</button>
+          </div>
+        </div>`;
+      document.getElementById('tut-end-go').onclick = () => { root.innerHTML = ''; finish(); };
+    }, { fixed: ['cheer', 'film', 'joke'], tutorial: true }));
+  };
+  intro();
   return true;
 }
 // 튜토리얼 런은 이어하기 저장을 만들지 않는다.
@@ -1373,7 +1415,7 @@ function tutSkip() {
   updateFlags((f) => { f.tutorialDone = true; return f; });
   track('tutorial', { skip: step });
   clearSpot();
-  leaveTutorialRun();
+  leaveTutorialRun(true);
 }
 function tutorialTick(where) {
   const step = tutStep();
@@ -1387,7 +1429,7 @@ function tutorialTick(where) {
     return;
   }
   if (where === 'half') {
-    if (step >= 15) { if (!showSpot({ selector: '.agingbox--reeval', text: '스카우터님이 전반기 활약을 보고 선수들을 다시 평가했어요! 별은 앞으로도 조금씩 계속 움직여요. 숨은 실력은 끝까지 정확히 알 수 없어요. 그래서 더 재미있죠!', ...ok(16) })) tutSet(16); return; }
+    if (step >= 15) { if (!showSpot({ selector: '.agingbox--reeval', text: '스카우터님이 전반기 활약을 보고 선수들을 다시 평가했어요! 별은 앞으로도 조금씩 계속 움직이고, 시즌이 끝나면 ▲/▼로 얼마나 변했는지 보여 줘요. 숨은 실력은 끝까지 정확히 알 수 없어요. 그래서 더 재미있죠!', ...ok(16) })) tutSet(16); return; }
     showSpot({ selector: '.verdict', text: '전반기 결산이에요! 목표 페이스랑 비교해 보고, 겨울 시장에서 보강해요. 선수 평점은 아래 라인업에 있어요. 별이 높아도 평점이 낮을 수 있고, 반대도 있대요!', ...ok(15) });
     return;
   }
@@ -1397,7 +1439,7 @@ function tutorialTick(where) {
     spotOrSkip('#scout-order', '선수 영입은 스카우터님께 맡기면 돼요! 포지션·태그·나이대를 골라 두면 다음 주에 딱 맞는 3명이 짠 하고 와요. 조건을 바꾸면 새 3명이 오고요!', 2);
   } else if (step === 2) showSpot({ selector: '[data-tab="squad"]', text: '선수단 탭 눌러 볼래요? 우리 선수들이 있어요!', onSkip: tutSkip });
   else if (step === 3) {
-    if (currentState.tab === 'squad') spotOrSkip('.srow', '선수는 별(★)로 보여요! 별은 세상의 평가라서 진짜 실력이랑 다를 수도 있어요. 태그, 성향 문구, 부상 이력이 힌트가 돼요! 선수를 누르면 판매 등록도 할 수 있어요.', 4);
+    if (currentState.tab === 'squad') spotOrSkip('.srow', '선수는 별(★)로 보여요! 별은 세상의 평가라서 진짜 실력이랑 다를 수도 있어요. 누르면 스태프 리포트(성장폭·작년 흐름·부상 이력과 코치의 판단)가 열리고, 판매 등록도 할 수 있어요. 판매 중인 선수는 선발·벤치에서 빠져 맨 아래 판매 중 구역에 모여요. 선수단 인원은 탭의 N/22로 보여요!', 4);
     else { tutSet(2); tutorialTick(where); }
   } else if (step === 4) showSpot({ selector: '[data-tab="tactics"]', text: '이번엔 전술 탭이에요! 선발 11명이 여기 있어요.', onSkip: tutSkip });
   else if (step === 5) {
@@ -1411,7 +1453,7 @@ function tutorialTick(where) {
     else { tutSet(4); tutorialTick(where); }
   } else if (step === 8) showSpot({ selector: '[data-tab="staff"]', text: '감독·스태프 탭이에요! 눌러 볼까요?', onSkip: tutSkip });
   else if (step === 9) {
-    if (currentState.tab === 'staff') spotOrSkip('.mgrpanel', '정식 감독이 되면 전술 철학을 고를 수 있어요! 코치님은 어린 선수 성장을, 스카우터님은 평가 정확도랑 협상을 도와요. 승격할 때마다 철학이 깊어진대요!', 10);
+    if (currentState.tab === 'staff') spotOrSkip('.mgrpanel', '정식 감독이 되면 전술 철학을 8종 중에서 고를 수 있어요! 코치님은 어린 선수 성장과 선수단 리포트를, 스카우터님은 영입 카드 리포트와 협상을 도와요. 등급이 높을수록 리포트 줄이 늘어요. 승격할 때마다 철학을 키우거나 바꿀 수 있어요!', 10);
     else { tutSet(8); tutorialTick(where); }
   } else if (step === 10) spotOrSkip('#chem-info-btn', '조직력은 선수들이 손발을 맞추는 정도예요! 영입·판매를 많이 하면 떨어지고(한 주 첫 거래는 괜찮아요), 거래 없는 주엔 올라요.', 11);
   else if (step === 11) {
@@ -1422,7 +1464,7 @@ function tutorialTick(where) {
   } else if (step === 13) {
     if (currentState.tab !== 'draft') { currentState.tab = 'draft'; renderMarket(); return; }
     const pick = currentState.shopOffer.find((c) => hasUpgrade([c]));
-    if (!showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '스카우터님이 데려온 3명이에요! 별은 세상의 평가라서 진짜 실력과 다를 수 있어요. 마음에 드는 선수를 협상해서 영입해 봐요!', onSkip: tutSkip })) clearSpot();
+    if (!showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '스카우터님이 데려온 3명이에요! 별은 세상의 평가라서 진짜 실력과 다를 수 있어요. 카드를 눌러 리포트를 펼쳐 보고, 특수 성향 칩이 있으면 효과를 확인해 보세요. 협상에서는 탐색으로 단서를 모으고 슬라이더로 가격을 불러요. 마음에 드는 선수를 영입해 봐요!', onSkip: tutSkip })) clearSpot();
   } else clearSpot();
 }
 
@@ -1645,7 +1687,7 @@ function renderCareerIntro() {
   // 첫 시즌에는 이사진 요구를 고르지 않는다(2시즌부터 등장).
   tutorialTick('intro');
   document.getElementById('start-season-btn').onclick = () => {
-    if (tutStep() >= 0) { currentState.tutorialBackup = null; currentState.tutorialBackup = JSON.parse(JSON.stringify(currentState)); } // 튜토리얼 격리: 시작 상태를 적어 두고 끝나면 이 상태로 새로 시작한다
+    if (tutStep() >= 0) currentState.tutorialBackup = true; // 튜토리얼 샌드박스 표시: 저장·기록·업적을 막고, 끝나면 상태를 버린다
     return tutStep() < 0 ? renderDemandChoice(currentState.club.demandBias ?? {}, () => startTalkThen(() => renderMarket())) : renderMarket();
   };
   document.getElementById('back-to-clubs-btn').onclick = () => renderClubButtons();
@@ -2378,23 +2420,8 @@ function listPlayer(card) {
   return offers;
 }
 
-// 판매 등록 확인 줄: 선발에서 빠지고 누가 들어오는지, 전력이 얼마나 주는지(3단계 문구)를 미리 알려 준다.
-function saleConfirmText(p) {
-  const f = currentFormation();
-  const cur = pickBestXI(currentState.squad, f, currentState.manualOverrides, currentState.benchOverrides);
-  const base = `${p.name}을(를) 판매 등록하면 선발·벤치에서 빠져요.`;
-  if (!cur.lineup.some((x) => x.id === p.id)) return `${base} 오퍼를 받는 동안 전력이 줄 수 있어요.`;
-  const manual = Object.fromEntries(Object.entries(currentState.manualOverrides ?? {}).filter(([, id]) => id !== p.id));
-  const bench = Object.fromEntries(Object.entries(currentState.benchOverrides ?? {}).filter(([, id]) => id !== p.id));
-  const sq = currentState.squad.filter((x) => x.id !== p.id); // 등록하면 풀에서 빠지는 것과 같다
-  const next = pickBestXI(sq, f, manual, bench);
-  const repl = next.lineup.find((x) => !cur.lineup.some((y) => y.id === x.id));
-  const power = (r) => computeTeamPower(r.lineup, r.bench, currentState.chemistry, fx());
-  const drop = power(cur) - power(next);
-  const level = drop < 0.5 ? '전력은 비슷해요' : drop < 2 ? '전력이 약간 줄어요' : '전력이 크게 줄어요';
-  if (!repl) return `${base} 같은 포지션 선수가 없어 무명 보충 선수가 들어가요. ${level}.`;
-  return `${base} 대신 ${repl.name}(${repl.position})이(가) 들어가요. ${level}.`;
-}
+// 판매 등록 확인 줄(짧게): 판매 중인 선수는 선발·벤치에서 빠진다는 것만 알린다.
+const saleConfirmText = (p) => `${p.name}을(를) 이적 명단에 올리시겠습니까? 판매 등록하면 선발·벤치에서 빠져요.`;
 function listForSale(card) {
   if (!card || card.boughtThisSeason || currentState.listedForSale.some((l) => l.card.id === card.id)) return;
   listPlayer(card);

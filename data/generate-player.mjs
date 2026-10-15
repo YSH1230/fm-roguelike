@@ -46,6 +46,8 @@ function randomInt(min, max, rng) {
 
 let nextId = 1;
 // 저장된 런을 이어하면 id 카운터가 1부터 다시 시작해 선수 id가 겹친다 - 이미 쓰인 id보다 크게 올려 둔다.
+// 튜토리얼 샌드박스를 버리고 새 본 게임을 시작할 때 id 카운터를 처음으로 되돌린다.
+export function resetPlayerIds() { nextId = 1; }
 export function reservePlayerIds(players) {
   for (const p of players) { const m = /^(?:p|youth)(\d+)$/.exec(p?.id ?? ''); if (m) nextId = Math.max(nextId, Number(m[1]) + 1); }
 }

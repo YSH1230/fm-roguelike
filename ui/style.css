@@ -3185,3 +3185,22 @@ html[data-theme] .mgroffer .hire:disabled { background: transparent; border: 1px
 .lr__rx .pxface { stroke: none; stroke-width: 0; }
 html[data-theme] .preview__next, html[data-theme] .preview__go { display: flex; justify-content: center; align-items: center; text-align: center; font-weight: 900; }
 html[data-theme] .preview__go { font-size: 24px; }
+
+/* ===== 선수단 인사 장면(showDialogueScene kind=squad) ===== */
+.dlg--squad { background: radial-gradient(circle at 50% 28%, #1f2428 0%, #08090a 74%); }
+.dlg__stage--squad { display: block; align-self: end; padding: 0 12px; }
+.dlg__stage--squad .lr__room { height: 280px; max-width: 420px; margin: 0 auto; }
+.dlg__stage--squad .lr__room .portrait { width: auto; height: auto; filter: none; }
+.dlg__stage--squad .lr__bench { top: 130px; }
+.dlg__stage--squad .lr__front { top: 144px; }
+.lr__seat.is-focus .portrait { outline: 3px solid #f4f1e8; outline-offset: 1px; }
+.lr__seat.is-focus { z-index: 2; }
+
+/* ===== 예비↔벤치 이동 버튼, 스카우터 지시 초기화 ===== */
+html[data-theme] .srow__acts [data-to-reserve], html[data-theme] .srow__acts [data-to-bench] { height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid #f4f1e8; background: transparent; color: #f4f1e8; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+html[data-theme] .srow__acts [data-to-reserve]::before { content: ''; width: 10px; height: 10px; background: currentColor; clip-path: polygon(0 20%, 100% 20%, 50% 90%); }
+html[data-theme] .srow__acts [data-to-bench]::before { content: ''; width: 10px; height: 10px; background: currentColor; clip-path: polygon(50% 10%, 100% 80%, 0 80%); }
+html[data-theme] .srow__acts [data-to-bench]:disabled { border-color: #2b2b30; color: #8e8e96; }
+html[data-theme] .scoutorder__clear { flex: 0 0 auto; height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #ff2e3a; background: transparent; color: #ff2e3a; font-weight: 800; font-size: 14px; }
+.dlg__stage--squad .lr__room { width: 100%; }
+.dlg__stage--squad { align-self: center; }
