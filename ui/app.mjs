@@ -1383,11 +1383,10 @@ function leaveTutorialRun(skipped = false) {
   const intro = () => {
     const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
     const star = [...lineup].sort((a, b) => starsFor(b) - starsFor(a))[0];
-    const oldest = [...lineup].sort((a, b) => b.age - a.age)[0];
-    const names = [star, oldest].filter(Boolean).filter((p, i, a) => a.indexOf(p) === i);
+    const names = [star].filter(Boolean);
     showDialogueScene({ kind: 'squad', beats: [
       { who: 'captain', text: '감독님, 전반기 수고하셨습니다. 우리 선수단을 소개할게요.' },
-      { who: 'captain', text: names.length > 1 ? `${names[0].name}은(는) 우리 팀에서 가장 평가가 높고, ${names[1].name}은(는) 가장 경험이 많아요.` : `${names[0]?.name ?? '선수들'}이(가) 팀을 이끌고 있어요.` },
+      { who: 'captain', text: names.length ? `${names[0].name}은(는) 우리 팀에서 가장 평가가 높아요.` : '선수들이 팀을 이끌고 있어요.', focus: names.map((p) => p.id) },
       { who: 'guide', text: '이제 라커룸에서 한마디 해 주실 차례예요!' },
     ] }, () => showTalkPick('pre2', () => {
       const root = document.getElementById('eventmodal-root');
