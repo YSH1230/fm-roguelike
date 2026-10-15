@@ -51,6 +51,7 @@ import { starsOf, starText, tierFromStars, nextForm, obsUpdate, anchorOf, observ
 import { reportFor, GRADED_COUNT } from '../engine/report.mjs';
 import { rollInjury, rollInjuryPart, injuryChips, INJURY_LABELS, INJURY_PART_NAME, INJURY_POINTS } from '../engine/injury.mjs';
 import { resolveCaptain, sortCapOverflow } from '../engine/captain.mjs';
+import { pruneMarks } from '../engine/marks.mjs';
 import { personalityReaction, benchHalvesNeeded, rollBenchTransferDemand, CAPTAIN_TAIL } from '../engine/personality.mjs';
 import { rankFromPoints, predictRanks, marketReport } from '../engine/preview.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
@@ -4027,6 +4028,7 @@ function showLineupWarning(missing, onProceed, onCancel) {
 }
 
 function renderMarket(banner = '') {
+  currentState.marks = pruneMarks(currentState.marks, currentState.squad); // 팀을 떠난 선수의 북마크만 정리
   banner = [syncCaptain(), banner].filter(Boolean).join(' / ');
   const { club, staff, squad, funds, chemistry, eventMessage, eventTone, shopOffer, phase, week, listedForSale } = currentState;
   const maxWeek = phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];

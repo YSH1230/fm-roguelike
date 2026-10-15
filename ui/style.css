@@ -3204,3 +3204,18 @@ html[data-theme] .srow__acts [data-to-bench]:disabled { border-color: #2b2b30; c
 html[data-theme] .scoutorder__clear { flex: 0 0 auto; height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid #ff2e3a; background: transparent; color: #ff2e3a; font-weight: 800; font-size: 14px; }
 .dlg__stage--squad .lr__room { width: 100%; }
 .dlg__stage--squad { align-self: center; }
+
+/* 라커룸 장면 겹침 방지: 캡션 구역을 장면 아래쪽에 따로 확보, 낮은 화면에선 모달 스크롤 */
+.lr__room { height: 372px; }
+.lr__back { top: 54px; }
+.lr__bench { top: 134px; }
+.lr__front { top: 148px; }
+.lr__say { bottom: 10px; max-height: 96px; overflow: hidden; }
+.dlg__stage--squad .lr__room { height: 280px; }
+.dlg__stage--squad .lr__bench { top: 130px; }
+.dlg__stage--squad .lr__front { top: 144px; }
+.eventmodal.lockerroom { max-height: calc(100dvh - 24px); overflow-y: auto; }
+@media (max-width: 330px) { .lr__say { font-size: 12px; padding: 6px 10px; left: 78px; } .lr__mgr { width: 60px; } }
+
+/* 철학 선택(8종)·변경 모달: 카드가 많아 화면보다 길어지므로 모달 안에서 스크롤한다 */
+.eventmodal.specpick { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
