@@ -69,6 +69,7 @@ import { pixelMatchHtml } from './pixel.mjs';
 import { track, telemetryOn, telemetryConfigured, setTelemetry } from './telemetry.mjs';
 import { renderCrest, CREST_PARTS, designOf, isDesignFree, designKey, randomFreeDesign } from './crest2.mjs';
 import { showSpot, clearSpot } from './tutorial.mjs';
+import { buildTutorialState, TUTORIAL_KITS, TUTORIAL_STEPS, TUTORIAL_CARDS, TUTORIAL_HAGGLE, TUTORIAL_HALF, TUTORIAL_JOURNALISTS, TUTORIAL_SUMMARY, tutorialSaleOffers } from './tutorial-script.mjs';
 import { stadiumHtml, stadiumLevel } from './stadium.mjs';
 import { loadFlags, updateFlags, isUnlocked, markSeen } from '../data/flags.mjs';
 import {
@@ -1119,6 +1120,7 @@ ${(() => {
       setTimeout(() => { armed = false; newBtn.textContent = '새 런 시작'; newBtn.classList.remove('is-armed'); }, 4000);
       return;
     }
+    if (!loadFlags().tutorialDone) { startTutorial(); return; } // 처음이면 구단 만들기보다 먼저 튜토리얼
     startRun(clubs.find((c) => c.klass === 'mid') ?? clubs[0]); // 내 구단은 직접 꾸민다
   };
 }
@@ -1126,8 +1128,7 @@ ${(() => {
 let currentState = null;
 
 function startRun(club) {
-  if (tutStep() >= 0) tutSet(0); // 튜토리얼은 항상 처음부터(이어하기가 없다)
-  else updateRecords(recordRunStart); // 튜토리얼 런은 기록에 남지 않는다(끝날 때 진짜 런이 시작되며 센다)
+  updateRecords(recordRunStart);
   const baseFunds = Math.round(calculateStartingFunds(0) * club.startingFundsMultiplier * fundsScale('tier5', 1));
   // 시작 선발이 이미 같은 태그 5명(팀 컬러 완성)이면 보상이 공짜가 되니, 그런 조합은 다시 뽑는다
   let rawSquad;
@@ -1146,7 +1147,7 @@ function startRun(club) {
   // 위기 관리형 감독은 위기 이벤트(FFP 긴급 감사)를 무효화한다.
   // 헤어드라이어: 영입 즉시 조직력 +20
   const startChemistry = CHEMISTRY_START;
-  const rolled = tutStep() >= 0 ? { id: null, tone: null, message: '', squad: rawSquad, funds: baseFunds, chemistry: startChemistry, state: {}, choice: null } : rollSeasonEvent(
+  const rolled = rollSeasonEvent(
     { squad: rawSquad, funds: baseFunds, chemistry: startChemistry, baseFunds, recent: [] },
     'summer'
   );
@@ -1212,100 +1213,103 @@ function startRun(club) {
   renderNaming();
 }
 
-// ---------- 튜토리얼(모두에게 한 번, 건너뛸 수 있다) ----------
-// 0 목표 → 1 스카우트 지시 → 2 선수단 탭 → 3 별·성향 문구 → 4 전술 탭 → 5 선발 → 6 포메이션 → 7 팀 스타일 → 8 감독·스태프 탭 → 9 감독 패널 → 10 조직력 → 11 명성 → 12 다음 주로 → 13 영입(2주차) → 14 전반기 결산 → 15 스카우터 재평가 → 끝
-const tutStep = () => { const f = loadFlags(); return f.tutorialDone ? -1 : f.tutorialStep; };
-function tutSet(step) {
-  updateFlags((f) => { f.tutorialStep = step; if (step > 15) f.tutorialDone = true; return f; });
-  track('tutorial', { step });
-  if (step > 15) leaveTutorialRun();
+// ---------- 튜토리얼(스크립트형: 고정 상태 + 정해진 단계, 본 게임과 분리) ----------
+// 설계: docs/tutorial-redesign-2026-10-15.md. 튜토리얼은 구단 만들기보다 먼저 시작하고, 자체 고정 상태(currentState.tutorial)로만 돌아간다.
+// 저장·기록·업적은 persistRun/noteCollection 등이 currentState.tutorial이면 막고, 끝나면 상태를 통째로 버린다.
+let tut = null; // { i } 현재 단계
+const tutActive = () => !!currentState?.tutorial && !!tut;
+function startTutorial() {
+  currentState = buildTutorialState();
+  tut = { i: 0 };
+  track('tutorial', { start: 1 });
+  document.addEventListener('click', tutorialBlock, true);
+  tutorialEnter(0);
 }
-// 튜토리얼 샌드박스: 튜토리얼 중 한 모든 행동(영입·판매·지시·자금·선수단)은 이 임시 런에서만 일어난다.
-// 튜토리얼 런은 저장·기록·업적에 남지 않고, 끝나면 상태를 통째로 버린다. 끝은 선수단 인사 → 토크(고정 3장, 효과 없음) → 안내 → 구단 만들기부터 새 본 게임.
-// 건너뛰면 인사·토크 없이 바로 새 본 게임이다.
-function leaveTutorialRun(skipped = false) {
-  if (!currentState?.tutorialBackup) return false;
+// 허용 대상 밖의 클릭은 막는다(스포트라이트 오버레이가 못 막는 경우: 위에 열린 창 안 등)
+function tutorialBlock(e) {
+  if (!tutActive()) return;
+  const st = TUTORIAL_STEPS[tut.i];
+  if (!st || e.target.closest('.tut')) return;
+  const allow = [st.selector, ...(st.allow ?? [])];
+  if (!allow.some((sel) => e.target.closest(sel))) { e.stopPropagation(); e.preventDefault(); }
+}
+function tutorialEnter(i) {
+  tut.i = i;
+  const st = TUTORIAL_STEPS[i];
+  if (!st) { tutorialSummary(); return; }
+  if (st.tab) currentState.tab = st.tab;
+  if (st.sub) currentState.draftSub = st.sub;
+  if (st.id === 'half') { tutorialHalf(); return; }
+  if (st.inModal || st.keep) tutorialTick(); else renderMarket();
+}
+// 화면이 부르는 이벤트: 현재 단계의 trigger와 같을 때만 다음 단계로 간다(튜토리얼이 아니면 아무 일도 없다)
+function tutorialEvent(name) {
+  if (!tutActive()) return;
+  if (TUTORIAL_STEPS[tut.i]?.trigger !== name) return;
   clearSpot();
-  const finish = () => {
-    currentState = null; // 샌드박스 폐기(선수 id 카운터·GOD 풀·구단 기분 등 런 상태 전부)
-    resetPlayerIds();
-    renderClubButtons();
+  tutorialEnter(tut.i + 1);
+}
+function tutorialTick() {
+  if (!tutActive()) return;
+  const st = TUTORIAL_STEPS[tut.i];
+  if (!st) return;
+  showSpot({ selector: st.selector, text: st.text, ok: st.trigger === 'confirm' ? '확인' : null, onOk: () => tutorialEvent('confirm'), onSkip: tutorialSkip, inModal: !!st.inModal });
+}
+// 가짜 주차 전환: 주차·영입 카드·조직력을 고정값으로 바꾼다(부상·이벤트·판매 오퍼 만료·스태프 후보 없음)
+function tutorialNextWeek() {
+  currentState.week = 2;
+  currentState.transactedThisWeek = false;
+  currentState.shopOffer = TUTORIAL_CARDS.map((c) => ({ ...c }));
+}
+// 시장 마감 → 고정 시즌 전망 → 고정 전반기 결과(기존 결산 화면 재사용, 시뮬·별 갱신은 돌리지 않는다)
+function tutorialHalf() {
+  Object.assign(currentState, { week: SUMMER_MARKET_WEEKS[1], halfObsDone: true, crisisShown: true, firstHalfPoints: TUTORIAL_HALF.points, halfInjuries: TUTORIAL_HALF.injuries, halfStarChanges: TUTORIAL_HALF.starChanges, halfRatings: TUTORIAL_HALF.ratings, mvpPoints: TUTORIAL_HALF.mvpPoints });
+  const root = document.getElementById('eventmodal-root');
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal">
+        <div class="eventmodal__kicker">시즌 전망</div>
+        <div class="eventmodal__title">기자들의 예상 순위</div>
+        ${TUTORIAL_JOURNALISTS.map((j) => `<p class="eventmodal__detail"><b>${esc(j.outlet)} ${esc(j.name)} 기자</b> ${j.rank}위<br>${esc(j.line)}</p>`).join('')}
+        <button class="cta" id="tut-preview-go">경기 시작</button>
+      </div>
+    </div>`;
+  document.getElementById('tut-preview-go').onclick = () => {
+    root.innerHTML = '';
+    const { lineup, slotted, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+    renderHalfTimeVerdict('', lineup, slotted, bench);
   };
-  if (skipped) { finish(); return true; }
-  // 종료 안내 → 샌드박스 폐기 → 구단 만들기
+}
+// 종료 안내(요약 카드) → [구단 만들기]
+function tutorialSummary() {
+  clearSpot();
   const root = document.getElementById('eventmodal-root');
   root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal">
         <div class="eventmodal__kicker">튜토리얼 끝</div>
         <div class="eventmodal__title">튜토리얼이 끝났어요</div>
-        <p class="eventmodal__detail">이제 진짜 구단을 만들어 볼까요?</p>
+        <ul class="buyres__list">${TUTORIAL_SUMMARY.map((t) => `<li class="buyres__row is-good"><i></i><span>${esc(t)}</span></li>`).join('')}</ul>
         <button class="cta" id="tut-end-go">구단 만들기</button>
       </div>
     </div>`;
-  document.getElementById('tut-end-go').onclick = () => { root.innerHTML = ''; finish(); };
-  return true;
+  document.getElementById('tut-end-go').onclick = () => { root.innerHTML = ''; tutorialFinish(); };
+}
+// 종료·건너뛰기: 튜토리얼 상태를 버리고 완료 표시 후 구단 만들기부터 새 본 게임
+function tutorialSkip() { track('tutorial', { skip: tut?.i ?? -1 }); tutorialFinish(); }
+function tutorialFinish() {
+  clearSpot();
+  document.removeEventListener('click', tutorialBlock, true);
+  document.getElementById('eventmodal-root').innerHTML = '';
+  currentState = null;
+  tut = null;
+  resetPlayerIds();
+  updateFlags((f) => { f.tutorialDone = true; return f; });
+  renderClubButtons();
 }
 // 튜토리얼 런은 이어하기 저장을 만들지 않는다.
 function persistRun() {
-  if (!currentState?.tutorialBackup) saveRun(currentState, localStorage);
-}
-function tutSkip() {
-  const step = tutStep();
-  updateFlags((f) => { f.tutorialDone = true; return f; });
-  track('tutorial', { skip: step });
-  clearSpot();
-  leaveTutorialRun(true);
-}
-function tutorialTick(where) {
-  const step = tutStep();
-  if (step < 0 || document.querySelector('#eventmodal-root .eventmodal')) { clearSpot(); return; }
-  const go = (n) => () => { tutSet(n); tutorialTick(where); };
-  const ok = (n) => ({ ok: '확인', onOk: go(n), onSkip: tutSkip });
-  // 대상이 화면에 없으면 그 단계는 건너뛴다
-  const spotOrSkip = (selector, text, next) => { if (!showSpot({ selector, text, ...ok(next) })) { tutSet(next); tutorialTick(where); } };
-  if (where === 'intro') {
-    if (step === 0) showSpot({ selector: '.goalline', text: '안녕하세요, 감독님! 사무국 신입 올리비아예요! 오늘부터 제가 쭉 안내할게요, 잘 부탁드려요! 감독님은 아직 임시 감독이라, 첫 시즌을 이 승점 위로 마치면 정식이 된대요. 우리 같이 힘내 봐요!', ...ok(1) });
-    return;
-  }
-  if (where === 'half') {
-    if (step >= 15) { if (!showSpot({ selector: '.agingbox--reeval', text: '스카우터님이 전반기 활약을 보고 선수들을 다시 평가했어요! 별은 앞으로도 조금씩 계속 움직이고, 시즌이 끝나면 ▲/▼로 얼마나 변했는지 보여 줘요. 숨은 실력은 끝까지 정확히 알 수 없어요. 그래서 더 재미있죠!', ...ok(16) })) tutSet(16); return; }
-    showSpot({ selector: '.verdict', text: '전반기 결산이에요! 목표 페이스랑 비교해 보고, 겨울 시장에서 보강해요. 선수 평점은 아래 라인업에 있어요. 별이 높아도 평점이 낮을 수 있고, 반대도 있대요!', ...ok(15) });
-    return;
-  }
-  const onTactics = currentState.tab === 'tactics';
-  if (step === 1) {
-    if (currentState.tab !== 'draft') { currentState.tab = 'draft'; renderMarket(); return; }
-    spotOrSkip('#scout-order', '선수 영입은 스카우터님께 맡기면 돼요! 포지션·태그·나이대를 골라 두면 다음 주에 딱 맞는 3명이 짠 하고 와요. 조건을 바꾸면 새 3명이 오고요!', 2);
-  } else if (step === 2) showSpot({ selector: '[data-tab="squad"]', text: '선수단 탭 눌러 볼래요? 우리 선수들이 있어요!', onSkip: tutSkip });
-  else if (step === 3) {
-    if (currentState.tab === 'squad') spotOrSkip('.srow', '선수는 별(★)로 보여요! 별은 세상의 평가라서 진짜 실력이랑 다를 수도 있어요. 누르면 스태프 리포트(성장폭·작년 흐름·부상 이력과 코치의 판단)가 열리고, 판매 등록도 할 수 있어요. 판매 중인 선수는 선발·벤치에서 빠져 맨 아래 판매 중 구역에 모여요. 선수단 인원은 탭의 N/22로 보여요!', 4);
-    else { tutSet(2); tutorialTick(where); }
-  } else if (step === 4) showSpot({ selector: '[data-tab="tactics"]', text: '이번엔 전술 탭이에요! 선발 11명이 여기 있어요.', onSkip: tutSkip });
-  else if (step === 5) {
-    if (onTactics) showSpot({ selector: '.pitch', text: '선발은 별 기준으로 알아서 정해져요! 숨은 실력이 더 좋은 선수가 벤치에 있을 수도 있대요. 선수를 눌러서 직접 바꿀 수도 있어요.', ...ok(6) });
-    else { tutSet(4); tutorialTick(where); }
-  } else if (step === 6) {
-    if (onTactics) spotOrSkip('.formations', '포메이션마다 어울리는 태그가 하나씩 있어요! 그 태그 선발은 능력 +1이에요. 우리 선수들한테 맞는 걸로 골라 봐요!', 7);
-    else { tutSet(4); tutorialTick(where); }
-  } else if (step === 7) {
-    if (onTactics) spotOrSkip('.stylerows', '같은 태그 선발이 3명이면 브론즈, 4명 실버, 5명 골드예요! 칸이 찰수록 팀 스타일이 강해져요.', 8);
-    else { tutSet(4); tutorialTick(where); }
-  } else if (step === 8) showSpot({ selector: '[data-tab="staff"]', text: '감독·스태프 탭이에요! 눌러 볼까요?', onSkip: tutSkip });
-  else if (step === 9) {
-    if (currentState.tab === 'staff') spotOrSkip('.mgrpanel', '정식 감독이 되면 전술 철학을 8종 중에서 고를 수 있어요! 코치님은 어린 선수 성장과 선수단 리포트를, 스카우터님은 영입 카드 리포트와 협상을 도와요. 등급이 높을수록 리포트 줄이 늘어요. 승격할 때마다 철학을 키우거나 바꿀 수 있어요!', 10);
-    else { tutSet(8); tutorialTick(where); }
-  } else if (step === 10) spotOrSkip('#chem-info-btn', '조직력은 선수들이 손발을 맞추는 정도예요! 영입·판매를 많이 하면 떨어지고(한 주 첫 거래는 괜찮아요), 거래 없는 주엔 올라요.', 11);
-  else if (step === 11) {
-    spotOrSkip('.res__item--score', '명성은 이번 판의 점수예요! 승격·우승으로 쌓이고, 판이 끝나면 D부터 SS까지 등급이 매겨져요.', 12);
-  } else if (step === 12) {
-    if (currentState.tab !== 'draft') { currentState.tab = 'draft'; renderMarket(); return; }
-    showSpot({ selector: '#next-week-btn', text: '다음 주로 넘기면 스카우터님이 부탁한 선수 3명을 데려와요! 시즌 중엔 팀 전력이 비밀이라서, 전반기 직전에 기자님들의 예상 순위가 나와요.', onSkip: tutSkip });
-  } else if (step === 13) {
-    if (currentState.tab !== 'draft') { currentState.tab = 'draft'; renderMarket(); return; }
-    const pick = currentState.shopOffer.find((c) => hasUpgrade([c]));
-    if (!showSpot({ selector: pick ? `[data-buy="${pick.id}"]:not([disabled])` : '.deal__buy:not([disabled])', text: '스카우터님이 데려온 3명이에요! 별은 세상의 평가라서 진짜 실력과 다를 수 있어요. 카드를 눌러 리포트를 펼쳐 보고, 특수 성향 칩이 있으면 효과를 확인해 보세요. 협상에서는 탐색으로 단서를 모으고 슬라이더로 가격을 불러요. 마음에 드는 선수를 영입해 봐요!', onSkip: tutSkip })) clearSpot();
-  } else clearSpot();
+  if (!currentState?.tutorial) saveRun(currentState, localStorage);
 }
 
 const KIT_CHOICES = ['#ccff00', '#ff6a3d', '#e63946', '#ff8fab', '#ffd23a', '#f4a261', '#2ecc71', '#0b8f5a', '#3aa0ff', '#1d4ed8', '#22d3ee', '#c06bff', '#7c3aed', '#8d6e63', '#f2f2f2', '#6b7280',
@@ -1417,16 +1421,6 @@ function renderNaming() {
   document.getElementById('naming-skip').onclick = () => done(false);
 }
 
-// 첫 런의 첫 영입 후보에는 살 수 있고 지금 선발보다 강한 카드가 반드시 1장 있다(튜토리얼에서 "영입해 보세요"가 막히지 않게).
-function hasUpgrade(offer) {
-  const { lineup } = pickBestXI(currentState.squad, currentFormation());
-  return offer.some((c) => !c.id.startsWith('god-') && cardPrice(c) <= currentState.funds
-    && lineup.some((p) => p.position === c.position && observedOVR(c) > observedOVR(p)));
-}
-function ensureUpgradeOffer() {
-  for (let i = 0; i < 40 && !hasUpgrade(currentState.shopOffer); i++) currentState.shopOffer = newShopOffer();
-}
-
 // 구단 고르자마자 바로 상점으로 떨어지면 "그냥 시작됐다"는 느낌만 남는다.
 // 이번 시즌 목표(승점 게이지)와 시즌이 어떤 순서로 흘러가는지를 한 번은
 // 보여주고 시작한다 - 이후 시즌은 이미 아는 내용이라 안 보여준다(시즌 종료
@@ -1525,11 +1519,7 @@ function renderCareerIntro() {
   `, '<button class="cta" id="start-season-btn">시즌 시작</button>');
 
   // 첫 시즌에는 이사진 요구를 고르지 않는다(2시즌부터 등장).
-  tutorialTick('intro');
-  document.getElementById('start-season-btn').onclick = () => {
-    if (tutStep() >= 0) currentState.tutorialBackup = true; // 튜토리얼 샌드박스 표시: 저장·기록·업적을 막고, 끝나면 상태를 버린다
-    return tutStep() < 0 ? renderDemandChoice(currentState.club.demandBias ?? {}, () => renderMarket()) : renderMarket();
-  };
+  document.getElementById('start-season-btn').onclick = () => renderDemandChoice(currentState.club.demandBias ?? {}, () => renderMarket());
   document.getElementById('back-to-clubs-btn').onclick = () => renderClubButtons();
 }
 
@@ -1626,6 +1616,7 @@ const NEG_ICONS = {
 };
 const negIcon = (name) => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NEG_ICONS[name]}</svg>`;
 function kitOfClub(name) {
+  if (currentState?.tutorial) return TUTORIAL_KITS[name] ?? '#6b7280'; // 튜토리얼: 난수 없이 고정 색
   const hit = buildLeagueRivals(currentState.leagueTierId, 20).find((c) => c.name === name);
   return hit?.kit ?? '#6b7280';
 }
@@ -1743,16 +1734,18 @@ function exploreNote(id, att, pressure, weeksLeft) {
 // 부를 때마다 인내심이 줄고, 바닥나면 결렬된다(역제안이 나온 뒤에는 마지막 제안으로 남는다).
 function openHaggle(card, note = '') {
   const root = document.getElementById('eventmodal-root');
+  setTimeout(() => tutorialEvent('haggleOpened'), 0);
   currentState.patience ??= {};
   currentState.counterOffer ??= {};
   currentState.bidMemory ??= {};
-  const att = sellerAttitude(card.seller);
-  const pat = currentState.patience[card.id] ?? Math.max(1, patienceFor(att.score) + fx().patienceBonus); // 라커룸 토크가 인내심을 바꾼다
+  const tutH = currentState.tutorial ? TUTORIAL_HAGGLE : null; // 튜토리얼: 구단 태도·인내심·하한선 고정
+  const att = tutH ? tutH.attitude : sellerAttitude(card.seller);
+  const pat = tutH ? tutH.patience : (currentState.patience[card.id] ?? Math.max(1, patienceFor(att.score) + fx().patienceBonus));
   const ask = cardPrice(card);
   const u = cardUniform(card.id, currentState.telemetryRun ?? '');
   const endWeek = currentState.phase === 'summer' ? SUMMER_MARKET_WEEKS[1] : WINTER_MARKET_WEEKS[1];
   const pressure = deadlinePressure(endWeek - currentState.week);
-  const reserve = reservePrice({ trueValue: valuePrice(card, 0), score: att.score, u, pressure });
+  const reserve = tutH ? (tutH.reserve[card.id] ?? ask) : reservePrice({ trueValue: valuePrice(card, 0), score: att.score, u, pressure });
   const min = Math.max(1, Math.round(ask * BID_MIN_RATIO));
   const max = ask - 1;
   // 예상 이적료 구간: 스카우터 등급이 시작 폭을 정하고, 탐색 단서 하나마다 ×0.6으로 좁아진다. 힌트 없는 등급은 단서가 있어야 구간이 생긴다.
@@ -1767,7 +1760,7 @@ function openHaggle(card, note = '') {
   const canBid = !(out || max < min);
   const weeksLeft = Math.max(1, endWeek - currentState.week + 1);
   const freeProbe = clues.length === 0; // 첫 탐색은 무료, 이후는 인내심 -1(바닥나지 않게 2 이상일 때만)
-  const noteText = note || (pressure > 0 ? '시장 마감이 가까워 구단이 조금 급해요.' : '') || (tutStep() >= 0 ? '처음이라면 "요구액으로 영입"이 가장 안전해요. 더 싸게 사려면 가격을 정해 제안해 보세요. 구단 표정이 힌트예요.' : '');
+  const noteText = note || (pressure > 0 ? '시장 마감이 가까워 구단이 조금 급해요.' : '');
   const zone = hint ? { lo: hint.lo, hi: hint.hi } : null;
   root.innerHTML = negScreen({
     title: '협상', club: card.seller, att, pat: Math.max(0, pat), patMax: Math.max(patienceFor(att.score) + fx().patienceBonus, 1),
@@ -1788,6 +1781,7 @@ function openHaggle(card, note = '') {
       currentState.clues[card.id] = [...clues, id];
       if (!freeProbe) currentState.patience[card.id] = pat - 1;
       openHaggle(card, exploreNote(id, att, pressure, weeksLeft));
+      tutorialEvent('explored');
     };
   });
   if (out || max < min) return;
@@ -1795,7 +1789,7 @@ function openHaggle(card, note = '') {
     min, max, goLabel: '제안', canAfford: afford, zone,
     onBid: (bid) => thinking(root, () => {
       currentState.bidMemory[card.id] = bid;
-      const r = buyBid({ bid, ask, reserve });
+      const r = tutH ? (bid >= reserve ? { result: 'accept' } : { result: 'mid' }) : buyBid({ bid, ask, reserve });
       if (r.result === 'accept') { root.innerHTML = ''; buyCard(card, null, null, bid); return; }
       const left = pat - patienceCost(r.result);
       currentState.patience[card.id] = left;
@@ -2094,7 +2088,6 @@ function buyCard(card, rowEl = null, outgoing = null, priceOverride = null) {
     currentState.firstBuyTracked = true;
     track('first_buy', { run: currentState.telemetryRun, sec: Math.round((Date.now() - (currentState.startedAt ?? Date.now())) / 1000), s: currentState.seasonNumber });
   }
-  if (tutStep() === 13) tutSet(14);
   const haggled = priceOverride && priceOverride < askPrice;
   renderMarket('');
   if (!card.id.startsWith('god-') || haggled || activated.length) {
@@ -2121,7 +2114,7 @@ function showBuyResult({ name, deal, scout, tags }) {
         <button class="cta" id="buyres-ok">확인</button>
       </div>
     </div>`;
-  document.getElementById('buyres-ok').onclick = () => { root.innerHTML = ''; tutorialTick('market'); };
+  document.getElementById('buyres-ok').onclick = () => { root.innerHTML = ''; tutorialEvent('bidSent'); };
 }
 
 // 스태프 교체: 위약금 없이 즉시, 다만 이번 주는 효과 미발동(hiredWeek로 표시).
@@ -2228,6 +2221,7 @@ function salePriceBase(card) {
 }
 // 구매 구단들의 오퍼. 안 팔리는 선수는 한 건도 안 올 수 있다(빈 배열): 주마다 다시 알아본다.
 function rollSaleOffers(card) {
+  if (currentState.tutorial) return tutorialSaleOffers(currentState.week); // 튜토리얼: 고정 오퍼
   if (Math.random() < noOfferChance(card)) return [];
   const names = buildLeagueRivals(currentState.leagueTierId, 12).map((c) => c.name);
   return generateSaleOffers(salePriceBase(card), card.baseOVR).map((amount) => ({
@@ -2255,6 +2249,7 @@ function listForSale(card) {
   if (!card || card.boughtThisSeason || currentState.listedForSale.some((l) => l.card.id === card.id)) return;
   listPlayer(card);
   renderMarket(`${card.name} 판매 등록 — 오퍼는 영입 탭의 판매에서 확인`); // 화면은 그대로(선수단 탭에 머문다)
+  tutorialEvent('listed');
 }
 function unlistPlayer(cardId) {
   currentState.listedForSale = currentState.listedForSale.filter((l) => l.card.id !== cardId);
@@ -2283,6 +2278,7 @@ function acceptSaleOffer(cardId, index, amount, viaCounter = false) {
   currentState.funds += amount;
   currentState.seasonTrack.income += amount;
   renderMarket(`${l.card.name}이(가) ${offer.club}(으)로 이적했습니다: ${amount}G`);
+  tutorialEvent('offerAccepted');
 }
 
 // 판매 협상 창: 오퍼 금액으로 팔거나 더 높은 금액을 불러 본다. 거절당하면 인내심이 줄고, 바닥나면 그 구단이 오퍼를 거둔다.
@@ -2501,7 +2497,6 @@ function nextWeek(capMsg = '') {
   const [mStart, mEnd] = currentState.phase === 'summer' ? SUMMER_MARKET_WEEKS : WINTER_MARKET_WEEKS;
   const injuries = currentState.week > mStart && currentState.week < mEnd ? rollMarketInjuries(1 / (mEnd - mStart - 1)) : [];
   currentState.shopOffer = newShopOffer();
-  if (tutStep() >= 0 && loadRecords(localStorage).runs <= 1) ensureUpgradeOffer(); // 튜토리얼에서는 "영입해 보세요"가 막히지 않게
   currentState.staffOffer = generateStaffOffer(Math.random, currentState.leagueTierId);
   renderMarket([saleMessage, chemMessage].filter(Boolean).join(' / '));
   if (injuries.length) showInjuryPopup(injuries);
@@ -2575,7 +2570,7 @@ const PLAY_REFUSE_CHEMISTRY = 3;
 // 벤치 반기 수의 말: 1이면 직전 반기(여름시장 끝이면 지난 후반기, 겨울시장 끝이면 전반기), 2 이상이면 한 시즌
 const benchSpanText = (n) => (n >= 2 ? '한 시즌 넘게' : currentState.phase === 'summer' ? '지난 후반기를' : '전반기를');
 function maybeAskPlayDemand() {
-  if (tutStep() >= 0 || currentState.playDemand) return;
+  if (currentState.playDemand) return;
   const xi = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
   const cand = currentState.squad
     .filter((p) => !listedIds().has(p.id) && (currentState.benchHalves?.[p.id] ?? 0) >= benchHalvesNeeded(p.personality, currentState.personalityMood) && !(p.out > 0) && !xi.some((q) => q.id === p.id)
@@ -2769,12 +2764,12 @@ function renderHalfTimeVerdict(saleMessage, lineup, slotted, bench) {
     </div>
   `, `<button class="cta" id="to-winter-btn">겨울 이적시장으로</button>`);
 
-  document.getElementById('to-winter-btn').addEventListener('click', () => { clearSpot(); enterWinterMarket(); });
+  document.getElementById('to-winter-btn').addEventListener('click', () => { if (currentState.tutorial) return; clearSpot(); enterWinterMarket(); });
   if (pace === 'relegation' && !currentState.crisisShown) {
     currentState.crisisShown = true;
     const stage = trustStage();
-    showDialogueScene({ kind: 'office', beats: [{ who: 'chairman', text: pickLine(CRISIS_LINES[stage], `crisis${stage}`) }] }, () => tutorialTick('half'));
-  } else tutorialTick('half');
+    showDialogueScene({ kind: 'office', beats: [{ who: 'chairman', text: pickLine(CRISIS_LINES[stage], `crisis${stage}`) }] }, () => tutorialTick());
+  } else tutorialTick();
 }
 
 function enterWinterMarket() {
@@ -4173,7 +4168,7 @@ function renderMarket(banner = '') {
       <div class="mkhead__top">
         ${renderCrest(club, { size: 36 })}
         <div class="mkhead__id"><b>${esc(club.name)}</b><small>${phaseLabel} · ${week === maxWeek ? '이번 주가 마지막' : `${phase === 'summer' ? '전반기' : '후반기'} 시작까지 ${maxWeek - week}주`}</small></div>
-        <button type="button" class="mkhead__funds" id="mk-more-btn" aria-expanded="${tutStep() === 10}" aria-label="자금·조직력·명성 자세히">${negIcon('coin')}<b>${funds.toLocaleString('ko-KR')}</b><i>G</i></button>
+        <button type="button" class="mkhead__funds" id="mk-more-btn" aria-expanded="false" aria-label="자금·조직력·명성 자세히">${negIcon('coin')}<b>${funds.toLocaleString('ko-KR')}</b><i>G</i></button>
         <button type="button" class="mkhead__funds mkhead__chem${chemistry < 40 ? ' is-low' : ''}" id="chem-info-btn" aria-label="조직력 ${chemistry.toFixed(1)} 설명"><b>${chemistry.toFixed(1)}</b><i class="chemdelta${chemDelta < -0.05 ? ' is-neg' : chemDelta > 0.05 ? ' is-pos' : ''}">${chemDelta >= 0 ? '+' : '−'}${Math.abs(chemDelta).toFixed(1)}</i></button>
       </div>
       <p class="note chem-info" id="chem-info" hidden>
@@ -4183,7 +4178,7 @@ function renderMarket(banner = '') {
         그래서 자주 갈아치울수록 손해, 굵직하게 바꾸고 기다릴수록 이득입니다.
       </p>
       <div class="weekdots">${dots}</div>
-      <div class="mkhead__more" id="mk-more" ${tutStep() === 10 ? '' : 'hidden'}>
+      <div class="mkhead__more" id="mk-more" hidden>
       <div class="res">
         <div class="res__item res__item--btn" id="funds-info-btn" role="button" tabindex="0">
           <span class="res__label">자금 <i class="res__hint">ⓘ</i></span>
@@ -4245,9 +4240,6 @@ function renderMarket(banner = '') {
   for (const t of visibleTabs()) {
     document.querySelector(`[data-tab="${t.id}"]`).onclick = () => {
       currentState.tab = t.id;
-      if (tutStep() === 2 && t.id === 'squad') tutSet(3);
-      if (tutStep() === 4 && t.id === 'tactics') tutSet(5);
-      if (tutStep() === 8 && t.id === 'staff') tutSet(9);
       renderMarket(banner);
     };
   }
@@ -4283,6 +4275,7 @@ function renderMarket(banner = '') {
         currentState.manualOverrides = {};
         currentState.selectedSlot = null;
         renderMarket(banner);
+        tutorialEvent('formationPicked');
       };
     }
     // 슬롯(피치든 벤치든)을 하나 고른 채로 다른 슬롯을 또 누르면 - 선발/벤치는
@@ -4415,6 +4408,7 @@ function renderMarket(banner = '') {
     sel.addEventListener('change', () => {
       currentState.scoutOrder = { ...(currentState.scoutOrder ?? {}), [sel.dataset.order]: sel.value || null };
       renderMarket(banner);
+      if (sel.value) tutorialEvent('scoutOrderPicked');
     });
   });
   document.getElementById('spec-line')?.addEventListener('click', () => { currentState.tab = 'staff'; renderMarket(); });
@@ -4453,6 +4447,7 @@ function renderMarket(banner = '') {
       row.addEventListener('click', (e) => {
         if (e.target.closest('button')) return;
         row.classList.toggle('is-open');
+        if (row.classList.contains('is-open')) tutorialEvent('rowOpened');
       });
     });
     document.querySelectorAll('[data-tagpick]').forEach((btn) => {
@@ -4469,6 +4464,7 @@ function renderMarket(banner = '') {
         const next = nextMark(currentState.marks[id]);
         if (next) currentState.marks[id] = next; else delete currentState.marks[id];
         renderMarket();
+        tutorialEvent('bookmarked');
       };
     });
     document.querySelectorAll('[data-markset]').forEach((btn) => { // 펼친 영역의 유망/정리 버튼: 접힌 행의 순환 아이콘과 같은 marks 상태를 독립 토글로 바꾼다
@@ -4478,6 +4474,7 @@ function renderMarket(banner = '') {
         if (currentState.marks[id] === kind) delete currentState.marks[id]; else currentState.marks[id] = kind;
         renderMarket();
         document.querySelector(`.srow[data-row="${id}"]`)?.classList.add('is-open'); // 누른 행은 펼친 채로 둔다
+        tutorialEvent('bookmarked');
       };
     });
     document.querySelectorAll('[data-captain]').forEach((btn) => { // 주장 임명: 인라인 확인 후 appointCaptain
@@ -4509,8 +4506,8 @@ function renderMarket(banner = '') {
     };
   });
   document.getElementById('next-week-btn').onclick = () => {
-    if (tutStep() === 12) tutSet(13);
     clearSpot();
+    if (currentState.tutorial) { tutorialNextWeek(); tutorialEvent('nextWeekPressed'); return; } // 가짜 주차 전환
     const enteringSim = week === maxWeek; // 전/후반기 시뮬레이션은 renderSimulating이 따로 연출한다
     if (enteringSim) {
       const missing = missingPositions(currentState.squad, currentFormation());
@@ -4662,7 +4659,7 @@ function renderMarket(banner = '') {
       currentState.eventTone = null;
       eventRoot.innerHTML = '';
       persistRun();
-      tutorialTick('market');
+      tutorialTick();
     };
   } else {
     eventRoot.innerHTML = '';
@@ -4670,12 +4667,12 @@ function renderMarket(banner = '') {
 
   persistRun();
   noteCollection();
-  tutorialTick('market');
+  tutorialTick();
 }
 
 // 만나 본 특수 성향과 새 클럽 레전드를 기록(업적은 기록 갱신 때 토스트로 알린다).
 function noteCollection() {
-  if (currentState.tutorialBackup) return; // 튜토리얼 런은 도감·업적에 남지 않는다
+  if (currentState.tutorial) return; // 튜토리얼은 도감·업적에 남지 않는다
   const rec = loadRecords(localStorage);
   const traits = [...new Set(currentState.squad.map((p) => p.specialTrait).filter(Boolean))].filter((t) => !rec.traitsSeen?.[t]);
   traits.forEach((t) => updateRecords((x) => recordTrait(x, t)));
@@ -4711,4 +4708,4 @@ if (UCL_DEMO) {
 }
 
 // 확인용 훅(#dev): 감독 장면(철학·라커룸 토크)을 바로 띄워 본다. 일반 플레이에는 영향이 없다.
-if (location.hash.includes('dev')) window.__dev = { tutSkip, leaveTutorialRun, openHaggle, openSale, maybeAppoint, renderRunEnd, showDialogueScene, showTrophy, showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
+if (location.hash.includes('dev')) window.__dev = { startTutorial, tutorialSkip, openHaggle, openSale, maybeAppoint, renderRunEnd, showDialogueScene, showTrophy, showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };

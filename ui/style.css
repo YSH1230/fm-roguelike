@@ -3281,3 +3281,73 @@ html[data-theme] .ach__icon { display: grid; place-items: center; width: 36px; h
 html[data-theme] .ach__icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 html[data-theme] .ach__item.is-on .ach__icon, html[data-theme] .ach__item.is-done .ach__icon { color: #ffc400; }
 html[data-theme] .ach__item small { color: #8e8e96; }
+
+/* ===== 튜토리얼 안내(v4): 고정 시트, 단계 점, 핵심 1줄+보조 1줄, 맥박 링 + 꼬리표 ===== */
+html[data-theme] .tut__dim { background: rgba(0, 0, 0, 0.72); }
+html[data-theme] .tut__ring { border: 2px solid #f4f1e8; border-radius: 22px; box-shadow: 0 0 0 0 rgba(244, 241, 232, .35); animation: tut-pulse 1.6s ease-in-out infinite; }
+@keyframes tut-pulse { 50% { box-shadow: 0 0 0 6px rgba(244, 241, 232, .22); } }
+html[data-theme] .tut__tip { left: 10px; right: 10px; max-width: 420px; margin: 0 auto; display: grid; grid-template-columns: 1fr; gap: 10px; padding: 14px 16px 16px; border: 1px solid #3a3a40; border-radius: 28px; background: #18181b; box-shadow: 0 -10px 30px rgba(0, 0, 0, .5); pointer-events: auto; }
+html[data-theme] .tut__top { display: flex; align-items: center; gap: 10px; }
+html[data-theme] .tut__dots { display: flex; gap: 4px; flex: 1; }
+html[data-theme] .tut__dots i { height: 4px; flex: 1; max-width: 18px; border-radius: 2px; background: #2b2b30; }
+html[data-theme] .tut__dots i.on { background: #f4f1e8; }
+html[data-theme] .tut__skip { margin-left: auto; padding: 6px 4px; font-size: 12px; text-decoration: none; color: #8e8e96; }
+html[data-theme] .tut__who { display: grid; grid-template-columns: 52px 1fr; gap: 12px; align-items: center; }
+html[data-theme] .tut__av .portrait { width: 52px; height: 52px; border-radius: 14px; background: #34343b; }
+html[data-theme] .tut__head { display: block; font-size: 19px; font-weight: 900; line-height: 1.3; color: #f4f1e8; }
+html[data-theme] .tut__text { margin: 3px 0 0; font-size: 14px; line-height: 1.4; color: #8e8e96; }
+html[data-theme] .tut__btns { display: block; }
+html[data-theme] .tut__ok { width: 100%; height: 52px; padding: 0; border-radius: 999px; background: #f4f1e8; color: #0b0b0b; font: 900 17px "FM Square", sans-serif; }
+.tut__point { position: fixed; display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; background: #ff2e3a; color: #fff; font-weight: 900; font-size: 13px; pointer-events: none; }
+.tut__point svg { width: 14px; height: 14px; fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ===== 시즌 결산(v4): 결과 단어·승점·알약·진행 막대·카드, MVP 카드 ===== */
+html[data-theme] .verdict { padding: 8px 0 0; display: grid; justify-items: center; gap: 10px; text-align: center; border: 0; background: none; }
+html[data-theme] .verdict__label { color: #8e8e96; font-size: 12px; }
+html[data-theme] .verdict__result { color: #f4f1e8; font-size: 40px; font-weight: 900; line-height: 1; text-shadow: none; }
+html[data-theme] .scoreline { display: flex; align-items: baseline; justify-content: center; gap: 4px; }
+html[data-theme] .scoreline b { color: #f4f1e8; font: 400 72px/1 var(--num); text-shadow: none; }
+html[data-theme] .scoreline span { color: #8e8e96; font-size: 14px; font-weight: 700; }
+html[data-theme] .stylebadge, html[data-theme] .finalrank, html[data-theme] .halves span { display: inline-block; padding: 5px 12px; border-radius: 999px; border: 1px solid #2b2b30; background: #18181b; color: #f4f1e8; font-size: 13px; font-weight: 800; }
+html[data-theme] .finalrank { border-color: #f4f1e8; }
+html[data-theme] .finalrank b, html[data-theme] .halves b { color: #f4f1e8; font-size: inherit; }
+html[data-theme] .halves { display: flex; gap: 6px; justify-content: center; }
+html[data-theme] .pointbar { height: 8px; border-radius: 4px; background: #2b2b30; }
+html[data-theme] .pointbar__fill { background: #f4f1e8; border-radius: 4px; }
+html[data-theme] .pointbar__mark { background: #6a6a72; }
+html[data-theme] .pointbar__legend span { color: #8e8e96; }
+html[data-theme] .prestige, html[data-theme] #screen .panel:has(> .summary) { border: 1px solid #2b2b30; border-radius: 24px; background: #18181b; padding: 12px 16px; }
+html[data-theme] .summary li { border-bottom: 1px solid #2b2b30; padding: 10px 0; }
+html[data-theme] .summary li:last-child { border-bottom: 0; }
+html[data-theme] .summary li span { color: #8e8e96; }
+html[data-theme] .summary b { color: #f4f1e8; font: 400 20px var(--num); }
+html[data-theme] .summary__total b { color: #5eead4; }
+html[data-theme] .mvpaward { display: grid; gap: 10px; justify-items: center; text-align: center; }
+html[data-theme] .mvpaward__trophy { display: none; }
+html[data-theme] .mvpaward__label { color: #8e8e96; font-size: 12px; }
+html[data-theme] .mvpaward__winner { display: grid; justify-items: center; gap: 6px; width: 100%; padding: 18px; border-radius: 28px; border: 2px solid var(--kit, #4b3a9a); background: linear-gradient(165deg, color-mix(in srgb, var(--kit, #4b3a9a) 45%, #1e1e24), #131316 85%); box-shadow: none; }
+html[data-theme] .mvpaward__winner .portrait { width: 112px; height: 112px; border-radius: 24px; background: #34343b; }
+html[data-theme] .mvpaward__winner b { font-size: 24px; font-weight: 900; color: #f4f1e8; }
+html[data-theme] .mvpaward__winner span { color: #ffffffb0; font-size: 13px; }
+html[data-theme] .mvpaward__winner em { padding: 2px 10px; border-radius: 999px; background: #0b0b0b; font-style: normal; font-size: 12px; font-weight: 900; }
+html[data-theme] .mvpaward__rest { width: 100%; gap: 8px; list-style: none; margin: 0; padding: 0; display: grid; }
+html[data-theme] .mvpaward__rest li { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 10px 14px; border-radius: 20px; border: 1px solid #2b2b30; background: #18181b; text-align: left; }
+html[data-theme] .mvpaward__rest small { display: block; color: #8e8e96; }
+html[data-theme] .mvpaward__rest em { font-style: normal; padding: 4px 10px; border-radius: 999px; background: #0e0e10; border: 1px solid #2b2b30; font: 400 15px var(--num); }
+html[data-theme] #screen > .panel:has(.pitch) { border: 1px solid #2b2b30; border-radius: 24px; background: #18181b; }
+html[data-theme] .dock .cta, html[data-theme] .dock > .cta { height: 56px; border-radius: 999px; border: 0; background: #f4f1e8; color: #0b0b0b; font: 900 18px "FM Square", sans-serif; letter-spacing: 0; }
+html[data-theme] .verdict .pointbar, html[data-theme] .verdict .pointbar__legend { justify-self: stretch; width: 100%; }
+html[data-theme] .verdict .pointbar { margin: 8px 0 4px; }
+html[data-theme='kiwi'] .verdict__result::after { display: none; }
+html[data-theme] .prestige { margin-top: 10px; }
+html[data-theme] #screen .panel + .panel, html[data-theme] #screen .verdict + .panel { margin-top: 10px; }
+html[data-theme] #dock .cta { height: 56px; border-radius: 999px; border: 0; background: #f4f1e8; color: #0b0b0b; font: 900 18px/1 "FM Square", sans-serif; letter-spacing: 0; }
+html[data-theme] #dock .cta--danger { background: #ff2e3a; color: #fff; }
+html[data-theme] .mvpaward__label { font-family: "FM Square", sans-serif; text-shadow: none; }
+html[data-theme] .mvpaward__label, html[data-theme] .verdict__label { font-weight: 700; }
+
+/* 배너·이사진 요구 띠: v4 카드 톤 */
+html[data-theme] .banner { border: 1px solid #2b2b30; border-left: 1px solid #2b2b30; border-radius: 20px; background: #18181b; color: #f4f1e8; padding: 10px 14px; }
+html[data-theme] .banner--alert { border-color: #ff9b3d; }
+html[data-theme] .banner--ucl { border-color: #f4f1e8; background: #18181b; }
+html[data-theme] .goalstrip { border: 1px solid #2b2b30; border-radius: 999px; background: #18181b; }

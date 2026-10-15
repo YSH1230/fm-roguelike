@@ -29,7 +29,7 @@ export const CONTINENT_TAGS = {
 
 
 // 스펙 6절 "조직력(팀 조직력)"
-export const CHEMISTRY_START = 60;
+export const CHEMISTRY_START = 65;
 export const CHEMISTRY_DECAY_PER_TRANSACTION = 2;
 export const CHEMISTRY_RECOVERY_PER_STABLE_WEEK = 1;
 

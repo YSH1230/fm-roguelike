@@ -2,7 +2,7 @@
 // 해금 시스템은 폐지했다: 모든 기능(태그 6종·이사진·전술 방향·감독·스태프·특수 성향)이 처음부터 열려 있다.
 const KEY = 'fm-roguelike-flags';
 
-const blank = () => ({ tutorialStep: 0, tutorialDone: false, unlocked: {}, seen: {} });
+const blank = () => ({ tutorialDone: false, unlocked: {}, seen: {} });
 
 export function loadFlags(storage = globalThis.localStorage) {
   try {

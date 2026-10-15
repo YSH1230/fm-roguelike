@@ -35,7 +35,7 @@ test('대륙 태그 5종은 모두 같은 수치를 쓴다(포지션 무관)', (
 });
 
 test('조직력 기본 상수가 스펙과 일치한다', () => {
-  assert.equal(CHEMISTRY_START, 60);
+  assert.equal(CHEMISTRY_START, 65);
   assert.equal(CHEMISTRY_DECAY_PER_TRANSACTION, 2);
   assert.equal(CHEMISTRY_RECOVERY_PER_STABLE_WEEK, 1);
 });
