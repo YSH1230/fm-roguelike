@@ -4186,6 +4186,11 @@ function renderMarket(banner = '') {
     };
   }
   if (tab === 'draft') {
+    document.querySelectorAll('.mk__card').forEach((li) => li.addEventListener('click', (e) => { // 튜토리얼: 카드 어디를 눌러도 '카드 열기'로 본다
+      if (!currentState.tutorial || e.target.closest('[data-buy]')) return;
+      li.classList.add('is-open'); const exp = li.querySelector('.mk__exp'); if (exp) exp.hidden = false;
+      tutorialEvent('cardOpened');
+    }));
     document.querySelectorAll('[data-more]').forEach((btn) => { // 영입 카드 '+N' 펼치기: 접힘에 없던 리포트 줄을 연다
       btn.onclick = (e) => {
         e.stopPropagation();

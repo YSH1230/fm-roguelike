@@ -109,7 +109,7 @@ export const TUTORIAL_STEPS = [
   { id: 'goal', tab: 'draft', sub: 'players', selector: '#goal-strip', text: '안녕하세요, 감독님! 올리비아예요. 이번 시즌 승점 38점(잔류)만 지키면 정식 감독이 돼요!', trigger: 'confirm' },
   { id: 'scout', tab: 'draft', sub: 'players', selector: '#scout-order', text: '스카우트 조건을 하나 골라 보세요! 맞는 선수 3명이 와요.', trigger: 'scoutOrderPicked', allow: ['#scout-order'] },
   { id: 'arrive', tab: 'draft', sub: 'players', selector: 'ul.offers', text: '선수 3명이 도착했어요! 튜토리얼에서는 바로 와요.', trigger: 'confirm' },
-  { id: 'card', tab: 'draft', sub: 'players', selector: '[data-row="tc1"] [data-more]', text: '카드를 눌러 리포트를 읽어요! 별 아래에 스태프 의견이 있어요.', trigger: 'cardOpened', allow: ['[data-row="tc1"]'] },
+  { id: 'card', tab: 'draft', sub: 'players', selector: '[data-row="tc1"]', text: '카드를 눌러 리포트를 읽어요! 별 아래에 스태프 의견이 있어요.', trigger: 'cardOpened', allow: ['[data-row="tc1"]'] },
   { id: 'haggle', keep: true, selector: '[data-row="tc1"] [data-buy]', text: '[협상]을 누르고 [탐색]으로 정보를 모아요! 첫 번째는 공짜예요.', trigger: 'haggleOpened', allow: ['[data-row="tc1"]'] },
   { id: 'explore', selector: '[data-explore]', inModal: true, text: '[협상]을 누르고 [탐색]으로 정보를 모아요! 첫 번째는 공짜예요.', trigger: 'explored', allow: ['[data-explore]'] },
   { id: 'bid', selector: '#bid-go', inModal: true, text: '이제 가격을 정해 [제안]해요!', trigger: 'bidSent', allow: ['#eventmodal-root'] },

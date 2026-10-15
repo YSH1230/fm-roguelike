@@ -32,7 +32,6 @@ export function showSpot({ selector, text, ok = null, onOk = null, onSkip = null
   el.className = `tut ${ok ? 'tut--info' : 'tut--act'}`;
   const dots = progress ? `<div class="tut__dots" aria-label="${progress[0]}/${progress[1]}">${Array.from({ length: progress[1] }, (_, i) => `<i class="${i < progress[0] ? 'on' : ''}"></i>`).join('')}</div>` : '<div class="tut__dots"></div>';
   el.innerHTML = `<i class="tut__dim" data-p="t"></i><i class="tut__dim" data-p="b"></i><i class="tut__dim" data-p="l"></i><i class="tut__dim" data-p="r"></i><i class="tut__ring"></i>
-    ${ok ? '' : '<span class="tut__point">여기를 눌러요<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v14M6 12l6 6 6-6"/></svg></span>'}
     <div class="tut__tip" role="dialog" aria-live="polite"><div class="tut__top">${dots}<button class="tut__skip" type="button">건너뛰기</button></div>
       <div class="tut__who"><div class="tut__av">${renderPortrait(GUIDE, { size: 52, role: 'guide' })}</div><div class="tut__body"><b class="tut__head"></b><p class="tut__text"></p></div></div><div class="tut__btns"></div></div>`;
   el.querySelector('.tut__head').textContent = head;
@@ -70,8 +69,6 @@ export function showSpot({ selector, text, ok = null, onOk = null, onSkip = null
     const tip = el.querySelector('.tut__tip');
     const below = top <= vh / 2; // 대상이 위쪽이면 시트는 아래, 아래쪽이면 위(대상을 가리지 않는다)
     tip.style.top = below ? '' : '10px'; tip.style.bottom = below ? '10px' : '';
-    const pt = el.querySelector('.tut__point');
-    if (pt) { pt.style.right = '24px'; pt.style.left = ''; if (below) { pt.style.bottom = ''; pt.style.top = `${Math.max(6, top - 34)}px`; } else { pt.style.top = ''; pt.style.bottom = `${vh - top + 6}px`; } }
   };
   const loop = () => {
     if (!state) return;
