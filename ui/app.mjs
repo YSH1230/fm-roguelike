@@ -52,7 +52,7 @@ import { reportFor, GRADED_COUNT } from '../engine/report.mjs';
 import { rollInjury, rollInjuryPart, injuryChips, INJURY_LABELS, INJURY_PART_NAME, INJURY_POINTS } from '../engine/injury.mjs';
 import { resolveCaptain, sortCapOverflow } from '../engine/captain.mjs';
 import { pruneMarks } from '../engine/marks.mjs';
-import { personalityReaction, benchHalvesNeeded, rollBenchTransferDemand, CAPTAIN_TAIL } from '../engine/personality.mjs';
+import { benchHalvesNeeded, rollBenchTransferDemand } from '../engine/personality.mjs';
 import { rankFromPoints, predictRanks, marketReport } from '../engine/preview.mjs';
 import { optimizeLineup, missingSlots } from '../engine/lineup.mjs';
 import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } from '../engine/half-results.mjs';
@@ -60,7 +60,7 @@ import { ageSquad, playerTrend, ensurePotential, hasPeaked, bodyAge, growthStage
 import { potentialGrade, haggleHint } from '../engine/scouting.mjs';
 import {
   PHILOSOPHIES, PHILOSOPHY_IDS, MAX_PHILOSOPHY_LEVEL, drawPhilosophyChoices, levelUpPhilosophy, switchPhilosophy, philosophyText,
-  TALKS, drawTalkChoices, rollTalkOutcome, describeTalkFx, specialtyEffects, capTalkDelta, talkDirection, TALK_SEASON_CHEM_CAP, TALK_SEASON_POINTS_CAP,
+  specialtyEffects,
 } from '../engine/specialties.mjs';
 import { BID_MIN_RATIO, buyBid, sellBid, reservePrice, maxSalePrice, deadlinePressure, patienceCost, toleranceFor, patienceFor, attitudeScore, attitudeLabel, clubBaseAttitude, cardUniform, moodAfter } from '../engine/haggle.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
@@ -199,15 +199,13 @@ function currentFormation() {
 
 // 이사진이 이번 시즌 요구하는 승점(안전선~승격선 사이). 리그와 구단 기대치만으로
 // 정해지니 따로 저장하지 않고 필요할 때 계산한다.
-// 감독 효과(engine/specialties.mjs): 전술 철학(영구) + 이번 시즌 라커룸 토크. 엔진 계산 곳곳에 이 한 객체를 넘긴다.
+// 감독 효과(engine/specialties.mjs): 전술 철학(영구). 엔진 계산 곳곳에 이 한 객체를 넘긴다.
 function fx(half = null) {
   // leagueIdx·half: 숨은 선수 특성(리그 적응·시즌 리듬)이 작동하는 데 필요하다
-  const base = specialtyEffects(currentState?.philosophy, currentState?.stance?.fx);
-  base.pointsFirst += currentState?.preTalks?.pre1?.fx?.pointsFirst ?? 0; // ②③ 반기 직전 토크
-  base.pointsSecond += currentState?.preTalks?.pre2?.fx?.pointsSecond ?? 0;
+  const base = specialtyEffects(currentState?.philosophy);
   return { ...base, leagueIdx: currentState?.leagueTierId ? getLadderIndex(currentState.leagueTierId) : null, half };
 }
-// 반기 승점에 더해지는 라커룸 토크 보너스(승부수 선언 등)
+// 반기 승점에 더해지는 보너스(라커룸 토크 삭제 뒤에는 항상 0)
 function halfBonus(half) {
   const f = fx();
   return half === 2 ? f.pointsSecond : f.pointsFirst;
@@ -452,7 +450,7 @@ function draftStaffHtml(funds) {
     }).join('')}</ul>`).join('');
 }
 
-// ---------- 감독: 전술 철학(영구) + 라커룸 토크(시즌 단위) ----------
+// ---------- 감독: 전술 철학(영구) ----------
 // 철학 카드: 이름, 대사, 한 줄 소개, 레벨별 효과. nextLevel이면 "Lv1 → Lv2" 강화 표시.
 function philosophyCardHtml(id, level, { from = 0 } = {}) {
   const p = PHILOSOPHIES[id];
@@ -526,8 +524,6 @@ function showPhilosophyLevelUp(onDone) {
   open('keep', null);
 }
 
-const TALK_TONE = { safe: '안정적', risky: '모험적' };
-// 라커룸 토크 장면: 3장 중 하나. 반응은 고르고 나서 정해지므로 카드에는 장면 이름과 대사, 분위기만 보인다.
 // ===== 대사 장면(정식 선임 기자회견·강등 위기·엔딩) =====
 // 이사장은 판마다 이름과 얼굴이 새로 정해진다. 신뢰 단계(의심·조건부·신뢰)에 따라 말투가 달라진다.
 function ensureChairman() {
@@ -588,7 +584,7 @@ const ENDING_LINES = {
   victory: { chairman: ['구단은 팔지 않기로 했습니다. 당신 때문입니다.', '이 구단은 당신 덕에 이름이 생겼습니다.'], captain: ['…오래 기억할게요, {호칭}.', '다음 판에서도 같이 뛰고 싶었는데요.'] },
 };
 
-// ===== 라커룸 장면(시즌 시작·마무리 토크의 무대) =====
+// ===== 라커룸 장면(선수단 인사 등) =====
 // 신뢰 단계: 이미 쌓이는 기록(사다리 위치·우승)으로 계산한다. 0 의심 / 1 조건부 / 2 신뢰.
 function trustStage() {
   const idx = getLadderIndex(currentState.leagueTierId);
@@ -621,45 +617,6 @@ function appointCaptain(cardId) {
   currentState.captainId = p.id;
   renderMarket(`${p.name}을(를) 주장으로 임명했어요`);
 }
-const LOCKER_CAPTIONS = {
-  promo: ['승격 첫 시즌. 라커룸 샤워기는 여전히 차갑다.', '윗리그 상대들은 다르다고들 한다. 선수들은 말이 없다.', '승격 파티는 어제로 끝났다. 오늘부터 다시 시작이다.'],
-  stay: ['한 시즌 더 버텼다. 신입들은 아직 서먹하다.', '올해는 몇 명이 바뀔까. 다들 서로를 가늠하고 있다.', '낯익은 라커룸. 낯익은 얼굴들. 그리고 새 얼굴 몇.'],
-  champ: ['트로피는 이사장실에 있다. 선수들은 다음 것을 보고 있다.', '챔피언 유니폼이 벌써 작아 보인다.', '우승 다음 시즌. 모두가 우리를 이기려 이를 간다.'],
-  close: ['지난 시즌은 심장에 안 좋았다. 다들 조금 불안하다.', '버텼다. 그걸로 충분하다고 말하기는 어렵다.', '라커룸이 조용하다. 아슬아슬했던 시즌의 기억이 남아 있다.'],
-  end: ['시즌이 끝났다. 라커룸이 조용하다.', '한 해가 지났다. 짐을 정리하는 소리만 들린다.'],
-};
-const CAPTAIN_LINES = {
-  good: ['{호칭}, 이번엔 해 볼 만하겠는데요.', '알겠습니다. 한번 가 봅시다.', '그 말, 선수들 다 들었습니다. 믿고 따르겠습니다.', '오늘은 제대로 와닿았어요, {호칭}.'],
-  mixed: ['…일단 따르겠습니다. 결과로 보여 주시죠.', '말은 알겠는데, 몇 명은 아직 표정이 안 풀렸어요.', '나쁘지 않았습니다. 다만 모두가 같은 생각은 아닐 겁니다.', '{호칭}, 해 보면 알겠죠.'],
-  bad: ['…그렇게 말씀하실 줄은 몰랐습니다.', '분위기가 좀 싸늘해졌네요, {호칭}.', '솔직히, 몇 명은 불편해합니다.', '다음엔 선수들 입장도 생각해 주세요.'],
-};
-// 토크 효과를 상태에 반영한다. 조직력·승점은 시즌 합계 한도 안으로 잘라 낸 값(showTalkPick에서 잘랐다)이 들어온다.
-function applyTalkOutcome(outcome) {
-  const chem = outcome.fx.chemNow ?? 0;
-  if (chem) currentState.chemistry = Math.max(0, Math.min(100, currentState.chemistry + chem));
-  currentState.talkChemSum = (currentState.talkChemSum ?? 0) + chem;
-  currentState.talkPtsSum = (currentState.talkPtsSum ?? 0) + (outcome.fx.pointsFirst ?? 0) + (outcome.fx.pointsSecond ?? 0);
-  if (outcome.kind === 'start') currentState.stance = outcome;
-  else if (outcome.kind === 'end') currentState.offseason = outcome;
-  else (currentState.preTalks ??= {})[outcome.kind] = { ...outcome, direction: talkDirection(outcome.tone) }; // pre1·pre2: 그 반기의 승점과 변동성
-}
-// 시즌 합계 한도(조직력 ±8, 승점 ±4)를 넘는 만큼 잘라 낸 효과
-function capTalkFx(kind, fx) {
-  if (kind === 'end') return fx;
-  const out = { ...fx };
-  if (out.chemNow) out.chemNow = capTalkDelta(currentState.talkChemSum ?? 0, out.chemNow, TALK_SEASON_CHEM_CAP);
-  let ptsSum = currentState.talkPtsSum ?? 0;
-  for (const k of ['pointsFirst', 'pointsSecond']) if (out[k]) { out[k] = capTalkDelta(ptsSum, out[k], TALK_SEASON_POINTS_CAP); ptsSum += out[k]; }
-  for (const k of Object.keys(out)) if (out[k] === 0) delete out[k];
-  return out;
-}
-// opts.fixed: 고를 수 있는 토크 id 고정(튜토리얼), opts.tutorial: 효과를 적용하지 않고 버린다.
-// 전반기 종료 순위(전반기 누적 승점표 기준). 표가 없으면 빈 문자열.
-function firstHalfRankText() {
-  const b = currentState.firstHalfBase;
-  if (!b?.me && b?.me !== 0) return '';
-  return ` · ${1 + Object.entries(b).filter(([id, v]) => id !== 'me' && v > b.me).length}위`;
-}
 // 라커룸 장면 마크업: 사물함·전술판·벤치·선수 좌석(뒤 6 + 앞 3 + 주장) + 감독 실루엣과 말풍선. focus는 강조할 선수 id.
 function lockerSceneHtml({ mates, captain, kit, say, focus = [], mgr = true }) {
   const seat = (p, i, size) => `<div class="lr__seat${focus.includes(p.id) ? ' is-focus' : ''}" style="--d:${(i * 0.06).toFixed(2)}s"><span class="lr__rx" hidden></span>${renderPortrait(p, { size, kit })}</div>`;
@@ -678,93 +635,14 @@ function lockerSceneHtml({ mates, captain, kit, say, focus = [], mgr = true }) {
       ${say != null ? `<div class="lr__say" id="lr-say">${esc(say)}</div>` : ''}
     </div>`;
 }
-function showTalkPick(kind, onDone, opts = {}) {
-  const root = document.getElementById('eventmodal-root');
-  const choices = opts.fixed ?? drawTalkChoices(kind);
-  const isStart = kind === 'start';
-  const isPre = kind === 'pre1' || kind === 'pre2';
-  const chemKey = kind === 'end' ? 'nextStartChem' : 'chemNow';
-  const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
-  const captain = pickCaptain(lineup);
-  const mates = lineup.filter((p) => p.id !== captain?.id).slice(0, 9);
-  const last = currentState.lastSeason;
-  const situation = isPre ? kind : !isStart ? 'end' : last?.result === 'promotion' ? 'promo' : last?.result === 'champion' ? 'champ' : (last?.margin ?? 99) <= 4 ? 'close' : 'stay';
-  const caption = isPre ? (kind === 'pre1' ? '전반기를 앞둔 라커룸' : `전반기가 끝난 라커룸${firstHalfRankText()} · 승점 ${currentState.firstHalfPoints ?? 0}`) : pickLine(LOCKER_CAPTIONS[situation], `cap-${situation}`);
-  const kit = currentState.club.kit;
-  const stage = lockerSceneHtml({ mates, captain, kit, say: caption });
-  root.innerHTML = `
-    <div class="eventmodal-backdrop">
-      <div class="eventmodal eventmodal--goal lockerroom">
-        <div class="eventmodal__kicker">라커룸 토크 · ${{ start: '시즌 시작', end: '시즌 마무리', pre1: '전반기 직전', pre2: '후반기 직전' }[kind]}</div>
-        ${stage}
-        <div class="lr__panel" id="lr-panel">
-          <p class="lr__ask">${isPre ? '반기를 앞두고 선수들이 당신을 바라본다. 어떤 말을 건넬까요?' : isStart ? '선수들이 당신을 바라본다. 어떤 말로 시작할까요?' : '한 해를 어떤 말로 마무리할까요? 이 말은 오프시즌에 영향을 줘요.'}</p>
-          <div class="specpick__list">${choices.map((id, i) => `<button class="spec" data-talk="${i}"><span class="spec__head"><b class="spec__name">${esc(TALKS[kind][id].name)}</b><i class="spec__tone is-${TALKS[kind][id].tone}">${TALK_TONE[TALKS[kind][id].tone]}</i></span><span class="spec__line">${esc(TALKS[kind][id].line)}</span></button>`).join('')}</div>
-        </div>
-      </div>
-    </div>`;
-  root.querySelectorAll('[data-talk]').forEach((b) => {
-    b.onclick = () => {
-      const id = choices[Number(b.dataset.talk)];
-      const outcome = rollTalkOutcome(kind, id);
-      // 성격 반응: 조직력 소폭 가감 + 사건 확률 배수(다음 토크까지) + 반응 한 줄
-      const pr = personalityReaction(id, currentState.squad);
-      currentState.personalityMood = pr.byType;
-      if (pr.delta) outcome.fx = { ...outcome.fx, [chemKey]: (outcome.fx[chemKey] ?? 0) + pr.delta };
-      outcome.fx = capTalkFx(kind, outcome.fx); // 시즌 합계 한도
-      if (pr.text) outcome.text = `${outcome.text} ${pr.text}`;
-      track('talk', { k: kind, id, s: currentState.seasonNumber });
-      const lines = describeTalkFx(outcome.fx);
-      const good = lines.filter((l) => l.good).length;
-      const tone = good > lines.length - good ? 'good' : good < lines.length - good ? 'bad' : 'mixed';
-      const captainLine = `${pickLine(CAPTAIN_LINES[tone], `cap-${tone}`)} ${CAPTAIN_TAIL[captain?.personality]?.[tone] ?? ''}`.trim().replace(/\{호칭\}/g, CALL_NAME[trustStage()]);
-      const rx = pixelFace({ good: 'happy', mixed: 'neutral', bad: 'angry' }[tone], 16);
-      root.querySelectorAll('.lr__rx').forEach((el, i) => { el.innerHTML = rx; el.hidden = false; el.style.setProperty('--d', `${0.2 + i * 0.07}s`); });
-      document.getElementById('lr-say').textContent = TALKS[kind][id].line;
-      document.getElementById('lr-panel').innerHTML = `
-        <div class="lr__bubble lr__bubble--you" style="--d:0s"><small>감독</small>${esc(TALKS[kind][id].line)}</div>
-        <p class="lr__react" style="--d:0.9s">${esc(outcome.text)}</p>
-        ${captain ? `<div class="lr__bubble lr__bubble--cap" style="--d:1.8s"><small>${esc(captain.name)} · 주장</small>${esc(captainLine)}</div>` : ''}
-        <div class="lr__result" style="--d:2.6s">
-          <b class="lr__resulttitle">${esc(outcome.name)}</b>
-          <ul class="buyres__list">${lines.map((l) => `<li class="buyres__row is-${l.good ? 'good' : 'bad'}"><i></i><span>${esc(l.text)}</span></li>`).join('')}</ul>
-          <button class="cta" id="talk-ok">확인</button>
-        </div>`;
-      if (opts.tutorial) document.querySelector('.lr__result')?.insertAdjacentHTML('afterbegin', '<p class="note">튜토리얼에서는 적용되지 않아요</p>');
-      document.getElementById('talk-ok').onclick = () => { root.innerHTML = ''; if (!opts.tutorial) applyTalkOutcome(outcome); onDone(); };
-    };
-  });
-}
-
-// 토크 결과: 선수들의 반응과 장점·단점
-function showTalkResult(outcome, onDone) {
-  const root = document.getElementById('eventmodal-root');
-  const lines = describeTalkFx(outcome.fx);
-  root.innerHTML = `
-    <div class="eventmodal-backdrop">
-      <div class="eventmodal eventmodal--goal specpick">
-        <div class="eventmodal__kicker">라커룸 토크 결과</div>
-        <div class="eventmodal__title">${esc(outcome.name)}</div>
-        <p class="eventmodal__detail">${esc(outcome.text)}</p>
-        <ul class="buyres__list">${lines.map((l) => `<li class="buyres__row is-${l.good ? 'good' : 'bad'}"><i></i><span>${esc(l.text)}</span></li>`).join('')}</ul>
-        <button class="cta" id="talk-ok">확인</button>
-      </div>
-    </div>`;
-  document.getElementById('talk-ok').onclick = () => {
-    root.innerHTML = '';
-    applyTalkOutcome(outcome);
-    onDone();
-  };
-}
-
 // 전술 탭 한 줄 요약
 function specSummaryHtml() {
   const ph = currentState.philosophy;
-  const label = ph ? `${PHILOSOPHIES[ph.id].name} Lv${ph.level}${currentState.stance ? ` · 토크 ${currentState.stance.name}` : ''}` : '아직 없음 (정식 감독이 되면 고를 수 있어요)';
+  const label = ph ? `${PHILOSOPHIES[ph.id].name} Lv${ph.level}` : '아직 없음 (정식 감독이 되면 고를 수 있어요)';
   return `<button type="button" class="specline" id="spec-line"><b>${currentState.appointed ? '감독' : '임시 감독'} 철학</b><span>${esc(label)}</span></button>`;
 }
 
-// 감독·스태프 탭 맨 위: 내 감독 상태, 전술 철학, 이번 시즌 라커룸 토크
+// 감독·스태프 탭 맨 위: 내 감독 상태, 전술 철학
 function managerPanelHtml(specDelta = 0) {
   const ph = currentState.philosophy;
   const appointed = currentState.appointed;
@@ -773,14 +651,9 @@ function managerPanelHtml(specDelta = 0) {
     : !ph ? ''
     : ph.level >= MAX_PHILOSOPHY_LEVEL ? '철학이 가장 깊어졌어요.'
     : hasNext ? `승격하면 철학이 Lv${ph.level + 1}로 깊어져요(${philosophyText(ph.id, ph.level + 1)}).` : '1부예요. 더 이상 승격은 없어요.';
-  const stance = currentState.stance;
-  const stanceLines = stance ? describeTalkFx(stance.fx) : [];
-  const off = currentState.offseason;
   return `<div class="mgrpanel">
     <div class="mgrpanel__head"><b>${appointed ? '정식 감독' : '임시 감독'}</b><span>${ph ? `지금 전력 <b class="n">+${specDelta.toFixed(1)}</b>` : ''}</span></div>
     ${ph ? `<div class="spec spec--own">${philosophyCardHtml(ph.id, ph.level)}</div>` : '<p class="note">아직 전술 철학이 없어요.</p>'}
-    ${stance ? `<div class="stancebox"><b>이번 시즌 라커룸 토크 · ${esc(stance.name)}</b><span>${esc(stance.text)}</span><ul>${stanceLines.map((l) => `<li class="is-${l.good ? 'good' : 'bad'}">${esc(l.text)}</li>`).join('')}</ul></div>` : ''}
-    ${off ? `<div class="stancebox"><b>지난 시즌 마무리 토크 · ${esc(off.name)}</b><span>다음 시즌 시작에 반영돼요.</span></div>` : ''}
     <p class="note">${esc(next)}</p>
   </div>`;
 }
@@ -1329,8 +1202,6 @@ function startRun(club) {
     prestige: { total: 0, rows: {}, combo: 0, titleStreak: 0, beat: false }, // 명성 점수(이번 런)
     missedTargetCount: 0, // 기대 목표 미달 누적 (스펙 2절: 3회면 해임)
     philosophy: null, // 전술 철학 { id, level } - 정식 임명 때 고르고 승격마다 한 단계씩 깊어진다(Lv5까지)
-    stance: null, // 이번 시즌 라커룸 토크 반응 { name, text, fx } (시즌 시작에 고른다, 누적 없음)
-    offseason: null, // 시즌 마무리 토크 반응(다음 시즌 시작·노화·지급액에 반영)
     appointed: false, // 정식 감독이 됐는지(첫 시즌은 임시 감독)
     probationUsed: false, // 첫 시즌 강등권이어도 한 번은 해임 없이 연장
     seasonNumber: 1,
@@ -1388,8 +1259,8 @@ function leaveTutorialRun(skipped = false) {
     showDialogueScene({ kind: 'squad', beats: [
       { who: 'captain', text: '감독님, 전반기 수고하셨습니다. 우리 선수단을 소개할게요.' },
       { who: 'captain', text: names.length ? `${names[0].name}은(는) 우리 팀에서 가장 평가가 높아요.` : '선수들이 팀을 이끌고 있어요.', focus: names.map((p) => p.id) },
-      { who: 'guide', text: '이제 라커룸에서 한마디 해 주실 차례예요!' },
-    ] }, () => showTalkPick('pre2', () => {
+      { who: 'guide', text: '이제 진짜 시즌이 기다리고 있어요. 같이 힘내 봐요!' },
+    ] }, () => {
       const root = document.getElementById('eventmodal-root');
       root.innerHTML = `
         <div class="eventmodal-backdrop">
@@ -1401,7 +1272,7 @@ function leaveTutorialRun(skipped = false) {
           </div>
         </div>`;
       document.getElementById('tut-end-go').onclick = () => { root.innerHTML = ''; finish(); };
-    }, { fixed: ['cheer', 'film', 'joke'], tutorial: true }));
+    });
   };
   intro();
   return true;
@@ -1688,7 +1559,7 @@ function renderCareerIntro() {
   tutorialTick('intro');
   document.getElementById('start-season-btn').onclick = () => {
     if (tutStep() >= 0) currentState.tutorialBackup = true; // 튜토리얼 샌드박스 표시: 저장·기록·업적을 막고, 끝나면 상태를 버린다
-    return tutStep() < 0 ? renderDemandChoice(currentState.club.demandBias ?? {}, () => startTalkThen(() => renderMarket())) : renderMarket();
+    return tutStep() < 0 ? renderDemandChoice(currentState.club.demandBias ?? {}, () => renderMarket()) : renderMarket();
   };
   document.getElementById('back-to-clubs-btn').onclick = () => renderClubButtons();
 }
@@ -1999,7 +1870,7 @@ function grantSeasonFunds() {
   // 승격 못 하고 같은 리그에 눌러앉을수록(목표 미달 누적) 이사진이 지갑을
   // 닫는다. 승격하면 missedTargetCount가 0으로 리셋되니 이 페널티도 같이 풀린다.
   const stagnationPenalty = Math.max(0, 1 - currentState.missedTargetCount * STAGNATION_FUNDS_PENALTY_PER_MISS);
-  const grant = Math.round(promoted * stagnationPenalty * (1 + (currentState.nextGrantBonus ?? 0)) * (currentState.offseason?.fx.grantMult ?? 1));
+  const grant = Math.round(promoted * stagnationPenalty * (1 + (currentState.nextGrantBonus ?? 0)));
   currentState.nextGrantBonus = 0;
   currentState.promotionFundsBonusPending = false;
   // 이월은 "구단 잔류 시"만, 그것도 작게. 남은 돈 중 상한을 넘는 몫은 구단이 운영 명분으로 회수한다.
@@ -2086,10 +1957,7 @@ function startNewSeason() {
   // 가격 재계산은 나이를 먹은 뒤(아래 aged) 한 번에 한다.
   // 나이 한 살: 어린 선수는 크고 서른 줄부터 떨어지며, 은퇴할 선수는 떠난다. 변화는 브리핑 팝업에서 알린다.
   const preAge = new Map(currentState.squad.map((p) => [p.id, p]));
-  const offFx = currentState.offseason?.fx ?? {};
   const aged = ageSquad(currentState.squad.map((p) => (p.slump ? { ...p, baseOVR: p.baseOVR + p.slump, slump: 0 } : p)), Math.random, staffLevel('headCoach'), {
-    extraGrowth: (currentState.stance?.fx.growthBoost ?? 0) + (offFx.youthGrowth ?? 0), // 격려(시즌)·세대교체(마무리) 토크
-    vetRelief: offFx.vetRelief ?? 0,
   });
   // 시즌이 끝났으니 별 오차를 그 시즌 폼 쪽으로 칼만 방식으로 갱신하고, 나이에 따른 능력 변화와 함께 별이 움직인다.
   const anchor = anchorOf(currentState.leagueTierId);
@@ -2123,9 +1991,6 @@ function startNewSeason() {
     const cut = Math.round(currentState.missedTargetCount * STAGNATION_FUNDS_PENALTY_PER_MISS * 100);
     banner += `. 승격 실패 누적 ${currentState.missedTargetCount}회로 시즌 자금 -${cut}%`;
   }
-  // 지난 시즌 마무리 토크의 시작 조직력
-  const offs = currentState.offseason;
-  if (offs?.fx.nextStartChem) { currentState.chemistry = Math.max(0, Math.min(100, currentState.chemistry + offs.fx.nextStartChem)); banner += ` 마무리 토크(${offs.name}): 조직력 ${offs.fx.nextStartChem > 0 ? '+' : '−'}${Math.abs(offs.fx.nextStartChem)}.`; }
   // 1부는 리그와 별개로 챔피언스리그가 병행된다 - 시즌 목표에 그 사실을 못 박아둔다.
   if (currentState.leagueTierId === 'tier1') {
     banner += '. 이번 시즌 목표: 리그 우승 + 챔피언스리그';
@@ -2134,12 +1999,7 @@ function startNewSeason() {
   currentState.pendingTransferDemand = null;
   const fundsReport = currentState.fundsReport ?? null;
   currentState.seasonBriefing = { tribute, transferDemand, aging: agingReport, fundsReport, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}, currentState.leagueTierId).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
-  currentState.offseason = null; // 마무리 토크는 이번 시작에 반영했다
-  currentState.stance = null; // 지난 시즌 라커룸 토크는 끝났다 - 새 토크를 고른다
-  currentState.preTalks = {};
-  currentState.talkChemSum = 0;
-  currentState.talkPtsSum = 0;
-  startTalkThen(() => renderMarket(banner));
+  renderMarket(banner);
 }
 
 // 영입가: 윈터 택스와 라커룸 토크(시장 선언 등)가 가산된다.
@@ -2661,11 +2521,11 @@ function nextWeek(capMsg = '') {
   const saleMessage = [capMsg, resolveListedSales()].filter(Boolean).join(' / ');
 
   if (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1]) {
-    showSeasonPreview(1, () => (tutStep() >= 0 ? runFirstHalf(saleMessage) : showTalkPick('pre1', () => runFirstHalf(saleMessage))));
+    showSeasonPreview(1, () => runFirstHalf(saleMessage));
     return;
   }
   if (currentState.phase === 'winter' && currentState.week > WINTER_MARKET_WEEKS[1]) {
-    showSeasonPreview(2, () => (tutStep() >= 0 ? runSecondHalfAndFinish(saleMessage) : showTalkPick('pre2', () => runSecondHalfAndFinish(saleMessage))));
+    showSeasonPreview(2, () => runSecondHalfAndFinish(saleMessage));
     return;
   }
   // 반기 아웃·시즌 아웃은 시장 2주차부터 마지막 주 직전까지 매주 조금씩 굴린다(합계는 한 시장 한 번 굴린 확률과 같다). 마지막 주에는 안 터져서 대응할 한 주가 남는다.
@@ -2826,7 +2686,7 @@ function runFirstHalf(saleMessage = '') {
   // 승점은 정수로 쓴다: 화면에 보이는 승점과 승/강등 판정에 쓰는 승점이 같아야 한다.
   const inj1 = rollHalfInjuries(lineup);
   currentState.halfInjuries = inj1.list;
-  currentState.firstHalfPoints = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(1), currentState.preTalks?.pre1?.direction ?? 'balance', halfBonus(1) + inj1.points));
+  currentState.firstHalfPoints = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(1), 'balance', halfBonus(1) + inj1.points));
   tickInjuries();
 
   // 이 시즌의 순위표를 전반기에 만들어 두고, 후반기는 그 위에 이어서 쌓는다(상대 구단도 그대로).
@@ -3356,7 +3216,7 @@ function telemetrySnapshot() {
     const power = computeTeamPower(lineup, bench, currentState.chemistry, fx());
     return {
       run: currentState.telemetryRun, s: currentState.seasonNumber, tier: currentState.leagueTierId, club: currentState.club?.id, // 입력한 이름은 보내지 않고 기본 구단 id만
-      fm: fid, spec: currentState.philosophy ? `${currentState.philosophy.id}:${currentState.philosophy.level}` : '', talk: currentState.stance?.name ?? '', pow: Math.round(power * 10) / 10,
+      fm: fid, spec: currentState.philosophy ? `${currentState.philosophy.id}:${currentState.philosophy.level}` : '', pow: Math.round(power * 10) / 10,
       avg: Math.round(lineup.reduce((x, p) => x + p.baseOVR, 0) / Math.max(1, lineup.length) * 10) / 10,
       chem: Math.round(currentState.chemistry), funds: currentState.funds, squad: currentState.squad.length,
       dem: currentState.boardDemand?.cardId ?? null,
@@ -3407,7 +3267,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   if (playMsg) saleMessage = saleMessage ? `${saleMessage} / ${playMsg}` : playMsg;
   const inj2 = rollHalfInjuries(lineup);
   currentState.secondInjuries = inj2.list;
-  const secondHalf = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(2), currentState.preTalks?.pre2?.direction ?? 'balance', halfBonus(2) + inj2.points));
+  const secondHalf = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(2), 'balance', halfBonus(2) + inj2.points));
   tickInjuries();
   const firstHalf = roundHalfPoints(currentState.firstHalfPoints ?? 0); // 옛 저장(소수점)도 같은 규칙으로
   const totalPoints = firstHalf + secondHalf;
@@ -3605,9 +3465,9 @@ function runSecondHalfAndFinish(saleMessage = '') {
     currentState.chemistry = Math.min(100, currentState.chemistry + PROMOTION_CHEMISTRY_BONUS);
     currentState.promotionFundsBonusPending = true; // 지급 시점(startNewSeason)에 반영
     // 정식 임명(처음이면) → 철학 한 단계 강화 → 마무리 라커룸 토크 → 다음 리그
-    maybeAppoint(survivedSeason, () => showPhilosophyLevelUp(() => endTalkThen(wasAppointed, () => promoteToNextTier(nextTier))));
+    maybeAppoint(survivedSeason, () => showPhilosophyLevelUp(() => promoteToNextTier(nextTier)));
   });
-  document.getElementById('continue-btn')?.addEventListener('click', () => maybeAppoint(survivedSeason, () => endTalkThen(wasAppointed, startNewSeason)));
+  document.getElementById('continue-btn')?.addEventListener('click', () => maybeAppoint(survivedSeason, startNewSeason));
   document.getElementById('ucl-btn')?.addEventListener('click', () => {
     currentState.ucl = createUcl(uclPower, Math.random, { myPowerAway: uclPowerAway });
     currentState.ucl.teams[0].name = currentState.club.name;
@@ -3630,15 +3490,6 @@ function maybeAppoint(survived, next) {
     { who: 'reporter', text: '감독님, 당신의 축구는 어떤 축구입니까?' },
   ] }, () => showPhilosophyPick(next));
 }
-// 시즌 마무리 라커룸 토크: 이미 정식 감독이던 시즌부터(임명을 방금 받은 시즌은 건너뛴다)
-function endTalkThen(wasAppointed, next) {
-  showTalkPick('end', next); // 1시즌부터(정식 임명 전에도) 가능
-}
-// 시즌 시작 라커룸 토크(1시즌부터)
-function startTalkThen(next) {
-  showTalkPick('start', next);
-}
-
 // 승격하면 구단을 옮기지 않고 같은 구단으로 새 리그에 올라간다(선수단 유지).
 function promoteToNextTier(nextTierId) {
   currentState.leagueTierId = nextTierId;
@@ -4891,4 +4742,4 @@ if (UCL_DEMO) {
 }
 
 // 확인용 훅(#dev): 감독 장면(철학·라커룸 토크)을 바로 띄워 본다. 일반 플레이에는 영향이 없다.
-if (location.hash.includes('dev')) window.__dev = { tutSkip, leaveTutorialRun, openHaggle, openSale, maybeAppoint, renderRunEnd, showDialogueScene, showTrophy, showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
+if (location.hash.includes('dev')) window.__dev = { tutSkip, leaveTutorialRun, openHaggle, openSale, maybeAppoint, renderRunEnd, showDialogueScene, showTrophy, showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };

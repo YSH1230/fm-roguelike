@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   PHILOSOPHIES, PHILOSOPHY_IDS, MAX_PHILOSOPHY_LEVEL, drawPhilosophyChoices, levelUpPhilosophy, philosophyText,
-  TALKS, TALK_IDS, drawTalkChoices, rollTalkOutcome, describeTalkFx, specialtyEffects,
+  specialtyEffects,
 } from '../engine/specialties.mjs';
 import { TAG_IDS } from '../engine/constants.mjs';
 import { ageSquad } from '../engine/aging.mjs';
@@ -48,49 +48,6 @@ test('철학 효과: 태그 철학은 그 태그만, 토탈 축구는 포메이�
   assert.deepEqual(none.tagBonus, {});
   assert.equal(none.buyDiscount, 0);
   assert.equal(none.saleMult, 1);
-});
-
-test('라커룸 토크: 시작 8종, 종료 6종이고 3장씩 뽑는다', () => {
-  assert.equal(TALK_IDS.start.length, 8);
-  assert.equal(TALK_IDS.end.length, 6);
-  for (const kind of ['start', 'end']) {
-    const c = drawTalkChoices(kind);
-    assert.equal(c.length, 3);
-    assert.equal(new Set(c).size, 3);
-  }
-});
-
-test('모든 토크 반응에는 장점과 단점이 같이 있고, 한 토크마다 반응이 3가지다', () => {
-  for (const kind of ['start', 'end']) {
-    for (const [id, t] of Object.entries(TALKS[kind])) {
-      assert.equal(t.outcomes.length, 3, `${kind}:${id}`);
-      assert.ok(t.name && t.line && ['safe', 'risky'].includes(t.tone), `${kind}:${id}`);
-      for (const o of t.outcomes) {
-        const d = describeTalkFx(o.fx);
-        assert.ok(d.some((x) => x.good) && d.some((x) => !x.good), `${kind}:${id} - ${o.text}`);
-        assert.ok(o.text.length > 5);
-      }
-    }
-  }
-});
-
-test('토크를 고르면 반응 하나가 정해지고, 같은 토크도 반응이 달라질 수 있다', () => {
-  const seen = new Set();
-  for (let i = 0; i < 200; i++) seen.add(rollTalkOutcome('start', 'roar').text);
-  assert.equal(seen.size, 3);
-  const o = rollTalkOutcome('end', 'thanks', () => 0);
-  assert.equal(o.name, '감사 연설');
-  assert.ok(o.fx.nextStartChem > 0);
-});
-
-test('토크 효과를 철학 효과와 합친다(곱·합 구분)', () => {
-  const fx = specialtyEffects({ id: 'totalFootball', level: 1 }, { formationBonus: 1, txDecayMult: 2, buyDiscount: 0.06, saleMult: 0.94, pointsFirst: -2, pointsSecond: 3, patienceBonus: 1 });
-  assert.equal(fx.formationBonus, 3);
-  assert.equal(fx.txDecayMult, 2);
-  assert.equal(fx.buyDiscount, 0.06);
-  assert.ok(Math.abs(fx.saleMult - 0.94) < 1e-9);
-  assert.equal(fx.pointsFirst, -2);
-  assert.equal(fx.pointsSecond, 3);
 });
 
 test('나이 먹기: 베테랑 하락 완화(+1)는 하락을 줄이고 악화(−1)는 키운다', () => {

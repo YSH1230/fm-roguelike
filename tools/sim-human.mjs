@@ -12,7 +12,7 @@ import { runHalfSeason, judgeSeasonResult, advanceWeek, boardGoalPoints, boardRe
 import { applyTransactionDecay } from '../engine/chemistry.mjs';
 import { computeAverageOVR, computeTeamPower } from '../engine/team-power.mjs';
 import { computePlaystyleSynergyBonus } from '../engine/ovr.mjs';
-import { PHILOSOPHY_IDS, drawPhilosophyChoices, levelUpPhilosophy, drawTalkChoices, rollTalkOutcome, specialtyEffects } from '../engine/specialties.mjs';
+import { PHILOSOPHY_IDS, drawPhilosophyChoices, levelUpPhilosophy, specialtyEffects } from '../engine/specialties.mjs';
 import { applyCostModifiers, calculateStartingFunds, calculatePlayerPrice, computeReleaseProceeds, recallFunds, generateSaleOffers, noOfferChance, valuePrice, FUNDS_SCALE, fundsScale } from '../engine/economy.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier } from '../engine/league.mjs';
 import { optimizeLineup } from '../engine/lineup.mjs';
@@ -76,10 +76,7 @@ function choosePhilosophy(evalPower) {
   return { id: ids.map((id) => ({ id, v: evalPower(specialtyEffects({ id, level: 1 })) - base })).sort((a, b) => b.v - a.v)[0].id, level: 1 };
 }
 // 봇의 라커룸 토크: 고르는 기준이 없어서(효과를 모르고 고른다) 무작위 선택. 반응은 규칙대로 정해진다.
-function pickTalk(kind) {
-  const ids = drawTalkChoices(kind);
-  return rollTalkOutcome(kind, ids[Math.floor(Math.random() * ids.length)]);
-}
+const pickTalk = () => null; // 라커룸 토크 삭제
 
 function chooseTarget(squad, season = 1) {
   const ids = TAG_IDS.filter((t) => true);
