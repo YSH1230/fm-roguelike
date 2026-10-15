@@ -25,7 +25,7 @@ import {
   CHEMISTRY_START, WINTER_TAX_RATIO, WINTER_FUNDS_RATIO, PROMOTION_STAY_FUNDS_RATIO, SAME_LEAGUE_FUNDS_RATIO,
   STAGNATION_FUNDS_PENALTY_PER_MISS, PLAYSTYLE_TAGS, TAG_IDS, BASIC_TAGS, COACH_CHEMISTRY_DECAY_BY_LEVEL,
   SCOUT_SHOP_OFFER_SIZE_BY_LEVEL, SCOUT_QUALITY_BOOST_BY_LEVEL, SCOUT_TARGET_SLOTS_BY_LEVEL, STAFF_PRICE_TABLE,
-  squadCapFor, PLAYER_TIERS, PLAYER_PRICE_TABLE, TRAIT_PRICE_MULT, BOARD_DEMAND_REWARD, CHEMISTRY_DECAY_PER_TRANSACTION, POSITIONS,
+  squadCapFor, PLAYER_TIERS, PLAYER_PRICE_TABLE, TRAIT_PRICE_MULT, CHEMISTRY_DECAY_PER_TRANSACTION, POSITIONS,
 } from '../engine/constants.mjs';
 
 Object.assign(FUNDS_SCALE, JSON.parse(process.env.FS ?? '{}')); // 실험용: FS='{"tier1":0.5}'
@@ -292,7 +292,7 @@ function playCareer() {
 
     // 이사진 목표 초과 보상 + 요구 카드(쉬움을 골라 절반쯤 달성)
     const goal = boardGoalPoints(tierDef);
-    proceeds += boardReward(total, goal, base).funds + Math.round(base * BOARD_DEMAND_REWARD.easy * 0.5);
+    proceeds += boardReward(total, goal, base).funds;
 
     if (isTop && rank <= 4) {
       const power = computeTeamPower(lineup, bench, CHEMISTRY_START, fxNow);

@@ -2,7 +2,7 @@ import { getLadderIndex, getNextTier } from './league.mjs';
 import {
   MISSED_TARGET_LIMIT, REPUTATION_PER_TIER, REPUTATION_PER_SEASON, REPUTATION_TITLE_BY_TIER,
   REPUTATION_UCL_BY_RESULT, REPUTATION_DOUBLE,
-  PRESTIGE_TIER_BASE, PRESTIGE_RESULT_MULT, PRESTIGE_SURPLUS_RATE, PRESTIGE_DEMAND, PRESTIGE_COMBO_STEP, PRESTIGE_COMBO_MAX,
+  PRESTIGE_TIER_BASE, PRESTIGE_RESULT_MULT, PRESTIGE_SURPLUS_RATE, PRESTIGE_COMBO_STEP, PRESTIGE_COMBO_MAX,
   PRESTIGE_TITLE_STREAK, PRESTIGE_UCL, PRESTIGE_DOUBLE, PRESTIGE_RETIRE, PRESTIGE_GRADES, PRESTIGE_TITLES,
 } from './constants.mjs';
 
@@ -65,10 +65,6 @@ export function seasonPrestige({ tierId, result, points = 0, safePoints = 0, com
   return { rows, total: rows.reduce((s, r) => s + r.value, 0), combo: nextCombo, titleStreak: nextTitleStreak };
 }
 
-export function demandPrestige(difficulty) {
-  const value = PRESTIGE_DEMAND[difficulty] ?? 0;
-  return value > 0 ? [{ id: 'demand', label: '이사진 요구 달성', value }] : [];
-}
 
 // 챔피언스리그 결과 + (같은 시즌 리그 우승이면) 더블
 export function uclPrestige(uclResult, { alsoLeagueChampion = false } = {}) {

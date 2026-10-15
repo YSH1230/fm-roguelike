@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { judgeRunOutcome, nextMissedTargetCount, computeReputation, reputationBreakdown, seasonPrestige, demandPrestige, uclPrestige, retirePrestige, gradeOf, titleProgress } from '../engine/run.mjs';
+import { judgeRunOutcome, nextMissedTargetCount, computeReputation, reputationBreakdown, seasonPrestige, uclPrestige, retirePrestige, gradeOf, titleProgress } from '../engine/run.mjs';
 import { MISSED_TARGET_LIMIT } from '../engine/constants.mjs';
 
 test('안전 승점 미달이면 즉시 해임으로 런이 끝난다', () => {
@@ -94,8 +94,6 @@ test('명성 점수: 연속 승격·우승 콤보와 우승 연속 보너스', (
 });
 
 test('명성 점수: 이사진 요구·챔피언스리그·더블·은퇴', () => {
-  assert.equal(demandPrestige('hard')[0].value, 15);
-  assert.deepEqual(demandPrestige('none'), []);
   assert.equal(uclPrestige('final')[0].value, 180);
   assert.equal(uclPrestige('champion', { alsoLeagueChampion: true }).reduce((s, r) => s + r.value, 0), 300 + 150);
   assert.equal(uclPrestige('champion').reduce((s, r) => s + r.value, 0), 300);

@@ -26,7 +26,6 @@ test('deriveClub: 강팀 기대치 +5, 자금 배율은 유형 × 색채', () =>
   assert.equal(c.expectationModifier, 5);
   assert.equal(c.startingFundsMultiplier, 1.82); // 1.3 × 1.4
   assert.equal(deriveClub({ klass: 'weak', color: 'financialTrouble' }).startingFundsMultiplier, 0.6);
-  assert.ok(KLASS.mid.demand);
 });
 
 test('시작 화면 오퍼: 4개, 강·중·약이 각각 하나 이상', () => {

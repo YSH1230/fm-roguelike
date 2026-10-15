@@ -7,63 +7,62 @@
 // 색채는 강점/약점 문구, 시작 자금 보정, 요구 카드/이벤트 추첨 편향을 정한다.
 
 export const KLASS = {
-  strong: { label: '강팀', expectation: 5, fundsMultiplier: 1.3, demand: '이사진의 요구: 이번 시즌 승격은 필수다' },
-  mid: { label: '중위권', expectation: 0, fundsMultiplier: 1.0, demand: '이사진의 요구: 중위권 이상을 유지하라' },
-  weak: { label: '약팀', expectation: -5, fundsMultiplier: 0.8, demand: '이사진의 요구: 강등만 피하면 충분하다' },
+  strong: { label: '강팀', expectation: 5, fundsMultiplier: 1.3 },
+  mid: { label: '중위권', expectation: 0, fundsMultiplier: 1.0 },
+  weak: { label: '약팀', expectation: -5, fundsMultiplier: 0.8 },
 };
 
-// demandBias: 요구 카드 태그(youth/age/spend/pace/stable) 가중치 배수
 // eventBias: 시즌 이벤트 id 가중치 배수
 export const COLORS = {
   youthDevelopment: {
     label: '신인 육성형', fundsMultiplier: 0.9,
     strength: '신인 발굴이 빠르다', weakness: '시작 자금이 빠듯하다',
-    demandBias: { youth: 3, age: 2 }, eventBias: { youthGoldenGeneration: 3 },
+    eventBias: { youthGoldenGeneration: 3 },
   },
   richOwner: {
     label: '재벌 투자형', fundsMultiplier: 1.4,
     strength: '구단주의 화끈한 투자로 자금이 넉넉하다', weakness: '돈만큼 결과를 요구하는 이사진',
-    demandBias: { pace: 3 }, eventBias: { mainSponsorship: 3, pressCriticism: 2 },
+    eventBias: { mainSponsorship: 3, pressCriticism: 2 },
   },
   defensiveWall: {
     label: '수비 축구', fundsMultiplier: 1.0,
     strength: '수비는 리그 최고 수준', weakness: '골 넣을 자원이 부족하다',
-    demandBias: { stable: 3 }, eventBias: { injuryAftermath: 2 },
+    eventBias: { injuryAftermath: 2 },
   },
   attackingFlair: {
     label: '공격 축구', fundsMultiplier: 1.0,
     strength: '공격 자원이 풍부한 화끈한 축구', weakness: '뒷문이 늘 불안하다',
-    demandBias: { pace: 2 }, eventBias: { pressPraise: 2 },
+    eventBias: { pressPraise: 2 },
   },
   counterAttack: {
     label: '역습 전문', fundsMultiplier: 1.0,
     strength: '빠른 역습으로 강팀도 잡는다', weakness: '점유율 싸움에선 밀린다',
-    demandBias: { age: 3 }, eventBias: { rivalPoach: 2 },
+    eventBias: { rivalPoach: 2 },
   },
   veteranCore: {
     label: '베테랑 중심', fundsMultiplier: 1.05,
     strength: '경험 많은 베테랑이 중심을 잡는다', weakness: '선수단이 늙어 세대교체가 코앞이다',
-    demandBias: { stable: 2 }, eventBias: { retiringLegend: 3, rivalPoach: 2 },
+    eventBias: { retiringLegend: 3, rivalPoach: 2 },
   },
   overseasScouting: {
     label: '해외파 중심', fundsMultiplier: 1.1,
     strength: '해외 스카우트 라인이 탄탄하다', weakness: '적응이 늦어 조직력이 흔들리기 쉽다',
-    demandBias: { spend: 2 }, eventBias: { pressCriticism: 2 },
+    eventBias: { pressCriticism: 2 },
   },
   localRoots: {
     label: '지역 밀착형', fundsMultiplier: 0.95,
     strength: '지역 팬의 열렬한 지지', weakness: '큰 투자를 못 한다',
-    demandBias: { youth: 2, spend: 2 }, eventBias: { supportersFund: 3 },
+    eventBias: { supportersFund: 3 },
   },
   financialTrouble: {
     label: '재정 위기형', fundsMultiplier: 0.75,
     strength: '잃을 것 없는 배짱 있는 팀', weakness: '재정 문제로 언제든 감사가 들어온다',
-    demandBias: { spend: 3 }, eventBias: { ffpAudit: 3 },
+    eventBias: { ffpAudit: 3 },
   },
   risingForce: {
     label: '신흥 강호', fundsMultiplier: 1.2,
     strength: '최근 몇 시즌 급성장한 기세', weakness: '기대치가 빠르게 오르고 있다',
-    demandBias: { pace: 2, age: 2 }, eventBias: { pressPraise: 2, rivalPoach: 2 },
+    eventBias: { pressPraise: 2, rivalPoach: 2 },
   },
 };
 
@@ -140,12 +139,10 @@ export function deriveClub(club) {
     ...club,
     startingFundsMultiplier: Math.round(klass.fundsMultiplier * color.fundsMultiplier * 100) / 100,
     expectationModifier: klass.expectation,
-    demand: klass.demand,
     strength: color.strength,
     weakness: color.weakness,
     klassLabel: klass.label,
     colorLabel: color.label,
-    demandBias: color.demandBias,
     eventBias: color.eventBias,
   };
 }

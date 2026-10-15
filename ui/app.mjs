@@ -17,12 +17,11 @@ import { generateSquadPool, generateStartingSquad, generateEmergencyYouth, reser
 import { assignRandomStaff, generateStaffOffer, generateStaffCandidate } from '../data/staff.mjs';
 import { GOD_PLAYERS } from '../data/god-players.mjs';
 import { rollSeasonEvent, describeChoice, resolveChoice } from '../data/season-events.mjs';
-import { drawDemandOffer, getDemand, evaluateDemand, DIFFICULTY_LABELS } from '../data/board-demands.mjs';
 import { generateScoutDelivery } from '../data/draft-shop.mjs';
 import { randomName } from '../data/name-pools.mjs';
 import { CONTINENT_TAGS } from '../engine/constants.mjs';
 import { getLeagueTier, getLadderIndex, getNextTier, convertPowerToPoints } from '../engine/league.mjs';
-import { judgeRunOutcome, nextMissedTargetCount, seasonPrestige, demandPrestige, uclPrestige, retirePrestige, gradeOf, titleProgress } from '../engine/run.mjs';
+import { judgeRunOutcome, nextMissedTargetCount, seasonPrestige, uclPrestige, retirePrestige, gradeOf, titleProgress } from '../engine/run.mjs';
 import {
   createUcl, advanceUcl, uclRanking, nameOf, teamOf, tieAggregate, generateShootout,
   UCL_RESULT_LABELS, UCL_REWARDS_FUNDS, UCL_STAGE_LABELS, UCL_STYLE_LABELS, UCL_LEAGUE_DAYS, UCL_DIRECT_SPOTS, UCL_PLAYOFF_SPOTS,
@@ -69,7 +68,7 @@ import { pixelMatchHtml } from './pixel.mjs';
 import { track, telemetryOn, telemetryConfigured, setTelemetry } from './telemetry.mjs';
 import { renderCrest, CREST_PARTS, designOf, isDesignFree, designKey, randomFreeDesign } from './crest2.mjs';
 import { showSpot, clearSpot } from './tutorial.mjs';
-import { buildTutorialState, TUTORIAL_KITS, TUTORIAL_STEPS, TUTORIAL_CARDS, TUTORIAL_HAGGLE, TUTORIAL_HALF, TUTORIAL_JOURNALISTS, TUTORIAL_SUMMARY, tutorialSaleOffers } from './tutorial-script.mjs';
+import { buildTutorialState, TUTORIAL_KITS, TUTORIAL_STEPS, TUTORIAL_CARDS, TUTORIAL_HAGGLE, TUTORIAL_HALF, TUTORIAL_JOURNALISTS, TUTORIAL_RESULT, TUTORIAL_END_TEXT, tutorialSaleOffers } from './tutorial-script.mjs';
 import { stadiumHtml, stadiumLevel } from './stadium.mjs';
 import { loadFlags, updateFlags, isUnlocked, markSeen } from '../data/flags.mjs';
 import {
@@ -103,7 +102,6 @@ import {
   BOARD_REWARD_FUNDS_PER_POINT,
   BOARD_REWARD_FUNDS_CAP,
   BOARD_REWARD_CHEMISTRY,
-  BOARD_DEMAND_REWARD,
 } from '../engine/constants.mjs';
 
 
@@ -572,11 +570,12 @@ const APPOINT_QA = [
   ['구단 매각설은 사실입니까?', ['오늘은 선임 얘기만 하죠.', '그 얘기는 다음 기자회견에서 하겠습니다.']],
   ['성적이 나쁘면 어떻게 됩니까?', ['그때는 다른 기자회견을 열겠죠.', '숫자가 말해 줄 겁니다.']],
 ];
-const CRISIS_LINES = [
-  ['숫자가 말해 줍니다. 변명은 필요 없습니다.', '솔직히 말하죠. 대체할 사람은 이미 알아보고 있습니다.', '이 표를 보십시오. 읽는 데 오래 걸리지 않을 겁니다.'],
-  ['걱정됩니다만, 겨울 시장에서 뭘 하실 겁니까?', '아직 후반기가 남았습니다. 그게 위안이군요.', '여기까지 올려놓은 것도 당신입니다. 내려가는 것도 당신 몫입니까?'],
-  ['저는 당신을 믿습니다. 방법만 찾으세요.', '이 정도 위기는 지난 시즌에도 있었죠. 그땐 어떻게 하셨습니까?', '필요한 게 있으면 말하세요. 예산은… 협의해 보죠.'],
-];
+// 전반기 결산의 이사장 한마디: 잔류선 위(여유) / 근처 / 아래
+const HALF_CHAIRMAN_LINES = {
+  above: '페이스가 좋습니다. 다만 아직 반이 남았습니다.',
+  near: '아슬아슬합니다. 이대로면 계약은 끝입니다.',
+  below: '다른 감독을 찾아야겠군요..',
+};
 const ENDING_LINES = {
   relegation: { chairman: ['당신을 고른 건 틀리지 않았습니다. 숫자가 아쉬웠을 뿐입니다.', '이 구단에서 가장 오래 버틴 임시 감독이었습니다.', '계약서는 없지만… 감사 인사는 적어 두겠습니다.'], captain: ['다음에 만나면 상대 감독으로 오지 마요.', '…고생하셨습니다, {호칭}.', '선수들한테는 제가 잘 말해 둘게요.'] },
   missedTargets: { chairman: ['승격 없이 시즌이 쌓였습니다. 저도 이사회에 설명해야 합니다.', '당신 탓만은 아닙니다. 하지만 숫자는 숫자입니다.'], captain: ['아쉽습니다, {호칭}. 정말로요.', '…좋은 감독이었다고 기억하겠습니다.'] },
@@ -886,9 +885,9 @@ function showAchievementToast(list) {
 // 런 종료 때 등급·내 기록 순위·칭호가 붙는다.
 const PRESTIGE_LABELS = {
   league: '리그 성적', surplus: '안전 승점 초과', combo: '연속 승격·우승', streak: '연속 우승 보너스',
-  demand: '이사진 요구 달성', ucl: '챔피언스리그', double: '더블', retire: '커리어 완결',
+  ucl: '챔피언스리그', double: '더블', retire: '커리어 완결',
 };
-const PRESTIGE_ROW_ORDER = ['league', 'surplus', 'combo', 'streak', 'demand', 'ucl', 'double', 'retire'];
+const PRESTIGE_ROW_ORDER = ['league', 'surplus', 'combo', 'streak', 'ucl', 'double', 'retire'];
 function prestigeState() {
   return (currentState.prestige ??= { total: 0, rows: {}, combo: 0, titleStreak: 0, beat: false });
 }
@@ -1200,7 +1199,6 @@ function startRun(club) {
     staffOffer: generateStaffOffer(Math.random, 'tier5'),
     firstHalfPoints: null,
     listedForSale: [], // { card, method, resolveWeek }
-    boardDemand: null, // 이번 시즌 고른 이사진 요구 카드 { cardId, difficulty }
     seasonTrack: { spent: 0, winterTransactions: 0, income: 0, start: funds }, // 요구 카드 판정 + 자금 흐름 표시용
     boardTrustUsed: false,
     promotionFundsBonusPending: false,
@@ -1239,7 +1237,10 @@ function tutorialEnter(i) {
   if (!st) { tutorialSummary(); return; }
   if (st.tab) currentState.tab = st.tab;
   if (st.sub) currentState.draftSub = st.sub;
+  if (st.id === 'arrive') currentState.shopOffer = TUTORIAL_CARDS.map((c) => ({ ...c })); // 지시 직후 즉시 도착
+  if (st.id === 'funds') { currentState.funds = 80; currentState.chemistry = 58; } // 영입 후 고정값(120G → 80G, 조직력 60 → 58)
   if (st.id === 'half') { tutorialHalf(); return; }
+  if (st.id === 'result') { tutorialResult(); return; }
   if (st.inModal || st.keep) tutorialTick(); else renderMarket();
 }
 // 화면이 부르는 이벤트: 현재 단계의 trigger와 같을 때만 다음 단계로 간다(튜토리얼이 아니면 아무 일도 없다)
@@ -1254,12 +1255,6 @@ function tutorialTick() {
   const st = TUTORIAL_STEPS[tut.i];
   if (!st) return;
   showSpot({ selector: st.selector, text: st.text, ok: st.trigger === 'confirm' ? '확인' : null, onOk: () => tutorialEvent('confirm'), onSkip: tutorialSkip, inModal: !!st.inModal });
-}
-// 가짜 주차 전환: 주차·영입 카드·조직력을 고정값으로 바꾼다(부상·이벤트·판매 오퍼 만료·스태프 후보 없음)
-function tutorialNextWeek() {
-  currentState.week = 2;
-  currentState.transactedThisWeek = false;
-  currentState.shopOffer = TUTORIAL_CARDS.map((c) => ({ ...c }));
 }
 // 시장 마감 → 고정 시즌 전망 → 고정 전반기 결과(기존 결산 화면 재사용, 시뮬·별 갱신은 돌리지 않는다)
 function tutorialHalf() {
@@ -1280,7 +1275,27 @@ function tutorialHalf() {
     renderHalfTimeVerdict('', lineup, slotted, bench);
   };
 }
-// 종료 안내(요약 카드) → [구단 만들기]
+// 시즌 결과(고정): 잔류 달성, 별 변화 목록, 고정 명성 +24
+function tutorialResult() {
+  const R = TUTORIAL_RESULT;
+  const gain = R.prestige.reduce((t, x) => t + x.value, 0);
+  setScreen(`
+    <div class="verdict verdict--safe">
+      <div class="verdict__label">${esc(currentState.club.name)} · 5부 시즌 결산</div>
+      <div class="verdict__result">안전 잔류</div>
+      <div class="scoreline"><b>${R.points}</b><span>승점 (전반기 ${R.firstHalf} + 후반기 ${R.secondHalf}) · ${R.rank}위</span></div>
+    </div>
+    ${starChangesHtml(TUTORIAL_HALF.starChanges)}
+    <div class="panel prestige">
+      <div class="panel__head"><h2>명성 점수</h2><span class="panel__count">이번 시즌 <b class="n">+${gain}</b></span></div>
+      <ul class="summary">
+        ${R.prestige.map((x) => `<li><span>${esc(x.label)}</span><b>+${x.value}</b></li>`).join('')}
+        <li class="summary__total"><span>누적</span><b>${gain}</b></li>
+      </ul>
+    </div>`, '');
+  tutorialTick();
+}
+// 종료 안내 → [구단 만들기]
 function tutorialSummary() {
   clearSpot();
   const root = document.getElementById('eventmodal-root');
@@ -1289,7 +1304,7 @@ function tutorialSummary() {
       <div class="eventmodal">
         <div class="eventmodal__kicker">튜토리얼 끝</div>
         <div class="eventmodal__title">튜토리얼이 끝났어요</div>
-        <ul class="buyres__list">${TUTORIAL_SUMMARY.map((t) => `<li class="buyres__row is-good"><i></i><span>${esc(t)}</span></li>`).join('')}</ul>
+        <p class="eventmodal__detail">${esc(TUTORIAL_END_TEXT)}</p>
         <button class="cta" id="tut-end-go">구단 만들기</button>
       </div>
     </div>`;
@@ -1435,37 +1450,6 @@ const ZONE_VERDICT = {
   relegation: '지금 전력으로는 강등권입니다.',
 };
 
-// 이사진 요구 카드 3장(쉬움/보통/어려움) 중 하나를 고르는 화면. 안 골라도 되고,
-// 못 채워도 페널티는 없다 - 달성하면 다음 시즌 자금 보너스만 붙는다.
-function demandCardHtml(card, attr) {
-  const reward = Math.round(BOARD_DEMAND_REWARD[card.difficulty] * 100);
-  return `<button class="demandcard demandcard--${card.difficulty}" ${attr}="${card.id}">
-    <span class="demandcard__level">${DIFFICULTY_LABELS[card.difficulty]}</span>
-    <span class="demandcard__text">${esc(card.text)}</span>
-    <b class="demandcard__reward">+${reward}%<small>달성 시 다음 시즌 자금</small></b>
-  </button>`;
-}
-
-function renderDemandChoice(bias, onDone) {
-  const offer = drawDemandOffer(Math.random, bias, currentState.leagueTierId);
-  setScreen(`
-    <div class="verdict">
-      <div class="verdict__label">이사진 요구</div>
-      <div class="verdict__result" style="color:var(--light);font-size:var(--fs-title)">${esc(currentState.club.name)}</div>
-      <p class="note" style="text-align:center">이사진이 시즌 목표와 별개로 조건을 하나 제시합니다. 하나를 고르세요. 달성하면 보너스가 있고, 못 해도 불이익은 없습니다.</p>
-    </div>
-    <div class="demandcards">${offer.map((c) => demandCardHtml(c, 'data-demand')).join('')}</div>
-  `, '<button class="reroll" id="skip-demand-btn">요구 없이 시작</button>');
-  document.querySelectorAll('[data-demand]').forEach((el) => {
-    el.onclick = () => {
-      const card = getDemand(el.dataset.demand);
-      currentState.boardDemand = { cardId: card.id, difficulty: card.difficulty };
-      onDone();
-    };
-  });
-  document.getElementById('skip-demand-btn').onclick = () => { currentState.boardDemand = null; onDone(); };
-}
-
 function renderCareerIntro() {
   const { club, squad } = currentState;
   const tier = effectiveTier(currentState.leagueTierId);
@@ -1485,16 +1469,13 @@ function renderCareerIntro() {
     <div class="verdict">
       <div class="verdict__label">커리어 시작</div>
       <div class="verdict__result" style="color:var(--light)">${esc(club.name)}</div>
-      <p class="goalline">임시 감독 · 승점 <b>${tier.safePoints}점</b>을 넘기면 정식 감독이 돼요</p>
+      <p class="goalline">임시 감독 · 승점 <b>${tier.safePoints}점</b>(잔류)을 지키면 정식 감독이 돼요</p>
+      <blockquote class="chairman-quote">“전임 감독이 시즌 도중 떠났습니다. 구단은 지금 5부 하위권입니다.”<small>이사장</small></blockquote>
       <div class="pointbar">
         <div class="pointbar__mark" style="left:${at(tier.safePoints)}"></div>
-        <div class="pointbar__mark" style="left:${at(tier.targetPoints)}"></div>
-        <div class="pointbar__mark" style="left:${at(tier.championPoints)}"></div>
       </div>
       <div class="pointbar__legend">
         <span style="left:${at(tier.safePoints)}">잔류 ${tier.safePoints}</span>
-        <span style="left:${at(tier.targetPoints)}">승격 ${tier.targetPoints}</span>
-        <span style="left:${at(tier.championPoints)}">우승 ${tier.championPoints}</span>
       </div>
     </div>
     <details class="more">
@@ -1519,7 +1500,7 @@ function renderCareerIntro() {
   `, '<button class="cta" id="start-season-btn">시즌 시작</button>');
 
   // 첫 시즌에는 이사진 요구를 고르지 않는다(2시즌부터 등장).
-  document.getElementById('start-season-btn').onclick = () => renderDemandChoice(currentState.club.demandBias ?? {}, () => renderMarket());
+  document.getElementById('start-season-btn').onclick = () => renderMarket();
   document.getElementById('back-to-clubs-btn').onclick = () => renderClubButtons();
 }
 
@@ -1895,10 +1876,9 @@ function startNewSeason() {
   const review = currentState.pendingBoardReview ?? null;
   currentState.pendingBoardReview = null;
   if (review) {
-    currentState.funds += review.funds + (review.demand?.achieved ? review.demand.funds : 0);
+    currentState.funds += review.funds;
     if (review.funds > 0) currentState.chemistry = Math.min(100, currentState.chemistry + review.chemistry);
   }
-  currentState.boardDemand = null;
   currentState.seasonTrack = { spent: 0, winterTransactions: 0, income: 0, start: currentState.funds };
   currentState.mvpPoints = {};
   currentState.clubMood = {}; // 구단 기분은 시즌이 바뀌면 풀린다
@@ -1961,7 +1941,7 @@ function startNewSeason() {
   const transferDemand = currentState.pendingTransferDemand ?? null;
   currentState.pendingTransferDemand = null;
   const fundsReport = currentState.fundsReport ?? null;
-  currentState.seasonBriefing = { tribute, transferDemand, aging: agingReport, fundsReport, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}, currentState.leagueTierId).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
+  currentState.seasonBriefing = { tribute, transferDemand, aging: agingReport, fundsReport, review, goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
   renderMarket(banner);
 }
 
@@ -2765,10 +2745,11 @@ function renderHalfTimeVerdict(saleMessage, lineup, slotted, bench) {
   `, `<button class="cta" id="to-winter-btn">겨울 이적시장으로</button>`);
 
   document.getElementById('to-winter-btn').addEventListener('click', () => { if (currentState.tutorial) return; clearSpot(); enterWinterMarket(); });
-  if (pace === 'relegation' && !currentState.crisisShown) {
+  if (!currentState.crisisShown && !currentState.tutorial) {
     currentState.crisisShown = true;
-    const stage = trustStage();
-    showDialogueScene({ kind: 'office', beats: [{ who: 'chairman', text: pickLine(CRISIS_LINES[stage], `crisis${stage}`) }] }, () => tutorialTick());
+    const margin = points * 2 - tier.safePoints; // 반기 페이스로 본 시즌 승점 − 잔류선
+    const line = margin < 0 ? HALF_CHAIRMAN_LINES.below : margin <= 5 ? HALF_CHAIRMAN_LINES.near : HALF_CHAIRMAN_LINES.above;
+    showDialogueScene({ kind: 'office', beats: [{ who: 'chairman', text: line }] }, () => tutorialTick());
   } else tutorialTick();
 }
 
@@ -3038,12 +3019,6 @@ function renderUcl(opts = {}) {
         <div class="verdict__label">챔피언스리그</div>
         <div class="verdict__result">${UCL_RESULT_LABELS[s.result]}</div>
         <p class="note" style="text-align:center">상금 <b>+${reward}G</b>${s.result === 'champion' ? ' · 명성 대폭 상승' : ''}</p>
-        ${(() => {
-          const dm = currentState.pendingBoardReview?.demand;
-          if (!dm?.deferred) return '';
-          const ok = evaluateDemand(dm.cardId, { uclQualified: true, uclResult: s.result });
-          return `<p class="note" style="text-align:center">이사진 요구 "${esc(dm.text)}" → <b>${ok ? '달성! 다음 시즌 자금 보너스' : '미달(불이익 없음)'}</b></p>`;
-        })()}
       </div>`;
   } else {
     const legInfo = s.stage !== 'league' && s.stage !== 'final' ? ` · ${s.leg}차전` : '';
@@ -3150,14 +3125,6 @@ function renderUcl(opts = {}) {
   }
   document.getElementById('ucl-next')?.addEventListener('click', () => {
     updateRecords((r) => recordUcl(r, { result: s.result, season: currentState.seasonNumber }));
-    // 챔스 결과로 판정하는 이사진 요구(deferred)를 여기서 확정한다.
-    const dm = currentState.pendingBoardReview?.demand;
-    if (dm?.deferred) {
-      dm.achieved = evaluateDemand(dm.cardId, { uclQualified: true, uclResult: s.result });
-      dm.funds = dm.achieved ? Math.round(seasonBaseGrant() * BOARD_DEMAND_REWARD[dm.difficulty]) : 0;
-      dm.deferred = false;
-      if (dm.achieved) awardPrestige(demandPrestige(dm.difficulty));
-    }
     currentState.uclTrophyShown = false;
     awardPrestige(uclPrestige(s.result, { alsoLeagueChampion: currentState.leagueResultThisSeason === 'champion' }));
     currentState.funds += UCL_REWARDS_FUNDS[s.result];
@@ -3183,7 +3150,6 @@ function telemetrySnapshot() {
       fm: fid, spec: currentState.philosophy ? `${currentState.philosophy.id}:${currentState.philosophy.level}` : '', pow: Math.round(power * 10) / 10,
       avg: Math.round(lineup.reduce((x, p) => x + p.baseOVR, 0) / Math.max(1, lineup.length) * 10) / 10,
       chem: Math.round(currentState.chemistry), funds: currentState.funds, squad: currentState.squad.length,
-      dem: currentState.boardDemand?.cardId ?? null,
       score: currentState.prestige?.total ?? 0,
     };
   } catch (e) {
@@ -3244,7 +3210,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   if (result === 'relegation' && !currentState.appointed && !currentState.probationUsed) {
     currentState.probationUsed = true;
     effResult = 'safe';
-    boardTrustMessage = '<div class="banner banner--alert">수습 기간: 잔류선을 넘기지 못했지만 이사진이 한 시즌 더 기회를 줍니다. 임시 감독이 연장됩니다.</div>';
+    boardTrustMessage = '<div class="banner banner--alert">이사장: “한 번은 봐 드립니다. 다음은 없습니다.” 잔류선을 넘기지 못했지만 임시 감독이 한 시즌 연장됩니다.</div>';
   }
 
   currentState.lastSeason = { result: effResult, margin: totalPoints - tier.safePoints }; // 라커룸 장면 캡션에 쓴다
@@ -3307,24 +3273,9 @@ function runSecondHalfAndFinish(saleMessage = '') {
     : (currentState.pendingTransferDemand ?? rollBenchTransferDemand(currentState.squad, currentState.benchHalves, currentState.personalityMood));
   const goal = currentBoardGoal();
   const reward = boardReward(totalPoints, goal, seasonBaseGrant());
-  const chosen = currentState.boardDemand;
-  const demandCard = chosen ? getDemand(chosen.cardId) : null;
-  // 챔피언스리그 결과가 필요한 카드(deferred)는 챔스에 나갈 때만 챔스가 끝난 뒤로 판정을 미룬다.
-  const demandDeferred = !!demandCard?.deferred && uclQualified;
-  const demandAchieved = demandCard && !demandDeferred ? evaluateDemand(demandCard.id, {
-    lineup, chemistry: currentState.chemistry, track: currentState.seasonTrack,
-    firstHalfPoints: currentState.firstHalfPoints, grant: seasonBaseGrant(), goal,
-    uclQualified, uclResult: null,
-  }) : false;
-  const demandFunds = demandAchieved ? Math.round(seasonBaseGrant() * BOARD_DEMAND_REWARD[chosen.difficulty]) : 0;
-  if (demandAchieved) { const dr = demandPrestige(chosen.difficulty); awardPrestige(dr); seasonRows.push(...dr); }
   currentState.pendingBoardReview = {
     goal, points: Math.round(totalPoints), ...reward,
-    demand: demandCard ? { cardId: demandCard.id, text: demandCard.text, difficulty: chosen.difficulty, achieved: demandAchieved, funds: demandFunds, deferred: demandDeferred } : null,
   };
-  const demandLine = demandCard
-    ? `이사진 요구 "${demandCard.text}" → <b>${demandDeferred ? '챔피언스리그가 끝나면 판정됩니다' : demandAchieved ? `달성! 다음 시즌 자금 +${demandFunds}G` : '미달(불이익 없음)'}</b>`
-    : '';
   const goalLine = reward.surplus > 0
     ? `이사진 목표 ${goal}점 → <b>${reward.surplus}점 초과 달성!</b> 다음 시즌 자금 +${reward.funds}G, 조직력 +${reward.chemistry}`
     : `이사진 목표 ${goal}점 → ${reward.surplus === 0 ? '딱 맞췄지만 초과는 아닙니다' : `${-reward.surplus}점 모자랐습니다`}`;
@@ -3391,7 +3342,6 @@ function runSecondHalfAndFinish(saleMessage = '') {
       <ul class="summary">
         <li><span>최종 조직력</span><b>${currentState.chemistry.toFixed(1)}</b></li>
         <li><span>${goalLine}</span></li>
-        ${demandLine ? `<li><span>${demandLine}</span></li>` : ''}
         <li><span>남은 자금 (다음 시즌에 상한 30%까지 이월)</span><b>${currentState.funds.toFixed(0)}G</b></li>
       </ul>
     </div>
@@ -3448,7 +3398,9 @@ function maybeAppoint(survived, next) {
   if (currentState.appointed || !survived) { next(); return; }
   currentState.appointed = true;
   const [q, answers] = APPOINT_QA[Math.floor(Math.random() * APPOINT_QA.length)];
+  const promoted = currentState.lastSeason?.result === 'promotion';
   showDialogueScene({ kind: 'press', flash: true, beats: [
+    { who: 'chairman', text: promoted ? '잔류 이상입니다. 이사진도 놀랐습니다.' : '약속을 지키셨습니다. 정식 감독으로 모시겠습니다.' },
     { who: 'reporter', text: q },
     { who: 'chairman', text: answers[Math.floor(Math.random() * answers.length)] },
     { who: 'reporter', text: '감독님, 당신의 축구는 어떤 축구입니까?' },
@@ -4079,7 +4031,6 @@ function renderMarket(banner = '') {
     </div>` : '';
 
   const draftSub = currentState.draftSub === 'sell' ? 'sell' : isUnlocked('staff') ? currentState.draftSub ?? 'players' : 'players';
-  const boardDemandCard = currentState.boardDemand ? getDemand(currentState.boardDemand.cardId) : null;
   const bodies = {
     draft: `
       <section class="panel tabpanel">
@@ -4190,10 +4141,9 @@ function renderMarket(banner = '') {
           ${(loadRecords(localStorage).bestScore ?? 0) > 0 ? `<i class="res__best">최고 ${loadRecords(localStorage).bestScore}</i>` : ''}
         </div>
       </div>
-      ${isUnlocked('board') ? `      <div class="goalstrip" id="goal-strip" title="이사진 목표 ${currentBoardGoal()}점 (안전 ${effectiveTier(currentState.leagueTierId).safePoints} · 승격 ${effectiveTier(currentState.leagueTierId).targetPoints})">
-        <span>이사진 요구</span>
-        ${boardDemandCard ? `<b>${esc(boardDemandCard.short ?? boardDemandCard.text)}</b><em>+${Math.round(BOARD_DEMAND_REWARD[currentState.boardDemand.difficulty] * 100)}%</em>` : '<b class="is-none">없음</b>'}
-      </div>` : ''}
+      <div class="goalstrip" id="goal-strip" title="이사진 목표 ${currentBoardGoal()}점">
+        <span>이사진 목표</span><b>${currentBoardGoal()}점</b>
+      </div>
       <p class="note chem-info" id="funds-info" hidden>
         <b>이번 시즌 자금 흐름</b><br>
         시즌 시작 <b>${track.start.toLocaleString('ko-KR')}G</b> ·
@@ -4228,14 +4178,6 @@ function renderMarket(banner = '') {
     ${bodies[tab]}
   `, `<button class="cta" id="next-week-btn">${week === maxWeek ? (phase === 'summer' ? '전반기 시작' : '후반기 시작') : '다음 주로'}</button>`);
 
-  // 이사진 요구 문구가 길면 두 줄로 늘리지 않고 글자를 조금씩 줄여 한 줄에 맞춘다(최소 10px)
-  const demandText = document.querySelector('#goal-strip b');
-  if (demandText) {
-    let fs = 12;
-    demandText.style.fontSize = `${fs}px`;
-    while (demandText.scrollWidth > demandText.clientWidth && fs > 10) { fs -= 0.5; demandText.style.fontSize = `${fs}px`; }
-  }
-
   document.querySelector('[data-goto-squad]')?.addEventListener('click', () => { currentState.tab = 'squad'; renderMarket(); });
   for (const t of visibleTabs()) {
     document.querySelector(`[data-tab="${t.id}"]`).onclick = () => {
@@ -4249,6 +4191,7 @@ function renderMarket(banner = '') {
         e.stopPropagation();
         const li = btn.closest('.mk__card');
         const open = li.classList.toggle('is-open');
+        if (open) setTimeout(() => tutorialEvent('cardOpened'), 0);
         li.querySelector('.mk__exp').hidden = !open;
         btn.setAttribute('aria-expanded', String(open));
         btn.querySelector('.mk__more-n').textContent = open ? '접기' : `+${li.querySelectorAll('.mk__exp > div').length}`;
@@ -4465,6 +4408,7 @@ function renderMarket(banner = '') {
         if (next) currentState.marks[id] = next; else delete currentState.marks[id];
         renderMarket();
         tutorialEvent('bookmarked');
+        if (currentState.marks[id] === 'cut') tutorialEvent('marked'); // ☆ → ★ → ✂ 두 번째에서 완료
       };
     });
     document.querySelectorAll('[data-markset]').forEach((btn) => { // 펼친 영역의 유망/정리 버튼: 접힌 행의 순환 아이콘과 같은 marks 상태를 독립 토글로 바꾼다
@@ -4507,7 +4451,7 @@ function renderMarket(banner = '') {
   });
   document.getElementById('next-week-btn').onclick = () => {
     clearSpot();
-    if (currentState.tutorial) { tutorialNextWeek(); tutorialEvent('nextWeekPressed'); return; } // 가짜 주차 전환
+    if (currentState.tutorial) { tutorialEvent('nextWeekPressed'); return; } // 가짜 전환: 시즌 전체를 한 번에 넘긴다
     const enteringSim = week === maxWeek; // 전/후반기 시뮬레이션은 renderSimulating이 따로 연출한다
     if (enteringSim) {
       const missing = missingPositions(currentState.squad, currentFormation());
@@ -4534,7 +4478,7 @@ function renderMarket(banner = '') {
   const eventRoot = document.getElementById('eventmodal-root');
   const briefing = currentState.seasonBriefing;
   if (briefing) {
-    const { review, goal, tierLabel, seasonNumber, demandOffer } = briefing;
+    const { review, goal, tierLabel, seasonNumber } = briefing;
     const tier = effectiveTier(currentState.leagueTierId);
     const fr = briefing.fundsReport;
     const fundsHtml = fr ? `<div class="agingbox">
@@ -4569,13 +4513,10 @@ function renderMarket(banner = '') {
         </div>
       </div>` : '';
     const tributeHtml = (briefing.tribute ?? []).map((t) => `<p class="eventmodal__detail tribute"><b>${esc(t.name)}</b>, ${t.seasons}시즌을 함께하고${t.mvp ? ` MVP ${t.mvp}회를 남기고` : ''} 은퇴합니다.${t.legend ? ' 클럽 레전드였습니다.' : ''} 고마웠습니다.</p>`).join('');
-    const demandReviewHtml = review?.demand
-      ? `<p class="eventmodal__detail">요구 "${esc(review.demand.text)}": <b>${review.demand.achieved ? `달성! 자금 +${review.demand.funds.toLocaleString('ko-KR')}G` : '미달(불이익 없음)'}</b></p>`
-      : '';
     const reviewHtml = !review ? '' : review.surplus > 0
       ? `<p class="eventmodal__detail"><b>지난 시즌 목표 ${review.goal}점 → ${review.points}점, ${review.surplus}점 초과 달성!</b><br>보상: 자금 +${review.funds.toLocaleString('ko-KR')}G, 조직력 +${review.chemistry}</p>`
       : `<p class="eventmodal__detail">지난 시즌 목표 ${review.goal}점 → ${review.points}점 (${review.surplus === 0 ? '초과 달성은 못 했습니다' : `${-review.surplus}점 부족`}). 보상 없음.</p>`;
-    // 한 화면에 다 넣으면 길어서 잘렸다 - 브리핑(목표·요구)과 결산(자금·선수단 변화)을 탭으로 나눈다.
+    // 한 화면에 다 넣으면 길어서 잘렸다 - 브리핑(목표)과 결산(자금·선수단 변화)을 탭으로 나눈다.
     const hasSettle = !!(fundsHtml || agingHtml);
     eventRoot.innerHTML = `
       <div class="eventmodal-backdrop">
@@ -4589,11 +4530,8 @@ function renderMarket(banner = '') {
           <div class="eventpane" data-epane="brief">
             ${tributeHtml}
             ${reviewHtml}
-            ${demandReviewHtml}
             ${transferHtml}
             <p class="eventmodal__detail">안전선 ${tier.safePoints}점 · 승격선 ${tier.targetPoints}점. ${BOARD_RULE_TEXT}</p>
-            ${isUnlocked('board') ? `<div class="demandcards demandcards--modal">${(demandOffer ?? []).map((id) => demandCardHtml(getDemand(id), 'data-pick-demand')).join('')}</div>
-            <p class="eventmodal__detail">위 카드에서 이번 시즌 이사진 요구를 고르면 달성 시 보너스가 붙습니다(안 골라도 됩니다).</p>` : ''}
           </div>
           ${hasSettle ? `<div class="eventpane" data-epane="settle" hidden>${fundsHtml}${agingHtml}</div>` : ''}
           <button class="cta" id="eventmodal-dismiss">목표 확인</button>
@@ -4603,13 +4541,6 @@ function renderMarket(banner = '') {
       tabBtn.onclick = () => {
         eventRoot.querySelectorAll('[data-etab]').forEach((b) => b.setAttribute('aria-selected', String(b === tabBtn)));
         eventRoot.querySelectorAll('[data-epane]').forEach((p) => { p.hidden = p.dataset.epane !== tabBtn.dataset.etab; });
-      };
-    });
-    eventRoot.querySelectorAll('[data-pick-demand]').forEach((el) => {
-      el.onclick = () => {
-        const card = getDemand(el.dataset.pickDemand);
-        currentState.boardDemand = { cardId: card.id, difficulty: card.difficulty };
-        eventRoot.querySelectorAll('[data-pick-demand]').forEach((o) => o.classList.toggle('is-picked', o === el));
       };
     });
     const resolveTransfer = (leave) => {

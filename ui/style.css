@@ -1333,21 +1333,6 @@ button:not(:disabled):active { transform: scale(0.98); }
 @keyframes trophySpin { to { rotate: 360deg; } }
 @keyframes trophyFall { to { transform: translateY(110vh) rotate(540deg); } }
 @media (prefers-reduced-motion: reduce) { .trophy__rays, .trophy__confetti i, .trophy__cup { animation: none; } }
-/* 이사진 요구 카드 */
-.demandcards { display: grid; gap: var(--s2); margin: var(--s3) var(--s4); }
-.demandcard {
-  display: grid; gap: 2px; text-align: left; width: 100%;
-  padding: var(--s3); border-radius: var(--r-md);
-  background: var(--surface); border: 1px solid var(--line); color: var(--light); font: inherit; cursor: pointer;
-}
-.demandcard__level { font-size: var(--fs-micro); color: var(--muted); }
-.demandcard__text { font-weight: 700; }
-.demandcard__reward { font-size: var(--fs-micro); color: var(--turf); }
-.demandcard--hard .demandcard__level { color: var(--debit); }
-.demandcard--normal .demandcard__level { color: var(--gold); }
-.demandcard:hover, .demandcard.is-picked { border-color: var(--turf); box-shadow: 0 0 0 1px var(--turf); }
-.demandcards--modal { text-align: left; }
-
 /* ============ 정돈: 감독/스태프 카드, 선수단 행 ============ */
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 0; }
 .tag--tier { color: var(--tier, var(--muted)); background: transparent; border: 1px solid var(--tier, var(--line)); font-weight: 700; }
@@ -1819,17 +1804,6 @@ h1, h2, h3, .topbar__club, .club__name, .tab, .buy, .deal__buy span, .reroll, .f
 .formations button { font-size: 13px; font-family: var(--display); font-weight: 400; letter-spacing: 0.04em; padding: 6px 12px; }
 
 /* 이사진 요구 카드: 난이도 띠 + 큰 보상 숫자 */
-.demandcards { gap: var(--s3); margin-top: var(--s6); }
-.demandcard {
-  display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'level reward' 'text reward'; align-items: center; column-gap: var(--s4); row-gap: 6px;
-  padding: var(--s4); text-align: left; border-left: 5px solid var(--turf);
-}
-.demandcard--normal { border-left-color: var(--gold); }
-.demandcard--hard { border-left-color: var(--debit); }
-.demandcard__level { grid-area: level; font-family: var(--display); font-weight: 400; font-size: var(--fs-body); letter-spacing: 0.06em; color: var(--turf); }
-.demandcard__text { grid-area: text; font-size: var(--fs-m); line-height: 1.35; }
-.demandcard__reward { grid-area: reward; font-family: var(--display); font-size: 30px; line-height: 1; letter-spacing: 0.02em; color: var(--light); text-align: right; }
-.demandcard__reward small { display: block; margin-top: 4px; font-family: var(--ui); font-size: 10px; letter-spacing: 0; color: var(--muted); }
 
 /* 구단 선택 카드 */
 .club__name { font-size: 22px; line-height: 1.1; letter-spacing: 0.02em; margin-bottom: var(--s2); }
@@ -1837,7 +1811,7 @@ h1, h2, h3, .topbar__club, .club__name, .tab, .buy, .deal__buy span, .reroll, .f
 
 /* ===== v5: 각진 스포츠 톤 + 버튼 위계 (색은 건드리지 않는다) ===== */
 :root { --r-lg: 6px; --r-md: 4px; --r-sm: 2px; }
-.offer.deal, .demandcard, .club, .panel, .contractbox, .fitbar, .crewcard, .goalstrip { border-radius: 6px; }
+.offer.deal, .club, .panel, .contractbox, .fitbar, .crewcard, .goalstrip { border-radius: 6px; }
 .deal .pcard, .slot__card, .pcard { border-radius: 6px; }
 .deal__name { border-radius: 2px; }
 .cta, .buy, .deal__buy, .reroll { border-radius: 4px; }
@@ -1909,8 +1883,8 @@ html[data-theme='kiwi'] .act--main { background: color-mix(in srgb, #ccff00 18%,
 #screen > p.note { padding-left: var(--s4); padding-right: var(--s4); }
 
 /* 내용이 짧은 안내 화면은 세로 가운데로 */
-#screen:has(> .demandcards), #screen:has(> .verdict) { display: flex; flex-direction: column; justify-content: center; min-height: calc(100dvh - 96px); }
-#screen:has(> .demandcards) > *, #screen:has(> .verdict) > * { flex: none; }
+#screen:has(> .verdict) { display: flex; flex-direction: column; justify-content: center; min-height: calc(100dvh - 96px); }
+#screen:has(> .verdict) > * { flex: none; }
 
 /* ===== 사용자 요청 반영 ===== */
 /* 영입 카드: 이름 뒤 검은 박스 삭제 */
@@ -3356,3 +3330,7 @@ html[data-theme] .goalstrip { border: 1px solid #2b2b30; border-radius: 999px; b
 html[data-theme] .backlink { align-self: flex-start; justify-self: start; width: fit-content; margin: 14px 0 0 16px; text-align: left; font-size: 14px; color: #f4f1e8; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 html[data-theme] .tut__skip { text-decoration: underline; text-underline-offset: 3px; }
 html[data-theme] .backlink { position: fixed; top: 14px; left: calc(50% - min(50vw, 230px) + 16px); margin: 0; z-index: 5; }
+
+/* 커리어 시작 화면: 이사장 한마디 */
+.chairman-quote { margin: var(--s3) 0; padding: var(--s2) var(--s3); border-left: 3px solid var(--turf); color: var(--muted); font-size: var(--fs-body); line-height: 1.45; text-align: left; }
+.chairman-quote small { display: block; margin-top: 4px; font-size: var(--fs-micro); color: var(--muted); opacity: .8; }

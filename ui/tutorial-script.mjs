@@ -96,35 +96,42 @@ export function buildTutorialState() {
     seasonNumber: 1, startedAt: 0, telemetryRun: 'tutorial',
     formation: DEFAULT_FORMATION, manualOverrides: {}, benchOverrides: {}, selectedSlot: null,
     tab: 'draft', draftSub: 'players', week: 1, phase: 'summer', transactedThisWeek: false,
-    shopOffer: [], staffOffer: {}, firstHalfPoints: null, listedForSale: [], boardDemand: null,
+    shopOffer: [], staffOffer: {}, firstHalfPoints: null, listedForSale: [],
     seasonTrack: { spent: 0, winterTransactions: 0, income: 0, start: 120 },
     boardTrustUsed: false, promotionFundsBonusPending: false, freshBudget: false, pendingTransferProceeds: 0,
     marks: {}, seasonStartStars: {}, windowBuys: [], justBoughtIds: [], clues: {}, patience: {}, rejected: {}, counterOffer: {}, bidMemory: {},
   };
 }
 
-// 단계 표. trigger: 화면이 부르는 이벤트 이름('confirm'은 안내 박스의 [확인]). allow: 클릭을 통과시킬 셀렉터(스포트라이트 대상 밖).
-// tab/sub: 단계가 시작될 때 스크립트가 직접 이동한다(사용자에게 탭을 누르라고 하지 않는다).
+// 단계 표(16단계 + 종료 안내). trigger: 화면이 부르는 이벤트 이름('confirm'은 안내 박스의 [확인]). allow: 클릭을 통과시킬 셀렉터(스포트라이트 대상 밖).
+// tab/sub: 단계가 시작될 때 스크립트가 직접 이동한다. keep: 화면을 다시 그리지 않는다. inModal: 대상이 위에 열린 창 안에 있다.
 export const TUTORIAL_STEPS = [
-  { id: 'goal', tab: 'draft', sub: 'players', selector: '#goal-strip', text: '안녕하세요, 감독님! 올리비아예요. 이 승점 위로 시즌을 마치면 정식 감독이 돼요!', trigger: 'confirm' },
+  { id: 'goal', tab: 'draft', sub: 'players', selector: '#goal-strip', text: '안녕하세요, 감독님! 올리비아예요. 이번 시즌 승점 38점(잔류)만 지키면 정식 감독이 돼요!', trigger: 'confirm' },
   { id: 'scout', tab: 'draft', sub: 'players', selector: '#scout-order', text: '스카우트 조건을 하나 골라 보세요! 맞는 선수 3명이 와요.', trigger: 'scoutOrderPicked', allow: ['#scout-order'] },
-  { id: 'report', tab: 'squad', selector: '[data-row="t03"]', text: '선수를 눌러 리포트를 열어요! 별 아래에 스태프 의견이 있어요.', trigger: 'rowOpened', allow: ['[data-row="t03"]'] },
-  { id: 'mark', keep: true, tab: 'squad', selector: '[data-row="t03"] [data-mark], [data-row="t03"] [data-markset]', text: '마음에 들면 ☆를 눌러 표시해 두세요!', trigger: 'bookmarked', allow: ['[data-row="t03"]'] },
-  { id: 'tactics', tab: 'tactics', selector: '.formations', text: '포메이션을 눌러 보세요! 같은 태그 선수가 모일수록 팀 스타일이 강해져요.', trigger: 'formationPicked', allow: ['.formations'] },
-  { id: 'list', tab: 'squad', selector: '[data-row="t14"]', text: '이 선수를 판매 등록해 봐요! 등록하면 선발에서 빠지고 \'판매 중\'에 들어가요.', trigger: 'listed', allow: ['[data-row="t14"]'] },
-  { id: 'accept', tab: 'draft', sub: 'sell', selector: '.sellcard', text: '오퍼를 눌러 팔아 보세요! 돈이 들어와요.', trigger: 'offerAccepted', allow: ['.sellcard', '#eventmodal-root'] },
-  { id: 'next', tab: 'draft', sub: 'players', selector: '#next-week-btn', text: '\'다음 주로\'를 눌러요! 부탁한 선수 3명이 도착해요.', trigger: 'nextWeekPressed', allow: ['#next-week-btn'] },
-  { id: 'card', tab: 'draft', sub: 'players', selector: '[data-row="tc1"]', text: '카드를 눌러 별과 리포트를 읽어요! 마음에 들면 [협상]을 눌러요.', trigger: 'haggleOpened', allow: ['[data-row="tc1"]'] },
-  { id: 'explore', selector: '[data-explore]', inModal: true, text: '[탐색]을 눌러 정보를 모아요! 첫 번째는 공짜예요.', trigger: 'explored', allow: ['[data-explore]'] },
+  { id: 'arrive', tab: 'draft', sub: 'players', selector: 'ul.offers', text: '선수 3명이 도착했어요! 튜토리얼에서는 바로 와요.', trigger: 'confirm' },
+  { id: 'card', tab: 'draft', sub: 'players', selector: '[data-row="tc1"] [data-more]', text: '카드를 눌러 리포트를 읽어요! 별 아래에 스태프 의견이 있어요.', trigger: 'cardOpened', allow: ['[data-row="tc1"]'] },
+  { id: 'haggle', keep: true, selector: '[data-row="tc1"] [data-buy]', text: '[협상]을 누르고 [탐색]으로 정보를 모아요! 첫 번째는 공짜예요.', trigger: 'haggleOpened', allow: ['[data-row="tc1"]'] },
+  { id: 'explore', selector: '[data-explore]', inModal: true, text: '[협상]을 누르고 [탐색]으로 정보를 모아요! 첫 번째는 공짜예요.', trigger: 'explored', allow: ['[data-explore]'] },
   { id: 'bid', selector: '#bid-go', inModal: true, text: '이제 가격을 정해 [제안]해요!', trigger: 'bidSent', allow: ['#eventmodal-root'] },
+  { id: 'funds', tab: 'draft', sub: 'players', selector: '#mk-more-btn', text: '영입하면 자금(G)이 줄고 조직력이 조금 떨어져요! 영입·판매가 많을수록 더 떨어져요.', trigger: 'confirm' },
+  { id: 'tactics', tab: 'tactics', selector: '.formations', text: '포메이션을 눌러 보세요! 같은 태그 선수가 모일수록 팀 스타일이 강해져요.', trigger: 'formationPicked', allow: ['.formations'] },
+  { id: 'cap', tab: 'squad', selector: '.sqsum', text: '선수단은 최대 22명이에요. 여기서 현재 인원을 확인해요!', trigger: 'confirm' },
+  { id: 'mark', tab: 'squad', selector: '[data-row="t03"] [data-mark]', text: '☆를 누르면 유망(★), 한 번 더 누르면 정리 후보(✂)예요! 두 번 눌러 보세요.', trigger: 'marked', allow: ['[data-row="t03"] [data-mark]'] },
+  { id: 'list', tab: 'squad', selector: '[data-row="t14"]', text: '이 선수를 판매 등록해 봐요! 등록하면 선발에서 빠지고 판매 중에 들어가요.', trigger: 'listed', allow: ['[data-row="t14"]'] },
+  { id: 'sale', tab: 'draft', sub: 'sell', selector: '.sellcard', text: '오퍼를 눌러 [더 불러 보기]로 가격을 올려 봐요! 마음에 들면 수락해요.', trigger: 'offerAccepted', allow: ['.sellcard', '#eventmodal-root'] },
+  { id: 'staff', tab: 'staff', selector: '.mgrpanel', text: '스카우터는 지시 칸과 좋은 카드를, 코치는 성장과 조직력을 도와요! 둘 다 등급이 높을수록 리포트가 자세해져요.', trigger: 'confirm' },
+  { id: 'next', tab: 'draft', sub: 'players', selector: '#next-week-btn', text: '이제 [다음 주로]를 눌러요! 튜토리얼에서는 시즌이 한 번에 지나가요.', trigger: 'nextWeekPressed', allow: ['#next-week-btn'] },
   { id: 'half', selector: '.verdict', text: '전반기 결산이에요! 목표 페이스와 비교해 보세요.', trigger: 'confirm', allow: ['#tut-preview-go'] },
-  { id: 'stars', keep: true, selector: '.agingbox--reeval', text: '별이 ▲▼로 움직였어요! 별은 시즌마다 조금씩 변해요.', trigger: 'confirm' },
+  { id: 'result', selector: '.verdict', text: '시즌 결과예요! 후반기도 같은 방식으로 결산돼요.', trigger: 'confirm' },
+  { id: 'stars', keep: true, selector: '.agingbox--reeval', text: '별이 ▲▼로 움직였어요! 별은 세상의 평가라서 시즌마다 조금씩 변해요.', trigger: 'confirm' },
+  { id: 'prestige', keep: true, selector: '.panel.prestige', text: '명성은 이번 판의 점수예요! 승격·우승으로 쌓이고, 판이 끝나면 등급이 매겨져요.', trigger: 'confirm' },
 ];
 
-// 종료 안내(요약 카드): 올리비아 말투 없이 4줄
-export const TUTORIAL_SUMMARY = [
-  '스태프가 좋을수록 리포트가 자세해요.',
-  '영입·판매가 많으면 조직력이 떨어져요.',
-  '명성은 이번 판의 점수예요.',
-  '정원은 22명이에요.',
-];
+// 시즌 결과(고정): 잔류 달성, 고정 명성 +24
+export const TUTORIAL_RESULT = {
+  points: 66, firstHalf: 33, secondHalf: 33, rank: 4,
+  prestige: [{ label: '5부 잔류', value: 14 }, { label: '안전 승점 초과', value: 10 }],
+};
+
+// 종료 안내
+export const TUTORIAL_END_TEXT = '이제 진짜 구단을 만들어 볼까요?';

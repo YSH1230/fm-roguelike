@@ -36,7 +36,7 @@ test('단계 표: 트리거가 있고 id가 겹치지 않으며 허용 셀렉터
     assert.ok(s.trigger && s.selector && s.text, s.id);
     for (const a of s.allow ?? []) assert.equal(typeof a, 'string');
   }
-  assert.ok(TUTORIAL_STEPS.length <= 13);
+  assert.ok(TUTORIAL_STEPS.length >= 16 && TUTORIAL_STEPS.length <= 20);
 });
 
 test('시작 상태는 튜토리얼 표시가 있고 저장용 필드가 본 게임 상태와 겹치지 않는다', () => {
