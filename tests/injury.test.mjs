@@ -9,13 +9,13 @@ test('부상 확률은 내구성과 나이에 따라 달라진다', () => {
   const iron = rate({ durability: 'iron', age: 25 }, ['minor', 'mid', 'half', 'season']);
   const fragile = rate({ durability: 'fragile', age: 25 }, ['minor', 'mid', 'half', 'season']);
   assert.ok(iron < base && base < fragile);
-  assert.ok(Math.abs(base - 0.24) < 0.02);
+  assert.ok(Math.abs(base - 0.16) < 0.02);
   assert.equal(injuryMult({ durability: 'normal', age: 34 }), 1.3);
 });
 
 test('시장 부상은 반기 아웃·시즌 아웃만 굴린다', () => {
   for (let i = 0; i < 2000; i++) assert.ok(['half', 'season', null].includes(rollInjury({ age: 25 }, Math.random, ['half', 'season'])));
-  assert.equal(INJURY_BASE.season, 0.01);
+  assert.equal(INJURY_BASE.season, 0.005);
 });
 
 test('이력 칩: 심한 것부터 최대 2개, 중간 부상 제외, 접힌 칩엔 부위 없고 펼친 줄엔 부위', () => {

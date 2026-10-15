@@ -1,8 +1,8 @@
 // v3: 부상 4단계. 잔부상·중간 부상은 반기 시뮬 중 발생해 승점만 깎고, 반기 아웃·시즌 아웃은 시장 중간에 알림이 와서 대응할 수 있다.
 export const INJURY_KINDS = ['minor', 'mid', 'half', 'season'];
-export const INJURY_BASE = { minor: 0.14, mid: 0.06, half: 0.03, season: 0.01 }; // 보통 내구성의 반기당 확률
+export const INJURY_BASE = { minor: 0.10, mid: 0.04, half: 0.015, season: 0.005 }; // 보통 내구성의 반기당 확률(플레이 피드백으로 절반 수준)
 export const INJURY_LABELS = { minor: '잔부상', mid: '중간 부상', half: '반기 아웃', season: '시즌 아웃' };
-export const INJURY_POINTS = { minor: 0.2, mid: 0.6 }; // 선발일 때 깎이는 승점
+export const INJURY_POINTS = { minor: 0.3, mid: 1.0 }; // 선발일 때 깎이는 승점
 export const DURABILITY_MULT = { iron: 0.4, normal: 1, fragile: 2 };
 
 // 부상 부위(표시용: 승점·기간에 영향 없음). [키, 표시 이름, 계열, 기본 가중]

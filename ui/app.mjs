@@ -13,7 +13,7 @@ import {
   loadRecords, saveRecords, recordRunStart, recordTrait, recordLegend, recordStyleTitle, recordPromotion, recordSeason, recordUcl, recordRunEnd,
   uclReached, ACHIEVEMENTS, unlockedIds, newlyUnlocked,
 } from '../data/records.mjs';
-import { generateSquadPool, generateStartingSquad, generateEmergencyYouth } from '../data/generate-player.mjs';
+import { generateSquadPool, generateStartingSquad, generateEmergencyYouth, reservePlayerIds } from '../data/generate-player.mjs';
 import { assignRandomStaff, generateStaffOffer, generateStaffCandidate } from '../data/staff.mjs';
 import { GOD_PLAYERS } from '../data/god-players.mjs';
 import { rollSeasonEvent, describeChoice, resolveChoice } from '../data/season-events.mjs';
@@ -58,8 +58,8 @@ import { simulateLeagueTable, rankingAt, finalRankFromTable, MATCHES_PER_HALF } 
 import { ageSquad, playerTrend, ensurePotential, hasPeaked, bodyAge, growthStage } from '../engine/aging.mjs';
 import { potentialGrade, haggleHint } from '../engine/scouting.mjs';
 import {
-  PHILOSOPHIES, PHILOSOPHY_IDS, MAX_PHILOSOPHY_LEVEL, drawPhilosophyChoices, levelUpPhilosophy, philosophyText,
-  TALKS, drawTalkChoices, rollTalkOutcome, describeTalkFx, specialtyEffects,
+  PHILOSOPHIES, PHILOSOPHY_IDS, MAX_PHILOSOPHY_LEVEL, drawPhilosophyChoices, levelUpPhilosophy, switchPhilosophy, philosophyText,
+  TALKS, drawTalkChoices, rollTalkOutcome, describeTalkFx, specialtyEffects, capTalkDelta, talkDirection, TALK_SEASON_CHEM_CAP, TALK_SEASON_POINTS_CAP,
 } from '../engine/specialties.mjs';
 import { BID_MIN_RATIO, buyBid, sellBid, reservePrice, maxSalePrice, deadlinePressure, patienceCost, toleranceFor, patienceFor, attitudeScore, attitudeLabel, clubBaseAttitude, cardUniform, moodAfter } from '../engine/haggle.mjs';
 import { FORMATIONS, DEFAULT_FORMATION, POSITION_GROUPS } from './formations.mjs';
@@ -130,6 +130,8 @@ function ensurePositionCoverage() {
 }
 
 const BENCH_SIZE = 5;
+// 판매 중(등록한) 선수: 정원엔 포함되지만 선발·벤치·자동 주장·출전 요구 후보에서는 빠진다.
+const listedIds = () => new Set((currentState?.listedForSale ?? []).map((l) => l.card.id));
 
 // formationId의 슬롯 순서대로 최고 OVR을 채운다. 포지션이 맞는 선수가 없으면
 // 그 포지션 선수가 없으면 공석으로 둔다(오프포지션 대타 없음) - 이적시장이
@@ -139,7 +141,8 @@ const BENCH_SIZE = 5;
 // (벤치 슬롯 0~4 -> 선수 id)으로 벤치 구성도 직접 고를 수 있다.
 function pickBestXI(squad, formationId = DEFAULT_FORMATION, manualOverrides = {}, benchOverrides = {}) {
   const { slots, tag: formationTag } = FORMATIONS[formationId] ?? FORMATIONS[DEFAULT_FORMATION];
-  const pool = squad.filter((p) => !(p.out > 0)); // v3: 반기 아웃·시즌 아웃 부상자는 뛸 수 없다
+  const sold = listedIds();
+  const pool = squad.filter((p) => !(p.out > 0) && !sold.has(p.id)); // v3: 반기 아웃·시즌 아웃 부상자와 판매 중 선수는 뛸 수 없다
   const used = new Set();
   const forced = {};
   for (const [idxStr, playerId] of Object.entries(manualOverrides)) {
@@ -157,7 +160,7 @@ function pickBestXI(squad, formationId = DEFAULT_FORMATION, manualOverrides = {}
     const byPosition = pool
       .filter((p) => !used.has(p.id) && p.position === pos)
       .sort((a, b) => observedOVR(b) - observedOVR(a));
-    const pick = byPosition[0];
+    const pick = byPosition.find((p) => !p.reserveHold) ?? byPosition[0]; // 새로 영입한 선수는 그 자리가 비어 있을 때만 자동으로 선다
     if (!pick) return null; // 그 포지션 선수 없음 — 공석
     used.add(pick.id);
     return { ...pick, slotPosition: pos, offPosition: pick.position !== pos, formationTag };
@@ -173,7 +176,7 @@ function pickBestXI(squad, formationId = DEFAULT_FORMATION, manualOverrides = {}
       used.add(player.id);
     }
   }
-  const leftover = pool.filter((p) => !used.has(p.id)).sort((a, b) => observedOVR(b) - observedOVR(a));
+  const leftover = pool.filter((p) => !used.has(p.id) && !p.reserveHold).sort((a, b) => observedOVR(b) - observedOVR(a)); // reserveHold: 직접 배치하기 전까지 예비
   const bench = Array.from({ length: BENCH_SIZE }, (_, i) => forcedBench[i] ?? leftover.shift())
     .filter(Boolean)
     .map((p) => ({ ...p, inBench: true }));
@@ -198,7 +201,10 @@ function currentFormation() {
 // 감독 효과(engine/specialties.mjs): 전술 철학(영구) + 이번 시즌 라커룸 토크. 엔진 계산 곳곳에 이 한 객체를 넘긴다.
 function fx(half = null) {
   // leagueIdx·half: 숨은 선수 특성(리그 적응·시즌 리듬)이 작동하는 데 필요하다
-  return { ...specialtyEffects(currentState?.philosophy, currentState?.stance?.fx), leagueIdx: currentState?.leagueTierId ? getLadderIndex(currentState.leagueTierId) : null, half };
+  const base = specialtyEffects(currentState?.philosophy, currentState?.stance?.fx);
+  base.pointsFirst += currentState?.preTalks?.pre1?.fx?.pointsFirst ?? 0; // ②③ 반기 직전 토크
+  base.pointsSecond += currentState?.preTalks?.pre2?.fx?.pointsSecond ?? 0;
+  return { ...base, leagueIdx: currentState?.leagueTierId ? getLadderIndex(currentState.leagueTierId) : null, half };
 }
 // 반기 승점에 더해지는 라커룸 토크 보너스(승부수 선언 등)
 function halfBonus(half) {
@@ -449,7 +455,8 @@ function draftStaffHtml(funds) {
 // 철학 카드: 이름, 대사, 한 줄 소개, 레벨별 효과. nextLevel이면 "Lv1 → Lv2" 강화 표시.
 function philosophyCardHtml(id, level, { from = 0 } = {}) {
   const p = PHILOSOPHIES[id];
-  const need = p.kind === 'tag' ? `<small class="spec__need">필요: ${esc(TAG_LABELS[p.tag])} 태그 선수 3명 이상</small>` : '';
+  const have = p.kind === 'tag' ? (currentState?.squad ?? []).filter((x) => x.playstyleTags?.includes(p.tag)).length : null;
+  const need = p.kind === 'tag' ? `<small class="spec__need">필요: ${esc(TAG_LABELS[p.tag])} 태그 선수 3명 이상 · 내 선수단 ${have}명</small>` : '';
   return `<span class="spec__head"><b class="spec__name">${esc(p.name)}</b><i class="spec__lv">${from ? `Lv${from} → Lv${level}` : `Lv${level}`}</i></span>
     <span class="spec__line">${esc(p.line)}</span>
     <span class="spec__blurb">${esc(p.blurb)}</span>
@@ -459,7 +466,7 @@ function philosophyCardHtml(id, level, { from = 0 } = {}) {
 // 정식 임명: 철학 3택1
 function showPhilosophyPick(onDone) {
   const root = document.getElementById('eventmodal-root');
-  const choices = drawPhilosophyChoices();
+  const choices = [...PHILOSOPHY_IDS]; // 8종 전체에서 고른다(해금 조건 없음)
   root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal eventmodal--goal specpick">
@@ -513,7 +520,7 @@ function showPhilosophyLevelUp(onDone) {
       </div>`;
     root.querySelectorAll('[data-mode]').forEach((b) => { b.onclick = () => open(b.dataset.mode, null); });
     root.querySelectorAll('[data-ph]').forEach((b) => { b.onclick = () => open('swap', b.dataset.ph); });
-    document.getElementById('phil-ok').onclick = () => finish(mode === 'keep' ? { ...ph, level: keepLv } : { id: pick, level: newLv });
+    document.getElementById('phil-ok').onclick = () => finish(mode === 'keep' ? { ...ph, level: keepLv } : switchPhilosophy(ph, pick));
   };
   open('keep', null);
 }
@@ -621,24 +628,38 @@ const CAPTAIN_LINES = {
   mixed: ['…일단 따르겠습니다. 결과로 보여 주시죠.', '말은 알겠는데, 몇 명은 아직 표정이 안 풀렸어요.', '나쁘지 않았습니다. 다만 모두가 같은 생각은 아닐 겁니다.', '{호칭}, 해 보면 알겠죠.'],
   bad: ['…그렇게 말씀하실 줄은 몰랐습니다.', '분위기가 좀 싸늘해졌네요, {호칭}.', '솔직히, 몇 명은 불편해합니다.', '다음엔 선수들 입장도 생각해 주세요.'],
 };
+// 토크 효과를 상태에 반영한다. 조직력·승점은 시즌 합계 한도 안으로 잘라 낸 값(showTalkPick에서 잘랐다)이 들어온다.
 function applyTalkOutcome(outcome) {
-  if (outcome.kind === 'start') {
-    currentState.stance = outcome;
-    if (outcome.fx.chemNow) currentState.chemistry = Math.max(0, Math.min(100, currentState.chemistry + outcome.fx.chemNow));
-  } else {
-    currentState.offseason = outcome;
-  }
+  const chem = outcome.fx.chemNow ?? 0;
+  if (chem) currentState.chemistry = Math.max(0, Math.min(100, currentState.chemistry + chem));
+  currentState.talkChemSum = (currentState.talkChemSum ?? 0) + chem;
+  currentState.talkPtsSum = (currentState.talkPtsSum ?? 0) + (outcome.fx.pointsFirst ?? 0) + (outcome.fx.pointsSecond ?? 0);
+  if (outcome.kind === 'start') currentState.stance = outcome;
+  else if (outcome.kind === 'end') currentState.offseason = outcome;
+  else (currentState.preTalks ??= {})[outcome.kind] = { ...outcome, direction: talkDirection(outcome.tone) }; // pre1·pre2: 그 반기의 승점과 변동성
+}
+// 시즌 합계 한도(조직력 ±8, 승점 ±4)를 넘는 만큼 잘라 낸 효과
+function capTalkFx(kind, fx) {
+  if (kind === 'end') return fx;
+  const out = { ...fx };
+  if (out.chemNow) out.chemNow = capTalkDelta(currentState.talkChemSum ?? 0, out.chemNow, TALK_SEASON_CHEM_CAP);
+  let ptsSum = currentState.talkPtsSum ?? 0;
+  for (const k of ['pointsFirst', 'pointsSecond']) if (out[k]) { out[k] = capTalkDelta(ptsSum, out[k], TALK_SEASON_POINTS_CAP); ptsSum += out[k]; }
+  for (const k of Object.keys(out)) if (out[k] === 0) delete out[k];
+  return out;
 }
 function showTalkPick(kind, onDone) {
   const root = document.getElementById('eventmodal-root');
   const choices = drawTalkChoices(kind);
   const isStart = kind === 'start';
+  const isPre = kind === 'pre1' || kind === 'pre2';
+  const chemKey = kind === 'end' ? 'nextStartChem' : 'chemNow';
   const { lineup } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   const captain = pickCaptain(lineup);
   const mates = lineup.filter((p) => p.id !== captain?.id).slice(0, 9);
   const last = currentState.lastSeason;
-  const situation = !isStart ? 'end' : last?.result === 'promotion' ? 'promo' : last?.result === 'champion' ? 'champ' : (last?.margin ?? 99) <= 4 ? 'close' : 'stay';
-  const caption = pickLine(LOCKER_CAPTIONS[situation], `cap-${situation}`);
+  const situation = isPre ? kind : !isStart ? 'end' : last?.result === 'promotion' ? 'promo' : last?.result === 'champion' ? 'champ' : (last?.margin ?? 99) <= 4 ? 'close' : 'stay';
+  const caption = isPre ? (kind === 'pre1' ? '전반기를 앞둔 라커룸' : `전반기가 끝난 라커룸 · 승점 ${currentState.firstHalfPoints ?? 0}`) : pickLine(LOCKER_CAPTIONS[situation], `cap-${situation}`);
   const kit = currentState.club.kit;
   const seat = (p, i, size) => `<div class="lr__seat" style="--d:${(i * 0.06).toFixed(2)}s"><span class="lr__rx" hidden></span>${renderPortrait(p, { size, kit })}</div>`;
   const back = mates.slice(0, 6).map((p, i) => seat(p, i, 34)).join('');
@@ -658,10 +679,10 @@ function showTalkPick(kind, onDone) {
   root.innerHTML = `
     <div class="eventmodal-backdrop">
       <div class="eventmodal eventmodal--goal lockerroom">
-        <div class="eventmodal__kicker">라커룸 토크 · ${isStart ? '시즌 시작' : '시즌 마무리'}</div>
+        <div class="eventmodal__kicker">라커룸 토크 · ${{ start: '시즌 시작', end: '시즌 마무리', pre1: '전반기 직전', pre2: '후반기 직전' }[kind]}</div>
         ${stage}
         <div class="lr__panel" id="lr-panel">
-          <p class="lr__ask">${isStart ? '선수들이 당신을 바라본다. 어떤 말로 시작할까요?' : '한 해를 어떤 말로 마무리할까요? 이 말은 오프시즌에 영향을 줘요.'}</p>
+          <p class="lr__ask">${isPre ? '반기를 앞두고 선수들이 당신을 바라본다. 어떤 말을 건넬까요?' : isStart ? '선수들이 당신을 바라본다. 어떤 말로 시작할까요?' : '한 해를 어떤 말로 마무리할까요? 이 말은 오프시즌에 영향을 줘요.'}</p>
           <div class="specpick__list">${choices.map((id, i) => `<button class="spec" data-talk="${i}"><span class="spec__head"><b class="spec__name">${esc(TALKS[kind][id].name)}</b><i class="spec__tone is-${TALKS[kind][id].tone}">${TALK_TONE[TALKS[kind][id].tone]}</i></span><span class="spec__line">${esc(TALKS[kind][id].line)}</span></button>`).join('')}</div>
         </div>
       </div>
@@ -673,7 +694,8 @@ function showTalkPick(kind, onDone) {
       // 성격 반응: 조직력 소폭 가감 + 사건 확률 배수(다음 토크까지) + 반응 한 줄
       const pr = personalityReaction(id, currentState.squad);
       currentState.personalityMood = pr.byType;
-      if (pr.delta) outcome.fx = { ...outcome.fx, [isStart ? 'chemNow' : 'nextStartChem']: (outcome.fx[isStart ? 'chemNow' : 'nextStartChem'] ?? 0) + pr.delta };
+      if (pr.delta) outcome.fx = { ...outcome.fx, [chemKey]: (outcome.fx[chemKey] ?? 0) + pr.delta };
+      outcome.fx = capTalkFx(kind, outcome.fx); // 시즌 합계 한도
       if (pr.text) outcome.text = `${outcome.text} ${pr.text}`;
       track('talk', { k: kind, id, s: currentState.seasonNumber });
       const lines = describeTalkFx(outcome.fx);
@@ -813,6 +835,8 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
   const N = MATCHES_PER_HALF;
   const tier = effectiveTier(currentState.leagueTierId);
   const second = !!ctx.second;
+  const shownRound = (r) => (second ? N : 0) + r; // 후반기는 전반기에 이어 20라운드부터 보여 준다(계산은 반기 안의 번호 그대로)
+  const total = second ? 2 * N : N;
   const table = ctx.table ?? simulateLeagueTable(finalPoints, tier);
   const rivals = ctx.rivals ?? buildLeagueRivals(currentState.leagueTierId, N).map((c) => ({ name: c.name, kit: c.kit }));
   const info = new Map(table.map((t, i) => [t.id, t.id === 'me' ? { name: clubName, kit: kitColor } : rivals[i - 1] ?? { name: `상대 ${i}`, kit: '#4a5a52' }]));
@@ -868,7 +892,7 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     <div class="matchsim" style="--kit:${kitColor}">
       <div class="matchsim__head">
         <span class="matchsim__club">${esc(clubName)} · ${esc(tierLabel)} · ${esc(phaseLabel)}</span>
-        <span class="matchsim__clock" id="sim-clock">0/${N}</span>
+        <span class="matchsim__clock" id="sim-clock">${shownRound(0)}/${total}</span>
       </div>
       <div class="matchsim__pitch pxpitch" id="sim-pitch">
         ${pixelMatchHtml(kitColor, { home: myPixelLineup() })}
@@ -922,7 +946,7 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     const move = prevRank - rank;
     prevRank = rank;
     const clock = document.getElementById('sim-clock');
-    if (clock) clock.textContent = `${round}/${N}`;
+    if (clock) clock.textContent = `${shownRound(round)}/${total}`;
     const phrase = document.getElementById('sim-phrase');
     const myPts = pointsOf.get('me')[round - 1];
     const gained = myPts - (round > 1 ? pointsOf.get('me')[round - 2] : baseOf.get('me'));
@@ -932,7 +956,7 @@ function renderSimulating(clubName, tierLabel, phaseLabel, kitColor, finalPoints
     // 운명의 라운드: 시즌 막판 승격선·강등선 근처
     const fate = second && round >= N - 2 && ((!ctx.isTop && rank >= 2 && rank <= 5) || (rank >= 15 && rank <= 18));
     if (phrase) {
-      phrase.textContent = `${fate ? '운명의 라운드 · ' : ''}${round}라운드 ${verdict} · ${rank}위${moveText ? `(${moveText})` : ''}`;
+      phrase.textContent = `${fate ? '운명의 라운드 · ' : ''}${shownRound(round)}라운드 ${verdict} · ${rank}위${moveText ? `(${moveText})` : ''}`;
       phrase.closest('.matchsim__ticker')?.classList.toggle('is-fate', fate);
     }
     updateStandings(round);
@@ -1211,6 +1235,7 @@ ${(() => {
   });
   document.getElementById('resume-btn')?.addEventListener('click', () => {
     currentState = withRunDefaults(saved, DEFAULT_FORMATION); // 구버전 세이브 호환
+    reservePlayerIds([...currentState.squad, ...(currentState.shopOffer ?? []), ...(currentState.listedForSale ?? []).map((l) => l.card)]); // 새 선수 id가 저장된 선수와 겹치지 않게
     if (currentState.ucl) renderUcl(); else renderMarket();
   });
   const newBtn = document.getElementById('new-run-btn');
@@ -1231,7 +1256,8 @@ ${(() => {
 let currentState = null;
 
 function startRun(club) {
-  updateRecords(recordRunStart);
+  if (tutStep() >= 0) tutSet(0); // 튜토리얼은 항상 처음부터(이어하기가 없다)
+  else updateRecords(recordRunStart); // 튜토리얼 런은 기록에 남지 않는다(끝날 때 진짜 런이 시작되며 센다)
   const baseFunds = Math.round(calculateStartingFunds(0) * club.startingFundsMultiplier * fundsScale('tier5', 1));
   // 시작 선발이 이미 같은 태그 5명(팀 컬러 완성)이면 보상이 공짜가 되니, 그런 조합은 다시 뽑는다
   let rawSquad;
@@ -1324,12 +1350,30 @@ const tutStep = () => { const f = loadFlags(); return f.tutorialDone ? -1 : f.tu
 function tutSet(step) {
   updateFlags((f) => { f.tutorialStep = step; if (step > 15) f.tutorialDone = true; return f; });
   track('tutorial', { step });
+  if (step > 15) leaveTutorialRun();
+}
+// 튜토리얼 격리: 튜토리얼 중 한 모든 행동(영입·판매·지시·자금·선수단)은 이 런에서만 일어난다.
+// 튜토리얼 런은 저장·기록·업적에 남지 않고, 끝나거나 건너뛰면 시작 상태(구단 이름·엠블럼 유지)로 진짜 런을 새로 연다.
+function leaveTutorialRun() {
+  const b = currentState?.tutorialBackup;
+  if (!b) return false;
+  clearSpot();
+  currentState = withRunDefaults(JSON.parse(JSON.stringify(b)), DEFAULT_FORMATION);
+  updateRecords(recordRunStart);
+  persistRun();
+  startTalkThen(() => renderMarket('튜토리얼이 끝났어요. 이제부터 진짜 시즌이에요!'));
+  return true;
+}
+// 튜토리얼 런은 이어하기 저장을 만들지 않는다.
+function persistRun() {
+  if (!currentState?.tutorialBackup) saveRun(currentState, localStorage);
 }
 function tutSkip() {
   const step = tutStep();
-  updateFlags((f) => { f.tutorialDone = true; for (const k of ['haggle', 'sale', 'staff', 'traits']) f.seen[k] = true; return f; }); // 건너뛰기는 처음 만나는 기능 안내까지 건너뛴다
+  updateFlags((f) => { f.tutorialDone = true; return f; });
   track('tutorial', { skip: step });
   clearSpot();
+  leaveTutorialRun();
 }
 function tutorialTick(where) {
   const step = tutStep();
@@ -1600,7 +1644,10 @@ function renderCareerIntro() {
 
   // 첫 시즌에는 이사진 요구를 고르지 않는다(2시즌부터 등장).
   tutorialTick('intro');
-  document.getElementById('start-season-btn').onclick = () => (tutStep() < 0 ? renderDemandChoice(currentState.club.demandBias ?? {}, () => renderMarket()) : renderMarket());
+  document.getElementById('start-season-btn').onclick = () => {
+    if (tutStep() >= 0) { currentState.tutorialBackup = null; currentState.tutorialBackup = JSON.parse(JSON.stringify(currentState)); } // 튜토리얼 격리: 시작 상태를 적어 두고 끝나면 이 상태로 새로 시작한다
+    return tutStep() < 0 ? renderDemandChoice(currentState.club.demandBias ?? {}, () => startTalkThen(() => renderMarket())) : renderMarket();
+  };
   document.getElementById('back-to-clubs-btn').onclick = () => renderClubButtons();
 }
 
@@ -1665,15 +1712,6 @@ function thinking(root, then, ms = 1000) {
     if (note) { note.hidden = false; note.textContent = '생각하는 중'; }
   }
   setTimeout(then, ms);
-}
-
-// 판매 등록 직후: 오퍼가 모이는 동안 잠깐 기다리게 한다
-function waitForOffers(text, then, ms = 1400) {
-  const el = document.createElement('div');
-  el.className = 'waitveil';
-  el.innerHTML = `<div class="waitveil__box"><b>${esc(text)}</b><span class="waitveil__dots"><i></i><i></i><i></i></span></div>`;
-  document.body.appendChild(el);
-  setTimeout(() => { el.remove(); then(); }, ms);
 }
 
 // 흥정 창: 깎아 달라는 비율을 고르면 구단이 답한다. 거절하면 인내심이 줄고, 바닥나면 협상이 깨진다.
@@ -2020,7 +2058,7 @@ function startNewSeason() {
   currentState.halfStarChanges = null;
   currentState.halfInjuries = null;
   currentState.secondInjuries = null;
-  currentState.squad = currentState.squad.map((p) => ({ ...p, out: 0, outKind: null, outPart: null, injHistory: (p.injHistory ?? []).map((h) => ({ ...h, ago: h.ago + 1 })).filter((h) => h.ago <= 1) }));
+  currentState.squad = currentState.squad.map((p) => ({ ...p, reserveHold: false, out: 0, outKind: null, outPart: null, injHistory: (p.injHistory ?? []).map((h) => ({ ...h, ago: h.ago + 1 })).filter((h) => h.ago <= 1) }));
   // 오래 뛴 선수(3시즌 이상)나 클럽 레전드가 은퇴하면 따로 인사한다.
   const tribute = aged.retired.map((r) => preAge.get(r.id)).filter((p) => p && ((p.seasonsAtClub ?? 0) >= 3 || isLegend(p)))
     .map((p) => ({ name: p.name, seasons: p.seasonsAtClub ?? 0, mvp: currentState.mvpSeasons?.[p.id] ?? 0, legend: isLegend(p) }));
@@ -2056,6 +2094,9 @@ function startNewSeason() {
   currentState.seasonBriefing = { tribute, transferDemand, aging: agingReport, fundsReport, review, demandOffer: drawDemandOffer(Math.random, currentState.club.demandBias ?? {}, currentState.leagueTierId).map((c) => c.id), goal: currentBoardGoal(), tierLabel: getLeagueTier(currentState.leagueTierId).label, seasonNumber: currentState.seasonNumber };
   currentState.offseason = null; // 마무리 토크는 이번 시작에 반영했다
   currentState.stance = null; // 지난 시즌 라커룸 토크는 끝났다 - 새 토크를 고른다
+  currentState.preTalks = {};
+  currentState.talkChemSum = 0;
+  currentState.talkPtsSum = 0;
   startTalkThen(() => renderMarket(banner));
 }
 
@@ -2109,8 +2150,8 @@ function showSquadFullPicker(card, priceOverride = null) {
         <p class="eventmodal__detail">${esc(card.name)} 대신 내보낼 선수를 고르세요.</p>
         <ul class="outpick__list">${list.map((p) => `<li style="--tier:var(--t-${tierColorOf(p)})">
           <b class="n">${starLabel(p)}</b><span>${esc(p.name)}<small>${p.position} · ${p.age}세</small></span>
-          <button class="act" data-out="list:${p.id}" ${p.boughtThisSeason ? 'disabled' : ''}>판매 등록</button>
-          <button class="act act--warn" data-out="drop:${p.id}" ${p.boughtThisSeason ? 'disabled' : ''}>방출</button>
+          <button class="act" data-out="list:${p.id}" ${p.boughtThisSeason || listedIds().has(p.id) ? 'disabled' : ''}>판매 등록</button>
+          <button class="act act--warn" data-out="drop:${p.id}" ${p.boughtThisSeason || listedIds().has(p.id) ? 'disabled title="판매 중인 선수예요. 먼저 등록을 취소하세요"' : ''}>방출</button>
         </li>`).join('')}</ul>
         <button class="reroll" id="out-cancel" style="margin-top:var(--s2);width:100%">취소</button>
       </div>
@@ -2165,7 +2206,7 @@ function buyCard(card, rowEl = null, outgoing = null, priceOverride = null) {
     : diff >= 0.07 ? { tone: 'bad', text: `스카우트 오판 · 시세보다 ${Math.round(diff * 100)}% 비싸게 샀어요` }
     : { tone: 'flat', text: '적정가 · 시세와 비슷하게 샀어요' };
   if (card.seller && !priceOverride) setMood(card.seller, 'asking');
-  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, paidPrice: price, price: trueValue }];
+  currentState.squad = [...currentState.squad, { ...toSquadPlayer(card), boughtThisSeason: true, reserveHold: true, paidPrice: price, price: trueValue }];
   (currentState.seasonStartStars ??= {})[card.id] = starsFor(card); // 영입 선수는 영입 때 별이 기준
   currentState.windowBuys = [...(currentState.windowBuys ?? []), card.id];
   const tiersAfter = tagTiers();
@@ -2236,7 +2277,40 @@ function hireStaff(role, level, rowEl = null) {
 }
 
 // 선수단 탭 교체: 같은 포지션 슬롯끼리 바꾼다(전술 탭의 수동 배치와 같은 manualOverrides를 쓴다).
+// 직접 배치(선발·벤치 지정)한 선수는 예비 고정이 풀린다. ids 생략 = 전원(자동 배치).
+function releaseReserveHold(ids = null) {
+  const set = ids ? new Set(ids) : null;
+  currentState.squad = currentState.squad.map((p) => (p.reserveHold && (!set || set.has(p.id)) ? { ...p, reserveHold: false } : p));
+}
+// 벤치 → 예비: 벤치 지정에서 빼고 자동 배치에서도 제외한다.
+function moveToReserve(playerId) {
+  const p = currentState.squad.find((x) => x.id === playerId);
+  if (!p) return;
+  currentState.benchOverrides = Object.fromEntries(Object.entries(currentState.benchOverrides ?? {}).filter(([, id]) => id !== playerId));
+  currentState.squad = currentState.squad.map((x) => (x.id === playerId ? { ...x, reserveHold: true } : x));
+  renderMarket(`${p.name}을(를) 예비로 옮겼어요`);
+}
+// 예비 → 벤치: 빈 벤치 칸에, 가득 차 있으면 가장 별이 낮은 벤치 선수 자리에 넣는다(밀려난 선수는 예비로).
+function moveToBench(playerId) {
+  const p = currentState.squad.find((x) => x.id === playerId);
+  if (!p || p.out > 0) return;
+  const { bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const nextBench = Object.fromEntries(Object.entries(currentState.benchOverrides ?? {}).filter(([, id]) => id !== playerId));
+  const freeIdx = () => [0, 1, 2, 3, 4].find((i) => !(i in nextBench));
+  let idx = freeIdx();
+  let out = null;
+  if (bench.length >= BENCH_SIZE) {
+    out = [...bench].sort((a, b) => observedOVR(a) - observedOVR(b))[0];
+    const key = Object.keys(nextBench).find((k) => nextBench[k] === out.id);
+    if (key != null) idx = Number(key); // 지정돼 있던 자리를 넘겨받는다(자동 배치였다면 빈 칸이 생겨 밀려난다)
+  }
+  nextBench[idx ?? 0] = playerId;
+  currentState.benchOverrides = nextBench;
+  releaseReserveHold([playerId]);
+  renderMarket(`${p.name}을(를) 벤치로 옮겼어요${out ? `(${out.name}은(는) 예비로)` : ''}`);
+}
 function setSlotOverride(slotIndex, playerId) {
+  releaseReserveHold([playerId]);
   const next = Object.fromEntries(Object.entries(currentState.manualOverrides ?? {}).filter(([, id]) => id !== playerId));
   currentState.manualOverrides = { ...next, [slotIndex]: playerId };
 }
@@ -2296,24 +2370,39 @@ function saleRange(card) {
 }
 function listPlayer(card) {
   const offers = rollSaleOffers(card);
-  currentState.listedForSale.push({ card, offers, range: saleRange(card), hadOffers: offers.length > 0 });
+  const before = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
+  const role = before.lineup.some((x) => x.id === card.id) ? 'xi' : before.bench.some((x) => x.id === card.id) ? 'bench' : 'reserve'; // 구역 표시용 원래 자리
+  currentState.manualOverrides = Object.fromEntries(Object.entries(currentState.manualOverrides ?? {}).filter(([, id]) => id !== card.id));
+  currentState.benchOverrides = Object.fromEntries(Object.entries(currentState.benchOverrides ?? {}).filter(([, id]) => id !== card.id));
+  currentState.listedForSale.push({ card, offers, range: saleRange(card), hadOffers: offers.length > 0, role });
   return offers;
 }
 
+// 판매 등록 확인 줄: 선발에서 빠지고 누가 들어오는지, 전력이 얼마나 주는지(3단계 문구)를 미리 알려 준다.
+function saleConfirmText(p) {
+  const f = currentFormation();
+  const cur = pickBestXI(currentState.squad, f, currentState.manualOverrides, currentState.benchOverrides);
+  const base = `${p.name}을(를) 판매 등록하면 선발·벤치에서 빠져요.`;
+  if (!cur.lineup.some((x) => x.id === p.id)) return `${base} 오퍼를 받는 동안 전력이 줄 수 있어요.`;
+  const manual = Object.fromEntries(Object.entries(currentState.manualOverrides ?? {}).filter(([, id]) => id !== p.id));
+  const bench = Object.fromEntries(Object.entries(currentState.benchOverrides ?? {}).filter(([, id]) => id !== p.id));
+  const sq = currentState.squad.filter((x) => x.id !== p.id); // 등록하면 풀에서 빠지는 것과 같다
+  const next = pickBestXI(sq, f, manual, bench);
+  const repl = next.lineup.find((x) => !cur.lineup.some((y) => y.id === x.id));
+  const power = (r) => computeTeamPower(r.lineup, r.bench, currentState.chemistry, fx());
+  const drop = power(cur) - power(next);
+  const level = drop < 0.5 ? '전력은 비슷해요' : drop < 2 ? '전력이 약간 줄어요' : '전력이 크게 줄어요';
+  if (!repl) return `${base} 같은 포지션 선수가 없어 무명 보충 선수가 들어가요. ${level}.`;
+  return `${base} 대신 ${repl.name}(${repl.position})이(가) 들어가요. ${level}.`;
+}
 function listForSale(card) {
   if (!card || card.boughtThisSeason || currentState.listedForSale.some((l) => l.card.id === card.id)) return;
-  const offers = listPlayer(card);
-  currentState.tab = 'draft';
-  currentState.draftSub = 'sell';
-  waitForOffers(`${card.name}의 오퍼를 알아보는 중`, () => {
-    renderMarket(offers.length
-      ? `${card.name}에 대한 오퍼가 ${offers.length}건 도착했습니다. 기한 ${Math.max(...offers.map((o) => o.expires)) - currentState.week + 1}주까지`
-      : `${card.name}에 대한 오퍼가 아직 없습니다. 다음 주에 다시 알아봅니다`);
-  });
+  listPlayer(card);
+  renderMarket(`${card.name} 판매 등록 — 오퍼는 영입 탭의 판매에서 확인`); // 화면은 그대로(선수단 탭에 머문다)
 }
 function unlistPlayer(cardId) {
   currentState.listedForSale = currentState.listedForSale.filter((l) => l.card.id !== cardId);
-  renderMarket('판매 등록을 취소했습니다');
+  renderMarket('판매 등록을 취소했어요. 선수단으로 돌아왔습니다');
 }
 // 오퍼가 모두 사라졌거나 시장이 끝나 팔리지 않은 채 등록이 끝난다: 선수는 그대로, 조직력만 조금 떨어진다.
 function endListing(l) {
@@ -2410,7 +2499,10 @@ function capOverflow() {
   if (over <= 0) return [];
   const { lineup, bench } = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides);
   const keep = new Set([...lineup, ...bench].map((p) => p.id));
-  return sortCapOverflow(currentState.squad.filter((p) => !p.emergencyYouth && !keep.has(p.id)), starsFor).slice(0, over);
+  const sold = listedIds();
+  const out = sortCapOverflow(currentState.squad.filter((p) => !p.emergencyYouth && !keep.has(p.id) && !sold.has(p.id)), starsFor);
+  if (out.length < over) out.push(...sortCapOverflow(currentState.squad.filter((p) => !p.emergencyYouth && sold.has(p.id)), starsFor)); // 다른 후보가 없을 때만 판매 중 선수도 포함
+  return out.slice(0, over);
 }
 
 function enforceSquadCap() {
@@ -2433,7 +2525,7 @@ function resolveListedSales() {
     l.offers = l.offers.filter((o) => o.expires >= currentState.week); // 만료된 오퍼는 사라진다
     if (marketOver || (l.hadOffers && !l.offers.length)) {
       endListing(l);
-      messages.push(`${l.card.name} ${marketOver ? '시장이 끝나' : '오퍼가 모두 만료돼'} 판매 등록이 끝났습니다(조직력 -${SALE_EXPIRE_CHEMISTRY})`);
+      messages.push(`${l.card.name}이(가) 선수단으로 돌아왔어요(조직력 -${SALE_EXPIRE_CHEMISTRY})`);
     } else if (!l.offers.length) { // 아직 오퍼를 못 받은 선수: 주마다 다시 알아본다
       l.offers = rollSaleOffers(l.card);
       if (l.offers.length) { l.hadOffers = true; messages.push(`${l.card.name}에 대한 오퍼가 도착했습니다`); }
@@ -2464,7 +2556,6 @@ function flashWeekTransition(label, onDone) {
   }, 260);
 }
 
-// 반기 전술 방향(2시즌 해금): 기대 승점은 그대로, 공격은 기복이 크고 수비는 안정적이다.
 // v3: 반기 시작 직전 시즌 전망 - 기자 3명의 예상 순위와 이적시장 성적표(팀 전력은 시즌 중 내내 비밀이라 여기서만 알려 준다).
 const JOURNALISTS = [
   { key: 'optimist', outlet: '스포츠 데일리', name: '한낙관' },
@@ -2524,26 +2615,6 @@ function showSeasonPreview(half, onDone) {
   step1();
 }
 
-function askDirection(onPick) {
-  if (tutStep() >= 0) { currentState.direction = 'balance'; onPick(); return; } // 튜토리얼 중에는 묻지 않는다
-  const root = document.getElementById('eventmodal-root');
-  root.innerHTML = `
-    <div class="eventmodal-backdrop">
-      <div class="eventmodal eventmodal--goal">
-        <div class="eventmodal__kicker">${currentState.phase === 'summer' ? '전반기' : '후반기'} 전술 방향</div>
-        <div class="eventmodal__title">이번 반기를 어떻게 치를까요?</div>
-        <div class="dirpick">
-          <button class="reroll" data-dir="attack">공격 <small>대박 또는 쪽박</small></button>
-          <button class="reroll" data-dir="balance">균형 <small>보통</small></button>
-          <button class="reroll" data-dir="defense">수비 <small>안정적</small></button>
-        </div>
-      </div>
-    </div>`;
-  root.querySelectorAll('[data-dir]').forEach((b) => {
-    b.onclick = () => { currentState.direction = b.dataset.dir; root.innerHTML = ''; onPick(); };
-  });
-}
-
 function nextWeek(capMsg = '') {
   // 주마다 오르는 조직력: 이유와 함께 한 줄로 알려 준다(거래로 깎인 건 그때 바로 보인다)
   const chemBefore = currentState.chemistry;
@@ -2563,11 +2634,11 @@ function nextWeek(capMsg = '') {
   const saleMessage = [capMsg, resolveListedSales()].filter(Boolean).join(' / ');
 
   if (currentState.phase === 'summer' && currentState.week > SUMMER_MARKET_WEEKS[1]) {
-    showSeasonPreview(1, () => askDirection(() => runFirstHalf(saleMessage)));
+    showSeasonPreview(1, () => (tutStep() >= 0 ? runFirstHalf(saleMessage) : showTalkPick('pre1', () => runFirstHalf(saleMessage))));
     return;
   }
   if (currentState.phase === 'winter' && currentState.week > WINTER_MARKET_WEEKS[1]) {
-    showSeasonPreview(2, () => askDirection(() => runSecondHalfAndFinish(saleMessage)));
+    showSeasonPreview(2, () => (tutStep() >= 0 ? runSecondHalfAndFinish(saleMessage) : showTalkPick('pre2', () => runSecondHalfAndFinish(saleMessage))));
     return;
   }
   // 반기 아웃·시즌 아웃은 시장 2주차부터 마지막 주 직전까지 매주 조금씩 굴린다(합계는 한 시장 한 번 굴린 확률과 같다). 마지막 주에는 안 터져서 대응할 한 주가 남는다.
@@ -2651,7 +2722,7 @@ function maybeAskPlayDemand() {
   if (tutStep() >= 0 || currentState.playDemand) return;
   const xi = pickBestXI(currentState.squad, currentFormation(), currentState.manualOverrides, currentState.benchOverrides).lineup;
   const cand = currentState.squad
-    .filter((p) => (currentState.benchHalves?.[p.id] ?? 0) >= benchHalvesNeeded(p.personality, currentState.personalityMood) && !(p.out > 0) && !xi.some((q) => q.id === p.id)
+    .filter((p) => !listedIds().has(p.id) && (currentState.benchHalves?.[p.id] ?? 0) >= benchHalvesNeeded(p.personality, currentState.personalityMood) && !(p.out > 0) && !xi.some((q) => q.id === p.id)
       && starsFor(p) >= Math.min(...xi.filter((q) => q.position === p.position).map(starsFor)))
     .sort((a, b) => b.baseOVR - a.baseOVR)[0];
   if (!cand) return;
@@ -2728,7 +2799,7 @@ function runFirstHalf(saleMessage = '') {
   // 승점은 정수로 쓴다: 화면에 보이는 승점과 승/강등 판정에 쓰는 승점이 같아야 한다.
   const inj1 = rollHalfInjuries(lineup);
   currentState.halfInjuries = inj1.list;
-  currentState.firstHalfPoints = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(1), currentState.direction ?? 'balance', halfBonus(1) + inj1.points));
+  currentState.firstHalfPoints = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(1), currentState.preTalks?.pre1?.direction ?? 'balance', halfBonus(1) + inj1.points));
   tickInjuries();
 
   // 이 시즌의 순위표를 전반기에 만들어 두고, 후반기는 그 위에 이어서 쌓는다(상대 구단도 그대로).
@@ -3219,7 +3290,7 @@ function renderUcl(opts = {}) {
   document.getElementById('ucl-play')?.addEventListener('click', () => {
     const next = advanceUcl(s);
     currentState.ucl = next;
-    saveRun(currentState, localStorage);
+    persistRun();
     playUclMatch(next, s, () => renderUcl({ fresh: true }));
   });
   if (opts.fresh && s.stage === 'done' && s.result === 'champion' && !currentState.uclTrophyShown) {
@@ -3309,7 +3380,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   if (playMsg) saleMessage = saleMessage ? `${saleMessage} / ${playMsg}` : playMsg;
   const inj2 = rollHalfInjuries(lineup);
   currentState.secondInjuries = inj2.list;
-  const secondHalf = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(2), currentState.direction ?? 'balance', halfBonus(2) + inj2.points));
+  const secondHalf = roundHalfPoints(runHalfSeason(lineup, bench, currentState.chemistry, currentState.leagueTierId, Math.random, fx(2), currentState.preTalks?.pre2?.direction ?? 'balance', halfBonus(2) + inj2.points));
   tickInjuries();
   const firstHalf = roundHalfPoints(currentState.firstHalfPoints ?? 0); // 옛 저장(소수점)도 같은 규칙으로
   const totalPoints = firstHalf + secondHalf;
@@ -3513,7 +3584,7 @@ function runSecondHalfAndFinish(saleMessage = '') {
   document.getElementById('ucl-btn')?.addEventListener('click', () => {
     currentState.ucl = createUcl(uclPower, Math.random, { myPowerAway: uclPowerAway });
     currentState.ucl.teams[0].name = currentState.club.name;
-    saveRun(currentState, localStorage);
+    persistRun();
     renderUcl();
   });
   }
@@ -3534,12 +3605,10 @@ function maybeAppoint(survived, next) {
 }
 // 시즌 마무리 라커룸 토크: 이미 정식 감독이던 시즌부터(임명을 방금 받은 시즌은 건너뛴다)
 function endTalkThen(wasAppointed, next) {
-  if (!wasAppointed) { next(); return; }
-  showTalkPick('end', next);
+  showTalkPick('end', next); // 1시즌부터(정식 임명 전에도) 가능
 }
-// 시즌 시작 라커룸 토크
+// 시즌 시작 라커룸 토크(1시즌부터)
 function startTalkThen(next) {
-  if (!currentState.appointed) { next(); return; }
   showTalkPick('start', next);
 }
 
@@ -3879,6 +3948,23 @@ function confirmRelease(playerId, question, onConfirm, banner) {
   row.querySelector('[data-confirm-no]').onclick = () => renderMarket(banner);
 }
 
+// 판매 중인 선수가 남은 채로 시장을 마치면 선수단으로 돌아오고 조직력이 깎인다는 걸 미리 알린다.
+function showSaleReturnWarning(n, onProceed, onCancel) {
+  const root = document.getElementById('eventmodal-root');
+  root.innerHTML = `
+    <div class="eventmodal-backdrop">
+      <div class="eventmodal eventmodal--bad">
+        <div class="eventmodal__kicker">판매 중인 선수</div>
+        <div class="eventmodal__title">판매 중 ${n}명이 선수단으로 돌아와요</div>
+        <p class="eventmodal__detail">시장이 끝나면 오퍼를 받던 선수가 선수단으로 돌아오고 조직력이 -${n * SALE_EXPIRE_CHEMISTRY} 떨어져요.</p>
+        <button class="cta" id="sale-return-proceed">진행</button>
+        <button class="reroll" id="sale-return-cancel" style="margin-top:var(--s2);width:100%">뒤로가기</button>
+      </div>
+    </div>`;
+  document.getElementById('sale-return-proceed').onclick = () => { root.innerHTML = ''; onProceed(); };
+  document.getElementById('sale-return-cancel').onclick = () => { root.innerHTML = ''; onCancel(); };
+}
+
 // 정원을 넘긴 채로 시장을 마치려 하면 누가 나가는지 미리 알린다.
 function showCapWarning(over, onProceed, onCancel) {
   const root = document.getElementById('eventmodal-root');
@@ -4059,13 +4145,13 @@ function renderMarket(banner = '') {
   const coachChip = `<span class="staffchip">코치 ${STAFF_SHORT[coachLevel] ?? coachLevel} · 리포트 <b>${3 + (GRADED_COUNT[coachLevel] ?? 1)}</b>항목</span>`;
   const scoutTargetHtml = `<div class="scoutorder" id="scout-order">
       <span class="scoutbar__label">${renderTagIcon(TRAIT_ICON_PATHS, 'scout')}스카우트 지시</span>${scoutChip}
-      <span class="scoutorder__sels">${orderSel('pos', '포지션', posOpts(scoutOrder.pos))}${orderSel('tag', '태그', tagOpts(scoutOrder.tag))}${orderSel('age', '나이대', ageOpts(scoutOrder.age))}</span>
+      <span class="scoutorder__sels">${orderSel('pos', '포지션', posOpts(scoutOrder.pos))}${orderSel('tag', '태그', tagOpts(scoutOrder.tag))}${orderSel('age', '나이대', ageOpts(scoutOrder.age))}${orderFilled ? '<button type="button" class="act scoutorder__clear" id="order-clear">초기화</button>' : ''}</span>
       <small class="scoutorder__note">조건 ${orderFilled}/${orderCap}개 · 다음 주에 이 조건으로 3명이 도착해요${orderCap < 3 ? ' (스카우터 등급이 높으면 조건을 더 걸 수 있어요)' : ''}</small>
     </div>`;
   const starPlayer = [...squad].sort((a, b) => observedOVR(b) - observedOVR(a))[0] ?? null;
   // 선수단 탭: 선발 / 벤치 / 예비 세 묶음으로 보여 준다. 행을 누르면 교체·판매 버튼이 펼쳐진다.
   const benchIds = new Set(bench.map((p) => p.id));
-  const reservePlayers = squad.filter((p) => !inXI.has(p.id) && !benchIds.has(p.id)).sort((a, b) => observedOVR(b) - observedOVR(a));
+  const reservePlayers = squad.filter((p) => !inXI.has(p.id) && !benchIds.has(p.id) && !listedForSale.some((l) => l.card.id === p.id)).sort((a, b) => observedOVR(b) - observedOVR(a));
   const capId = pickCaptain(lineup)?.id; // 컷신·라커룸과 같은 함수(임명 주장, 없으면 자동 규칙)
   const capTag = (p) => (p.id === capId ? '<span class="cn">C</span>' : '');
   const renderSquadRow = (p, group) => {
@@ -4076,6 +4162,8 @@ function renderMarket(banner = '') {
     const swap = group === 'xi'
       ? `<button class="act" data-swap-out="${p.id}">벤치로</button>`
       : `<button class="act act--main" data-swap-in="${p.id}" ${p.out > 0 ? 'disabled title="부상 중이라 뛸 수 없습니다"' : FORMATIONS[formationId].slots.includes(p.position) ? '' : 'disabled title="이 포메이션엔 그 자리가 없습니다"'}>선발 투입</button>`;
+    const move = group === 'bench' ? `<button class="act" data-to-reserve="${p.id}">예비로</button>`
+      : group === 'reserve' ? `<button class="act" data-to-bench="${p.id}" ${p.out > 0 ? 'disabled title="부상 중이라 뛸 수 없습니다"' : ''}>벤치로</button>` : '';
     return `<li class="srow srow--${group}${currentState.marks?.[p.id] ? ` is-${currentState.marks[p.id]}` : ''}" data-row="${p.id}" data-advice="${advice?.id ?? ''}" data-tags="${(p.playstyleTags ?? []).join(' ')}" style="--tier:var(--t-${tierColorOf(p)})">
       <div class="srow__ph">${renderPortrait(p, { size: 52, kit: club.kit ?? '#4b3a9a' })}<span class="srow__pos">${p.position}</span></div>
       <div class="srow__main">
@@ -4094,7 +4182,7 @@ function renderMarket(banner = '') {
         ${advice ? `<span class="srow__why advice--${advice.id}">${esc(advice.why)}</span>` : ''}
         ${(currentState.mvpSeasons?.[p.id] || p.seasonsAtClub) ? `<span class="srow__paid">${p.seasonsAtClub ? `${p.seasonsAtClub + 1}시즌째` : ''}${currentState.mvpSeasons?.[p.id] ? ` · 시즌 MVP ${currentState.mvpSeasons[p.id]}회` : ''}${isLegend(p) ? ' · 팔면 조직력 -' + HOMETOWN_RELEASE_CHEMISTRY_PENALTY : ''}</span>` : ''}
         ${p.paidPrice ? `<span class="srow__paid">산 값 <b class="n">${p.paidPrice}G</b> · 시세 <b class="n">${p.price}G</b> <em class="${p.price > p.paidPrice ? 'up' : p.price < p.paidPrice ? 'down' : 'flat'}">${p.price >= p.paidPrice ? '+' : ''}${p.price - p.paidPrice}</em></span>` : p.price ? `<span class="srow__paid">시세 <b class="n">${p.price}G</b></span>` : ''}
-        ${swap}
+        ${swap}${move}
         ${listedForSale.some((l) => l.card.id === p.id) ? '<button class="act" disabled>판매 등록됨</button>' : `<button class="act" data-release-listed="${p.id}" ${locked ? `disabled ${lockTitle}` : ''}>판매 등록</button>`}
       </div>
     </li>`;
@@ -4114,7 +4202,7 @@ function renderMarket(banner = '') {
   // 판매 탭: 등록한 선수(예상 시세 구간 + 오퍼), 정리 후보 바로 등록, 이적 기록.
   const listed = listedForSale.filter((l) => squad.some((p) => p.id === l.card.id));
   const cutPool = squad.filter((p) => currentState.marks?.[p.id] === 'cut' && !p.boughtThisSeason && !listed.some((l) => l.card.id === p.id));
-  const roleOf = (id) => (slotted.some((x) => x?.id === id) ? '선발' : bench.some((x) => x.id === id) ? '벤치' : '예비');
+  const roleOf = (id) => ({ xi: '선발', bench: '벤치', reserve: '예비' }[listed.find((l) => l.card.id === id)?.role] ?? '예비'); // 등록 때의 원래 자리
   const saleZoneHtml = listed.length ? `<details class="salezone" open><summary>판매 중 <i class="n">${listed.length}명</i></summary>${listed.map((l) => {
     const left = l.offers.length ? Math.min(...l.offers.map(offerWeeksLeft)) : null;
     return `<div class="salezone__row"><div class="salezone__who"><b>${esc(l.card.name)}</b><span class="n">${starLabel(l.card)}</span></div>
@@ -4132,7 +4220,7 @@ function renderMarket(banner = '') {
     </section>`).join('') || '<p class="empty">내놓은 선수가 없어요. 선수단 탭에서 선수를 눌러 판매 등록할 수 있어요.</p>'}
     ${cutPool.length ? `<h3 class="sqsec"><b>정리 후보</b><i class="n">${cutPool.length}</i></h3><ul class="sellcut">${cutPool.map((p) => `<li><span>${p.position} ${esc(p.name)}<small>${p.age}세 · ${starLabel(p)}</small></span><button type="button" class="act" data-sell-cut="${p.id}">판매 등록</button></li>`).join('')}</ul>` : ''}
     ${(currentState.transferLog ?? []).length ? `<details class="fold"><summary>이적 기록 <small>${currentState.transferLog.length}건</small></summary>${[...currentState.transferLog].reverse().slice(0, 8).map((t) => `<p><span>${esc(t.name)} → ${esc(t.club)}</span><b class="n">+${t.amount}G</b></p>`).join('')}</details>` : ''}
-    <p class="note">등록해도 선수는 수락할 때까지 선수단에 남아요. 오퍼가 모두 만료되면 조직력이 조금 떨어져요.</p>`;
+    <p class="note">판매 중인 선수는 선발·벤치에서 빠져요. 오퍼가 모두 만료되면 조직력이 조금 떨어지고 선수단으로 돌아와요.</p>`;
 
   // 내가 가진 태그만 "선발 N · 보유 M"으로 보여 준다. 누르면 그 태그 선수를 목록에서 강조한다.
   const tagBar = (() => {
@@ -4382,6 +4470,7 @@ function renderMarket(banner = '') {
         currentState.manualOverrides = nextManual;
         currentState.benchOverrides = nextBench;
         currentState.selectedSlot = null;
+        releaseReserveHold([a?.id, b?.id].filter(Boolean));
       }
       renderMarket(banner);
     };
@@ -4413,6 +4502,7 @@ function renderMarket(banner = '') {
         currentState.manualOverrides = nextManual;
         currentState.benchOverrides = nextBench;
         currentState.selectedSlot = null;
+        releaseReserveHold([playerId]);
         renderMarket(banner);
       };
     });
@@ -4420,7 +4510,7 @@ function renderMarket(banner = '') {
     // 찾아 슬롯에 고정한다(포지션은 항상 지킨다).
     document.getElementById('auto-lineup-btn')?.addEventListener('click', () => {
       const boosted = fx();
-      const { xi, bench: nextBench } = optimizeLineup(squad.filter((p) => !(p.out > 0)), FORMATIONS[formationId].slots, BENCH_SIZE, boosted);
+      const { xi, bench: nextBench } = optimizeLineup(squad.filter((p) => !(p.out > 0) && !listedIds().has(p.id)), FORMATIONS[formationId].slots, BENCH_SIZE, boosted);
       const nextManual = {};
       xi.forEach((p, i) => { if (p && p.position === FORMATIONS[formationId].slots[i]) nextManual[i] = p.id; });
       const nextBenchOv = {};
@@ -4428,12 +4518,14 @@ function renderMarket(banner = '') {
       currentState.manualOverrides = nextManual;
       currentState.benchOverrides = nextBenchOv;
       currentState.selectedSlot = null;
+      releaseReserveHold();
       renderMarket('최적 배치로 바꿨어요.');
     });
     document.getElementById('reset-lineup-btn')?.addEventListener('click', () => {
       currentState.manualOverrides = {};
       currentState.benchOverrides = {};
       currentState.selectedSlot = null;
+      releaseReserveHold();
       renderMarket(banner);
     });
     document.querySelectorAll('[data-chem-desc]').forEach((el) => {
@@ -4470,6 +4562,7 @@ function renderMarket(banner = '') {
     currentState.offerFilter = null;
     renderMarket(banner);
   });
+  document.getElementById('order-clear')?.addEventListener('click', () => { currentState.scoutOrder = { pos: null, tag: null, age: null }; renderMarket(banner); }); // 지시 조건을 한 번에 비운다
   document.querySelectorAll('[data-order]').forEach((sel) => {
     sel.addEventListener('change', () => {
       currentState.scoutOrder = { ...(currentState.scoutOrder ?? {}), [sel.dataset.order]: sel.value || null };
@@ -4504,7 +4597,7 @@ function renderMarket(banner = '') {
     for (const p of squad) {
       const relBtn = document.querySelector(`[data-release-listed="${p.id}"]`);
       if (relBtn) relBtn.onclick = () => {
-        confirmRelease(p.id, `${p.name} 이적 명단에 올리시겠습니까? 판매 등록하면 선발에서 빠져요.`, () => listForSale(p), banner);
+        confirmRelease(p.id, saleConfirmText(p), () => listForSale(p), banner);
       };
     }
     // 선수 행을 누르면 관리 버튼(판매 등록/방출)이 펼쳐진다.
@@ -4548,6 +4641,8 @@ function renderMarket(banner = '') {
     });
     document.querySelectorAll('[data-swap-in]').forEach((btn) => { btn.onclick = () => swapIntoLineup(btn.dataset.swapIn); });
     document.querySelectorAll('[data-swap-out]').forEach((btn) => { btn.onclick = () => swapOutOfLineup(btn.dataset.swapOut); });
+    document.querySelectorAll('[data-to-reserve]').forEach((btn) => { btn.onclick = () => moveToReserve(btn.dataset.toReserve); });
+    document.querySelectorAll('[data-to-bench]').forEach((btn) => { btn.onclick = () => moveToBench(btn.dataset.toBench); });
     document.querySelectorAll('[data-advice-filter]').forEach((btn) => {
       btn.onclick = () => {
         const f = btn.dataset.adviceFilter;
@@ -4571,11 +4666,15 @@ function renderMarket(banner = '') {
     const enteringSim = week === maxWeek; // 전/후반기 시뮬레이션은 renderSimulating이 따로 연출한다
     if (enteringSim) {
       const missing = missingPositions(currentState.squad, currentFormation());
-      const proceed = () => {
+      const proceed0 = () => {
         const over = capOverflow();
         // 방출을 먼저 해 두면 등록 중인 방출 대상은 시장 종료 벌점 없이 조용히 정리된다
         if (over.length) { showCapWarning(over, () => nextWeek(enforceSquadCap()), () => renderMarket(banner)); return; }
         nextWeek();
+      };
+      const proceed = () => {
+        const n = currentState.listedForSale.length;
+        if (n) showSaleReturnWarning(n, proceed0, () => renderMarket(banner)); else proceed0();
       };
       if (missing.length) {
         showLineupWarning(missing, proceed, () => renderMarket(banner));
@@ -4714,21 +4813,21 @@ function renderMarket(banner = '') {
     document.getElementById('eventmodal-dismiss').onclick = () => {
       currentState.eventTone = null;
       eventRoot.innerHTML = '';
-      saveRun(currentState, localStorage);
+      persistRun();
       tutorialTick('market');
     };
   } else {
     eventRoot.innerHTML = '';
   }
 
-  saveRun(currentState, localStorage);
+  persistRun();
   noteCollection();
   tutorialTick('market');
-  if (tutStep() < 0) introTick();
 }
 
 // 만나 본 특수 성향과 새 클럽 레전드를 기록(업적은 기록 갱신 때 토스트로 알린다).
 function noteCollection() {
+  if (currentState.tutorialBackup) return; // 튜토리얼 런은 도감·업적에 남지 않는다
   const rec = loadRecords(localStorage);
   const traits = [...new Set(currentState.squad.map((p) => p.specialTrait).filter(Boolean))].filter((t) => !rec.traitsSeen?.[t]);
   traits.forEach((t) => updateRecords((x) => recordTrait(x, t)));
@@ -4739,23 +4838,6 @@ function noteCollection() {
       updateRecords(recordLegend);
     }
   }
-}
-
-// 2시즌 이후 새로 열린 기능을 처음 마주쳤을 때 한 줄로 알려 준다(튜토리얼이 끝난 뒤, 기능마다 한 번).
-function introTick() {
-  if (document.querySelector('#eventmodal-root .eventmodal')) return;
-  const seen = loadFlags().seen;
-  const once = (key) => ({ ok: '확인', onOk: () => markSeen(key), onSkip: () => markSeen(key) });
-  const draft = currentState.tab === 'draft';
-  const items = [
-    ['staff', isUnlocked('staff'), '[data-tab="staff"]', '감독·스태프 탭에서 감독과 코치, 스카우터를 바꿀 수 있어요.'],
-    ['traits', isUnlocked('traits') && draft && !!document.querySelector('.chip--trait'), '.chip--trait', '특수 성향 선수예요. 성향마다 효과와 대가가 자동으로 붙어요.'],
-    ['haggle', draft && loadFlags().tutorialStep < 2 && !!document.querySelector('.deal__buy:not([disabled])'), // 튜토리얼에서 이미 협상을 해 본 사람은 다시 안내하지 않는다
-     '.deal__buy:not([disabled])', '협상에서는 슬라이더로 원하는 가격을 불러요. 구단이 받아 주거나, 역제안을 하거나, 거절해요. 구단 표정이 힌트고, 너무 낮게 부르면 화가 나서 협상이 깨져요.'],
-    ['sale', currentState.tab === 'draft' && currentState.draftSub === 'sell' && currentState.listedForSale.length, '.sellcard', '오퍼가 도착했어요. 눌러서 팔거나 더 높은 금액을 불러 보세요. 오퍼는 시간이 지나면 사라지고, 다 사라지면 조직력이 조금 떨어져요.'],
-  ];
-  const next = items.find(([key, when]) => when && !seen[key]);
-  if (next) showSpot({ selector: next[2], text: next[3], ...once(next[0]) });
 }
 
 // 설명창(태그·팀 스타일·ⓘ)은 다시 누르거나 다른 곳을 누르면 닫힌다
@@ -4781,4 +4863,4 @@ if (UCL_DEMO) {
 }
 
 // 확인용 훅(#dev): 감독 장면(철학·라커룸 토크)을 바로 띄워 본다. 일반 플레이에는 영향이 없다.
-if (location.hash.includes('dev')) window.__dev = { openHaggle, openSale, maybeAppoint, renderRunEnd, showDialogueScene, showTrophy, showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };
+if (location.hash.includes('dev')) window.__dev = { tutSkip, leaveTutorialRun, openHaggle, openSale, maybeAppoint, renderRunEnd, showDialogueScene, showTrophy, showSeasonPreview, renderHalfTimeVerdict, pickBestXI, runSecondHalfAndFinish, startNewSeason, showPhilosophyPick, showPhilosophyLevelUp, showTalkPick, showTalkResult, rollTalkOutcome, get state() { return currentState; }, set(k, v) { currentState[k] = v; } };

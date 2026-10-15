@@ -45,6 +45,10 @@ function randomInt(min, max, rng) {
 }
 
 let nextId = 1;
+// 저장된 런을 이어하면 id 카운터가 1부터 다시 시작해 선수 id가 겹친다 - 이미 쓰인 id보다 크게 올려 둔다.
+export function reservePlayerIds(players) {
+  for (const p of players) { const m = /^(?:p|youth)(\d+)$/.exec(p?.id ?? ''); if (m) nextId = Math.max(nextId, Number(m[1]) + 1); }
+}
 
 // 특수 성향은 희귀해야 역할 칸(주장/에이스/조커)을 놓고 고민이 생긴다.
 const SPECIAL_TRAIT_CHANCE = 0.06;

@@ -35,6 +35,8 @@ export function drawPhilosophyChoices(rng = Math.random, count = 3) {
   return ids.slice(0, count);
 }
 // philosophy = { id, level } | null
+// 승격 때 철학을 바꾸면 새 철학은 max(1, 현재 Lv − 2)로 시작한다.
+export const switchPhilosophy = (ph, newId) => ({ id: newId, level: Math.max(1, (ph?.level ?? 1) - 2) });
 export const levelUpPhilosophy = (ph) => (ph && ph.level < MAX_PHILOSOPHY_LEVEL ? { ...ph, level: ph.level + 1 } : ph);
 
 // ---------- 라커룸 토크 ----------
@@ -118,7 +120,42 @@ export const TALKS = {
     ] },
   },
 };
-export const TALK_IDS = { start: Object.keys(TALKS.start), end: Object.keys(TALKS.end) };
+// ②③ 반기 직전 토크: 여름 시장 종료 후(②)·겨울 시장 종료 후(③). 같은 효과표를 공유하고 이름·대사만 다르다.
+// 효과는 그 반기만: ②는 pointsFirst, ③은 pointsSecond. 톤은 그 반기의 변동성으로 이어진다(risky=공격 1.6배, safe=수비 0.45배).
+// [텍스트, 즉시 조직력, 반기 승점] 3개 중 하나가 나온다. 무작위로 골라도 평균 승점 환산(조직력 1점≈0.35점) ≈ 0.
+const PRE_EFFECTS = {
+  roar: [['선수들이 바짝 긴장했어요. 분위기는 잡혔지만 여유가 없어요.', 4, -1], ['라커룸이 얼어붙었어요. 집중력은 높지만 어깨가 무거워 보여요.', 3, -1], ['기선 제압은 성공. 다만 어린 선수들이 위축돼요.', 5, -2]],
+  cheer: [['마음이 편해진 선수들이 힘을 내요. 승부욕은 조금 줄었어요.', 3, -1], ['믿어 주는 감독에게 선수들이 보답하려 해요. 긴장은 풀렸어요.', 2, -1], ['든든한 분위기예요. 다만 너무 편안해졌어요.', 4, -2]],
+  gamble: [['이번 반기에 거는 계획이 짜여요. 선수단 분위기는 흔들려요.', -5, 2], ['승부수에 선수들이 설레요. 하지만 준비가 덜 됐어요.', -3, 1], ['큰 승부수예요. 부담을 느끼지만 한 번 해 볼 만해요.', -4, 2]],
+  film: [['선수들이 상대를 읽어요. 분위기는 차분해요.', 1, 0], ['전술 이해도가 올라요. 대신 훈련이 딱딱해졌어요.', -1, 1], ['장단점이 선명해져요. 분위기는 조금 무거워요.', 2, -1]],
+  freedom: [['선수들이 자유를 만끽해요. 하지만 호흡이 맞지 않아요.', -5, 2], ['개성이 살아나요. 팀 같지는 않아요.', -3, 1], ['각자 해결하려는 분위기예요. 터지면 크지만 불안해요.', -4, 2]],
+  joke: [['웃음이 터져요. 분위기는 좋은데 긴장이 풀려요.', 4, -2], ['라커룸이 화기애애해요.', 3, -1], ['가볍게 시작해요. 약간 느슨해요.', 2, -1]],
+  carrot: [['선수들 눈빛이 달라져요. 하지만 서로 경쟁하느라 지쳐요.', -5, 2], ['성과 보너스가 걸려요. 분위기가 날카로워요.', -6, 2], ['긴장감이 팽팽해요. 한 번 밀어붙일 만해요.', -8, 3]],
+};
+const PRE_TALKS = {
+  roar: ['호통', '"작년 같은 모습이면 곤란하다!"', '"이대로면 곤란하다!"', 'risky'],
+  cheer: ['격려', '"여러분을 믿습니다."', '"아직 충분히 뒤집을 수 있다."', 'safe'],
+  gamble: ['승부수 선언', '"이번 반기에 승부를 건다."', '"남은 반기에 모든 걸 건다."', 'risky'],
+  film: ['영상 분석', '"상대 영상을 같이 보자."', '"틀린 장면을 같이 보자."', 'safe'],
+  freedom: ['자유 플레이', '"각자 하고 싶은 대로 해 봐라."', '"각자 해결해 봐라."', 'risky'],
+  joke: ['농담 한마디', '"자, 웃으면서 시작하자."', '"표정이 굳었다, 웃자."', 'safe'],
+  carrot: ['채찍과 당근', '"성과를 내면 보상, 못 내면 벌이다."', '"후반기 성과에 보너스를 건다."', 'risky'],
+};
+const preKind = (half) => Object.fromEntries(Object.entries(PRE_TALKS).map(([id, [name, l1, l2, tone]]) => [id, {
+  name: id === 'gamble' && half === 2 ? '역전 승부수' : id === 'film' && half === 2 ? '전반기 복기' : name,
+  line: half === 1 ? l1 : l2, tone,
+  outcomes: PRE_EFFECTS[id].map(([text, chem, pts]) => ({ text, fx: { chemNow: chem, [half === 1 ? 'pointsFirst' : 'pointsSecond']: pts } })),
+}]));
+TALKS.pre1 = preKind(1);
+TALKS.pre2 = preKind(2);
+export const TALK_IDS = { start: Object.keys(TALKS.start), end: Object.keys(TALKS.end), pre1: Object.keys(TALKS.pre1), pre2: Object.keys(TALKS.pre2) };
+
+// 시즌 합계 한도: 조직력(① + ② + ③ + 성격 보정) ±8, 승점 효과(①~③) ±4. 한도를 넘는 만큼만 잘라 낸 새 변화량을 돌려준다.
+export const TALK_SEASON_CHEM_CAP = 8;
+export const TALK_SEASON_POINTS_CAP = 4;
+export const capTalkDelta = (sum, delta, cap) => Math.max(-cap, Math.min(cap, sum + delta)) - sum;
+// 반기 직전 토크의 숨은 변동성 방향(전술 방향 효과를 흡수): risky → 공격, safe → 수비
+export const talkDirection = (tone) => (tone === 'risky' ? 'attack' : tone === 'safe' ? 'defense' : 'balance');
 
 // 라커룸 토크 3장(장면 이름·대사·분위기만 보인다. 반응은 고르고 나서 정해진다).
 export function drawTalkChoices(kind, rng = Math.random, count = 3) {
@@ -130,7 +167,7 @@ export function drawTalkChoices(kind, rng = Math.random, count = 3) {
 export function rollTalkOutcome(kind, id, rng = Math.random) {
   const t = TALKS[kind][id];
   const o = t.outcomes[Math.floor(rng() * t.outcomes.length)];
-  return { id, kind, name: t.name, text: o.text, fx: o.fx };
+  return { id, kind, name: t.name, text: o.text, fx: o.fx, tone: t.tone };
 }
 // 반응의 장단점을 사람이 읽는 문장으로("조직력 +6", "판매 오퍼 −6%")
 export function describeTalkFx(fx) {

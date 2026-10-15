@@ -64,3 +64,9 @@ test('한 스쿼드 안에서 이름이 겹치지 않는다', () => {
     assert.equal(new Set(names).size, names.length, `${attempt}번째 스쿼드에 동명이인이 있다`);
   }
 });
+
+import { reservePlayerIds } from '../data/generate-player.mjs';
+test('저장 복원 뒤 새로 만든 선수 id는 기존 선수와 겹치지 않는다', () => {
+  reservePlayerIds([{ id: 'p0500' }, { id: 'youth0501' }, { id: 'god-x' }]);
+  assert.ok(Number(generateProceduralPlayer('local').id.slice(1)) >= 502);
+});
