@@ -3349,3 +3349,13 @@ html[data-theme] .dlg__stage .portrait { border-radius: 24px; background: #34343
 html[data-theme] .cta { height: 56px; border-radius: 999px; border: 0; background: #f4f1e8; color: #0b0b0b; font: 900 18px/1 "FM Square", sans-serif; letter-spacing: 0; box-shadow: none; }
 html[data-theme] .cta--ghost { background: transparent; color: #f4f1e8; border: 1px solid #2b2b30; }
 html[data-theme] .cta--danger { background: #ff2e3a; color: #fff; }
+
+/* ===== 접근성: 터치 44px(보이는 크기는 유지, 눌림 영역만 확장), 작은 글자 키움, 컷신 건너뛰기 ===== */
+html[data-theme] .mkhead__funds, html[data-theme] .gapchip, html[data-theme] .tagchip, html[data-theme] .formations button, html[data-theme] .formations .pill { position: relative; }
+html[data-theme] .mkhead__funds::after, html[data-theme] .gapchip::after, html[data-theme] .tagchip::after, html[data-theme] .formations button::after { content: ''; position: absolute; left: -2px; right: -2px; top: 50%; height: max(100%, 44px); transform: translateY(-50%); }
+html[data-theme] .srow__acts .act, html[data-theme] .scoutorder select { min-height: 44px; }
+html[data-theme] .dlg__skip, html[data-theme] .tut__skip { min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; }
+html[data-theme] .slot__pos, html[data-theme] .slot__boost { font-size: 11px; }
+html[data-theme] .slot__name { font-size: 11px; }
+html[data-theme] .srow__pos { font-size: 11px; }
+html[data-theme] :focus-visible { outline: 2px solid #f4f1e8; outline-offset: 2px; }

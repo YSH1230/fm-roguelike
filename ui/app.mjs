@@ -68,6 +68,7 @@ import { pixelMatchHtml } from './pixel.mjs';
 import { track, telemetryOn, telemetryConfigured, setTelemetry } from './telemetry.mjs';
 import { renderCrest, CREST_PARTS, designOf, isDesignFree, designKey, randomFreeDesign } from './crest2.mjs';
 import { showSpot, clearSpot } from './tutorial.mjs';
+import './a11y.mjs'; // 모달·컷신 접근성(역할·포커스·키보드)
 import { buildTutorialState, TUTORIAL_KITS, TUTORIAL_STEPS, TUTORIAL_CARDS, TUTORIAL_HAGGLE, TUTORIAL_HALF, TUTORIAL_JOURNALISTS, TUTORIAL_RESULT, TUTORIAL_END_TEXT, tutorialSaleOffers } from './tutorial-script.mjs';
 import { stadiumHtml, stadiumLevel } from './stadium.mjs';
 import { loadFlags, updateFlags, isUnlocked, markSeen } from '../data/flags.mjs';
