@@ -44,7 +44,7 @@ test('사기 얼굴 5단계와 팀 색 위 글자색', () => {
 
 test('효과 칩과 영입 조건 문구', () => {
   const chips = effectChips({ teamMood: 3, fans: -1, coins: -10, rest: true });
-  for (const t of ['팀 사기 +3', '팬 -1', '코인 -10', '다음 구간 휴식']) assert.ok(chips.includes(t), t);
+  for (const t of ['TEAM MOOD +3', 'FANS -1', 'COIN -10', 'REST NEXT']) assert.ok(chips.includes(t), t);
   assert.deepEqual(conditionTexts({ maxRank: 5, minFacility: 3, minFans: 20, minMorale: 60 }), ['작년 5위 이상', '시설 3 이상', '팬 20 이상', '팀 사기 60 이상']);
   assert.deepEqual(conditionTexts({}), []);
 });

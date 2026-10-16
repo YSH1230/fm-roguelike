@@ -8,12 +8,14 @@ import {
 import { inductHallOfFame } from '../engine/honors.mjs';
 import { nameOf } from '../engine/names.mjs';
 import { askingSalary } from '../engine/contract.mjs';
+import { ATTRIBUTES } from '../engine/constants.mjs';
+import { attrRow } from './pitch.mjs';
 import {
   beginDraft, beginOffseason, closeDraft, closeMarket, declineResign, draftChoose, offerFreeAgent, offerResign, openMarket,
   extendCoach, extendPlayer, placeRookie, releaseStar, renewCoachContract, startSeason, takeBuyout,
 } from '../engine/offseason.mjs';
 import { SAVE_KEY, readSave, writeSave } from '../engine/save.mjs';
-import { KIT_CHOICES, REASON_TEXT, esc, onColor, teamName, tradeSide } from './components.mjs';
+import { KIT_CHOICES, REASON_TEXT, esc, faceTile, onColor, teamName, tradeSide } from './components.mjs';
 import {
   chunkScreen, endScreen, endingScreen, hubScreen, introScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
 } from './screens.mjs';
@@ -47,6 +49,14 @@ function screenHtml() {
 }
 
 function modalHtml() {
+  if (ui.levelup?.length) {
+    const p = game.myTeam.stars.find((x) => x.id === ui.levelup[0]);
+    if (p) return `<div class="sheet" role="dialog" aria-modal="true" aria-label="레벨업"><div class="sheet__box">
+      <div class="lvhead">${faceTile(p, { kit: game.clubKit, size: 64 })}<p class="intro__who"><span class="lab">LEVEL UP · ${ui.levelup.length > 1 ? `${ui.levelup.length} PLAYERS` : '1 PLAYER'}</span><b>${esc(nameOf(p.id))}</b></p></div>
+      <p class="points"><b class="num">${p.points}</b> POINT${p.points > 1 ? 'S' : ''}<span>PRESS +</span></p>
+      <div class="attrs">${ATTRIBUTES[p.position].map((k) => attrRow(p, k)).join('')}</div>
+      <button class="btn btn--wide" data-act="levellater">LATER</button></div></div>`;
+  }
   if (ui.extend) {
     const p = game.myTeam.stars.find((x) => x.id === ui.extend);
     if (p) return `<div class="sheet" role="dialog" aria-modal="true" aria-label="연장 계약"><div class="sheet__box">
@@ -129,7 +139,11 @@ const ACTIONS = {
   dpos(el) { ui.dpos = ui.dpos === el.dataset.v ? null : el.dataset.v; },
   dsel(el) { ui.dsel = ui.dsel === el.dataset.id ? null : el.dataset.id; },
   tip(el) { ui.tips.add(el.dataset.id); store.set(TIPS_KEY, JSON.stringify([...ui.tips])); },
-  spend(el) { spendPoint(game, el.dataset.id, el.dataset.k); },
+  spend(el) {
+    spendPoint(game, el.dataset.id, el.dataset.k);
+    const p = game.myTeam.stars.find((x) => x.id === el.dataset.id);
+    if (p.points === 0 && ui.levelup?.[0] === p.id) ui.levelup.shift(); // 포인트를 다 쓰면 다음 선수로
+  },
   rename(el) { ui.editName = el.dataset.id; },
   renamecancel() { ui.editName = null; },
   renamesave(el) { renamePlayer(game, el.dataset.id, document.getElementById('renameInput')?.value ?? ''); ui.editName = null; },
@@ -177,7 +191,11 @@ const ACTIONS = {
   },
   press(el) { answerPress(game, Number(el.dataset.i)); },
   interview(el) { answerInterview(game, el.dataset.id, Number(el.dataset.i)); },
-  back() { ui.view = 'hub'; },
+  back() {
+    ui.view = 'hub';
+    ui.levelup = game.myTeam.stars.filter((p) => (p.points ?? 0) > 0).map((p) => p.id); // 레벨업한 선수의 카드를 차례로 띄운다
+  },
+  levellater() { ui.levelup.shift(); },
   finish() { finishSeason(game); },
   toend() { ui.view = 'end'; },
   retire() { retireManager(game); ui.view = 'end'; },
@@ -196,7 +214,7 @@ const ACTIONS = {
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['dpos', 'dsel', 'extend', 'extendclose', 'meeting', 'meetingclose', 'pback', 'ending', 'endingdone', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['dpos', 'dsel', 'levellater', 'extend', 'extendclose', 'meeting', 'meetingclose', 'pback', 'ending', 'endingdone', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;

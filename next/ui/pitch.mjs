@@ -49,7 +49,7 @@ export function pitchBoard(game, ui) {
 }
 
 // 능력치 한 줄: 흰 막대와 숫자. 올릴 포인트가 있을 때만 천장(하늘색, MAX)과 +1 버튼이 보인다.
-function attrRow(p, key) {
+export function attrRow(p, key) {
   const you = p.attrs[key];
   const cap = capOf(p, key);
   const leveling = (p.points ?? 0) > 0;

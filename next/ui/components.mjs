@@ -54,11 +54,11 @@ export const metalIcon = (name, tier, size = 36) => icon(name, size).replace('<s
 export function effectChips(effects) {
   const out = [];
   const sign = (n) => (n > 0 ? `+${n}` : `${n}`);
-  if (effects.teamMood) out.push(chip(`팀 사기 ${sign(effects.teamMood)}`, effects.teamMood > 0 ? 'up' : 'down'));
-  if (effects.playerMood) out.push(chip(`선수 사기 ${sign(effects.playerMood)}`, effects.playerMood > 0 ? 'up' : 'down'));
-  if (effects.fans) out.push(chip(`팬 ${sign(effects.fans)}`, effects.fans > 0 ? 'up' : 'down'));
-  if (effects.coins) out.push(chip(`코인 ${sign(effects.coins)}`, effects.coins > 0 ? 'coin' : 'down'));
-  if (effects.rest) out.push(chip('다음 구간 휴식', 'up'));
+  if (effects.teamMood) out.push(chip(`TEAM MOOD ${sign(effects.teamMood)}`, effects.teamMood > 0 ? 'up' : 'down'));
+  if (effects.playerMood) out.push(chip(`MOOD ${sign(effects.playerMood)}`, effects.playerMood > 0 ? 'up' : 'down'));
+  if (effects.fans) out.push(chip(`FANS ${sign(effects.fans)}`, effects.fans > 0 ? 'up' : 'down'));
+  if (effects.coins) out.push(chip(`COIN ${sign(effects.coins)}`, effects.coins > 0 ? 'coin' : 'down'));
+  if (effects.rest) out.push(chip('REST NEXT', 'up'));
   return out.join('');
 }
 

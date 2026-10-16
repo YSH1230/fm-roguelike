@@ -292,7 +292,8 @@ export function chunkScreen(game, ui) {
     <p class="offerline"><span class="lab">YOU GIVE</span>${tradeSide(game, tr.give.players, tr.give.picks)}</p><p class="offerline"><span class="lab">THEY OFFER</span>${tradeSide(game, tr.get.players, tr.get.picks)}</p>
     <button class="btn btn--primary btn--wide" data-act="pendtradeyes">ACCEPT</button><button class="btn btn--wide" data-act="pendtradeno">DECLINE</button></section>` : '';
   const press = game.pending.press;
-  const opts = (list, attrs) => list.map((o, i) => `<button class="opt" ${attrs(i)} ${(o.effects.coins ?? 0) + game.club.coins < 0 ? 'disabled' : ''}><b>${esc(o.label)}</b><span>${effectChips(o.effects)}</span></button>`).join('');
+  // 딜레마 카드: 선택지 두 개를 나란히 놓고 결과(사기·팬·코인)를 바로 옆에 보여 준다
+  const opts = (list, attrs) => `<div class="dilemma">${list.map((o, i) => `<button class="opt" ${attrs(i)} ${(o.effects.coins ?? 0) + game.club.coins < 0 ? 'disabled' : ''}><b>${esc(o.label)}</b><span>${effectChips(o.effects)}</span></button>`).join('<i class="vs">VS</i>')}</div>`;
   const pressHtml = press ? `<section class="ask"><h3>${icon('mic', 20)}PRESS</h3><p>${esc(press.text)}</p>${opts(press.options, (i) => `data-act="press" data-i="${i}"`)}</section>` : '';
   const iv = game.pending.interviews.map(({ playerId, interview }) => `<section class="ask"><h3>${icon('chat', 20)}${esc(nameOf(playerId))} 면담</h3><p>${esc(interview.text)}</p>${opts(interview.options, (i) => `data-act="interview" data-id="${esc(playerId)}" data-i="${i}"`)}</section>`).join('');
   const last = game.phase === 'seasonEnd';
