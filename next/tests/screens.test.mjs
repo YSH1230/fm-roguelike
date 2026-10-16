@@ -6,7 +6,7 @@ import { beginOffseason, closeDraft, closeMarket, draftChoose, draftTurnIsMine, 
 import { teamIdentity, nameOf } from '../engine/names.mjs';
 import { teamName } from '../ui/components.mjs';
 import {
-  chunkScreen, endScreen, hubScreen, offseasonScreen, playerSheet, seasonScreen, startDraftScreen, titleScreen,
+  chunkScreen, endScreen, hubScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
 } from '../ui/screens.mjs';
 import { autoSeason, startedGame } from './helpers.mjs';
 
@@ -14,33 +14,37 @@ const freshUi = (extra = {}) => ({ view: 'hub', tab: 'roster', rest: new Set(), 
 // 화면 문자열이 깨지지 않았는지: 값이 빠졌을 때 나오는 흔적이 없어야 한다
 const clean = (html, label) => {
   for (const bad of ['undefined', 'NaN', '[object', 'null']) assert.ok(!html.includes(bad), `${label}에 "${bad}"가 있다`);
+  // 이모지·기호 글자를 아이콘으로 쓰지 않는다(아이콘은 직접 그린 SVG)
+  assert.ok(!/[\u{1F000}-\u{1FAFF}\u2600-\u27BF\u2B00-\u2BFF]/u.test(html), `${label}에 이모지나 기호 글자가 있다`);
   assert.ok(html.length > 200, `${label}가 너무 짧다`);
 };
 
 test('제목·시작 드래프트 화면', () => {
-  clean(titleScreen({ hasSave: true }), '제목');
-  assert.ok(titleScreen({ hasSave: false }).includes('data-act="new"'));
-  assert.ok(!titleScreen({ hasSave: false }).includes('data-act="continue"'));
+  clean(titleScreen({ hasSave: true, kit: '#2f6fed' }), '제목');
+  assert.ok(titleScreen({ hasSave: false, kit: '#2f6fed' }).includes('data-act="new"'));
+  assert.ok(!titleScreen({ hasSave: false, kit: '#2f6fed' }).includes('data-act="continue"'));
+  assert.equal((titleScreen({ hasSave: false, kit: '#1f9d6a' }).match(/data-act="kit"/g) ?? []).length, 8);
   const g = createGame({ seed: 2 });
   const html = startDraftScreen(g, freshUi());
   clean(html, '시작 드래프트');
   assert.equal((html.match(/data-act="sdraft"/g) ?? []).length, 12);
-  assert.ok(html.includes('0/3명'));
+  assert.ok(html.includes('aria-label="0/3"'));
 });
 
 test('관리 화면 4개 탭이 모두 그려지고 시트·카드가 선수 정보를 담는다', () => {
   const g = startedGame(3);
   for (const tab of ['roster', 'table', 'front', 'records']) clean(hubScreen(g, freshUi({ tab })), tab);
   const roster = hubScreen(g, freshUi());
-  assert.equal((roster.match(/<article class="pcard/g) ?? []).length, 6);
-  assert.ok(roster.includes('시즌 시작: 첫 구간 진행'));
+  assert.equal((roster.match(/class="pp pp--star/g) ?? []).length, 6); // 보드의 스타 6명
+  assert.equal((roster.match(/class="pp pp--sub/g) ?? []).length, 5); // 조연 5명은 점
+  assert.ok(roster.includes('시즌 시작'));
+  assert.ok(roster.includes('다음 구간 쉬게 하기') && roster.includes('class="detail"'));
   assert.ok(roster.includes(nameOf(g.myTeam.stars[0].id)));
   const table = hubScreen(g, freshUi({ tab: 'table' }));
-  assert.equal((table.match(/<tr class/g) ?? []).length, 20);
-  const sheet = playerSheet(g, g.myTeam.stars[0].id);
-  clean(sheet, '선수 시트');
-  assert.ok(sheet.includes('잠재'));
-  assert.equal(playerSheet(g, 'nobody'), '');
+  assert.equal((table.match(/class="rank__n"/g) ?? []).length, 20);
+  const picked = hubScreen(g, freshUi({ sel: g.myTeam.stars[3].id }));
+  assert.ok(picked.includes(`aria-label="${nameOf(g.myTeam.stars[3].id)} 상세"`));
+  assert.ok(roster.includes(`aria-label="${nameOf(g.myTeam.stars[0].id)} 상세"`)); // 선택이 없으면 첫 스타
 });
 
 test('프런트: 코치 후보와 부족한 코인에서는 고용 버튼이 막힌다', () => {
@@ -56,7 +60,9 @@ test('프런트: 코치 후보와 부족한 코인에서는 고용 버튼이 막
 test('쉬게 지정한 선수는 카드에 휴식이 표시된다', () => {
   const g = startedGame(5);
   const ui = freshUi({ rest: new Set([g.myTeam.stars[0].id]) });
-  assert.ok(hubScreen(g, ui).includes('휴식 취소'));
+  const html = hubScreen(g, ui);
+  assert.ok(html.includes('휴식 지정됨'));
+  assert.ok(/pp--star( on)? out/.test(html));
 });
 
 test('구간 결과 화면: 경기 목록, 기자회견, 마지막 구간에는 시즌 마무리 버튼', () => {
@@ -65,13 +71,14 @@ test('구간 결과 화면: 경기 목록, 기자회견, 마지막 구간에는 
   ui.last = playNextChunk(g);
   const html = chunkScreen(g, ui);
   clean(html, '구간 결과');
-  assert.equal((html.match(/class="m /g) ?? []).length, 14);
+  assert.equal((html.match(/class="m m--/g) ?? []).length, 14);
+  assert.equal((html.match(/class="rs rs--/g) ?? []).length, 14);
   assert.ok(html.includes('data-act="press"'));
   assert.ok(html.includes('data-act="back"'));
   playNextChunk(g); ui.last = playNextChunk(g);
   const last = chunkScreen(g, ui);
   assert.ok(last.includes('data-act="finish"'));
-  assert.equal((last.match(/class="m /g) ?? []).length, 10);
+  assert.equal((last.match(/class="m m--/g) ?? []).length, 10);
 });
 
 test('시즌 종료·오프시즌·런 종료 화면', () => {
@@ -105,7 +112,7 @@ test('런 종료 화면: 경질과 은퇴 모두 요약이 그려진다', () => 
   if (g.phase === 'offseason') retireManager(g);
   const html = endScreen(g);
   clean(html, '런 종료');
-  assert.ok(html.includes('커리어 점수'));
+  assert.ok(html.includes('커리어'));
   assert.ok(html.includes('data-act="newrun"'));
   assert.ok(html.includes(g.end.reason === 'fired' ? '경질' : '감독 은퇴'));
 });

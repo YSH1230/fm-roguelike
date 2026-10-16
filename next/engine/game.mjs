@@ -22,7 +22,7 @@ import { careerSummary, recordChampions, recordMyTeam } from './honors.mjs';
 export const regionTeams = (world) => allTeams(world).filter((t) => t.region === MY_REGION);
 
 // 새 게임: 3부 팀, 배정된 스타 3명, 코치 2명, 시작 드래프트(3명 선택) 대기.
-export function createGame({ seed = 1, name = '감독', clubName = '내 구단' } = {}) {
+export function createGame({ seed = 1, name = '감독', clubName = '내 구단', clubKit = '#2f6fed' } = {}) {
   const rng = createRng(seed);
   const myTeam = createTeam({ rng, id: 'ME', attackStars: 2.5, defenseStars: 2.5, starLevel: 50, starPositions: START_ASSIGNED });
   myTeam.coaches.attack = createCoach({ rng, id: 'ME-ca', kind: 'attack', stars: 2.5 });
@@ -32,7 +32,7 @@ export function createGame({ seed = 1, name = '감독', clubName = '내 구단' 
   grantPicks(regionTeams(world), 1);
   const order = Array.from({ length: START_PICKS }, (_, i) => ({ slot: i + 1, from: 'ME', owner: 'ME' }));
   return {
-    seed, rng, name, clubName, world, myTeam, club: createClub(), history: createHistory(),
+    seed, rng, name, clubName, clubKit, world, myTeam, club: createClub(), history: createHistory(),
     phase: 'startDraft', chunk: 0, pending: { press: null, interviews: [] }, season: null, off: null, end: null,
     startDraft: createDraft({ prospects: generateProspects(rng, { count: START_PROSPECTS, prefix: 'S1' }), order }),
   };

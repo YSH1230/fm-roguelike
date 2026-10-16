@@ -12,9 +12,9 @@ import {
   placeRookie, releaseStar, renewCoachContract, startSeason,
 } from '../engine/offseason.mjs';
 import { SAVE_KEY, readSave, writeSave } from '../engine/save.mjs';
-import { REASON_TEXT, esc } from './components.mjs';
+import { KIT_CHOICES, REASON_TEXT, esc, onColor } from './components.mjs';
 import {
-  chunkScreen, endScreen, hubScreen, offseasonScreen, playerSheet, seasonScreen, startDraftScreen, titleScreen,
+  chunkScreen, endScreen, hubScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
 } from './screens.mjs';
 
 const TIPS_KEY = 'fm-lite-tips';
@@ -29,12 +29,12 @@ const store = {
 const storage = { getItem: (k) => store.get(k), setItem: (k, v) => store.set(k, v) };
 
 const ui = {
-  view: 'hub', tab: 'roster', sheet: null, flash: null, modal: null, last: null, candidates: {}, rest: new Set(),
+  view: 'hub', tab: 'roster', sel: null, kit: KIT_CHOICES[0][0], flash: null, modal: null, last: null, candidates: {}, rest: new Set(),
   tips: new Set(JSON.parse(store.get(TIPS_KEY) ?? '[]')),
 };
 
 function screenHtml() {
-  if (!game) return titleScreen({ hasSave: Boolean(store.get(SAVE_KEY)) });
+  if (!game) return titleScreen({ hasSave: Boolean(store.get(SAVE_KEY)), kit: ui.kit });
   switch (game.phase) {
     case 'startDraft': return startDraftScreen(game, ui);
     case 'manage': return ui.view === 'chunk' ? chunkScreen(game, ui) : hubScreen(game, ui);
@@ -59,7 +59,10 @@ function modalHtml() {
 let lastKey = '';
 function render() {
   const key = `${game?.phase}|${game?.off?.step}|${ui.view}|${ui.tab}`;
-  root.innerHTML = screenHtml() + (ui.sheet && game ? playerSheet(game, ui.sheet) : '') + modalHtml();
+  const kit = game ? game.clubKit : ui.kit;
+  document.documentElement.style.setProperty('--team', kit);
+  document.documentElement.style.setProperty('--on-team', onColor(kit));
+  root.innerHTML = screenHtml() + modalHtml();
   if (key !== lastKey) { window.scrollTo(0, 0); lastKey = key; }
 }
 
@@ -75,15 +78,15 @@ const result = (r, ok) => { ui.flash = r.accepted ? ok : (REASON_TEXT[r.reason] 
 const ACTIONS = {
   new(el) {
     const clubName = document.getElementById('club-name').value.trim() || '내 구단';
-    game = createGame({ seed: (Date.now() & 0x7fffffff) || 1, clubName });
+    game = createGame({ seed: (Date.now() & 0x7fffffff) || 1, clubName, clubKit: ui.kit });
     ui.view = 'hub'; ui.tab = 'roster'; ui.rest.clear(); ui.candidates = {};
   },
   continue() { game = readSave(storage); ui.view = 'hub'; ui.rest.clear(); },
   newrun() { game = null; },
   sdraft(el) { startDraftPick(game, el.dataset.id); },
   tab(el) { ui.tab = el.dataset.v; ui.flash = null; },
-  sheet(el) { ui.sheet = el.dataset.id; },
-  closesheet() { ui.sheet = null; },
+  kit(el) { ui.kit = el.dataset.v; },
+  pick(el) { ui.sel = el.dataset.id; },
   tip(el) { ui.tips.add(el.dataset.id); store.set(TIPS_KEY, JSON.stringify([...ui.tips])); },
   rest(el) { const id = el.dataset.id; if (ui.rest.has(id)) ui.rest.delete(id); else ui.rest.add(id); },
   upgrade(el) { upgradeFacility(game.club, el.dataset.kind); },
@@ -133,7 +136,7 @@ const ACTIONS = {
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['tab', 'sheet', 'closesheet', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;

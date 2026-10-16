@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame } from '../engine/game.mjs';
 import { teamIdentity } from '../engine/names.mjs';
-import { conditionTexts, effectChips, esc, starsHtml } from '../ui/components.mjs';
+import { conditionTexts, effectChips, esc, onColor } from '../ui/components.mjs';
+import { moodFace, stars } from '../ui/icons.mjs';
 import { startDraftScreen } from '../ui/screens.mjs';
 
 const freshUi = (extra = {}) => ({ view: 'hub', tab: 'roster', rest: new Set(), tips: new Set(), flash: null, candidates: {}, last: null, ...extra });
@@ -25,9 +26,20 @@ test('문자 이스케이프: 구단 이름에 태그가 들어가도 그대로 
   assert.ok(html.includes('&lt;b&gt;해킹&lt;/b&gt;'));
 });
 
-test('별 표시는 0.5 단위 비율이 그대로 들어간다', () => {
-  assert.ok(starsHtml(2.5).includes('--v:50%'));
-  assert.ok(starsHtml(5).includes('--v:100%'));
+test('별 표시는 현재 실력과 잠재력을 0.5 단위 비율로 담고 설명 글이 붙는다', () => {
+  const html = stars(2.5, 4, 16);
+  assert.ok(html.includes('width="60"')); // 현재 2.5/5 x 120
+  assert.ok(html.includes('width="96"')); // 잠재 4/5 x 120
+  assert.ok(html.includes('aria-label="별 2.5개, 잠재 4개"'));
+  assert.notEqual(stars(1, 1).match(/id="(s\d+)c"/)[1], stars(1, 1).match(/id="(s\d+)c"/)[1]); // 클립 id가 겹치지 않는다
+});
+
+test('사기 얼굴 5단계와 팀 색 위 글자색', () => {
+  const levels = [90, 70, 50, 30, 5].map((m) => moodFace(m).match(/face--(\d)/)[1]);
+  assert.deepEqual(levels, ['5', '4', '3', '2', '1']);
+  assert.equal(onColor('#ffffff'), '#0b0b0b');
+  assert.equal(onColor('#101010'), '#ffffff');
+  assert.equal(onColor('#2f6fed'), '#ffffff');
 });
 
 test('효과 칩과 영입 조건 문구', () => {
