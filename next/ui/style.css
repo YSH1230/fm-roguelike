@@ -352,3 +352,9 @@ select { max-width: 160px; font-size: 13px; }
   .enter .rs, .enter .bigrank, .enter .bar i { animation-name: fade !important; }
 }
 @media (max-width: 340px) { .wordmark { font-size: 84px; } .repname { font-size: 44px; } }
+
+/* 드래프트 후보: 누르면 세부 능력치가 펼쳐진다 */
+.prow[data-act="dsel"] { cursor: pointer; }
+.prow--open { border-color: var(--team); }
+.prow__detail { grid-column: 1 / -1; cursor: default; display: grid; gap: 10px; padding-top: 12px; margin-top: 4px; border-top: 1px dotted var(--line); }
+.prow__detail .attr { display: grid; grid-template-columns: 64px 1fr 32px; gap: 10px; align-items: center; }

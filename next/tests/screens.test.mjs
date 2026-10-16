@@ -34,12 +34,15 @@ test('시작 드래프트: 시작 전에는 후보 명단과 DRAFT 버튼만, �
   assert.ok(pre.includes('data-act="dstart"') && pre.includes('>DRAFT<'));
   for (const gone of ['RULES', 'DRAFT ORDER', 'MY PICKS', 'START DRAFT', 'splash', 'dskip']) assert.ok(!pre.includes(gone), `${gone}는 없어야 한다`);
   assert.ok(!pre.includes('data-act="sdraft"')); // 시작 전에는 지명할 수 없다
-  assert.equal((pre.match(/<article class="prow/g) ?? []).length, 20);
+  assert.equal((pre.match(/<article[^>]*class="prow/g) ?? []).length, 20);
   startDraftAdvance(g);
   const live = startDraftScreen(g, freshUi());
   clean(live, '드래프트 진행');
   assert.ok(live.includes('YOUR PICK') && live.includes('PICK LOG') && live.includes('clock--me'));
-  assert.equal((live.match(/data-act="sdraft"/g) ?? []).length, g.startDraft.pool.length);
+  assert.ok(!live.includes('attrs-mini') && !live.includes('data-act="sdraft"')); // 누르기 전에는 스탯·PICK이 없다
+  const opened = startDraftScreen(g, freshUi({ dsel: g.startDraft.pool[0].id }));
+  assert.equal((opened.match(/data-act="sdraft"/g) ?? []).length, 1);
+  assert.ok(opened.includes('class="attr"'));
   const pos = startDraftScreen(g, freshUi({ dpos: 'DF' }));
   assert.ok(pos.includes('need--on') && pos.includes('class="needs__list"'));
 });
@@ -131,7 +134,8 @@ test('시즌 종료·오프시즌·런 종료 화면', () => {
   beginDraft(g);
   const draft = offseasonScreen(g, ui);
   clean(draft, '드래프트');
-  assert.equal(draftTurnIsMine(g), draft.includes('data-act="dpick"'));
+  const open = offseasonScreen(g, freshUi({ ...ui, dsel: g.off.draft.pool[0]?.id }));
+  assert.equal(draftTurnIsMine(g), open.includes('data-act="dpick"'));
 });
 
 test('런 종료 화면: 경질과 은퇴 모두 요약이 그려진다', () => {

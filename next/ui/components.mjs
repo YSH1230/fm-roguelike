@@ -91,17 +91,18 @@ export function abilityStars(p, size = 16) {
 
 // 후보·FA·신인·재계약처럼 목록에서 쓰는 한 줄 선수 행
 // 목록의 선수 행은 어두운 면에 구단 색 얼굴 타일만 둔다(구단 색 면은 선수 상세 카드 한 장에만).
-export function playerRow(p, { kit, note = '', action = '', contract = false, stack = false } = {}) {
+export function playerRow(p, { kit, note = '', action = '', contract = false, stack = false, stats = true, detail = '' } = {}) {
   const hurt = (p.injury?.chunksLeft ?? 0) > 0;
   return `<article class="prow${hurt ? ' prow--hurt' : ''}${stack ? ' prow--stack' : ''}">
     ${faceTile(p, { kit })}
     <div class="prow__main">
       <h4 class="prow__name">${esc(nameOf(p.id))}<small>${p.age}세</small></h4>
       ${abilityStars(p)}
-      <div class="attrs-mini">${Object.entries(p.attrs).map(([k, v]) => `<span>${ATTR_LABEL[k]}<b>${v}</b></span>`).join('')}</div>
+      ${stats ? `<div class="attrs-mini">${Object.entries(p.attrs).map(([k, v]) => `<span>${ATTR_LABEL[k]}<b>${v}</b></span>`).join('')}</div>` : ''}
       ${note}
     </div>
     <div class="prow__side">${contract ? `<span class="num">${p.contract.salary}</span><small>${p.contract.years}년 계약</small>` : ''}${action}</div>
+    ${detail}
   </article>`;
 }
 

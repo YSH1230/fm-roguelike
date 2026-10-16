@@ -95,6 +95,7 @@ const ACTIONS = {
   tab(el) { ui.tab = el.dataset.v; ui.flash = null; },
   kit(el) { ui.kit = el.dataset.v; },
   pick(el) { ui.sel = el.dataset.id; },
+  dsel(el) { ui.dsel = ui.dsel === el.dataset.id ? null : el.dataset.id; },
   tip(el) { ui.tips.add(el.dataset.id); store.set(TIPS_KEY, JSON.stringify([...ui.tips])); },
   rest(el) { const id = el.dataset.id; if (ui.rest.has(id)) ui.rest.delete(id); else ui.rest.add(id); },
   upgrade(el) { upgradeFacility(game.club, el.dataset.kind); },
