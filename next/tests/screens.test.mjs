@@ -39,10 +39,10 @@ test('시작 드래프트: 시작 전에는 후보 명단과 DRAFT 버튼만, �
   const live = startDraftScreen(g, freshUi());
   clean(live, '드래프트 진행');
   assert.ok(live.includes('YOUR PICK') && live.includes('PICK LOG') && live.includes('clock--me'));
-  assert.ok(!live.includes('attrs-mini') && !live.includes('data-act="sdraft"')); // 누르기 전에는 스탯·PICK이 없다
+  assert.ok(!live.includes('attrs-mini') && !live.includes('class="attr"')); // 누르기 전에는 세부 능력치가 없다
+  assert.equal((live.match(/data-act="sdraft"/g) ?? []).length, g.startDraft.pool.length); // PICK은 행마다 있다
   const opened = startDraftScreen(g, freshUi({ dsel: g.startDraft.pool[0].id }));
-  assert.equal((opened.match(/data-act="sdraft"/g) ?? []).length, 1);
-  assert.ok(opened.includes('class="attr"'));
+  assert.ok(opened.includes('class="attr"') && opened.includes('bar white'));
   const pos = startDraftScreen(g, freshUi({ dpos: 'DF' }));
   assert.ok(pos.includes('need--on') && pos.includes('class="needs__list"'));
 });

@@ -1,4 +1,4 @@
-import { TRAITS } from '../engine/constants.mjs';
+import { ATTRIBUTES, TRAITS } from '../engine/constants.mjs';
 import { askingSalary, payroll } from '../engine/contract.mjs';
 import { capExpandCost, salaryCap, upgradeCost } from '../engine/economy.mjs';
 import { leagueAiTeams } from '../engine/game.mjs';
@@ -6,10 +6,11 @@ import { standings } from '../engine/league.mjs';
 import { nameOf } from '../engine/names.mjs';
 import { draftTurnIsMine } from '../engine/offseason.mjs';
 import { isDraftOver } from '../engine/draft.mjs';
+import { overall, starsOf } from '../engine/player.mjs';
 import { coachCost, coachXpNeeded } from '../engine/coach.mjs';
 import { myLeague } from '../engine/world.mjs';
 import {
-  AWARD_LABEL, KIT_CHOICES, METAL_DEFS, TIER_LABEL, askText, bar, chip, conditionTexts, crest, effectChips, esc, facts, faceTile,
+  ATTR_LABEL, AWARD_LABEL, KIT_CHOICES, METAL_DEFS, TIER_LABEL, askText, bar, chip, conditionTexts, crest, effectChips, esc, facts, faceTile,
   abilityStars, attrBars, icon, metalIcon, onColor, playerRow, stars, teamName,
 } from './components.mjs';
 import { defaultSelection, pitchBoard, playerDetail } from './pitch.mjs';
@@ -63,16 +64,17 @@ function draftBoard(game, d, ui, cfg) {
   // 후보는 별점까지만 보이고, 누르면 세부 능력치가 펼쳐진다(내 차례면 PICK 버튼도)
   const prospect = (p, canPick) => {
     const open = ui.dsel === p.id;
-    return playerRow(p, {
-      kit, stats: false, dsel: true,
-      detail: open ? `<div class="prow__detail">${attrBars(p)}${canPick ? `<button class="btn btn--primary btn--wide" data-act="${cfg.pickAct}" data-id="${esc(p.id)}">PICK</button>` : ''}</div>` : '',
-    }).replace('<article class="prow', `<article data-act="dsel" data-id="${esc(p.id)}" class="prow${open ? ' prow--open' : ''}`);
+    const bars = ATTRIBUTES[p.position].map((k) => `<div class="attr"><span>${ATTR_LABEL[k]}</span>${bar(p.attrs[k], 'white')}</div>`).join('');
+    const action = canPick ? `<button class="btn btn--small btn--primary" data-act="${cfg.pickAct}" data-id="${esc(p.id)}">PICK</button>` : '';
+    return playerRow(p, { kit, stats: false, action, detail: open ? `<div class="prow__detail">${bars}</div>` : '' })
+      .replace('<article class="prow', `<article data-act="dsel" data-id="${esc(p.id)}" class="prow${open ? ' prow--open' : ''}`);
   };
+  const byPotential = (pool) => [...pool].sort((x, y) => Math.max(starsOf(y.potential), starsOf(overall(y))) - Math.max(starsOf(x.potential), starsOf(overall(x))) || overall(y) - overall(x));
 
   if (!d.started) {
     return `<div class="titlebar"><h2>${cfg.title}</h2></div>
       <h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>
-      ${d.pool.map((p) => prospect(p, false)).join('')}
+      ${byPotential(d.pool).map((p) => prospect(p, false)).join('')}
       <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="dstart">DRAFT</button></div>`;
   }
 
@@ -96,7 +98,7 @@ function draftBoard(game, d, ui, cfg) {
       <span class="pick__p"><b>${esc(nameOf(k.player.id))}</b><span class="tag">${k.player.position}</span>${abilityStars(k.player, 12)}</span></li>`).join('');
 
   const pickList = myTurn
-    ? `<h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>${d.pool.map((p) => prospect(p, true)).join('')}`
+    ? `<h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>${byPotential(d.pool).map((p) => prospect(p, true)).join('')}`
     : '';
   const done = over
     ? section('MY DRAFT', d.picks.filter((k) => k.owner === me).map((k) => playerRow(k.player, { kit })).join('') || '<p class="muted">NO PICKS</p>')
