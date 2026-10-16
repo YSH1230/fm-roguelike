@@ -3,7 +3,7 @@ import { generateCoachCandidates, hireCoach, setIntensity } from '../engine/coac
 import { expandCap, upgradeFacility } from '../engine/economy.mjs';
 import {
   acceptTrade, answerInterview, answerPress, createGame, finishSeason, incomingTrade, leagueAiTeams, playNextChunk,
-  proposeTrade, renamePlayer, retireManager, spendPoint, startDraftAdvance, startDraftFinish, startDraftPick,
+  renamePlayer, requestTrade, retireManager, spendPoint, startDraftAdvance, startDraftFinish, startDraftPick,
 } from '../engine/game.mjs';
 import { inductHallOfFame } from '../engine/honors.mjs';
 import { nameOf } from '../engine/names.mjs';
@@ -12,7 +12,7 @@ import {
   placeRookie, releaseStar, renewCoachContract, startSeason, takeBuyout,
 } from '../engine/offseason.mjs';
 import { SAVE_KEY, readSave, writeSave } from '../engine/save.mjs';
-import { KIT_CHOICES, REASON_TEXT, esc, onColor } from './components.mjs';
+import { KIT_CHOICES, REASON_TEXT, esc, onColor, teamName } from './components.mjs';
 import {
   chunkScreen, endScreen, endingScreen, hubScreen, introScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
 } from './screens.mjs';
@@ -48,12 +48,13 @@ function screenHtml() {
 function modalHtml() {
   if (!ui.modal) return '';
   const { offer } = ui.modal;
-  const mine = game.myTeam.stars.find((p) => p.id === offer.give.players[0]);
   const ai = leagueAiTeams(game).find((t) => t.id === offer.aiTeamId);
-  const theirs = ai.stars.find((p) => p.id === offer.get.players[0]);
-  const pick = offer.get.picks.length ? ` + 지명권 ${offer.get.picks.length}장` : '';
+  const side = (players, picks) => [
+    ...players.map((id) => esc(nameOf(id))),
+    ...picks.map((k) => `Y${k.year} R${k.round ?? 1} · ${esc(teamName(game, k.from))}`),
+  ].map((t) => `<b>${t}</b>`).join(' + ');
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="트레이드 제안"><div class="sheet__box">
-    <h3>트레이드 제안</h3><p><b>${esc(nameOf(mine.id))}</b> ↔ <b>${esc(nameOf(theirs.id))}</b>${pick}</p>
+    <h3>${esc(teamName(game, ai.id))}</h3><p class="offerline"><span class="lab">YOU GIVE</span>${side(offer.give.players, offer.give.picks)}</p><p class="offerline"><span class="lab">THEY OFFER</span>${side(offer.get.players, offer.get.picks)}</p>
     <button class="btn btn--primary btn--wide" data-act="tradeyes">받아들이기</button><button class="btn btn--wide" data-act="tradeno">거절</button></div></div>`;
 }
 
@@ -136,20 +137,11 @@ const ACTIONS = {
   },
   tradeyes() { acceptTrade(game, ui.modal.offer); ui.modal = null; ui.flash = '트레이드가 성사되었어요'; },
   tradeno() { ui.modal = null; },
-  tradeout() {
-    const val = (id) => document.getElementById(id).value;
-    const mine = val('tr-mine');
-    const myPick = val('tr-mypick');
-    const [teamA, theirs] = val('tr-theirs') ? val('tr-theirs').split(':') : [null, null];
-    const [teamB, ...pk] = val('tr-theirpick') ? val('tr-theirpick').split(':') : [null];
-    if (teamA && teamB && teamA !== teamB) throw new Error('받을 선수와 지명권은 같은 팀 것으로 골라 주세요');
-    const aiTeamId = teamA ?? teamB;
-    if (!aiTeamId) throw new Error('받을 선수나 지명권을 하나 골라 주세요');
-    const asPick = (year, round, from) => ({ year: Number(year), round: Number(round), from });
-    const give = { players: mine ? [mine] : [], picks: myPick ? [asPick(...myPick.split(':'))] : [] };
-    const get = { players: theirs ? [theirs] : [], picks: pk.length ? [asPick(...pk)] : [] };
-    const r = proposeTrade(game, { aiTeamId, give, get });
-    ui.flash = r.accepted ? '상대가 받아들였어요. 트레이드 성사!' : ({ value: '상대가 가치가 모자란다고 거절했어요', cap: '샐러리캡 때문에 거절했어요', mood: '사기가 낮은 선수라 상대가 거절했어요', invalid: r.detail }[r.reason] ?? '거절당했어요');
+  traderequest() {
+    const v = document.getElementById('tr-asset').value;
+    const give = v.startsWith('p:') ? { players: [v.slice(2)] } : (() => { const [, year, round, ...from] = v.split(':'); return { picks: [{ year: Number(year), round: Number(round), from: from.join(':') }] }; })();
+    const offer = requestTrade(game, give);
+    if (offer) ui.modal = { offer }; else ui.flash = '지금은 걸맞은 제안을 보낼 팀이 없어요';
   },
   play() {
     setRest(game.myTeam, [...ui.rest]);

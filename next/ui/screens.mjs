@@ -208,20 +208,14 @@ function frontTab(game, ui) {
   }).join('');
   const ai = leagueAiTeams(game);
   const mine = team.stars.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p.id))} (${p.position})</option>`).join('');
-  const theirs = ai.map((t) => `<optgroup label="${esc(teamName(game, t.id))}">${t.stars.map((p) => `<option value="${esc(t.id)}:${esc(p.id)}">${esc(nameOf(p.id))} (${p.position})</option>`).join('')}</optgroup>`).join('');
   const pickLabel = (k) => `Y${k.year} R${k.round ?? 1} · ${teamName(game, k.from)}`;
-  const pickVal = (k) => `${k.year}:${k.round ?? 1}:${k.from}`;
-  const myPicks = (team.picks ?? []).map((k) => `<option value="${esc(pickVal(k))}">${esc(pickLabel(k))}</option>`).join('');
-  const theirPicks = ai.filter((t) => (t.picks ?? []).length).map((t) => `<optgroup label="${esc(teamName(game, t.id))}">${t.picks.map((k) => `<option value="${esc(t.id)}:${esc(pickVal(k))}">${esc(pickLabel(k))}</option>`).join('')}</optgroup>`).join('');
+  const assets = `<optgroup label="MY STARS">${team.stars.map((p) => `<option value="p:${esc(p.id)}">${esc(nameOf(p.id))} (${p.position})</option>`).join('')}</optgroup>
+    <optgroup label="MY PICKS">${(team.picks ?? []).map((k) => `<option value="k:${k.year}:${k.round ?? 1}:${esc(k.from)}">${esc(pickLabel(k))}</option>`).join('')}</optgroup>`;
   return `${tip(ui, 'front', '코인으로 시설을 키우고 코치를 바꿀 수 있어요. 샐러리캡은 <b>스타 연봉 합계</b>의 한도예요. 트레이드는 선수와 지명권을 서로 맞바꿔요. 코인은 못 얹어요.')}
     ${capPanel}${section('FACILITIES', fac)}${section('COACHES', `${coaches}<p class="hint">강하게 훈련하면 성장은 빠르지만 컨디션·사기·부상이 나빠져요</p>`)}
     ${section('TRADE', `<button class="btn btn--small" data-act="tradein">${icon('transfer', 16)}받은 제안 확인</button>
-      <div class="tradeform">
-        <label>내가 주는 선수<select id="tr-mine"><option value="">—</option>${mine}</select></label>
-        <label>내가 주는 지명권<select id="tr-mypick"><option value="">—</option>${myPicks}</select></label>
-        <label>내가 받는 선수<select id="tr-theirs"><option value="">—</option>${theirs}</select></label>
-        <label>내가 받는 지명권<select id="tr-theirpick"><option value="">—</option>${theirPicks}</select></label>
-      <button class="btn btn--small btn--primary" data-act="tradeout">맞교환 제안</button></div>`)}`;
+      <div class="tradeform"><label>내놓을 것<select id="tr-asset">${assets}</select></label>
+      <button class="btn btn--small btn--primary" data-act="traderequest">REQUEST</button><p class="hint">내놓은 것에 걸맞은 제안을 다른 팀이 보내와요. 받아들이거나 거절하면 돼요</p></div>`)}`;
 }
 
 // 기록실의 업적 배지: 얻은 것은 금·은·동, 아직 못 얻은 것은 회색으로 몇 개 보여 준다.

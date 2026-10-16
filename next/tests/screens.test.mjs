@@ -239,11 +239,11 @@ test('MARKET 탭: 시즌 중에도 FA 목록과 코인 가격, 내 스타 방출
   assert.ok(html.includes('data-v="market"')); // 하단 탭에 MARKET이 있다
 });
 
-test('트레이드 폼에 선수·지명권 칸이 있고, 신인 배치 단계에는 2라운드 신인 TAKE 버튼이 나온다', () => {
+test('트레이드: 내놓을 것을 고르는 칸과 REQUEST 버튼이 있고, 신인 배치 단계에는 2라운드 신인 TAKE 버튼이 나온다', () => {
   const g = startedGame(4);
   const front = hubScreen(g, freshUi({ tab: 'front' }));
   clean(front, '프런트');
-  for (const id of ['tr-mine', 'tr-mypick', 'tr-theirs', 'tr-theirpick']) assert.ok(front.includes(`id="${id}"`), id);
+  assert.ok(front.includes('id="tr-asset"') && front.includes('data-act="traderequest"')); // 내놓을 것 하나를 골라 REQUEST
   assert.ok(front.includes('R1') && front.includes('R2')); // 1·2라운드 지명권이 목록에 있다
   const g2 = startedGame(5);
   autoSeason(g2);

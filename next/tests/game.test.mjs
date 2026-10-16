@@ -176,3 +176,30 @@ test('트레이드: AI 제안을 받으면 선수가 바뀌고, 내가 한 제�
   assert.throws(() => proposeTrade(g, { ...bad, aiTeamId: 'nobody' }), /상대 팀/);
   assert.equal(allTeams(g.world).length, 200);
 });
+
+test('requestTrade: 내놓은 것에 걸맞은 제안을 AI 팀이 보내고, 그 제안은 AI가 수락하는 조건이며 실행되지 않는다', async () => {
+  const { requestTrade, acceptTrade } = await import('../engine/game.mjs');
+  const g = startedGame(7);
+  const star = g.myTeam.stars[0];
+  const picksBefore = g.myTeam.picks.length;
+  let offer = null;
+  for (let i = 0; i < 20 && !offer; i += 1) offer = requestTrade(g, { players: [star.id] });
+  assert.ok(offer, '걸맞은 제안을 찾지 못했다');
+  assert.deepEqual(offer.give, { players: [star.id], picks: [] });
+  assert.equal(offer.get.players.length + offer.get.picks.length, 1);
+  assert.ok(g.myTeam.stars.includes(star)); // 아직 실행 전
+  assert.equal(g.myTeam.picks.length, picksBefore);
+  acceptTrade(g, offer);
+  assert.ok(!g.myTeam.stars.includes(star));
+  assert.throws(() => requestTrade(g, { players: [star.id, 'x'] }), /한 명이나 지명권 한 장/);
+});
+
+test('requestTrade: 지명권도 내놓을 수 있고 받는 쪽은 선수나 지명권이다', async () => {
+  const { requestTrade } = await import('../engine/game.mjs');
+  const g = startedGame(8);
+  const mine = g.myTeam.picks.find((k) => k.round === 1);
+  let offer = null;
+  for (let i = 0; i < 20 && !offer; i += 1) offer = requestTrade(g, { picks: [mine] });
+  assert.ok(offer);
+  assert.deepEqual(offer.give.picks, [mine]);
+});

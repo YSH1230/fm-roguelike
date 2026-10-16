@@ -1,5 +1,5 @@
-import { CL_PRIZE, MY_REGION, SALARY_CAP, SEASON, START_ASSIGNED, START_DRAFT_TEAMS, START_PROSPECTS, START_ROUNDS } from './constants.mjs';
-import { askingSalary, newContract } from './contract.mjs';
+import { CL_PRIZE, MY_REGION, ROSTER_STARS, SALARY_CAP, SEASON, TRADE_MARGIN, START_ASSIGNED, START_DRAFT_TEAMS, START_PROSPECTS, START_ROUNDS } from './constants.mjs';
+import { askingSalary, marketValue, newContract } from './contract.mjs';
 import { createCoach } from './coach.mjs';
 import {
   autoPickUntil, createDraft, draftPick, draftedBy, generateProspects, grantPicks, isDraftOver, repeatOrder,
@@ -7,7 +7,7 @@ import {
 import { createClub, chunkIncome, earn, fansAfterChunk, salaryCap, seasonPrize } from './economy.mjs';
 import { applyChoice, interviewFor, pickPress, pressSituation } from './events.mjs';
 import { chunkStep, lineupView, snapshotStats } from './condition.mjs';
-import { createRng, randInt } from './rng.mjs';
+import { createRng, randInt, shuffle } from './rng.mjs';
 import { teamRatings } from './ratings.mjs';
 import { setStars } from './roster.mjs';
 import { createTeam } from './team.mjs';
@@ -16,7 +16,7 @@ import { generateFreeAgents } from './freeAgency.mjs';
 import { spendPoint as spendPointOn } from './growth.mjs';
 import { allTeams, createWorld, leagueKey, myLeague, playWorldChunk } from './world.mjs';
 import { standings } from './league.mjs';
-import { aiAccepts, executeTrade, proposeAi } from './trade.mjs';
+import { aiAccepts, executeTrade, pickValue, proposeAi } from './trade.mjs';
 import { collectStats, createHistory, diffStats, recordSeason } from './records.mjs';
 import { buildRows, computeAwards, giveAwards } from './awards.mjs';
 import { playChampions } from './champions.mjs';
@@ -156,6 +156,32 @@ export function acceptTrade(game, offer) {
   const ai = leagueAiTeams(game).find((t) => t.id === offer.aiTeamId);
   if (!ai) throw new Error('상대 팀을 찾을 수 없습니다');
   executeTrade({ offer, me: game.myTeam, ai, ...capsFor(game, ai), rng: game.rng });
+}
+
+// 내가 내놓은 한 가지(선수 한 명 또는 지명권 한 장)에 걸맞은 제안을 AI 팀 하나가 보낸다(실행은 하지 않는다).
+// give: { players: [id] } 또는 { picks: [{ year, round, from }] }. 가치가 걸맞은 제안을 보낼 팀이 없으면 null.
+export function requestTrade(game, give) {
+  const me = game.myTeam;
+  const slots = pickSlots(game);
+  const offered = { players: give.players ?? [], picks: give.picks ?? [] };
+  if (offered.players.length + offered.picks.length !== 1) throw new Error('선수 한 명이나 지명권 한 장을 골라 주세요');
+  const mine = offered.players.length
+    ? marketValue(me.stars.find((p) => p.id === offered.players[0]) ?? (() => { throw new Error('내 스타가 아닙니다'); })())
+    : pickValue(slots.get(offered.picks[0].from) ?? 10, offered.picks[0].round ?? 1);
+  const canTakePlayer = offered.players.length > 0 || me.stars.length < ROSTER_STARS;
+  for (const ai of shuffle(game.rng, leagueAiTeams(game))) {
+    const options = [
+      ...(ai.picks ?? []).map((k) => ({ get: { players: [], picks: [k] }, value: pickValue(slots.get(k.from) ?? 10, k.round ?? 1) })),
+      ...(canTakePlayer ? ai.stars.map((p) => ({ get: { players: [p.id], picks: [] }, value: marketValue(p) })) : []),
+    ].filter((o) => o.value * TRADE_MARGIN <= mine && o.value >= mine * 0.55);
+    // 가장 걸맞은 셋 중에서 무작위로 하나
+    const pool = options.sort((a, b) => b.value - a.value).slice(0, 3);
+    if (pool.length === 0) continue;
+    const pick = pool[Math.floor(game.rng() * pool.length)];
+    const offer = { aiTeamId: ai.id, give: offered, get: pick.get };
+    if (aiAccepts({ offer, me, ai, ...capsFor(game, ai), slots }).accepted) return offer;
+  }
+  return null;
 }
 
 // 내가 먼저 제안한다. 상대가 받아들이면 바로 실행하고 결과를 돌려준다.
