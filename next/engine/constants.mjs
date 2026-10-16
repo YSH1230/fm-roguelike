@@ -24,3 +24,17 @@ export const ASSIST_CHANCE = 0.7;
 // 득점·도움을 누가 할지의 포지션 가중치
 export const SCORER_POS_WEIGHT = { FW: 5, MF: 2.5, DF: 0.7, GK: 0.02 };
 export const ASSIST_POS_WEIGHT = { FW: 3, MF: 4, DF: 1, GK: 0.05 };
+
+// ---- 계획 2: 선수 확보 ----
+export const ROSTER_STARS = 6;
+export const CONTRACT_YEARS = 3;
+// 샐러리캡(스타 연봉 총액 한도), 리그 단계(1=1부)별
+export const SALARY_CAP = { 3: 100, 2: 150, 1: 200 };
+export const DRAFT_SIZE = 20;
+export const ROOKIE_DISCOUNT = 0.6;
+export const FA_FRESH = 6;
+export const FA_RELEASED = 4;
+export const RESIGN_MIN_MOOD = 40;
+export const TRADE_MARGIN = 1.1; // AI는 받는 가치가 주는 가치의 1.1배 이상일 때만 수락
+export const TRADE_MIN_MOOD = 30; // 사기가 이보다 낮은 선수는 AI가 받지 않는다
+export const AI_NAMED_MAX = 3;

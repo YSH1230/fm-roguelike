@@ -7,7 +7,7 @@ const DEFAULT_STAR_POSITIONS = ['GK', 'DF', 'DF', 'MF', 'FW', 'FW'];
 const MIN_SHAPE = [['GK', 1], ['DF', 3], ['MF', 2], ['FW', 1]];
 const EXTRA_CYCLE = ['DF', 'MF', 'FW'];
 
-function fillerPositions(starPositions) {
+export function fillerPositions(starPositions) {
   const count = { GK: 0, DF: 0, MF: 0, FW: 0 };
   for (const position of starPositions) count[position] += 1;
   const fillers = [];
@@ -22,15 +22,17 @@ function fillerPositions(starPositions) {
   return fillers;
 }
 
+// 조연 수준은 코치 별 평균에 따라 정해진다(별 1개당 능력 8).
+export const fillerLevel = (attackStars, defenseStars) => 25 + ((attackStars + defenseStars) / 2) * 8;
+
 // 라인업 11명: 스타(관리 대상) 먼저, 나머지는 코치 수준에 맞춘 조연.
 export function createTeam({ rng, id, attackStars = 3, defenseStars = 3, starLevel = 60, starPositions = DEFAULT_STAR_POSITIONS }) {
   const stars = starPositions.map((position, i) =>
     createPlayer({ rng, id: `${id}-s${i}`, position, age: 22 + (i % 6) * 2, level: starLevel }),
   );
-  // 조연 수준은 코치 별 평균에 따라 정해진다(별 1개당 능력 8).
-  const fillerLevel = 25 + ((attackStars + defenseStars) / 2) * 8;
+  const level = fillerLevel(attackStars, defenseStars);
   const fillers = fillerPositions(starPositions).map((position, i) =>
-    createPlayer({ rng, id: `${id}-f${i}`, position, age: 24 + i, level: fillerLevel }),
+    createPlayer({ rng, id: `${id}-f${i}`, position, age: 24 + i, level }),
   );
   return {
     id,
