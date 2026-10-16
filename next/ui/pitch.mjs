@@ -2,7 +2,7 @@ import { nameOf } from '../engine/names.mjs';
 
 import { teamRatings } from '../engine/ratings.mjs';
 import {
-  AWARD_LABEL, POS_LABEL, abilityStars, attrBars, bar, chip, esc, faceTile, icon, moodFace, onColor, portrait, xpBar,
+  AWARD_LABEL, POS_LABEL, abilityStars, attrBars, bar, chip, esc, facts, faceTile, icon, moodFace, onColor, portrait, xpBar,
 } from './components.mjs';
 
 // 위에서부터 공격 -> 미드 -> 수비 -> 골키퍼. 세로 위치(%)
@@ -59,7 +59,7 @@ export function playerDetail(game, ui, p) {
   return `<section class="detail" aria-label="${esc(nameOf(p.id))} 상세">
     <header class="detail__head">
       ${faceTile(p, { kit: game.clubKit, size: 64 })}
-      <div><h3>${esc(nameOf(p.id))}</h3><p class="meta">${POS_LABEL[p.position]} · ${p.age}세 · Lv${p.xpLevel}</p>${abilityStars(p, 20)}</div>
+      <div><h3>${esc(nameOf(p.id))}</h3><p class="meta">${facts(POS_LABEL[p.position], `${p.age}세`, `Lv${p.xpLevel}`)}</p>${abilityStars(p, 20)}</div>
     </header>
     <div class="detail__cols">
       <div class="attrs">${attrBars(p)}</div>

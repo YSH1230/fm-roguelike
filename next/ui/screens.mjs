@@ -8,7 +8,7 @@ import { draftTurnIsMine } from '../engine/offseason.mjs';
 import { coachCost, coachXpNeeded } from '../engine/coach.mjs';
 import { myLeague } from '../engine/world.mjs';
 import {
-  AWARD_LABEL, KIT_CHOICES, TIER_LABEL, askText, bar, chip, conditionTexts, crest, effectChips, esc, faceTile, icon, onColor,
+  AWARD_LABEL, KIT_CHOICES, TIER_LABEL, askText, bar, chip, conditionTexts, crest, effectChips, esc, facts, faceTile, icon, onColor,
   playerRow, portrait, stars, teamKit, teamName,
 } from './components.mjs';
 import { defaultSelection, pitchBoard, playerDetail } from './pitch.mjs';
@@ -30,7 +30,7 @@ const coinNum = (n) => `<span class="res res--coin">${icon('coin', 16)}<b class=
 export function topBar(game) {
   const t = game.myTeam;
   return `<header class="top" style="${teamStyle(game.clubKit)}">
-    <div class="top__id">${crest(game, t.id, 44)}<div><h1>${esc(game.clubName)}</h1><p>${TIER_LABEL[t.tier]} · ${game.world.year}년차</p></div></div>
+    <div class="top__id">${crest(game, t.id, 44)}<div><h1>${esc(game.clubName)}</h1><p>${facts(TIER_LABEL[t.tier], `${game.world.year}년차`)}</p></div></div>
     <div class="top__res"><span class="res" title="코인">${icon('coin', 18)}<b class="num">${game.club.coins}</b></span><span class="res" title="팬 지수">${icon('fans', 18)}<b class="num">${Math.round(game.club.fans)}</b></span></div>
   </header>`;
 }
@@ -93,7 +93,7 @@ function frontTab(game, ui) {
   const coaches = ['attack', 'defense'].map((kind) => {
     const c = team.coaches[kind];
     const cands = ui.candidates?.[kind];
-    return `<div class="coach"><div class="row"><div><b>${KIND_LABEL[kind]}</b>${stars(c.stars, c.stars, 14)}<small>${TRAITS[c.trait]?.label ?? ''} · 계약 ${c.contract.years}년</small>${bar((c.xp / coachXpNeeded(c.stars)) * 100, 'xp')}</div>
+    return `<div class="coach"><div class="row"><div><b>${KIND_LABEL[kind]}</b>${stars(c.stars, c.stars, 14)}<small>${facts(TRAITS[c.trait]?.label ?? '', `계약 ${c.contract.years}년`)}</small>${bar((c.xp / coachXpNeeded(c.stars)) * 100, 'xp')}</div>
       <button class="pill" data-act="coachfind" data-kind="${kind}">새 코치 찾기</button></div>
       <div class="seg" role="group" aria-label="${KIND_LABEL[kind]} 훈련 강도">${['LIGHT', 'NORMAL', 'HARD'].map((i) => `<button class="seg__b${c.intensity === i ? ' on' : ''}" aria-pressed="${c.intensity === i}" data-act="intensity" data-kind="${kind}" data-v="${i}">${INTENSITY_LABEL[i]}</button>`).join('')}</div>
       ${cands ? cands.map((cd) => `<div class="row cand"><div>${stars(cd.stars, cd.stars, 14)}<small>${TRAITS[cd.trait].label}</small></div><button class="btn btn--small" data-act="hire" data-kind="${kind}" data-id="${esc(cd.id)}" ${coachCost(cd.stars) > club.coins ? 'disabled' : ''}>고용 ${coinNum(coachCost(cd.stars))}</button></div>`).join('') : ''}</div>`;
@@ -161,7 +161,7 @@ export function chunkScreen(game, ui) {
     ${pressHtml}${iv}
     <h3 class="group">경기</h3><ol class="matches">${rows}</ol>
   </main>
-  <div class="dock"><button class="btn btn--primary btn--wide" data-act="${last ? 'finish' : 'back'}">${last ? '시즌 마무리' : '관리 화면으로'}${icon('right', 20)}</button></div>`;
+  <div class="dock"><button class="btn btn--primary btn--wide" data-act="${last ? 'finish' : 'back'}">${last ? '시즌 마무리' : '관리 화면으로'}</button></div>`;
 }
 
 // ---------- 시즌 종료 ----------
@@ -174,8 +174,8 @@ export function seasonScreen(game) {
   }).join('');
   const po = s.outcome.playoffs.map((m) => `<li><span>${esc(teamName(game, m.homeId))} <b class="num">${m.homeGoals}:${m.awayGoals}</b> ${esc(teamName(game, m.awayId))}${m.penalties ? ' (승부차기)' : ''}</span><b>${esc(teamName(game, m.winnerId))} 승</b></li>`).join('');
   return `${topBar(game)}<main class="page" style="${teamStyle(game.clubKit)}">
-    <section class="stage"><p class="stage__t">${s.year}년차 ${TIER_LABEL[s.tier]}</p><div class="stage__rank"><b class="num">${s.rank}</b><span>위</span></div><p class="stage__f">${fateMsg}</p>${s.prize ? `<p class="stage__p">${coinNum(`+${s.prize}`)} 상금</p>` : ''}</section>
-    ${section('챔피언스리그', `<p>우승 <b>${esc(teamName(game, s.cl.champion))}</b> · 준우승 ${esc(teamName(game, s.cl.runnerUp))}${s.cl.champion === game.myTeam.id ? ` ${chip('우리 팀', 'coin')}` : ''}</p>`)}
+    <section class="stage"><p class="stage__t">${facts(`${s.year}년차`, TIER_LABEL[s.tier])}</p><div class="stage__rank"><b class="num">${s.rank}</b><span>위</span></div><p class="stage__f">${fateMsg}</p>${s.prize ? `<p class="stage__p">${coinNum(`+${s.prize}`)} 상금</p>` : ''}</section>
+    ${section('챔피언스리그', `<p>우승 <b>${esc(teamName(game, s.cl.champion))}</b>, 준우승 ${esc(teamName(game, s.cl.runnerUp))}${s.cl.champion === game.myTeam.id ? ` ${chip('우리 팀', 'coin')}` : ''}</p>`)}
     ${section('시상', `<ul class="lines lines--awards">${aw}</ul>`)}
     ${section('승강전', `<ul class="lines lines--po">${po}</ul>`)}
   </main>
@@ -197,17 +197,17 @@ export function offseasonScreen(game, ui) {
   const kit = game.clubKit;
   let body = '';
   if (off.step === 'resign') {
-    const ret = off.retired.map((c) => `<li>${icon('flag', 16)}<b>${esc(nameOf(c.playerId))}</b><span>은퇴 · ${c.seasons}시즌 ${c.career.goals}골 ${c.career.assists}도움</span></li>`).join('');
+    const ret = off.retired.map((c) => `<li>${icon('flag', 16)}<b>${esc(nameOf(c.playerId))}</b><span>${facts('은퇴', `${c.seasons}시즌`, `${c.career.goals}골 ${c.career.assists}도움`)}</span></li>`).join('');
     const list = off.resignQueue.map((p) => playerRow(p, { kit, contract: true, stack: true, action: `<div class="offer">${salaryInput(p.id, askingSalary(p))}<button class="btn btn--small btn--primary" data-act="resign" data-id="${esc(p.id)}">재계약</button><button class="link" data-act="decline" data-id="${esc(p.id)}">보내기</button></div>` })).join('');
     const coaches = off.coachExpiring.map((c) => `<div class="row"><div><b>${KIND_LABEL[c.kind]}</b>${stars(c.stars, c.stars, 14)}<small>계약이 끝났어요</small></div><button class="btn btn--small" data-act="renewcoach" data-kind="${c.kind}">재계약 ${coinNum(coachCost(c.stars))}</button></div>`).join('');
     body = `${tip(ui, 'resign', '계약이 끝난 선수에게 우선 재계약을 제안할 수 있어요. 사기가 낮으면 어떤 금액도 거절해요. 보내면 FA 시장에 나와요.')}
       ${ret ? section('은퇴', `<ul class="lines">${ret}</ul>`) : ''}
       ${list || '<p class="muted pad">이번에 계약이 끝나는 스타는 없어요</p>'}
       ${coaches ? section('코치 계약', `${coaches}<p class="hint">재계약하지 않으면 1별 신임 코치가 옵니다</p>`) : ''}
-      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="openmarket">FA 시장 열기${icon('right', 20)}</button></div>`;
+      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="openmarket">FA 시장 열기</button></div>`;
   } else if (off.step === 'market') {
     const full = game.myTeam.stars.length >= 6;
-    const mine = game.myTeam.stars.map((p) => `<div class="row"><div>${esc(nameOf(p.id))} <small>${p.position} · 연봉 ${p.contract.salary}</small></div><button class="link" data-act="release" data-id="${esc(p.id)}">내보내기</button></div>`).join('');
+    const mine = game.myTeam.stars.map((p) => `<div class="row"><div>${esc(nameOf(p.id))} <small>${facts(p.position, `연봉 ${p.contract.salary}`)}</small></div><button class="link" data-act="release" data-id="${esc(p.id)}">내보내기</button></div>`).join('');
     const market = off.market.map((e) => playerRow(e.player, {
       kit, stack: true,
       note: `<div class="conds">${conditionTexts(e.conditions).map((t) => chip(t)).join('') || chip('조건 없음', 'up')}</div>`,
@@ -216,7 +216,7 @@ export function offseasonScreen(game, ui) {
     body = `${tip(ui, 'market', '선수마다 요구 금액과 <b>영입 조건</b>(작년 순위, 시설, 팬, 팀 사기)이 달라요. 조건을 채우고 금액이 요구 이상이면 계약해요. 못 잡은 선수는 다른 팀이 데려가요.')}
       ${section(`내 스타 <span class="count">${game.myTeam.stars.length}/6</span>`, `${full ? '<p class="hint">자리가 가득 찼어요. 영입하려면 먼저 한 명을 내보내세요</p>' : ''}${mine}`)}
       ${market || '<p class="muted pad">시장이 비었어요</p>'}
-      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="closemarket">시장 마감${icon('right', 20)}</button></div>`;
+      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="closemarket">시장 마감</button></div>`;
   } else if (off.step === 'draft') {
     const d = off.draft;
     const mineTurn = draftTurnIsMine(game);
@@ -224,13 +224,13 @@ export function offseasonScreen(game, ui) {
     body = `${tip(ui, 'draft', '성적이 나쁜 팀부터 신인을 한 명씩 지명해요. 내 순번이 오면 후보 중에서 고르세요. 지명권은 트레이드로 오갈 수 있어요.')}
       <p class="lede">내 지명 순번 <b>${slot}</b></p>
       ${mineTurn ? d.pool.map((p) => playerRow(p, { kit, action: `<button class="btn btn--small btn--primary" data-act="dpick" data-id="${esc(p.id)}">지명</button>` })).join('') : '<p class="muted pad">내 지명이 끝났어요</p>'}
-      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="closedraft" ${mineTurn ? 'disabled' : ''}>드래프트 마감${icon('right', 20)}</button></div>`;
+      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="closedraft" ${mineTurn ? 'disabled' : ''}>드래프트 마감</button></div>`;
   } else {
     const full = game.myTeam.stars.length >= 6;
     const opts = game.myTeam.stars.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p.id))} (${p.position})</option>`).join('');
     body = `${tip(ui, 'rookies', '뽑은 신인을 스타로 올리세요. 자리가 가득하면 내보낼 스타를 골라야 해요. 올리지 않은 신인은 떠나요.')}
       ${off.rookies.map((p) => playerRow(p, { kit, contract: true, stack: true, action: `<div class="offer">${full ? `<select id="out-${esc(p.id)}" aria-label="내보낼 스타">${opts}</select>` : ''}<button class="btn btn--small btn--primary" data-act="place" data-id="${esc(p.id)}">스타로 올리기</button></div>` })).join('') || '<p class="muted pad">대기 중인 신인이 없어요</p>'}
-      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="startseason">${game.world.year}년차 시즌 시작${icon('right', 20)}</button></div>`;
+      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="startseason">${game.world.year}년차 시즌 시작</button></div>`;
   }
   return `${topBar(game)}<main class="page" style="${teamStyle(kit)}"><div class="titlebar"><h2>오프시즌</h2></div>${stepper(off.step)}${flash(ui)}${body}</main>`;
 }
@@ -242,7 +242,7 @@ export function endScreen(game) {
   const hall = h.hallOfFame.map((x) => `<li><b>${esc(nameOf(x.playerId))}</b></li>`).join('');
   const star = s.standout.map((id) => { const r = h.players.get(id); return `<li><b>${esc(nameOf(id))}</b><span>${r.career.goals}골 ${r.career.assists}도움</span></li>`; }).join('');
   return `<main class="page end" style="${teamStyle(game.clubKit)}">
-    <section class="stage"><p class="stage__t">${esc(game.clubName)} · ${s.seasons}시즌</p><h1 class="stage__h">${game.end.reason === 'fired' ? '경질' : '감독 은퇴'}</h1>
+    <section class="stage"><p class="stage__t">${facts(esc(game.clubName), `${s.seasons}시즌`)}</p><h1 class="stage__h">${game.end.reason === 'fired' ? '경질' : '감독 은퇴'}</h1>
       <div class="stage__rank stage__rank--score"><b class="num">${s.score}</b><span>점</span></div></section>
     ${section('커리어', `<dl class="kv kv--wide"><dt>최고 리그</dt><dd>${TIER_LABEL[s.bestTier]}</dd><dt>리그 우승</dt><dd><b class="num">${s.leagueTitles}</b>회</dd><dt>챔피언스리그 우승</dt><dd><b class="num">${s.clTitles}</b>회</dd><dt>개인 수상</dt><dd><b class="num">${s.awardCount}</b>개</dd></dl>`)}
     ${section('대표 선수', `<ul class="lines">${star || '<li class="muted">없음</li>'}</ul>`)}

@@ -36,6 +36,9 @@ export function onColor(hex) {
   return lum > 0.55 ? '#0b0b0b' : '#ffffff';
 }
 
+// 점(·)으로 이어 붙인 한 줄 대신, 사실마다 칸을 나눠 간격으로 구분한다
+export const facts = (...parts) => `<span class="facts">${parts.filter(Boolean).map((x) => `<span>${x}</span>`).join('')}</span>`;
+
 export const bar = (value, cls = '') => `<span class="bar ${cls}" role="img" aria-label="${Math.round(value)}%"><i style="width:${Math.max(0, Math.min(100, value))}%"></i></span>`;
 export const chip = (text, cls = '') => `<span class="chip ${cls}">${esc(text)}</span>`;
 export { icon, moodFace, stars };
@@ -75,6 +78,7 @@ export function faceTile(p, { kit, size = 48 } = {}) {
 export const abilityStars = (p, size = 16) => stars(overall(p) / 20, p.potential / 20, size);
 
 // 후보·FA·신인·재계약처럼 목록에서 쓰는 한 줄 선수 행
+// 목록의 선수 행은 어두운 면에 구단 색 얼굴 타일만 둔다(구단 색 면은 선수 상세 카드 한 장에만).
 export function playerRow(p, { kit, note = '', action = '', contract = false, stack = false } = {}) {
   const hurt = (p.injury?.chunksLeft ?? 0) > 0;
   return `<article class="prow${hurt ? ' prow--hurt' : ''}${stack ? ' prow--stack' : ''}">
@@ -85,7 +89,7 @@ export function playerRow(p, { kit, note = '', action = '', contract = false, st
       <div class="attrs-mini">${Object.entries(p.attrs).map(([k, v]) => `<span>${ATTR_LABEL[k]}<b>${v}</b></span>`).join('')}</div>
       ${note}
     </div>
-    <div class="prow__side">${contract ? `<span class="num">${p.contract.salary}</span><small>연봉 · ${p.contract.years}년</small>` : ''}${action}</div>
+    <div class="prow__side">${contract ? `<span class="num">${p.contract.salary}</span><small>${p.contract.years}년 계약</small>` : ''}${action}</div>
   </article>`;
 }
 
