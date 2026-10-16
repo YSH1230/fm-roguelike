@@ -37,6 +37,7 @@ export function createTeam({ rng, id, attackStars = 3, defenseStars = 3, starLev
   return {
     id,
     coaches: { attack: { stars: attackStars }, defense: { stars: defenseStars } },
+    fillerBase: level, // 조연에게 마지막으로 반영된 코치 기준 수준(코치가 바뀌면 syncFillers가 맞춘다)
     stars,
     lineup: [...stars, ...fillers],
   };
