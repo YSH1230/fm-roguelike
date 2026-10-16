@@ -77,7 +77,7 @@ function draftBoard(game, d, ui, cfg) {
   const have = Object.fromEntries(POS_ORDER.map((k) => [k, mineNow.filter((p) => p.position === k)]));
   const need = `<div class="needs"><span class="lab">MY ROSTER</span>
     <div class="needs__row">${POS_ORDER.map((k) => `<button class="need${have[k].length === 0 ? ' need--zero' : ''}${ui.dpos === k ? ' need--on' : ''}" data-act="dpos" data-v="${k}" aria-pressed="${ui.dpos === k}">${k}<b class="num">${have[k].length}</b></button>`).join('')}</div>
-    ${ui.dpos ? `<div class="needs__list">${have[ui.dpos].length ? have[ui.dpos].map((p) => playerRow(p, { kit, stats: false })).join('') : '<p class="muted">NONE YET</p>'}</div>` : ''}</div>`;
+    ${ui.dpos ? `<div class="needs__list">${have[ui.dpos].length ? have[ui.dpos].map((p) => prospect(p, false)).join('') : '<p class="muted">NONE YET</p>'}</div>` : ''}</div>`;
 
   if (!d.started) {
     return `<div class="titlebar"><h2>${cfg.title}</h2></div>
