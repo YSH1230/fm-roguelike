@@ -202,7 +202,7 @@ function frontTab(game, ui) {
     const c = team.coaches[kind];
     const cands = ui.candidates?.[kind];
     return `<div class="coach"><div class="row"><div><b>${KIND_LABEL[kind]}</b>${stars(c.stars, c.stars, 14)}<small>${facts(TRAITS[c.trait]?.label ?? '', `계약 ${c.contract.years}년`)}</small>${bar((c.xp / coachXpNeeded(c.stars)) * 100, 'xp')}</div>
-      <button class="pill" data-act="coachfind" data-kind="${kind}">새 코치 찾기</button></div>
+      <button class="pill" data-act="coachfind" data-kind="${kind}">새 코치 찾기</button><button class="pill" data-act="extendcoach" data-kind="${kind}" ${coachCost(c.stars, game.myTeam.tier ?? 3) > club.coins ? 'disabled' : ''}>EXTEND ${coinNum(coachCost(c.stars, game.myTeam.tier ?? 3))}</button></div>
       <div class="seg" role="group" aria-label="${KIND_LABEL[kind]} 훈련 강도">${['LIGHT', 'NORMAL', 'HARD'].map((i) => `<button class="seg__b${c.intensity === i ? ' on' : ''}" aria-pressed="${c.intensity === i}" data-act="intensity" data-kind="${kind}" data-v="${i}">${INTENSITY_LABEL[i]}</button>`).join('')}</div>
       ${cands ? cands.map((cd) => `<div class="row cand"><div>${stars(cd.stars, cd.stars, 14)}<small>${TRAITS[cd.trait].label}</small></div><button class="btn btn--small" data-act="hire" data-kind="${kind}" data-id="${esc(cd.id)}" ${coachCost(cd.stars, game.myTeam.tier ?? 3) > club.coins ? 'disabled' : ''}>고용 ${coinNum(coachCost(cd.stars, game.myTeam.tier ?? 3))}</button></div>`).join('') : ''}</div>`;
   }).join('');

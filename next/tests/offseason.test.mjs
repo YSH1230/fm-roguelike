@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { finishSeason, playNextChunk } from '../engine/game.mjs';
 import {
   beginDraft, beginOffseason, closeDraft, closeMarket, declineResign, draftChoose, draftTurnIsMine, offerFreeAgent, offerResign,
-  openMarket, placeRookie, releaseStar, renewCoachContract, startSeason, takeBuyout,
+  extendCoach, extendPlayer, openMarket, placeRookie, releaseStar, renewCoachContract, startSeason, takeBuyout,
 } from '../engine/offseason.mjs';
 import { retireManager } from '../engine/game.mjs';
 import { allTeams } from '../engine/world.mjs';
@@ -247,4 +247,35 @@ test('자동 감독으로 5시즌을 돌려도 오류가 없고, 경질되지 �
     for (const t of allTeams(g.world)) assert.ok(t.lineup.length === 11);
   }
   assert.ok(completed >= 3);
+});
+
+test('연장 계약: 시즌 중에도 요구 연봉 이상이면 새 연봉으로 3년을 다시 맺고, 사기가 낮거나 금액이 모자라면 거절한다', () => {
+  const g = startedGame(11);
+  const p = g.myTeam.stars[0];
+  p.contract.years = 1;
+  p.mood = 90;
+  const ask = askingSalary(p);
+  assert.equal(extendPlayer(g, p.id, Math.max(1, ask - 5)).reason, 'salary');
+  assert.equal(p.contract.years, 1);
+  g.club.coins = 999;
+  const r = extendPlayer(g, p.id, ask);
+  assert.equal(r.accepted, true);
+  assert.equal(p.contract.years, 3);
+  assert.equal(p.contract.salary, ask);
+  p.mood = 10;
+  assert.equal(extendPlayer(g, p.id, 40).reason, 'mood');
+  assert.throws(() => extendPlayer(g, 'nobody', 5), /내 스타가 아닙니다/);
+});
+
+test('코치 연장: 코인을 내고 계약이 3년으로 늘고, 코인이 모자라면 오류다', () => {
+  const g = startedGame(12);
+  const coach = g.myTeam.coaches.attack;
+  coach.contract.years = 1;
+  coach.mood = 80;
+  g.club.coins = 0;
+  assert.throws(() => extendCoach(g, 'attack'), /모자랍니다/);
+  g.club.coins = 999;
+  extendCoach(g, 'attack');
+  assert.equal(coach.contract.years, 3);
+  assert.ok(g.club.coins < 999);
 });

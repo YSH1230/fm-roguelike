@@ -247,8 +247,10 @@ test('은퇴 면담: 젊은 선수는 거절, 나이가 많고 사기가 낮으�
   const g = startedGame(10);
   const [young, old] = g.myTeam.stars;
   young.age = 25;
+  young.mood = 80;
   assert.deepEqual(proposeRetirement(g, young.id), { accepted: false, reason: 'young' });
   assert.ok(g.myTeam.stars.includes(young));
+  assert.equal(young.mood, 0); // 거절당하면 사기가 가장 낮아진다
   old.age = 38; // 38세부터는 받아들인다
   const before = g.history.retired.length;
   assert.equal(proposeRetirement(g, old.id).accepted, true);

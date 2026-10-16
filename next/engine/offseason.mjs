@@ -80,6 +80,26 @@ export function renewCoachContract(game, kind) {
   game.off.coachExpiring = game.off.coachExpiring.filter((c) => c !== coach);
 }
 
+// 연장 계약: 계약 기간 중 언제든 새 연봉으로 3년을 다시 맺는다. 재계약과 같은 조건(사기, 캡, 요구 연봉)이다.
+export function extendPlayer(game, playerId, salary) {
+  marketOpen(game);
+  const player = game.myTeam.stars.find((p) => p.id === playerId);
+  if (!player) throw new Error('내 스타가 아닙니다');
+  if (game.off?.resignQueue.includes(player)) throw new Error('재계약 단계에서 처리해 주세요');
+  const club = clubView(game);
+  const result = evaluateResign(player, salary, club);
+  if (result.accepted) resign(player, salary, club);
+  return result;
+}
+
+// 코치 계약 연장: 언제든 코인을 내고 3년으로 다시 맺는다(사기가 낮으면 거절 오류).
+export function extendCoach(game, kind) {
+  marketOpen(game);
+  const coach = game.myTeam.coaches[kind];
+  if (!coach) throw new Error('없는 코치입니다');
+  renewCoach(game.club, coach, game.myTeam.tier ?? 3);
+}
+
 // 3) 재계약 마감 -> FA 시장 열기. 대기열의 선수는 FA로 풀리고, 재계약 못 한 코치는 1별 신임 코치로 바뀐다.
 export function openMarket(game) {
   need(game, 'resign');

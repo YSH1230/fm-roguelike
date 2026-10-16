@@ -7,9 +7,10 @@ import {
 } from '../engine/game.mjs';
 import { inductHallOfFame } from '../engine/honors.mjs';
 import { nameOf } from '../engine/names.mjs';
+import { askingSalary } from '../engine/contract.mjs';
 import {
   beginDraft, beginOffseason, closeDraft, closeMarket, declineResign, draftChoose, offerFreeAgent, offerResign, openMarket,
-  placeRookie, releaseStar, renewCoachContract, startSeason, takeBuyout,
+  extendCoach, extendPlayer, placeRookie, releaseStar, renewCoachContract, startSeason, takeBuyout,
 } from '../engine/offseason.mjs';
 import { SAVE_KEY, readSave, writeSave } from '../engine/save.mjs';
 import { KIT_CHOICES, REASON_TEXT, esc, onColor, teamName, tradeSide } from './components.mjs';
@@ -46,11 +47,19 @@ function screenHtml() {
 }
 
 function modalHtml() {
+  if (ui.extend) {
+    const p = game.myTeam.stars.find((x) => x.id === ui.extend);
+    if (p) return `<div class="sheet" role="dialog" aria-modal="true" aria-label="연장 계약"><div class="sheet__box">
+      <h3>EXTEND</h3><p class="offerline"><span class="lab">NOW ${p.contract.salary} · ${p.contract.years}Y LEFT</span><b>${esc(nameOf(p.id))}</b></p>
+      <p>새 연봉으로 3년을 다시 맺어요. 요구 연봉 이상이어야 해요.</p>
+      <input class="sal" type="number" min="1" max="99" id="ext-sal" value="${askingSalary(p)}" aria-label="새 연봉">
+      <button class="btn btn--primary btn--wide" data-act="extendyes" data-id="${esc(p.id)}">CONFIRM</button><button class="btn btn--wide" data-act="extendclose">CLOSE</button></div></div>`;
+  }
   if (ui.meeting) {
     const p = game.myTeam.stars.find((x) => x.id === ui.meeting);
     if (p) return `<div class="sheet" role="dialog" aria-modal="true" aria-label="면담"><div class="sheet__box">
       <h3>MEETING</h3><p class="offerline"><span class="lab">${p.position} · AGE ${p.age}</span><b>${esc(nameOf(p.id))}</b></p>
-      <p>은퇴에 대해 이야기를 나눠 볼까요?</p>
+      <p>은퇴에 대해 이야기를 나눠 볼까요? 거절당하면 선수의 사기가 가장 낮아져요.</p>
       <button class="btn btn--primary btn--wide" data-act="retireask" data-id="${esc(p.id)}">SUGGEST RETIREMENT</button><button class="btn btn--wide" data-act="meetingclose">CLOSE</button></div></div>`;
   }
   if (!ui.modal) return '';
@@ -137,6 +146,14 @@ const ACTIONS = {
   },
   pendtradeyes() { acceptPendingTrade(game); ui.flash = '트레이드가 성사되었어요'; },
   pendtradeno() { declinePendingTrade(game); },
+  extend(el) { ui.extend = el.dataset.id; },
+  extendclose() { ui.extend = null; },
+  extendyes(el) {
+    const r = extendPlayer(game, el.dataset.id, num('ext-sal'));
+    ui.extend = null;
+    ui.flash = r.accepted ? '연장 계약했어요. 새 계약 3년이에요' : (REASON_TEXT[r.reason] ?? '거절당했어요');
+  },
+  extendcoach(el) { extendCoach(game, el.dataset.kind); ui.flash = '코치 계약을 3년으로 연장했어요'; },
   meeting(el) { ui.meeting = el.dataset.id; },
   meetingclose() { ui.meeting = null; },
   retireask(el) {
@@ -145,7 +162,7 @@ const ACTIONS = {
     const r = proposeRetirement(game, el.dataset.id);
     ui.meeting = null;
     if (r.accepted) { ui.detailId = null; ui.flash = `${name}이(가) 은퇴를 받아들였어요. 지금까지 고마웠다고 인사를 나눴어요`; }
-    else ui.flash = r.reason === 'young' ? `${name}: "아직 한창입니다. 은퇴는 생각해 본 적 없어요"` : `${name}: "지금은 그런 얘기를 듣고 싶지 않습니다"`;
+    else ui.flash = (r.reason === 'young' ? `${name}: "아직 한창입니다. 은퇴는 생각해 본 적 없어요"` : `${name}: "지금은 그런 얘기를 듣고 싶지 않습니다"`) + ' 사기가 바닥까지 떨어졌어요';
   },
   tradeyes() { acceptTrade(game, ui.modal.offer); ui.modal = null; ui.flash = '트레이드가 성사되었어요'; },
   tradeno() { ui.modal = null; },
@@ -179,7 +196,7 @@ const ACTIONS = {
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['dpos', 'dsel', 'meeting', 'meetingclose', 'pback', 'ending', 'endingdone', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['dpos', 'dsel', 'extend', 'extendclose', 'meeting', 'meetingclose', 'pback', 'ending', 'endingdone', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;

@@ -182,7 +182,7 @@ export function acceptTrade(game, offer) {
   for (const p of game.myTeam.stars) if (offer.get.players.includes(p.id)) p.origin = { how: 'trade', year: game.world.year };
 }
 
-// 선수에게 은퇴를 권하는 면담. 받아들이면 선수는 스타에서 빠지고 은퇴 기록이 남는다(나이와 사기에 따라 거절한다).
+// 선수에게 은퇴를 권하는 면담. 받아들이면 선수는 스타에서 빠지고 은퇴 기록이 남는다(나이와 사기에 따라 거절한다). 거절하면 사기가 가장 낮아진다.
 export function proposeRetirement(game, playerId) {
   if (game.phase !== 'manage' && game.phase !== 'offseason') throw new Error('지금은 면담할 수 없습니다');
   const p = game.myTeam.stars.find((x) => x.id === playerId);
@@ -191,6 +191,8 @@ export function proposeRetirement(game, playerId) {
   if (result.accepted) {
     retire(game.myTeam, game.rng, p);
     retirePlayer(game.history, p, game.world.year);
+  } else {
+    p.mood = 0; // 은퇴를 권했다가 거절당하면 선수의 사기가 바닥까지 떨어진다
   }
   return result;
 }

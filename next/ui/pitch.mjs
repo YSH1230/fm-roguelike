@@ -120,7 +120,7 @@ export function playerDetail(game, ui, p) {
     ${(p.points ?? 0) > 0 ? `<p class="points"><b class="num">${p.points}</b> POINT${p.points > 1 ? 'S' : ''}<span>PRESS +</span></p>` : ''}
     <h4 class="sech">ATTRIBUTES</h4>
     <div class="attrs">${ATTRIBUTES[p.position].map((k) => attrRow(p, k)).join('')}</div>
-    <div class="acts">${restBtn}<button class="act" data-act="traderequest" data-id="${esc(p.id)}">${icon('transfer', 16)}TRADE</button><button class="act" data-act="meeting" data-id="${esc(p.id)}">${icon('chat', 16)}MEETING</button></div>
+    <div class="acts">${restBtn}<button class="act" data-act="traderequest" data-id="${esc(p.id)}">${icon('transfer', 16)}TRADE</button><button class="act" data-act="meeting" data-id="${esc(p.id)}">${icon('chat', 16)}MEETING</button><button class="act" data-act="extend" data-id="${esc(p.id)}">${icon('check', 16)}EXTEND</button></div>
     <h4 class="sech">STATS</h4>
     <div class="big"><b class="num">${p.stats.goals}</b><span>GOALS</span></div>
     <div class="tri"><div><b class="num">${p.stats.apps}</b><span>APPS</span></div><div><b class="num">${p.stats.assists}</b><span>ASSISTS</span></div><div><b class="num">${per}</b><span>PER GAME</span></div></div>
