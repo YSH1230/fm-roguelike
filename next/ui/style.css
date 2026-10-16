@@ -391,3 +391,4 @@ select { max-width: 160px; font-size: 13px; }
 .legend { display: flex; align-items: center; gap: 6px; margin: 8px 0 12px; font: 500 11px var(--cond); letter-spacing: 0.12em; color: var(--mute); }
 .legend__k { width: 12px; height: 12px; margin-left: 10px; } .legend__k:first-child { margin-left: 0; }
 .legend__k--cur { background: #f2c230; } .legend__k--pot { background: #3ec9ff; }
+.clock--row .lab { font: 700 22px var(--cond); letter-spacing: 0.1em; }
