@@ -410,7 +410,7 @@ select { max-width: 160px; font-size: 13px; }
 .prow__name .tag, .prow__name small { flex: none; white-space: nowrap; }
 
 /* 줄 정렬: 이름은 첫 줄에만, 포지션·나이·별점은 둘째 줄의 고정 칸에 */
-.prow__meta { display: grid; grid-template-columns: 44px 38px auto; align-items: center; justify-content: start; gap: 0; }
+.prow__meta { display: grid; grid-template-columns: 44px 62px auto; align-items: center; justify-content: start; gap: 0; }
 .prow__meta .tag { justify-self: start; }
 .prow__meta small { font: 400 12px var(--ui); color: var(--mute); }
 /* 요약 칸(순번·직전 지명)은 상자 없이 제목과 같은 왼쪽 선에 */
