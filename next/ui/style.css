@@ -367,3 +367,7 @@ select { max-width: 160px; font-size: 13px; }
 .fb .num { font: 700 13px var(--cond); color: var(--muted, #8d8d8d); }
 .fb__n { font: 700 13px/1.1 var(--cond); letter-spacing: 0.02em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fb--me { box-shadow: inset 3px 0 0 var(--team); background: #343434; }
+
+.clock--done { display: grid; gap: 6px; }
+.mypick { font: 700 26px/1.1 var(--cond); letter-spacing: 0.03em; text-transform: uppercase; }
+.mypick .num { color: var(--team); }

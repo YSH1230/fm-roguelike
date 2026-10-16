@@ -82,8 +82,9 @@ function draftBoard(game, d, ui, cfg) {
   const upNext = over ? null : d.order[d.next];
   const myTurn = !over && upNext.owner === me;
 
+  const mine = d.picks.filter((k) => k.owner === me).sort((x, y) => x.slot - y.slot);
   const clock = over
-    ? `<div class="clock clock--done"><span class="lab">DRAFT COMPLETE</span><b class="num">${total}<small>/${total}</small></b></div>`
+    ? `<div class="clock clock--done"><span class="lab">DRAFT COMPLETE</span>${mine.length ? mine.map((k) => `<b class="mypick"><span class="num">#${k.slot}</span> ${esc(nameOf(k.player.id))}</b>`).join('') : '<b class="mypick">NO PICKS</b>'}</div>`
     : `<div class="clock${myTurn ? ' clock--me' : ''}"><span class="lab">${myTurn ? 'YOUR PICK' : 'ON THE CLOCK'}</span><b class="num">#${upNext.slot}<small>/${total}</small></b></div>`;
 
   // 내 선수 포지션 현황: 포지션을 누르면 그 포지션의 내 선수가 보인다
@@ -106,15 +107,12 @@ function draftBoard(game, d, ui, cfg) {
   const pickList = myTurn
     ? `<h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>${byPotential(d.pool).map((p) => prospect(p, true)).join('')}`
     : '';
-  const done = over
-    ? section('MY DRAFT', d.picks.filter((k) => k.owner === me).map((k) => playerRow(k.player, { kit })).join('') || '<p class="muted">NO PICKS</p>')
-    : '';
   const cta = over
     ? `<div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="${cfg.doneAct}">${cfg.doneLabel}</button></div>`
     : '';
   return `${head(cfg.label, `PICK ${Math.min(d.next + 1, total)} / ${total}`)}
     <div class="titlebar"><h2>${cfg.title}</h2></div>
-    ${clock}${need}${pickList}${done}
+    ${clock}${need}${pickList}
     ${over ? finalBoard : `<h3 class="group">PICK LOG</h3><ol class="picklog">${log || '<li class="muted">NO PICKS YET</li>'}</ol>`}${cta}`;
 }
 

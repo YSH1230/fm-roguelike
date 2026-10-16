@@ -53,7 +53,7 @@ test('시작 드래프트가 끝나면 내 지명 결과와 시즌 시작 버튼
   while (!isDraftOver(g.startDraft)) startDraftPick(g, g.startDraft.pool[0].id);
   const html = startDraftScreen(g, freshUi());
   clean(html, '드래프트 끝');
-  assert.ok(html.includes('DRAFT COMPLETE') && html.includes('MY DRAFT') && html.includes('data-act="dfinish"'));
+  assert.ok(html.includes('DRAFT COMPLETE') && html.includes('class="mypick"') && html.includes('data-act="dfinish"'));
   assert.ok(!html.includes('data-act="sdraft"'));
   startDraftFinish(g);
 });
