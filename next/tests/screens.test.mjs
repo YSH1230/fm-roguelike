@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, incomingTrade, playNextChunk, retireManager } from '../engine/game.mjs';
+import { createGame, incomingTrade, playNextChunk, retireManager, startDraftAdvance, startDraftFinish, startDraftPick } from '../engine/game.mjs';
+import { isDraftOver } from '../engine/draft.mjs';
 import { generateCoachCandidates } from '../engine/coach.mjs';
-import { beginOffseason, closeDraft, closeMarket, draftChoose, draftTurnIsMine, openMarket } from '../engine/offseason.mjs';
+import { beginDraft, beginOffseason, closeDraft, closeMarket, draftChoose, draftTurnIsMine, openMarket } from '../engine/offseason.mjs';
 import { teamIdentity, nameOf } from '../engine/names.mjs';
 import { teamName } from '../ui/components.mjs';
 import {
@@ -24,11 +25,37 @@ test('제목·시작 드래프트 화면', () => {
   assert.ok(titleScreen({ hasSave: false, kit: '#2f6fed' }).includes('data-act="new"'));
   assert.ok(!titleScreen({ hasSave: false, kit: '#2f6fed' }).includes('data-act="continue"'));
   assert.equal((titleScreen({ hasSave: false, kit: '#1f9d6a' }).match(/data-act="kit"/g) ?? []).length, 8);
+});
+
+test('시작 드래프트: 시작 전에는 순번표와 명단만, 시작하면 지명 현황, 내 차례에만 지명 버튼', () => {
   const g = createGame({ seed: 2 });
+  const pre = startDraftScreen(g, freshUi());
+  clean(pre, '드래프트 시작 전');
+  assert.ok(pre.includes('data-act="dstart"') && pre.includes('MY PICKS') && pre.includes('DRAFT ORDER'));
+  assert.ok(!pre.includes('data-act="sdraft"')); // 시작 전에는 지명할 수 없다
+  assert.equal((pre.match(/<article class="prow/g) ?? []).length, 24);
+  startDraftAdvance(g);
+  const live = startDraftScreen(g, freshUi());
+  clean(live, '드래프트 진행');
+  assert.ok(live.includes('ON THE CLOCK') && live.includes('PICK LOG') && live.includes('clock--me'));
+  assert.equal((live.match(/data-act="sdraft"/g) ?? []).length, g.startDraft.pool.length);
+  // 지명 현황을 한 명씩 보여 주는 중에는 건너뛰기만 있고 지명 버튼은 없다
+  const showing = startDraftScreen(g, freshUi({ reveal: { from: 0, shown: 1 } }));
+  clean(showing, '지명 현황 공개 중');
+  assert.ok(showing.includes('AI PICKING') && showing.includes('data-act="dskip"'));
+  assert.ok(!showing.includes('data-act="sdraft"'));
+  assert.equal((showing.match(/<li class="pick/g) ?? []).length, 1);
+});
+
+test('시작 드래프트가 끝나면 내 지명 결과와 시즌 시작 버튼이 나온다', () => {
+  const g = createGame({ seed: 4 });
+  startDraftAdvance(g);
+  while (!isDraftOver(g.startDraft)) startDraftPick(g, g.startDraft.pool[0].id);
   const html = startDraftScreen(g, freshUi());
-  clean(html, '시작 드래프트');
-  assert.equal((html.match(/data-act="sdraft"/g) ?? []).length, 12);
-  assert.ok(html.includes('aria-label="0/3"'));
+  clean(html, '드래프트 끝');
+  assert.ok(html.includes('DRAFT COMPLETE') && html.includes('MY DRAFT') && html.includes('data-act="dfinish"'));
+  assert.ok(!html.includes('data-act="sdraft"'));
+  startDraftFinish(g);
 });
 
 test('관리 화면 4개 탭이 모두 그려지고 시트·카드가 선수 정보를 담는다', () => {
@@ -101,6 +128,10 @@ test('시즌 종료·오프시즌·런 종료 화면', () => {
   clean(market, 'FA 시장');
   assert.equal((market.match(/data-act="offerfa"/g) ?? []).length, g.off.market.length);
   closeMarket(g);
+  const preDraft = offseasonScreen(g, ui);
+  clean(preDraft, '드래프트 시작 전');
+  assert.ok(preDraft.includes('data-act="dstart"') && !preDraft.includes('data-act="dpick"'));
+  beginDraft(g);
   const draft = offseasonScreen(g, ui);
   clean(draft, '드래프트');
   assert.equal(draftTurnIsMine(g), draft.includes('data-act="dpick"'));
@@ -136,6 +167,7 @@ test('드래프트·신인 배치 단계 화면도 깨지지 않는다', () => {
   g.off.resignQueue = [];
   openMarket(g);
   closeMarket(g);
+  beginDraft(g);
   const ui = freshUi();
   while (draftTurnIsMine(g)) draftChoose(g, g.off.draft.pool[0].id);
   closeDraft(g);

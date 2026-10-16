@@ -130,15 +130,22 @@ export function closeMarket(game) {
   const year = game.season.year;
   const teams = new Map(regionTeams(world).map((t) => [t.id, t]));
   const order = draftOrder(game.season.draftStandings, [...teams.values()], year);
-  off.draft = createDraft({ prospects: generateProspects(rng, { prefix: `D${year}` }), order });
-  autoPickUntil(off.draft, game.myTeam.id, rng);
+  off.draft = { ...createDraft({ prospects: generateProspects(rng, { prefix: `D${year}` }), order }), started: false };
   off.step = 'draft';
   return off.draft;
 }
 
-// 6) 드래프트: 내 순번마다 한 명 지명. 내 순번이 없거나 끝나면 isDraftOver.
+// 6) 드래프트 시작: 내 순번까지 AI 구단들이 차례로 지명한다.
+export function beginDraft(game) {
+  need(game, 'draft');
+  game.off.draft.started = true;
+  autoPickUntil(game.off.draft, game.myTeam.id, game.rng);
+}
+
+// 드래프트: 내 순번마다 한 명 지명. 내 순번이 없거나 끝나면 isDraftOver.
 export function draftChoose(game, playerId) {
   need(game, 'draft');
+  if (!game.off.draft.started) throw new Error('드래프트를 먼저 시작해야 합니다');
   const player = draftPick(game.off.draft, game.myTeam.id, playerId);
   autoPickUntil(game.off.draft, game.myTeam.id, game.rng);
   return player;
@@ -150,7 +157,7 @@ export function draftBest(game) {
   return draftChoose(game, best.id);
 }
 
-export const draftTurnIsMine = (game) => Boolean(game.off.draft) && !isDraftOver(game.off.draft)
+export const draftTurnIsMine = (game) => Boolean(game.off.draft?.started) && !isDraftOver(game.off.draft)
   && game.off.draft.order[game.off.draft.next].owner === game.myTeam.id;
 
 // 7) 드래프트 마감 -> 신인 계약을 붙여 대기석에 둔다. 스타 자리에 넣을지는 placeRookie로 정한다.

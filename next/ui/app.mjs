@@ -3,12 +3,12 @@ import { generateCoachCandidates, hireCoach, setIntensity } from '../engine/coac
 import { expandCap, upgradeFacility } from '../engine/economy.mjs';
 import {
   acceptTrade, answerInterview, answerPress, createGame, finishSeason, incomingTrade, leagueAiTeams, playNextChunk,
-  proposeTrade, retireManager, startDraftPick,
+  proposeTrade, retireManager, startDraftAdvance, startDraftFinish, startDraftPick,
 } from '../engine/game.mjs';
 import { inductHallOfFame } from '../engine/honors.mjs';
 import { nameOf } from '../engine/names.mjs';
 import {
-  beginOffseason, closeDraft, closeMarket, declineResign, draftChoose, offerFreeAgent, offerResign, openMarket,
+  beginDraft, beginOffseason, closeDraft, closeMarket, declineResign, draftChoose, offerFreeAgent, offerResign, openMarket,
   placeRookie, releaseStar, renewCoachContract, startSeason,
 } from '../engine/offseason.mjs';
 import { SAVE_KEY, readSave, writeSave } from '../engine/save.mjs';
@@ -75,6 +75,22 @@ function persist() {
   try { writeSave(game, storage); } catch { /* 용량 초과 등: 게임은 계속 */ }
 }
 
+// 드래프트에서 새로 이뤄진 AI 지명을 하나씩 보여 주기 위한 시간표(건너뛰기 가능)
+const activeDraft = () => (game.phase === 'startDraft' ? game.startDraft : game.off.draft);
+let revealTimer = null;
+const stopReveal = () => { clearInterval(revealTimer); ui.reveal = null; };
+const reveal = (d, from) => {
+  clearInterval(revealTimer);
+  if (d.picks.length <= from) { ui.reveal = null; return; }
+  ui.reveal = { from, shown: from };
+  revealTimer = setInterval(() => {
+    if (!ui.reveal) { clearInterval(revealTimer); return; }
+    ui.reveal.shown += 1;
+    if (ui.reveal.shown >= d.picks.length) stopReveal();
+    render();
+  }, 520);
+};
+
 const num = (id) => Number(document.getElementById(id)?.value);
 const result = (r, ok) => { ui.flash = r.accepted ? ok : (REASON_TEXT[r.reason] ?? '거절당했어요'); };
 
@@ -86,7 +102,15 @@ const ACTIONS = {
   },
   continue() { game = readSave(storage); ui.view = 'hub'; ui.rest.clear(); },
   newrun() { game = null; },
-  sdraft(el) { startDraftPick(game, el.dataset.id); },
+  dstart() {
+    const d = activeDraft();
+    const before = d.picks.length;
+    if (game.phase === 'startDraft') startDraftAdvance(game); else beginDraft(game);
+    reveal(d, before);
+  },
+  dskip() { stopReveal(); },
+  dfinish() { startDraftFinish(game); stopReveal(); ui.view = 'hub'; ui.tab = 'roster'; },
+  sdraft(el) { const d = game.startDraft; const before = d.picks.length; startDraftPick(game, el.dataset.id); reveal(d, before + 1); },
   tab(el) { ui.tab = el.dataset.v; ui.flash = null; },
   kit(el) { ui.kit = el.dataset.v; },
   pick(el) { ui.sel = el.dataset.id; },
@@ -134,12 +158,12 @@ const ACTIONS = {
   offerfa(el) { result(offerFreeAgent(game, el.dataset.id, num(`sal-${el.dataset.id}`)), '영입했어요!'); },
   release(el) { releaseStar(game, el.dataset.id); },
   closemarket() { closeMarket(game); ui.flash = null; },
-  dpick(el) { draftChoose(game, el.dataset.id); },
+  dpick(el) { const d = game.off.draft; const before = d.picks.length; draftChoose(game, el.dataset.id); reveal(d, before + 1); },
   closedraft() { closeDraft(game); },
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['dskip', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;

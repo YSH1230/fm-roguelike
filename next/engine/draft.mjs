@@ -71,3 +71,19 @@ export function draftedBy(draft, ownerId) {
     return p.player;
   });
 }
+
+// 스네이크 순서: 1라운드는 순서대로, 2라운드는 거꾸로, 3라운드는 다시 순서대로. slot은 전체 지명 번호(1부터).
+export function snakeOrder(teamIds, rounds) {
+  const out = [];
+  let slot = 0;
+  for (let r = 0; r < rounds; r += 1) {
+    for (const id of (r % 2 === 0 ? teamIds : [...teamIds].reverse())) {
+      slot += 1;
+      out.push({ slot, round: r + 1, from: id, owner: id });
+    }
+  }
+  return out;
+}
+
+// 이 팀의 지명 번호들(전체 기준)
+export const pickNumbers = (draft, ownerId) => draft.order.filter((o) => o.owner === ownerId).map((o) => o.slot);

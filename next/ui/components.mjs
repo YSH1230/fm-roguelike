@@ -1,7 +1,7 @@
 import { ATTRIBUTES } from '../engine/constants.mjs';
 import { askingSalary } from '../engine/contract.mjs';
 import { continentOf, nameOf, teamIdentity } from '../engine/names.mjs';
-import { overall } from '../engine/player.mjs';
+import { overall, starsOf } from '../engine/player.mjs';
 import { xpNeeded } from '../engine/growth.mjs';
 import { renderPortrait } from './portrait.mjs';
 import { renderCrest } from './crest2.mjs';
@@ -83,7 +83,12 @@ export function faceTile(p, { kit, size = 48 } = {}) {
   return `<span class="tile" style="--tile:${kit};--on-tile:${onColor(kit)}">${portrait(p, { size, kit })}<span class="pos" title="${POS_LABEL[p.position]}">${p.position}</span></span>`;
 }
 
-export const abilityStars = (p, size = 16) => stars(overall(p) / 20, p.potential / 20, size);
+// 별은 0.5 단위로만 움직인다. 진한 칸 = 지금 실력, 구단 색 칸 = 앞으로 클 수 있는 여지(잠재), 옆에 숫자로도 적는다.
+export function abilityStars(p, size = 16) {
+  const cur = starsOf(overall(p));
+  const pot = Math.max(cur, starsOf(p.potential));
+  return `<span class="astars">${stars(cur, pot, size)}<span class="starnum"><b>${cur.toFixed(1)}</b>${pot > cur ? `<i>→</i><b class="pot">${pot.toFixed(1)}</b>` : ''}</span></span>`;
+}
 
 // 후보·FA·신인·재계약처럼 목록에서 쓰는 한 줄 선수 행
 // 목록의 선수 행은 어두운 면에 구단 색 얼굴 타일만 둔다(구단 색 면은 선수 상세 카드 한 장에만).

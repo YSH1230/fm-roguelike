@@ -1,13 +1,13 @@
-import { CL_PRIZE, MY_REGION, SALARY_CAP, SEASON, START_ASSIGNED, START_PICKS, START_PROSPECTS } from './constants.mjs';
+import { CL_PRIZE, MY_REGION, SALARY_CAP, SEASON, START_ASSIGNED, START_DRAFT_TEAMS, START_PROSPECTS, START_ROUNDS } from './constants.mjs';
 import { askingSalary, newContract } from './contract.mjs';
 import { createCoach } from './coach.mjs';
 import {
-  autoPickUntil, createDraft, draftPick, draftedBy, generateProspects, grantPicks,
+  autoPickUntil, createDraft, draftPick, draftedBy, generateProspects, grantPicks, isDraftOver, snakeOrder,
 } from './draft.mjs';
 import { createClub, chunkIncome, earn, fansAfterChunk, salaryCap, seasonPrize } from './economy.mjs';
 import { applyChoice, interviewFor, pickPress, pressSituation } from './events.mjs';
 import { chunkStep, lineupView, snapshotStats } from './condition.mjs';
-import { createRng } from './rng.mjs';
+import { createRng, shuffle } from './rng.mjs';
 import { setStars } from './roster.mjs';
 import { createTeam } from './team.mjs';
 import { allTeams, createWorld, leagueKey, myLeague, playWorldChunk } from './world.mjs';
@@ -30,11 +30,13 @@ export function createGame({ seed = 1, name = '감독', clubName = '내 구단',
   for (const p of myTeam.stars) p.contract = newContract(Math.max(1, Math.round(askingSalary(p) * 0.6)));
   const world = createWorld({ rng, myTeam });
   grantPicks(regionTeams(world), 1);
-  const order = Array.from({ length: START_PICKS }, (_, i) => ({ slot: i + 1, from: 'ME', owner: 'ME' }));
+  // 내 리그의 AI 구단 7곳과 함께 8개 구단이 3라운드 스네이크 드래프트를 한다(내 순번은 추첨).
+  const rivals = shuffle(rng, [...myLeague(world).teams.keys()].filter((id) => id !== 'ME')).slice(0, START_DRAFT_TEAMS - 1);
+  const order = snakeOrder(shuffle(rng, ['ME', ...rivals]), START_ROUNDS);
   return {
     seed, rng, name, clubName, clubKit, world, myTeam, club: createClub(), history: createHistory(),
     phase: 'startDraft', chunk: 0, pending: { press: null, interviews: [] }, season: null, off: null, end: null,
-    startDraft: createDraft({ prospects: generateProspects(rng, { count: START_PROSPECTS, prefix: 'S1' }), order }),
+    startDraft: { ...createDraft({ prospects: generateProspects(rng, { count: START_PROSPECTS, prefix: 'S1' }), order }), started: false },
   };
 }
 
@@ -42,15 +44,28 @@ const need = (game, phase) => {
   if (game.phase !== phase) throw new Error(`지금은 할 수 없습니다 (단계: ${game.phase}, 필요: ${phase})`);
 };
 
-// 시작 드래프트에서 한 명 고른다. 3명을 다 고르면 첫 시즌 관리 단계로 넘어간다.
+// 시작 드래프트: 드래프트 시작을 누르면 내 순번까지 AI 구단들이 차례로 지명한다.
+// 내 순번마다 한 명을 고르면 다음 내 순번(또는 끝)까지 이어서 진행한다. 끝나면 startDraftFinish로 시즌을 시작한다.
+export function startDraftAdvance(game) {
+  need(game, 'startDraft');
+  game.startDraft.started = true;
+  autoPickUntil(game.startDraft, 'ME', game.rng);
+}
+
 export function startDraftPick(game, playerId) {
   need(game, 'startDraft');
+  if (!game.startDraft.started) throw new Error('드래프트를 먼저 시작해야 합니다');
   const player = draftPick(game.startDraft, 'ME', playerId);
-  if (game.startDraft.next >= START_PICKS) {
-    setStars(game.myTeam, game.rng, [...game.myTeam.stars, ...draftedBy(game.startDraft, 'ME')]);
-    game.phase = 'manage';
-  }
+  startDraftAdvance(game);
   return player;
+}
+
+// 드래프트가 모두 끝났으면 내가 지명한 신인들이 스타가 되고 첫 시즌 관리 단계로 넘어간다.
+export function startDraftFinish(game) {
+  need(game, 'startDraft');
+  if (!isDraftOver(game.startDraft)) throw new Error('드래프트가 아직 끝나지 않았습니다');
+  setStars(game.myTeam, game.rng, [...game.myTeam.stars, ...draftedBy(game.startDraft, 'ME')]);
+  game.phase = 'manage';
 }
 
 export const myMatches = (results, id) => results.filter((r) => r.homeId === id || r.awayId === id);

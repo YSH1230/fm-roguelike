@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { finishSeason, playNextChunk } from '../engine/game.mjs';
 import {
-  beginOffseason, closeDraft, closeMarket, declineResign, draftChoose, draftTurnIsMine, offerFreeAgent, offerResign,
+  beginDraft, beginOffseason, closeDraft, closeMarket, declineResign, draftChoose, draftTurnIsMine, offerFreeAgent, offerResign,
   openMarket, placeRookie, releaseStar, renewCoachContract, startSeason,
 } from '../engine/offseason.mjs';
 import { retireManager } from '../engine/game.mjs';
@@ -132,6 +132,9 @@ test('드래프트: 내 순번에 고르고 마감하면 신인이 계약과 함
   openMarket(g);
   closeMarket(g);
   assert.throws(() => closeDraft(g), /아직 끝나지/);
+  assert.equal(draftTurnIsMine(g), false); // 시작 전에는 내 순번이 아니다
+  assert.throws(() => draftChoose(g, g.off.draft.pool[0].id), /먼저 시작/);
+  beginDraft(g);
   let picks = 0;
   while (draftTurnIsMine(g)) {
     draftChoose(g, g.off.draft.pool[0].id);
@@ -150,6 +153,7 @@ test('신인 배치: 자리가 없으면 내보낼 스타를 지정해야 한다
   g.off.resignQueue = [];
   openMarket(g);
   closeMarket(g);
+  beginDraft(g);
   while (draftTurnIsMine(g)) draftChoose(g, g.off.draft.pool[0].id);
   closeDraft(g);
   const rookie = g.off.rookies[0];

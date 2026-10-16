@@ -108,8 +108,13 @@ h3.group { font: 700 14px/1 var(--cond); letter-spacing: 0.1em; text-transform: 
 .chip.down { color: var(--team); border-color: var(--team); }
 .chip.coin, .chip.best { color: var(--best); border-color: var(--best); }
 .stars { display: block; }
+.astars { display: inline-flex; align-items: center; gap: 8px; }
+.starnum { display: inline-flex; align-items: baseline; gap: 4px; font-family: var(--cond); }
+.starnum b { font-size: 15px; font-weight: 700; }
+.starnum i { font-style: normal; color: var(--mute); font-size: 13px; }
+.starnum .pot { color: var(--team); }
 .st-base { fill: none; stroke: #555; stroke-width: 1.4; }
-.st-pot { fill: color-mix(in srgb, var(--white) 38%, transparent); stroke: none; }
+.st-pot { fill: var(--team); stroke: none; }
 .st-cur { fill: var(--white); stroke: none; }
 .face { color: var(--white); }
 .face--2, .face--1 { color: var(--team); }
@@ -273,6 +278,36 @@ select { max-width: 160px; font-size: 13px; }
 .gold .tier { color: #e9c24d; } .silver .tier { color: #c9cfd5; } .bronze .tier { color: #d58a4c; } .locked .tier { color: #666; }
 .locked b, .locked small { color: #777; }
 
+/* ---------- 드래프트 보드 ---------- */
+.order { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.order li { display: flex; align-items: center; gap: 8px; padding: 8px 4px; border-bottom: 1px dotted var(--line); font-size: 13px; min-width: 0; }
+.order li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order .num { width: 22px; font-size: 18px; color: var(--mute); text-align: right; }
+.order li.me { box-shadow: inset 0 0 0 1px var(--team); background: var(--panel); font-weight: 700; }
+.order li.me .num { color: var(--team); }
+.clock { display: grid; gap: 4px; padding: 16px; background: var(--panel); border-top: 2px solid var(--white); }
+.clock b { font: 800 56px/1 var(--cond); } .clock b small { font-size: 22px; color: var(--mute); margin-left: 4px; }
+.clock .pill { justify-self: start; margin-top: 8px; }
+.clock p { display: flex; align-items: center; gap: 8px; color: var(--mute); }
+.clock--me { border-top-color: var(--team); } .clock--me .lab { color: var(--team); } .clock--me p { color: var(--white); font-weight: 700; }
+.clock--done .lab { color: var(--best); }
+.needs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
+.needs .lab { flex-basis: 100%; }
+.need { display: inline-flex; align-items: baseline; gap: 6px; font: 700 14px var(--cond); letter-spacing: 0.08em; padding: 3px 8px; border: 1px solid var(--line); color: var(--mute); }
+.need b { color: var(--white); font-size: 18px; }
+.need--zero { border-color: var(--team); color: var(--team); } .need--zero b { color: var(--team); }
+.picklog { display: grid; }
+.pick { display: grid; grid-template-columns: 38px 1fr; gap: 2px 8px; align-items: center; padding: 10px 4px; border-bottom: 1px dotted var(--line); }
+.pick > .num { grid-row: span 2; font-size: 20px; color: var(--mute); text-align: right; }
+.pick__t { display: flex; align-items: center; gap: 6px; color: var(--mute); font-size: 12px; min-width: 0; }
+.pick__t span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick__p { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pick__p b { font: 700 17px/1.1 var(--cond); letter-spacing: 0.04em; text-transform: uppercase; }
+.pick--me { background: var(--panel); box-shadow: inset 0 0 0 1px var(--team); }
+.pick--me > .num { color: var(--team); }
+.pick--new { animation: pick-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes pick-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
 /* ---------- 오프시즌 단계(밑줄 탭) ---------- */
 .steps { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); }
 .steps li { display: grid; gap: 2px; padding: 8px 0 10px; text-align: center; color: var(--mute); }
@@ -320,6 +355,6 @@ select { max-width: 160px; font-size: 13px; }
 @keyframes grow { from { transform: scaleX(0.2); opacity: 0.4; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; }
-  .enter .rs, .enter .bigrank, .enter .bar i { animation-name: fade !important; }
+  .enter .rs, .enter .bigrank, .enter .bar i, .pick--new { animation-name: fade !important; }
 }
 @media (max-width: 340px) { .wordmark { font-size: 84px; } .repname { font-size: 44px; } }

@@ -39,3 +39,13 @@ export function weightedPick(rng, items, weightFn) {
   }
   return items[items.length - 1];
 }
+
+// Fisher-Yates 섞기(원본은 그대로 두고 새 배열을 돌려준다)
+export function shuffle(rng, items) {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}

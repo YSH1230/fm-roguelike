@@ -14,19 +14,25 @@ export function playFullSeason(world, rng) {
 }
 
 // ---- 계획 7 테스트 공용: 자동으로 한 시즌과 오프시즌을 진행하는 간단한 감독 ----
-import { askingSalary } from '../engine/contract.mjs';
+import { askingSalary, marketValue } from '../engine/contract.mjs';
+import { isDraftOver } from '../engine/draft.mjs';
 import {
-  createGame, finishSeason, playNextChunk, startDraftPick,
+  createGame, finishSeason, playNextChunk, startDraftAdvance, startDraftFinish, startDraftPick,
 } from '../engine/game.mjs';
 import {
-  beginOffseason, closeDraft, closeMarket, draftBest, draftTurnIsMine, offerFreeAgent, offerResign, openMarket,
+  beginDraft, beginOffseason, closeDraft, closeMarket, draftBest, draftTurnIsMine, offerFreeAgent, offerResign, openMarket,
   placeRookie, releaseStar, renewCoachContract, startSeason,
 } from '../engine/offseason.mjs';
 import { overall } from '../engine/player.mjs';
 
 export function startedGame(seed = 1) {
   const g = createGame({ seed });
-  for (const p of g.startDraft.pool.slice(0, 3)) startDraftPick(g, p.id);
+  startDraftAdvance(g);
+  while (!isDraftOver(g.startDraft)) {
+    const best = [...g.startDraft.pool].sort((a, b) => marketValue(b) - marketValue(a) || (a.id < b.id ? -1 : 1))[0];
+    startDraftPick(g, best.id);
+  }
+  startDraftFinish(g);
   return g;
 }
 
@@ -50,6 +56,7 @@ export function autoOffseason(g) {
     offerFreeAgent(g, e.player.id, e.asking);
   }
   closeMarket(g);
+  beginDraft(g);
   while (draftTurnIsMine(g)) draftBest(g);
   closeDraft(g);
   for (const r of [...g.off.rookies]) {
