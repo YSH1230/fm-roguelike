@@ -11,14 +11,14 @@ export function expectedGoals(attack, opponentDefense, boost = 1) {
 
 function scoreValue(p) {
   if (p.position === 'FW') return p.attrs.shooting;
-  if (p.position === 'MF') return (p.attrs.passing + p.attrs.vision) / 2;
-  if (p.position === 'DF') return p.attrs.heading;
+  if (p.position === 'MF') return (p.attrs.passing + p.attrs.dribbling) / 2;
+  if (p.position === 'DF') return p.attrs.physical;
   return 10;
 }
 
 function assistValue(p) {
   if (p.position === 'FW') return p.attrs.dribbling;
-  if (p.position === 'MF') return p.attrs.vision;
+  if (p.position === 'MF') return p.attrs.passing;
   return 30;
 }
 

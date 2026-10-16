@@ -5,15 +5,15 @@ const avg = (p, keys) => keys.reduce((sum, k) => sum + p.attrs[k], 0) / keys.len
 // 이 선수가 공격력에 기여하는 능력값(0이면 공격에 기여하지 않는 포지션)
 export function attackValue(p) {
   if (p.position === 'FW') return avg(p, ['shooting', 'pace', 'dribbling']);
-  if (p.position === 'MF') return avg(p, ['passing', 'vision']);
+  if (p.position === 'MF') return avg(p, ['passing', 'dribbling']);
   return 0;
 }
 
 // 수비력에 기여하는 능력값
 export function defenseValue(p) {
-  if (p.position === 'DF') return avg(p, ['tackling', 'marking', 'heading']);
-  if (p.position === 'GK') return avg(p, ['reflexes', 'handling', 'positioning']);
-  if (p.position === 'MF') return avg(p, ['workrate', 'stamina']);
+  if (p.position === 'DF') return avg(p, ['defending', 'physical']);
+  if (p.position === 'GK') return avg(p, ['diving', 'handling', 'reflexes', 'positioning']);
+  if (p.position === 'MF') return avg(p, ['defending', 'physical']);
   return 0;
 }
 

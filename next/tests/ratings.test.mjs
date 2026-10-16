@@ -4,10 +4,10 @@ import { teamRatings, modifier } from '../engine/ratings.mjs';
 
 const coaches = (a, d) => ({ attack: { stars: a }, defense: { stars: d } });
 const player = (position, attrs, extra = {}) => ({ position, attrs, mood: 70, condition: 100, ...extra });
-const fw = (v, extra) => player('FW', { shooting: v, pace: v, dribbling: v, stamina: v }, extra);
-const mf = (passing, workrate, extra) => player('MF', { passing, vision: passing, workrate, stamina: workrate }, extra);
-const df = (v, extra) => player('DF', { tackling: v, marking: v, heading: v, stamina: v }, extra);
-const gk = (v, extra) => player('GK', { reflexes: v, handling: v, positioning: v, stamina: v }, extra);
+const fw = (v, extra) => player('FW', { pace: v, shooting: v, passing: v, dribbling: v, defending: v, physical: v }, extra);
+const mf = (passing, workrate, extra) => player('MF', { pace: 50, shooting: 50, passing, dribbling: passing, defending: workrate, physical: workrate }, extra);
+const df = (v, extra) => player('DF', { pace: v, shooting: v, passing: v, dribbling: v, defending: v, physical: v }, extra);
+const gk = (v, extra) => player('GK', { diving: v, handling: v, kicking: v, reflexes: v, speed: v, positioning: v }, extra);
 
 test('스타가 없으면 코치 기본 레이팅만 남는다', () => {
   assert.deepEqual(teamRatings({ coaches: coaches(3, 2), stars: [] }), { attack: 36, defense: 24 });
