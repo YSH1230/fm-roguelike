@@ -98,31 +98,65 @@ test('FA 영입: 스타가 가득하면 roster로 거절, 방출 후엔 영입�
   openMarket(g);
   g.club.coins = 999;
   // 영입 조건을 모두 풀어 협상이 금액과 자리만 문제가 되게 한다
-  for (const e of g.off.market) e.conditions = {};
-  const e = g.off.market[0];
+  for (const e of g.market) e.conditions = {};
+  const e = g.market[0];
   g.myTeam.stars.forEach((p) => { p.contract.salary = 1; });
   if (g.myTeam.stars.length >= 6) {
     assert.equal(offerFreeAgent(g, e.player.id, e.asking).reason, 'roster');
     releaseStar(g, g.myTeam.stars[0].id);
   }
   assert.equal(offerFreeAgent(g, e.player.id, e.asking).accepted, true);
-  assert.ok(!g.off.market.includes(e));
+  assert.ok(!g.market.includes(e));
   assert.ok(g.myTeam.stars.includes(e.player));
   assert.equal(g.myTeam.lineup.length, 11);
   assert.throws(() => offerFreeAgent(g, 'ghost', 5), /시장에 없는/);
 });
 
-test('시장 마감: 남은 FA는 AI 팀에 가고 AI 팀은 모두 스타 6명을 유지한다. 드래프트가 열린다', () => {
+test('시장 마감: 시장은 그대로 열려 있고 드래프트가 열린다. 남은 FA는 다음 시즌 시장이 열릴 때 AI 팀이 데려간다', () => {
   const g = atOffseason();
   beginOffseason(g);
   g.off.resignQueue = [];
   openMarket(g);
-  const left = g.off.market.length;
+  const left = g.market.map((e) => e.player.id);
   const draft = closeMarket(g);
-  assert.equal(g.off.aiSigned.length, left);
+  assert.deepEqual(g.market.map((e) => e.player.id), left); // 닫혀도 목록은 그대로
   assert.equal(g.off.step, 'draft');
   assert.equal(draft.order.length, 20);
   for (const t of allTeams(g.world)) if (t.id !== 'ME') assert.equal(t.stars.length, 6);
+});
+
+test('FA는 코인으로 산다: 가격은 요구 연봉 + 요구 연봉^2/25, 코인이 모자라면 거절, 방출한 선수는 시장에 나온다', () => {
+  const g = atOffseason();
+  beginOffseason(g);
+  g.off.resignQueue = [];
+  openMarket(g);
+  for (const e of g.market) e.conditions = {};
+  g.myTeam.stars.forEach((p) => { p.contract.salary = 1; });
+  if (g.myTeam.stars.length >= 6) releaseStar(g, g.myTeam.stars[0].id);
+  const e = g.market[0];
+  const price = Math.round(e.asking + (e.asking * e.asking) / 25);
+  g.club.coins = price - 1;
+  assert.equal(offerFreeAgent(g, e.player.id, e.asking).reason, 'coins');
+  assert.ok(g.market.includes(e)); // 거절되면 코인도 시장도 그대로
+  g.club.coins = price + 5;
+  const r = offerFreeAgent(g, e.player.id, e.asking);
+  assert.equal(r.accepted, true);
+  assert.equal(r.price, price);
+  assert.equal(g.club.coins, 5);
+  const gone = g.myTeam.stars[0];
+  releaseStar(g, gone.id);
+  assert.ok(g.market.some((x) => x.player === gone));
+});
+
+test('FA 시장은 시즌 중(관리 단계)에도 열려 있다', () => {
+  const g = startedGame(2);
+  for (const e of g.market) e.conditions = {};
+  g.myTeam.stars.forEach((p) => { p.contract.salary = 1; });
+  releaseStar(g, g.myTeam.stars[0].id);
+  g.club.coins = 999;
+  const e = g.market[0];
+  assert.equal(offerFreeAgent(g, e.player.id, e.asking).accepted, true);
+  assert.equal(g.myTeam.lineup.length, 11);
 });
 
 test('드래프트: 내 순번에 고르고 마감하면 신인이 계약과 함께 대기석에 오른다', () => {

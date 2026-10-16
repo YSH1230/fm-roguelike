@@ -51,7 +51,7 @@ export function autoOffseason(g) {
   }
   for (const c of [...g.off.coachExpiring]) { try { renewCoachContract(g, c.kind); } catch { /* 코인 부족: 신임 코치 */ } }
   openMarket(g);
-  for (const e of [...g.off.market].sort((a, b) => b.asking - a.asking)) {
+  for (const e of [...g.market].sort((a, b) => b.asking - a.asking)) {
     if (g.myTeam.stars.length >= 6) break;
     offerFreeAgent(g, e.player.id, e.asking);
   }

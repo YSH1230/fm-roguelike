@@ -126,7 +126,7 @@ test('시즌 종료·오프시즌·런 종료 화면', () => {
   openMarket(g);
   const market = offseasonScreen(g, ui);
   clean(market, 'FA 시장');
-  assert.equal((market.match(/data-act="offerfa"/g) ?? []).length, g.off.market.length);
+  assert.equal((market.match(/data-act="offerfa"/g) ?? []).length, g.market.length);
   closeMarket(g);
   const preDraft = offseasonScreen(g, ui);
   clean(preDraft, '드래프트 시작 전');
@@ -228,4 +228,13 @@ test('엔딩 장면: 시즌 화면에 ENDING 버튼이 나오고, 편지에 감�
   assert.ok(letter.includes('OH SEUNGMIN') && letter.includes(g.clubName) && letter.includes('data-act="endingdone"') && letter.includes('data-act="retire"'));
   g.season.ending = 'champions';
   assert.ok(endingScreen(g).includes('CHAMPIONS'));
+});
+
+test('MARKET 탭: 시즌 중에도 FA 목록과 코인 가격, 내 스타 방출 버튼이 나온다', () => {
+  const g = startedGame(4);
+  const html = hubScreen(g, freshUi({ tab: 'market' }));
+  clean(html, 'MARKET 탭');
+  assert.equal((html.match(/data-act="offerfa"/g) ?? []).length, g.market.length);
+  assert.ok(html.includes('FREE AGENTS') && html.includes('data-act="release"') && html.includes('SIGN'));
+  assert.ok(html.includes('data-v="market"')); // 하단 탭에 MARKET이 있다
 });

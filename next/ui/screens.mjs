@@ -1,5 +1,5 @@
 import { ATTRIBUTES, OWNER_NAME, TRAITS } from '../engine/constants.mjs';
-import { askingSalary, payroll } from '../engine/contract.mjs';
+import { askingSalary, faPrice, payroll } from '../engine/contract.mjs';
 import { capExpandCost, salaryCap, upgradeCost } from '../engine/economy.mjs';
 import { leagueAiTeams } from '../engine/game.mjs';
 import { standings } from '../engine/league.mjs';
@@ -254,10 +254,27 @@ function recordsTab(game) {
     ${section('CHAMPIONS LEAGUE', `<ul class="lines">${champs || '<li class="muted">아직 없어요</li>'}</ul>`)}`;
 }
 
-const NAV = [['roster', 'ROSTER', 'roster'], ['table', 'TABLE', 'table'], ['front', 'FRONT', 'front'], ['records', 'RECORDS', 'records']];
+// FA 시장: 시즌 내내 열려 있다. 가격은 코인, 연봉은 샐러리캡 안에서 요구 이상.
+function marketPanel(game, ui) {
+  const kit = game.clubKit;
+  const full = game.myTeam.stars.length >= 6;
+  const mine = game.myTeam.stars.map((p) => `<div class="row"><div>${esc(nameOf(p.id))} <small>${facts(p.position, `연봉 ${p.contract.salary}`)}</small></div><button class="link" data-act="release" data-id="${esc(p.id)}">내보내기</button></div>`).join('');
+  const market = game.market.map((e) => playerRow(e.player, {
+    kit, stack: true,
+    note: `<div class="conds">${conditionTexts(e.conditions).map((t) => chip(t)).join('') || chip('조건 없음', 'up')}</div>`,
+    action: `<div class="offer">${salaryInput(e.player.id, e.asking)}<small>${askText(e.player)}</small><button class="btn btn--small btn--primary" data-act="offerfa" data-id="${esc(e.player.id)}">SIGN ${coinNum(faPrice(e.asking))}</button></div>`,
+  })).join('');
+  return `${flash(ui)}${tip(ui, 'market', '선수마다 요구 금액과 <b>영입 조건</b>(작년 순위, 시설, 팬, 팀 사기)이 달라요. 가격은 코인으로 내고, 연봉은 요구 이상을 제시해요. 시장은 이번 시즌 내내 열려 있고, 시즌이 바뀌면 새로 채워져요.')}
+    ${section(`MY STARS <span class="count">${game.myTeam.stars.length}/6</span>`, `${full ? '<p class="hint">자리가 가득 찼어요. 영입하려면 먼저 한 명을 내보내세요</p>' : ''}${mine}`)}
+    ${section(`FREE AGENTS <span class="count">${game.market.length}</span>`, market || '<p class="muted pad">시장이 비었어요</p>')}`;
+}
+
+const marketTab = (game, ui) => marketPanel(game, ui);
+
+const NAV = [['roster', 'ROSTER', 'roster'], ['market', 'MARKET', 'transfer'], ['table', 'TABLE', 'table'], ['front', 'FRONT', 'front'], ['records', 'RECORDS', 'records']];
 
 export function hubScreen(game, ui) {
-  const body = { roster: rosterTab, table: tableTab, front: frontTab, records: recordsTab }[ui.tab](game, ui);
+  const body = { roster: rosterTab, market: marketTab, table: tableTab, front: frontTab, records: recordsTab }[ui.tab](game, ui);
   const n = game.chunk;
   const track = `<ol class="track" aria-label="시즌 진행">${['1구간', '2구간', '3구간'].map((l, i) => `<li class="${i < n ? 'done' : (i === n ? 'now' : '')}">${l}</li>`).join('')}</ol>`;
   return `${topBar(game)}<main class="page" style="${teamStyle(game.clubKit)}">${track}${flash(ui)}${body}</main>
@@ -361,16 +378,7 @@ export function offseasonScreen(game, ui) {
       ${coaches ? section('COACH CONTRACT', `${coaches}<p class="hint">재계약하지 않으면 1별 신임 코치가 옵니다</p>`) : ''}
       <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="openmarket">OPEN MARKET</button></div>`;
   } else if (off.step === 'market') {
-    const full = game.myTeam.stars.length >= 6;
-    const mine = game.myTeam.stars.map((p) => `<div class="row"><div>${esc(nameOf(p.id))} <small>${facts(p.position, `연봉 ${p.contract.salary}`)}</small></div><button class="link" data-act="release" data-id="${esc(p.id)}">내보내기</button></div>`).join('');
-    const market = off.market.map((e) => playerRow(e.player, {
-      kit, stack: true,
-      note: `<div class="conds">${conditionTexts(e.conditions).map((t) => chip(t)).join('') || chip('조건 없음', 'up')}</div>`,
-      action: `<div class="offer">${salaryInput(e.player.id, e.asking)}<small>${askText(e.player)}</small><button class="btn btn--small btn--primary" data-act="offerfa" data-id="${esc(e.player.id)}">영입 제안</button></div>`,
-    })).join('');
-    body = `${tip(ui, 'market', '선수마다 요구 금액과 <b>영입 조건</b>(작년 순위, 시설, 팬, 팀 사기)이 달라요. 조건을 채우고 금액이 요구 이상이면 계약해요. 못 잡은 선수는 다른 팀이 데려가요.')}
-      ${section(`MY STARS <span class="count">${game.myTeam.stars.length}/6</span>`, `${full ? '<p class="hint">자리가 가득 찼어요. 영입하려면 먼저 한 명을 내보내세요</p>' : ''}${mine}`)}
-      ${market || '<p class="muted pad">시장이 비었어요</p>'}
+    body = `${marketPanel(game, ui)}
       <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="closemarket">CLOSE MARKET</button></div>`;
   } else if (off.step === 'draft') {
     body = draftBoard(game, off.draft, ui, {

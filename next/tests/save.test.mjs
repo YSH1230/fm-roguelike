@@ -62,7 +62,7 @@ test('FA 시장 도중에 저장해도 같은 시장이 이어지고 마감 결�
     g.off.resignQueue = [];
     openMarket(g);
     const g2 = loadGame(saveGame(g));
-    assert.deepEqual(g2.off.market.map((e) => e.player.id), g.off.market.map((e) => e.player.id));
+    assert.deepEqual(g2.market.map((e) => e.player.id), g.market.map((e) => e.player.id));
     closeMarket(g);
     closeMarket(g2);
     assert.deepEqual(g.off.aiSigned, g2.off.aiSigned);

@@ -7,15 +7,15 @@ import { tickContracts } from './contract.mjs';
 import {
   autoPickUntil, createDraft, draftOrder, draftPick, draftedBy, generateProspects, grantPicks, isDraftOver, spendPicks,
 } from './draft.mjs';
-import { negotiationClub } from './economy.mjs';
+import { negotiationClub, spend } from './economy.mjs';
 import {
-  aiSign, evaluateOffer, evaluateResign, generateFreeAgents, releaseToPool, resign, signFreeAgent,
+  aiSign, evaluateOffer, evaluateResign, generateFreeAgents, releaseToPool, resign, signFreeAgent, toEntry,
 } from './freeAgency.mjs';
 import { regionTeams } from './game.mjs';
 import { startNextSeason } from './ladder.mjs';
 import { retirePlayer } from './honors.mjs';
 import { setStars } from './roster.mjs';
-import { marketValue } from './contract.mjs';
+import { faPrice, marketValue } from './contract.mjs';
 
 const need = (game, step) => {
   if (game.phase !== 'offseason' || !game.off) throw new Error('오프시즌이 아닙니다');
@@ -23,7 +23,7 @@ const need = (game, step) => {
 };
 
 const clubView = (game) => negotiationClub(game.club, {
-  rank: game.season.rank, morale: teamMorale(game.myTeam), team: game.myTeam, tier: game.myTeam.tier,
+  rank: game.season?.rank ?? game.startDraft?.lastYear?.ME ?? 18, morale: teamMorale(game.myTeam), team: game.myTeam, tier: game.myTeam.tier,
 });
 
 // 1) 오프시즌 시작: 승강 반영 새 시즌 준비, 나이·은퇴, 계약 만료, AI 팀 변화, 코치 성장과 계약.
@@ -44,7 +44,7 @@ export function beginOffseason(game) {
   offseasonAi(world, rng);
   const aiReleased = releaseAiPlayers(rng, regionTeams(world).filter((t) => t.id !== team.id), FA_RELEASED);
   game.off = {
-    step: 'resign', retired, resignQueue: expiring, coachExpiring, released: [], aiReleased, market: null,
+    step: 'resign', retired, resignQueue: expiring, coachExpiring, released: [], aiReleased,
     draft: null, rookies: [], aiSigned: [],
   };
   return game.off;
@@ -90,43 +90,52 @@ export function openMarket(game) {
   }
   off.coachExpiring = [];
   syncFillers(team);
-  off.market = generateFreeAgents(rng, {
+  // 지난 시즌 시장에 남은 FA는 AI 팀이 데려가고, 이번 시즌의 새 시장이 열린다(시즌마다 초기화).
+  const aiTeams = regionTeams(game.world).filter((t) => t.id !== game.myTeam.id);
+  off.aiSigned = game.market.length ? aiSign(rng, game.market, aiTeams) : [];
+  for (const t of new Set(off.aiSigned.map((s) => s.teamId))) integrateNamed(aiTeams.find((x) => x.id === t), rng);
+  game.market = generateFreeAgents(rng, {
     released: [...off.released.map((e) => e.player), ...off.aiReleased], prefix: `FA${game.season.year}`,
   });
   off.step = 'market';
-  return off.market;
+  return game.market;
 }
 
-// 4) FA 영입 협상. 스타가 6명이면 먼저 releaseStar로 자리를 비워야 한다.
+// 4) FA 영입. 시장은 시즌 내내 열려 있다(관리 화면과 오프시즌 어디서든). 가격은 코인으로 내고,
+// 연봉은 샐러리캡 안에서 요구 이상을 제시한다. 스타가 6명이면 먼저 releaseStar로 자리를 비워야 한다.
+const marketOpen = (game) => {
+  if (game.phase !== 'manage' && game.phase !== 'offseason') throw new Error('지금은 FA 시장을 쓸 수 없습니다');
+};
+
 export function offerFreeAgent(game, playerId, salary) {
-  need(game, 'market');
-  const entry = game.off.market.find((e) => e.player.id === playerId);
+  marketOpen(game);
+  const entry = game.market.find((e) => e.player.id === playerId);
   if (!entry) throw new Error('시장에 없는 선수입니다');
   const club = clubView(game);
   const result = evaluateOffer(entry, salary, club);
   if (!result.accepted) return result;
   if (game.myTeam.stars.length >= ROSTER_STARS) return { accepted: false, reason: 'roster' };
+  const price = faPrice(entry.asking);
+  if (price > game.club.coins) return { accepted: false, reason: 'coins' };
+  spend(game.club, price);
   signFreeAgent(game.myTeam, game.rng, entry, salary, club);
-  game.off.market = game.off.market.filter((e) => e !== entry);
-  return result;
+  game.market = game.market.filter((e) => e !== entry);
+  return { ...result, price };
 }
 
-// 내 스타를 방출한다(자리 만들기). 방출된 선수는 사라진다.
+// 내 스타를 방출한다(자리 만들기). 방출된 선수는 이번 시즌 FA 시장에 나온다.
 export function releaseStar(game, playerId) {
-  if (game.phase !== 'offseason' || !game.off) throw new Error('오프시즌이 아닙니다');
+  marketOpen(game);
   const player = game.myTeam.stars.find((p) => p.id === playerId);
   if (!player) throw new Error('이 팀의 스타가 아닙니다');
   setStars(game.myTeam, game.rng, game.myTeam.stars.filter((p) => p !== player));
+  game.market.push(toEntry(game.rng, player));
 }
 
-// 5) 시장 마감 -> 남은 FA는 AI 팀이 데려가고 드래프트로.
+// 5) 드래프트로. 시장은 닫히지 않고 시즌 내내 열려 있다(남은 FA는 다음 시즌 시장이 열릴 때 AI 팀이 데려간다).
 export function closeMarket(game) {
   need(game, 'market');
   const { off, world, rng } = game;
-  const aiTeams = regionTeams(world).filter((t) => t.id !== game.myTeam.id);
-  off.aiSigned = aiSign(rng, off.market, aiTeams);
-  for (const t of new Set(off.aiSigned.map((s) => s.teamId))) integrateNamed(aiTeams.find((x) => x.id === t), rng);
-  off.market = [];
   const year = game.season.year;
   const teams = new Map(regionTeams(world).map((t) => [t.id, t]));
   const order = draftOrder(game.season.draftStandings, [...teams.values()], year);

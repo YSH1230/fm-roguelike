@@ -12,6 +12,7 @@ import { teamRatings } from './ratings.mjs';
 import { setStars } from './roster.mjs';
 import { createTeam } from './team.mjs';
 import { setCustomNames } from './names.mjs';
+import { generateFreeAgents } from './freeAgency.mjs';
 import { spendPoint as spendPointOn } from './growth.mjs';
 import { allTeams, createWorld, leagueKey, myLeague, playWorldChunk } from './world.mjs';
 import { standings } from './league.mjs';
@@ -59,7 +60,7 @@ export function createGame({ seed = 1, name = '감독', clubName = '내 구단',
   const order = repeatOrder(byPower.slice(0, START_DRAFT_TEAMS).sort((a, b) => lastYear[b] - lastYear[a]), START_ROUNDS);
   return {
     seed, rng, name, clubName, clubKit, names: {}, world, myTeam, club: createClub(), history: createHistory(),
-    endings: [], phase: 'startDraft', chunk: 0, pending: { press: null, interviews: [] }, season: null, off: null, end: null,
+    endings: [], market: generateFreeAgents(rng, { prefix: 'FA0' }), phase: 'startDraft', chunk: 0, pending: { press: null, interviews: [] }, season: null, off: null, end: null,
     startDraft: { ...createDraft({ prospects: generateProspects(rng, { count: START_PROSPECTS, prefix: 'S1' }), order }), started: false, lastYear },
   };
 }

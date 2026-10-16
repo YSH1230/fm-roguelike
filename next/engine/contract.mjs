@@ -11,6 +11,9 @@ export function marketValue(p) {
 }
 
 // 요구 연봉(캡 포인트). 가치 30 이하는 최저 2, 가치 100이면 40.
+// FA 영입 가격(코인). 요구 연봉이 높은 좋은 선수일수록 가파르게 비싸다: 2는 2, 10은 14, 25는 50, 40은 104.
+export const faPrice = (asking) => Math.round(asking + (asking * asking) / 25);
+
 export const askingSalary = (p) => Math.round(2 + 38 * (Math.max(0, marketValue(p) - 30) / 70) ** 2);
 
 // 샐러리캡은 스타 연봉 총액만 센다(조연·코치 제외).
