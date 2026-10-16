@@ -62,8 +62,11 @@ function render() {
   const kit = game ? game.clubKit : ui.kit;
   document.documentElement.style.setProperty('--team', kit);
   document.documentElement.style.setProperty('--on-team', onColor(kit));
+  // 화면이 바뀐 렌더에서만 입장 모션을 켠다(같은 화면 안의 클릭에는 다시 재생하지 않는다)
+  const entering = key !== lastKey;
+  root.classList.toggle('enter', entering);
   root.innerHTML = screenHtml() + modalHtml();
-  if (key !== lastKey) { window.scrollTo(0, 0); lastKey = key; }
+  if (entering) { window.scrollTo(0, 0); lastKey = key; }
 }
 
 function persist() {

@@ -218,11 +218,12 @@ select { max-width: 160px; font-size: 13px; }
 .record b:first-child { margin-left: 0; }
 .record small { flex-basis: 100%; }
 .strip { display: flex; flex-wrap: wrap; gap: 6px; }
-.rs { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; font-weight: 900; font-size: 14px; animation: pop 0.45s var(--ease) both; animation-delay: calc(var(--i) * 40ms); }
+.rs { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; font-weight: 900; font-size: 14px; }
+.enter .rs { animation: pop 0.28s var(--ease) both; animation-delay: calc(var(--i) * 25ms); }
 .rs--w { background: var(--ivory); color: #0b0b0b; }
 .rs--d { background: #2c2c32; color: var(--mute); }
 .rs--l { background: var(--red); color: #fff; }
-@keyframes pop { from { opacity: 0; transform: translateY(8px) scale(0.7); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(0.85); } to { opacity: 1; transform: none; } }
 .notes { display: grid; gap: 8px; }
 .notes li { display: flex; align-items: center; gap: 10px; }
 .notes li .ico { color: var(--ivory); }
@@ -288,7 +289,10 @@ select { max-width: 160px; font-size: 13px; }
 .pips i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--mute); }
 .pips i.on { background: var(--ivory); border-color: var(--ivory); }
 
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; }
+  .enter .rs, .enter .stage, .enter .stage__rank { animation-name: fade !important; }
+}
 @media (max-width: 340px) { .detail__cols { grid-template-columns: 1fr; } .wordmark { font-size: 72px; } }
 
 /* ---------- 트레이드 제안(끊고 답해야 하는 유일한 모달) ---------- */
@@ -302,3 +306,21 @@ select { max-width: 160px; font-size: 13px; }
 .prow--stack .offer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 10px; width: 100%; }
 .prow--stack .offer small { margin-right: auto; }
 .prow--stack .offer select { max-width: 150px; }
+
+/* ---------- 모션: 눌림 반응, 화면 전환, 큰 순간 ---------- */
+.pill, .link, .opt, .seg__b, .swatch, .pp--star, .nav button { transition: transform 0.14s var(--ease), background-color 0.18s; }
+.pill:active, .opt:active:not(:disabled), .seg__b:active { transform: scale(0.97); }
+.link:active { transform: scale(0.97); }
+.swatch:active, .pp--star:active, .nav button:active { transform: scale(0.94); }
+.opt:active:not(:disabled) { transform: scale(0.985); }
+
+/* 화면이 바뀔 때만(app.mjs가 #screen에 enter를 붙인다) 투명도만 아주 짧게 */
+.enter > .page, .enter > .title { animation: fade 0.14s ease-out both; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* 시즌 종료·런 종료: 일 년에 한 번 보는 순간만 조금 길게 */
+.enter .stage { animation: stage-in 0.36s var(--ease) both; }
+.enter .stage__rank { animation: rise 0.36s var(--ease) 0.12s both; }
+.enter .stage__p { animation: fade 0.2s ease-out 0.24s both; }
+@keyframes stage-in { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
