@@ -97,6 +97,12 @@ function draftBoard(game, d, ui, cfg) {
       <b class="num">#${k.slot}</b><span class="pick__t">${crest(game, k.owner, 20)}<span>${esc(teamName(game, k.owner))}</span></span>
       <span class="pick__p"><b>${esc(nameOf(k.player.id))}</b><span class="tag">${k.player.position}</span>${abilityStars(k.player, 12)}</span></li>`).join('');
 
+  // 드래프트가 끝나면 전체 지명 결과를 번호순 2열 보드로 보여 준다(지명한 구단 로고가 오른쪽)
+  const sorted = [...d.picks].sort((x, y) => x.slot - y.slot);
+  const half = Math.ceil(sorted.length / 2);
+  const cell = (k) => `<li class="fb${k.owner === me ? ' fb--me' : ''}"><b class="num">#${k.slot}</b><span class="fb__n">${esc(nameOf(k.player.id))}</span>${crest(game, k.owner, 26)}</li>`;
+  const finalBoard = `<h3 class="group">DRAFT BOARD</h3><div class="fboard"><ol>${sorted.slice(0, half).map(cell).join('')}</ol><ol>${sorted.slice(half).map(cell).join('')}</ol></div>`;
+
   const pickList = myTurn
     ? `<h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>${byPotential(d.pool).map((p) => prospect(p, true)).join('')}`
     : '';
@@ -109,7 +115,7 @@ function draftBoard(game, d, ui, cfg) {
   return `${head(cfg.label, `PICK ${Math.min(d.next + 1, total)} / ${total}`)}
     <div class="titlebar"><h2>${cfg.title}</h2></div>
     ${clock}${need}${pickList}${done}
-    <h3 class="group">PICK LOG</h3><ol class="picklog">${log || '<li class="muted">NO PICKS YET</li>'}</ol>${cta}`;
+    ${over ? finalBoard : `<h3 class="group">PICK LOG</h3><ol class="picklog">${log || '<li class="muted">NO PICKS YET</li>'}</ol>`}${cta}`;
 }
 
 // ---------- 시작 드래프트 ----------

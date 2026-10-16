@@ -357,5 +357,13 @@ select { max-width: 160px; font-size: 13px; }
 .prow[data-act="dsel"] { cursor: pointer; }
 .prow--open { border-color: var(--team); }
 .prow__detail { grid-column: 1 / -1; cursor: default; display: grid; gap: 10px; padding-top: 12px; margin-top: 4px; border-top: 1px dotted var(--line); }
-.bar.white i { background: var(--white); }
+.bar.white i { background: var(--white); clip-path: none; }
 .prow__detail .attr { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: center; }
+
+/* 드래프트 완료 보드: 번호 + 선수 + 지명 구단 로고, 2열 */
+.fboard { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
+.fboard ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; align-content: start; }
+.fb { display: grid; grid-template-columns: auto 1fr auto; gap: 6px; align-items: center; padding: 5px 8px; background: var(--panel); min-width: 0; }
+.fb .num { font: 700 13px var(--cond); color: var(--muted, #8d8d8d); }
+.fb__n { font: 700 13px/1.1 var(--cond); letter-spacing: 0.02em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb--me { box-shadow: inset 3px 0 0 var(--team); background: #343434; }
