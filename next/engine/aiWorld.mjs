@@ -18,6 +18,7 @@ export function driftTeam(team, rng) {
     for (const key of Object.keys(p.attrs)) {
       p.attrs[key] = clamp(Math.round(p.attrs[key] + (target - p.attrs[key]) * 0.1 + gauss(rng) * 2), 1, 99);
     }
+    for (const key of Object.keys(p.attrs)) if (p.caps) p.caps[key] = Math.max(p.caps[key], p.attrs[key]);
     p.potential = Math.max(p.potential, Math.round(overall(p)));
   }
   for (const kind of ['attack', 'defense']) {

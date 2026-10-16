@@ -1,8 +1,7 @@
 import {
-  LEVEL_GAIN, XP_BASE_PER_CHUNK, XP_NEED_BASE, XP_NEED_STEP, XP_PER_APP, XP_PER_ASSIST, XP_PER_GOAL,
+  XP_BASE_PER_CHUNK, XP_NEED_BASE, XP_NEED_STEP, XP_PER_APP, XP_PER_ASSIST, XP_PER_GOAL,
 } from './constants.mjs';
-import { overall } from './player.mjs';
-import { randInt } from './rng.mjs';
+import { capOf } from './player.mjs';
 import { trainingMultipliers } from './coach.mjs';
 import { facilityEffects } from './economy.mjs';
 
@@ -28,30 +27,29 @@ export function coachMul(team, position, key) {
   return (of(attack) + of(defense)) / 2;
 }
 
-// 능력이 잠재력보다 낮을 때만 능력 2개가 올라간다(99 상한).
-export function raiseAttrs(p, rng) {
-  const keys = Object.keys(p.attrs);
-  let gained = 0;
-  for (let i = 0; i < 2 && overall(p) < p.potential; i += 1) {
-    const key = keys[randInt(rng, 0, keys.length - 1)];
-    const next = Math.min(99, p.attrs[key] + randInt(rng, LEVEL_GAIN[0], LEVEL_GAIN[1]));
-    gained += next - p.attrs[key];
-    p.attrs[key] = next;
-  }
-  return gained;
-}
+// 천장에 닿지 않은 능력치가 하나라도 있는지(없으면 성장이 끝난 선수)
+export const hasRoom = (p) => Object.keys(p.attrs).some((k) => p.attrs[k] < capOf(p, k));
 
-// XP를 쌓고 레벨업마다 능력을 올린다. 올라간 레벨 수를 돌려준다.
-export function addXp(p, amount, rng) {
+// XP를 쌓고 레벨업마다 포인트 1개를 준다(성장이 끝난 선수는 레벨만 오른다). 올라간 레벨 수를 돌려준다.
+export function addXp(p, amount) {
   p.xp += amount;
   let levelUps = 0;
   while (p.xp >= xpNeeded(p.xpLevel)) {
     p.xp -= xpNeeded(p.xpLevel);
     p.xpLevel += 1;
     levelUps += 1;
-    raiseAttrs(p, rng);
+    if (hasRoom(p)) p.points = (p.points ?? 0) + 1;
   }
   return levelUps;
+}
+
+// 포인트 1개로 능력치 하나를 +1 올린다(천장까지).
+export function spendPoint(p, key) {
+  if (!(key in p.attrs)) throw new Error('없는 능력치입니다');
+  if ((p.points ?? 0) < 1) throw new Error('쓸 수 있는 포인트가 없습니다');
+  if (p.attrs[key] >= capOf(p, key)) throw new Error('이 능력치는 천장에 닿았습니다');
+  p.attrs[key] += 1;
+  p.points -= 1;
 }
 
 // 한 구간에서 얻는 XP. delta는 그 구간의 { apps, goals, assists }.

@@ -9,6 +9,12 @@ export function overall(player) {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
+// 능력치 하나의 천장. 천장이 없는 옛 선수는 전체 잠재력 차이만큼 모두 더 오를 수 있다고 본다.
+export function capOf(player, key) {
+  if (player.caps?.[key] != null) return Math.max(player.caps[key], player.attrs[key]);
+  return Math.min(99, player.attrs[key] + Math.max(0, (player.potential ?? 0) - overall(player)));
+}
+
 // 0.5 단위 별(0.5~5). 능력 10당 반 칸.
 export function starsOf(value) {
   return clamp(Math.round(value / 10) / 2, 0.5, 5);
@@ -23,14 +29,18 @@ function growthRoom(age, rng) {
 // level: 목표 평균 능력(예: 60). 속성마다 ±6 정도 흔들린다.
 export function createPlayer({ rng, id, position, age = 24, level = 60 }) {
   const attrs = {};
+  const caps = {};
   for (const key of ATTRIBUTES[position]) {
     attrs[key] = Math.round(clamp(level + gauss(rng) * 6, 1, 99));
+    caps[key] = clamp(attrs[key] + growthRoom(age, rng), attrs[key], 99);
   }
   const player = {
     id,
     position,
     age,
     attrs,
+    caps,
+    points: 0,
     xp: 0,
     xpLevel: 1,
     mood: 70,
@@ -39,6 +49,7 @@ export function createPlayer({ rng, id, position, age = 24, level = 60 }) {
     stats: { apps: 0, goals: 0, assists: 0 },
   };
   const now = overall(player);
-  player.potential = Math.round(clamp(now + growthRoom(age, rng), now, 99));
+  const capAvg = Object.values(caps).reduce((a, b) => a + b, 0) / Object.values(caps).length;
+  player.potential = Math.round(clamp(capAvg, now, 99));
   return player;
 }

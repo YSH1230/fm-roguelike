@@ -11,6 +11,8 @@ import { createRng, randInt } from './rng.mjs';
 import { teamRatings } from './ratings.mjs';
 import { setStars } from './roster.mjs';
 import { createTeam } from './team.mjs';
+import { setCustomNames } from './names.mjs';
+import { spendPoint as spendPointOn } from './growth.mjs';
 import { allTeams, createWorld, leagueKey, myLeague, playWorldChunk } from './world.mjs';
 import { standings } from './league.mjs';
 import { aiAccepts, executeTrade, proposeAi } from './trade.mjs';
@@ -23,8 +25,24 @@ import { careerSummary, recordChampions, recordMyTeam } from './honors.mjs';
 export const regionTeams = (world) => allTeams(world).filter((t) => t.region === MY_REGION);
 
 // 새 게임: 3부 팀, 배정된 스타 3명, 코치 2명, 시작 드래프트(3명 선택) 대기.
+// 내 스타 한 명의 레벨업 포인트로 능력치 하나를 +1 올린다.
+export function spendPoint(game, playerId, key) {
+  const p = game.myTeam.stars.find((x) => x.id === playerId);
+  if (!p) throw new Error('내 스타가 아닙니다');
+  spendPointOn(p, key);
+}
+
+// 내 스타의 이름을 바꾼다(앞뒤 공백 제거, 1~16자). 비우면 원래 이름으로 돌아간다.
+export function renamePlayer(game, playerId, name) {
+  if (!game.myTeam.stars.some((x) => x.id === playerId)) throw new Error('내 스타가 아닙니다');
+  const clean = String(name ?? '').replace(/\s+/g, ' ').trim().slice(0, 16);
+  if (clean) game.names[playerId] = clean; else delete game.names[playerId];
+  setCustomNames(game.names);
+}
+
 export function createGame({ seed = 1, name = '감독', clubName = '내 구단', clubKit = '#ff4a1c' } = {}) {
   const rng = createRng(seed);
+  setCustomNames({});
   const myTeam = createTeam({ rng, id: 'ME', attackStars: 2.5, defenseStars: 2.5, starLevel: 50, starPositions: START_ASSIGNED });
   myTeam.coaches.attack = createCoach({ rng, id: 'ME-ca', kind: 'attack', stars: 2.5 });
   myTeam.coaches.defense = createCoach({ rng, id: 'ME-cd', kind: 'defense', stars: 2.5 });
@@ -40,7 +58,7 @@ export function createGame({ seed = 1, name = '감독', clubName = '내 구단',
   const lastYear = Object.fromEntries(byPower.map((id, i) => [id, i + 1]));
   const order = repeatOrder(byPower.slice(0, START_DRAFT_TEAMS).sort((a, b) => lastYear[b] - lastYear[a]), START_ROUNDS);
   return {
-    seed, rng, name, clubName, clubKit, world, myTeam, club: createClub(), history: createHistory(),
+    seed, rng, name, clubName, clubKit, names: {}, world, myTeam, club: createClub(), history: createHistory(),
     phase: 'startDraft', chunk: 0, pending: { press: null, interviews: [] }, season: null, off: null, end: null,
     startDraft: { ...createDraft({ prospects: generateProspects(rng, { count: START_PROSPECTS, prefix: 'S1' }), order }), started: false, lastYear },
   };

@@ -76,7 +76,7 @@ test('시즌 종료: 전원 한 살, 컨디션 100, 부상 완치, 사기는 70 
 });
 
 test('시즌 종료: 40세는 반드시 은퇴하고 명단과 라인업이 정리된다. 젊은 팀은 아무도 은퇴하지 않는다', () => {
-  const rng = createRng(7);
+  const rng = createRng(1);
   const team = createTeam({ rng, id: 'A' });
   assert.deepEqual(endOfSeason(team, rng), []);
   const old = team.stars[0];

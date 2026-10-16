@@ -423,3 +423,25 @@ select { max-width: 160px; font-size: 13px; }
 
 /* 세부 능력 막대: 현재(흰색) 뒤로 잠재까지(하늘색)가 이어진다 */
 .bar--pot i.pot { background: #3ec9ff; clip-path: none; }
+
+/* 선수 카드: 위에 포지션·사기·초상화, 아래에 이름·별점·체력 */
+.pcard { width: 200px; margin: 6px auto 18px; background: var(--panel); border-top: 2px solid var(--white); }
+.pcard__top { position: relative; display: grid; place-items: center; padding: 28px 0 18px; background: var(--tile); color: var(--on-tile); }
+.pcard__pos { position: absolute; left: 10px; top: 10px; font: 800 22px/1 var(--cond); letter-spacing: 0.06em; }
+.pcard__mood { position: absolute; right: 10px; top: 8px; display: grid; }
+.pcard__bottom { display: grid; justify-items: center; gap: 8px; padding: 14px 14px 16px; }
+.pcard__name { display: flex; align-items: center; gap: 8px; font: 800 24px/1 var(--cond); letter-spacing: 0.04em; text-transform: uppercase; text-align: center; }
+.pcard__edit { background: none; border: 0; color: var(--mute); display: grid; padding: 4px; cursor: pointer; }
+.pcard__edit:hover { color: var(--white); }
+.pcard__cond { width: 100%; display: grid; gap: 4px; margin-top: 4px; }
+.pcard__cond .bar { height: 10px; }
+.rename { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; width: 100%; }
+.rename input { min-width: 0; height: 40px; padding: 0 10px; background: var(--deep); color: var(--white); border: 2px solid var(--line); font: 700 16px var(--cond); text-transform: uppercase; }
+.rename input:focus { border-color: var(--white); outline: none; }
+/* 능력치 천장 표기와 +1 버튼, 쓸 수 있는 포인트 안내 */
+.col h5 .capnote { margin-left: 10px; font: 500 12px var(--cond); letter-spacing: 0.1em; color: #3ec9ff; }
+.col h5 { display: flex; align-items: center; }
+.plus { margin-left: auto; width: 32px; height: 32px; display: grid; place-items: center; background: var(--team); color: var(--on-team, #000); border: 0; cursor: pointer; }
+.points { display: flex; align-items: baseline; gap: 8px; margin: 14px 0 0; padding: 10px 12px; border-left: 3px solid var(--team); background: var(--panel); font: 700 14px var(--cond); letter-spacing: 0.1em; }
+.points .num { font-size: 28px; color: var(--team); }
+.points span { margin-left: auto; font: 500 12px var(--cond); color: var(--mute); }

@@ -1,7 +1,8 @@
 import { createRng } from './rng.mjs';
+import { setCustomNames } from './names.mjs';
 import { createLeague } from './league.mjs';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const SAVE_KEY = 'fm-lite-save';
 
 // 팀은 선수 객체를 여러 곳(스타, 라인업, 이름 있는 선수)에서 공유한다. 저장할 때는 라인업에 한 번만 담고
@@ -74,6 +75,7 @@ export function loadGame(json) {
     history: { ...data.history, players: new Map(data.history.players) },
   };
   delete game.rngSeed;
+  setCustomNames(game.names);
   if (data.season) {
     game.season = {
       ...data.season,

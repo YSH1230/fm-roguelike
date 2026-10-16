@@ -5,7 +5,7 @@ import { createPlayer, overall } from '../engine/player.mjs';
 import { createTeam } from '../engine/team.mjs';
 import { createClub } from '../engine/economy.mjs';
 import { createCoach, setIntensity } from '../engine/coach.mjs';
-import { addXp, ageXpFactor, chunkXp, coachMul, raiseAttrs, xpNeeded } from '../engine/growth.mjs';
+import { addXp, ageXpFactor, chunkXp, coachMul, hasRoom, spendPoint, xpNeeded } from '../engine/growth.mjs';
 
 const young = (seed = 1, level = 50) => createPlayer({ rng: createRng(seed), id: 'p', position: 'FW', age: 19, level });
 const zero = { apps: 0, goals: 0, assists: 0 };
@@ -16,32 +16,44 @@ test('필요 XP는 레벨마다 늘고, 어릴수록 효율이 좋다', () => {
   assert.ok(ageXpFactor(28) > ageXpFactor(31) && ageXpFactor(31) > ageXpFactor(35));
 });
 
-test('레벨업하면 레벨이 오르고 남은 XP가 이어지며 능력이 오른다', () => {
+test('레벨업하면 레벨이 오르고 남은 XP가 이어지며 포인트가 레벨마다 1개씩 쌓인다', () => {
   const p = young();
-  p.potential = 90;
-  const before = overall(p);
-  assert.equal(addXp(p, 18 + 21 + 7, createRng(2)), 2);
+  p.caps = Object.fromEntries(Object.keys(p.attrs).map((k) => [k, 90]));
+  const before = { ...p.attrs };
+  assert.equal(addXp(p, 18 + 21 + 7), 2);
   assert.equal(p.xpLevel, 3);
   assert.equal(p.xp, 7);
-  assert.ok(overall(p) > before);
+  assert.equal(p.points, 2);
+  assert.deepEqual(p.attrs, before); // 능력치는 포인트를 쓸 때만 오른다
 });
 
-test('XP가 부족하면 레벨도 능력도 그대로다', () => {
+test('XP가 부족하면 레벨도 포인트도 그대로다', () => {
   const p = young();
-  const before = overall(p);
-  assert.equal(addXp(p, 17, createRng(3)), 0);
+  assert.equal(addXp(p, 17), 0);
   assert.equal(p.xpLevel, 1);
-  assert.equal(overall(p), before);
+  assert.equal(p.points ?? 0, 0);
 });
 
-test('능력이 잠재력에 닿으면 레벨은 올라도 능력은 오르지 않는다', () => {
+test('포인트로 능력치를 +1 올리고, 천장에 닿으면 올릴 수 없다', () => {
   const p = young();
-  p.potential = Math.ceil(overall(p)) - 1;
-  const before = { ...p.attrs };
-  assert.equal(raiseAttrs(p, createRng(4)), 0);
-  addXp(p, 500, createRng(4));
-  assert.deepEqual(p.attrs, before);
+  const key = Object.keys(p.attrs)[0];
+  p.caps = Object.fromEntries(Object.keys(p.attrs).map((k) => [k, p.attrs[k] + 1]));
+  p.points = 2;
+  const v = p.attrs[key];
+  spendPoint(p, key);
+  assert.equal(p.attrs[key], v + 1);
+  assert.equal(p.points, 1);
+  assert.throws(() => spendPoint(p, key), /천장/);
+  assert.throws(() => spendPoint({ ...p, points: 0 }, Object.keys(p.attrs)[1]), /포인트/);
+});
+
+test('모든 능력치가 천장이면 레벨은 올라도 포인트는 쌓이지 않는다', () => {
+  const p = young();
+  p.caps = { ...p.attrs };
+  addXp(p, 500);
   assert.ok(p.xpLevel > 1);
+  assert.equal(p.points ?? 0, 0);
+  assert.equal(hasRoom(p), false);
 });
 
 test('능력은 99를 넘지 않는다', () => {

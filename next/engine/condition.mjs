@@ -81,7 +81,7 @@ export function chunkStep({ team, before, rng, club, rounds }) {
     const d = statDelta(p, before);
     const played = d.apps > 0;
     const xp = chunkXp(p, d, { team, club });
-    const levelUps = addXp(p, xp, rng);
+    const levelUps = addXp(p, xp);
     p.condition = nextCondition(p, { played, rounds, fatigue: coachMul(team, p.position, 'fatigue') });
     const moodBefore = p.mood;
     p.mood = nextMood(p, d, { rested, wasInjured, coachMood: coachMul(team, p.position, 'mood') });

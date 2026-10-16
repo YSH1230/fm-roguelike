@@ -72,7 +72,7 @@ export const TRAITS = {
 export const XP_BASE_PER_CHUNK = 6; // 구간마다 훈련으로 얻는 기본 XP
 export const XP_NEED_BASE = 15; // 레벨업에 필요한 XP = BASE + STEP x 레벨
 export const XP_NEED_STEP = 3;
-export const LEVEL_GAIN = [1, 3]; // 레벨업 때 능력 두 개가 오르는 폭(최소, 최대)
+
 export const XP_PER_APP = 0.5;
 export const XP_PER_GOAL = 2;
 export const XP_PER_ASSIST = 1.2;

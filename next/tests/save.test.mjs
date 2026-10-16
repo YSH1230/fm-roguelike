@@ -89,3 +89,25 @@ test('저장소에 쓰고 읽는다. 비어 있으면 null이고 버전이 다�
   assert.throws(() => readSave(storage), /버전이 맞지 않아/);
   assert.ok(leagueKey(0, 3));
 });
+
+test('내가 바꾼 이름과 쓰지 않은 포인트는 저장하고 불러와도 남는다', async () => {
+  const { renamePlayer, spendPoint } = await import('../engine/game.mjs');
+  const { nameOf } = await import('../engine/names.mjs');
+  const g = startedGame(2);
+  const p = g.myTeam.stars[0];
+  const original = nameOf(p.id);
+  renamePlayer(g, p.id, '  김 철수  ');
+  assert.equal(nameOf(p.id), '김 철수');
+  p.points = 2;
+  const key = Object.keys(p.attrs)[0];
+  p.caps[key] = p.attrs[key] + 5;
+  spendPoint(g, p.id, key);
+  const json = saveGame(g);
+  renamePlayer(g, p.id, ''); // 비우면 원래 이름
+  assert.equal(nameOf(p.id), original);
+  const g2 = loadGame(json);
+  assert.equal(nameOf(p.id), '김 철수');
+  assert.equal(g2.myTeam.stars[0].points, 1);
+  assert.throws(() => renamePlayer(g2, 'nobody', 'x'), /내 스타/);
+  renamePlayer(g2, p.id, ''); // 다른 테스트에 이름이 남지 않게 되돌린다
+});

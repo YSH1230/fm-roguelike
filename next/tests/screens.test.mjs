@@ -176,3 +176,19 @@ test('드래프트·신인 배치 단계 화면도 깨지지 않는다', () => {
   clean(html, '신인 배치');
   assert.ok(html.includes('START YEAR'));
 });
+
+test('선수 카드: 포인트가 있으면 +1 버튼과 안내가 나오고, 이름 수정 칸도 열린다', () => {
+  const g = startedGame(3);
+  const p = g.myTeam.stars[0];
+  const none = hubScreen(g, freshUi({ sel: p.id }));
+  assert.ok(none.includes('class="pcard"') || none.includes('class="pcard '));
+  assert.ok(!none.includes('data-act="spend"'));
+  p.points = 2;
+  const key = Object.keys(p.attrs)[0];
+  p.caps[key] = p.attrs[key] + 3;
+  const has = hubScreen(g, freshUi({ sel: p.id }));
+  clean(has, '포인트 있는 선수');
+  assert.ok(has.includes('data-act="spend"') && has.includes('LEVEL UP POINTS') && has.includes(`MAX ${p.caps[key]}`));
+  const editing = hubScreen(g, freshUi({ sel: p.id, editName: p.id }));
+  assert.ok(editing.includes('id="renameInput"') && editing.includes('data-act="renamesave"'));
+});

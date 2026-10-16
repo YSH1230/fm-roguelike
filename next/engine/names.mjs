@@ -12,8 +12,13 @@ function hashOf(text) {
 // 선수 id만으로 정해지는 대륙(초상화 피부색과 이름 풀이 함께 따라간다)
 export const continentOf = (id) => CONTINENTS[hashOf(id) % CONTINENTS.length];
 
-// 선수 id만으로 정해지는 이름. 저장할 필요 없이 언제 불러도 같은 이름이 나온다.
+// 내가 바꾼 이름(선수 id -> 이름). 게임이 저장할 때 함께 저장되고, 불러올 때 다시 등록한다.
+let customNames = {};
+export const setCustomNames = (map) => { customNames = map ?? {}; };
+
+// 선수 id만으로 정해지는 기본 이름 위에 내가 바꾼 이름을 덮어쓴다.
 export function nameOf(id) {
+  if (customNames[id]) return customNames[id];
   const rng = createRng(hashOf(id));
   rng(); // 대륙 고르는 데 쓴 첫 값은 건너뛰어 이름과 대륙이 따로 놀지 않게 한다
   return randomName(continentOf(id), rng);

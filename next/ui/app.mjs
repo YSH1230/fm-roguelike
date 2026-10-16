@@ -3,7 +3,7 @@ import { generateCoachCandidates, hireCoach, setIntensity } from '../engine/coac
 import { expandCap, upgradeFacility } from '../engine/economy.mjs';
 import {
   acceptTrade, answerInterview, answerPress, createGame, finishSeason, incomingTrade, leagueAiTeams, playNextChunk,
-  proposeTrade, retireManager, startDraftAdvance, startDraftFinish, startDraftPick,
+  proposeTrade, renamePlayer, retireManager, spendPoint, startDraftAdvance, startDraftFinish, startDraftPick,
 } from '../engine/game.mjs';
 import { inductHallOfFame } from '../engine/honors.mjs';
 import { nameOf } from '../engine/names.mjs';
@@ -98,6 +98,10 @@ const ACTIONS = {
   dpos(el) { ui.dpos = ui.dpos === el.dataset.v ? null : el.dataset.v; },
   dsel(el) { ui.dsel = ui.dsel === el.dataset.id ? null : el.dataset.id; },
   tip(el) { ui.tips.add(el.dataset.id); store.set(TIPS_KEY, JSON.stringify([...ui.tips])); },
+  spend(el) { spendPoint(game, el.dataset.id, el.dataset.k); },
+  rename(el) { ui.editName = el.dataset.id; },
+  renamecancel() { ui.editName = null; },
+  renamesave(el) { renamePlayer(game, el.dataset.id, document.getElementById('renameInput')?.value ?? ''); ui.editName = null; },
   rest(el) { const id = el.dataset.id; if (ui.rest.has(id)) ui.rest.delete(id); else ui.rest.add(id); },
   upgrade(el) { upgradeFacility(game.club, el.dataset.kind); },
   capup() { expandCap(game.club); },
@@ -146,7 +150,7 @@ const ACTIONS = {
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['dpos', 'dsel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['dpos', 'dsel', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;
