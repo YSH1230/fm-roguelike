@@ -96,3 +96,21 @@ export const TIER_PARAMS = {
 };
 export const CL_PER_REGION = 4; // 지역별 챔피언스리그 진출 팀 수(1부 상위)
 export const AI_REPLACEMENT_AGE = [19, 22];
+
+// ---- 계획 6: 상·기록 ----
+export const AWARD_MIN_APPS = 19; // 시즌 38경기의 절반 이상 뛴 선수만 수상 후보
+export const AWARD_TIER_WEIGHT = { 1: 1, 2: 0.85, 3: 0.7 }; // 발롱도르에서 리그 단계별 가중
+export const YOUNG_MAX_AGE = 21;
+// 상 이름과 목록은 추후 사용자가 수정한다(키는 엔진 안에서만 쓴다).
+export const AWARDS = [
+  { key: 'ballonDor', label: '발롱도르' },
+  { key: 'mvp', label: '시즌 MVP' },
+  { key: 'goldenBoot', label: '골든부트' },
+  { key: 'assistKing', label: '도움왕' },
+  { key: 'goldenGlove', label: '골든글러브' },
+  { key: 'youngStar', label: '올해의 영건' },
+];
+// 커리어 점수(초기값, 사용자가 추후 수정): 도달한 최고 리그, 우승 횟수, 수상, 명예의 전당, 시즌 수
+export const CAREER_SCORE = {
+  bestTier: { 1: 100, 2: 40, 3: 0 }, leagueTitle: 30, clTitle: 100, award: 5, hallOfFame: 20, season: 5,
+};
