@@ -11,7 +11,7 @@ export const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 
 export const POS_LABEL = { GK: '골키퍼', DF: '수비수', MF: '미드필더', FW: '공격수' };
 export const ATTR_LABEL = {
-  diving: 'DIV', handling: 'HAN', kicking: 'KIC', reflexes: 'REF', speed: 'SPD', positioning: 'POS',
+  diving: 'DIV', handling: 'HAN', reflexes: 'REF', positioning: 'POS',
   pace: 'PAC', shooting: 'SHO', passing: 'PAS', dribbling: 'DRI', defending: 'DEF', physical: 'PHY',
 };
 export const AWARD_LABEL = {

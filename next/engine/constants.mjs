@@ -2,10 +2,10 @@ export const POSITIONS = ['GK', 'DF', 'MF', 'FW'];
 
 // 포지션별 핵심 속성 4개(0~100)
 export const ATTRIBUTES = {
-  GK: ['diving', 'handling', 'kicking', 'reflexes', 'speed', 'positioning'],
-  DF: ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical'],
-  MF: ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical'],
-  FW: ['pace', 'shooting', 'passing', 'dribbling', 'defending', 'physical'],
+  GK: ['reflexes', 'handling', 'positioning', 'diving'],
+  DF: ['defending', 'physical', 'pace', 'passing'],
+  MF: ['passing', 'dribbling', 'defending', 'physical'],
+  FW: ['shooting', 'pace', 'dribbling', 'passing'],
 };
 
 // 한 시즌: 20팀 더블 라운드로빈 38라운드를 14/14/10 구간으로 끊는다.
