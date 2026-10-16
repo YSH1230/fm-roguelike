@@ -70,3 +70,11 @@ export function careerSummary(history) {
     hallOfFame: history.hallOfFame.map((h) => h.playerId), standout, score,
   };
 }
+
+// 엔딩: 1부에서 우승하면 'league'(목표 달성), 챔피언스리그에서 우승하면 'champions'(최종). 각각 처음 한 번만.
+// seen: 이미 본 엔딩 목록. 둘이 한 시즌에 겹치면 최종 엔딩 하나만 보여 주고 둘 다 본 것으로 친다.
+export function endingFor({ tier, rank, clChampion }, seen = []) {
+  if (clChampion && !seen.includes('champions')) return 'champions';
+  if (tier === 1 && rank === 1 && !seen.includes('league')) return 'league';
+  return null;
+}

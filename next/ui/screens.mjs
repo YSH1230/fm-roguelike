@@ -8,6 +8,7 @@ import { draftTurnIsMine } from '../engine/offseason.mjs';
 import { isDraftOver } from '../engine/draft.mjs';
 import { overall, starsOf } from '../engine/player.mjs';
 import { coachCost, coachXpNeeded } from '../engine/coach.mjs';
+import { careerSummary } from '../engine/honors.mjs';
 import { myLeague } from '../engine/world.mjs';
 import {
   ATTR_LABEL, AWARD_LABEL, KIT_CHOICES, METAL_DEFS, TIER_LABEL, askText, bar, chip, conditionTexts, crest, effectChips, esc, facts, faceTile,
@@ -295,8 +296,9 @@ export function chunkScreen(game, ui) {
 }
 
 // ---------- 시즌 종료 ----------
-export function seasonScreen(game) {
+export function seasonScreen(game, ui = {}) {
   const s = game.season;
+  const endingPending = Boolean(s.ending) && ui.endingSeen !== s.year;
   const fateMsg = { promoted: '승격했습니다', stay: '잔류했습니다', fired: '경질되었습니다' }[s.fate];
   const aw = Object.values(s.awards).filter(Boolean).map((a) => {
     const mine = a.teamId === game.myTeam.id;
@@ -315,7 +317,26 @@ export function seasonScreen(game) {
   </main>
   <div class="dock">${game.phase === 'ended'
     ? '<button class="btn btn--primary btn--wide" data-act="toend">RESULT</button>'
-    : '<button class="btn btn--primary btn--wide" data-act="offseason">OFFSEASON</button><button class="btn btn--ghost btn--wide" data-act="retire">RETIRE</button>'}</div>`;
+    : (endingPending ? '<button class="btn btn--primary btn--wide" data-act="ending">ENDING</button>' : '<button class="btn btn--primary btn--wide" data-act="offseason">OFFSEASON</button><button class="btn btn--ghost btn--wide" data-act="retire">RETIRE</button>')}</div>`;
+}
+
+// ---------- 엔딩: 구단주의 편지 ----------
+const LETTER = {
+  league: (g, n) => [`${g.name} 감독님, ${g.clubName}이 1부 정상에 올랐습니다.`, `${n}시즌 전만 해도 이 구단의 이름을 아는 사람이 없었습니다.`, '이제 대륙의 정상까지 가 봅시다. 이 자리에서 물러나셔도, 계속하셔도 좋습니다.'],
+  champions: (g, n) => [`${g.name} 감독님, ${g.clubName}이 대륙의 정상에 섰습니다.`, `${n}시즌 동안 우리가 처음 꿈꾼 것이 전부 이뤄졌습니다.`, '고맙습니다. 물러나는 때는 감독님이 정하십시오.'],
+};
+
+export function endingScreen(game) {
+  const s = game.season;
+  const n = game.history.mySeasons.length;
+  const c = careerSummary(game.history);
+  return `${topBar(game)}<main class="page" style="${teamStyle(game.clubKit)}">
+    <section class="stage">${head('ENDING', s.ending === 'champions' ? 'CHAMPIONS' : 'LEAGUE TITLE')}
+      <p class="intro__who"><span class="lab">OWNER</span><b>${OWNER_NAME}</b></p>
+      <div class="intro__lines">${LETTER[s.ending](game, n).map((l) => `<p>${esc(l)}</p>`).join('')}</div>
+      ${triple([[n, 'SEASONS'], [c.leagueTitles, 'LEAGUE'], [c.clTitles, 'CHAMPIONS']])}
+    </section></main>
+  <div class="dock"><button class="btn btn--primary btn--wide" data-act="endingdone">CONTINUE</button><button class="btn btn--ghost btn--wide" data-act="retire">RETIRE</button></div>`;
 }
 
 // ---------- 오프시즌 ----------

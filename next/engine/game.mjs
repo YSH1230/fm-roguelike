@@ -20,7 +20,7 @@ import { collectStats, createHistory, diffStats, recordSeason } from './records.
 import { buildRows, computeAwards, giveAwards } from './awards.mjs';
 import { playChampions } from './champions.mjs';
 import { managerFate, resolveLadder } from './ladder.mjs';
-import { careerSummary, recordChampions, recordMyTeam } from './honors.mjs';
+import { careerSummary, endingFor, recordChampions, recordMyTeam } from './honors.mjs';
 
 export const regionTeams = (world) => allTeams(world).filter((t) => t.region === MY_REGION);
 
@@ -59,7 +59,7 @@ export function createGame({ seed = 1, name = '감독', clubName = '내 구단',
   const order = repeatOrder(byPower.slice(0, START_DRAFT_TEAMS).sort((a, b) => lastYear[b] - lastYear[a]), START_ROUNDS);
   return {
     seed, rng, name, clubName, clubKit, names: {}, world, myTeam, club: createClub(), history: createHistory(),
-    phase: 'startDraft', chunk: 0, pending: { press: null, interviews: [] }, season: null, off: null, end: null,
+    endings: [], phase: 'startDraft', chunk: 0, pending: { press: null, interviews: [] }, season: null, off: null, end: null,
     startDraft: { ...createDraft({ prospects: generateProspects(rng, { count: START_PROSPECTS, prefix: 'S1' }), order }), started: false, lastYear },
   };
 }
@@ -190,8 +190,10 @@ export function finishSeason(game) {
   earn(club, prize);
   recordMyTeam(history, { year, tier, rank, fate, clChampion, awards, myTeamId: team.id });
   const row = table.find((r) => r.id === team.id);
+  const ending = fate === 'fired' ? null : endingFor({ tier, rank, clChampion }, game.endings ?? []);
+  if (ending) game.endings = [...new Set([...(game.endings ?? []), ending, ...(ending === 'champions' && tier === 1 && rank === 1 ? ['league'] : [])])];
   game.season = {
-    year, tier, rank, fate, awards, cl: { champion: cl.champion, runnerUp: cl.runnerUp }, outcome, prize,
+    year, ending, tier, rank, fate, awards, cl: { champion: cl.champion, runnerUp: cl.runnerUp }, outcome, prize,
     wins: row.won, record: { won: row.won, drawn: row.drawn, lost: row.lost, points: row.points }, draftStandings: table.map((r) => ({ id: r.id })),
   };
   if (fate === 'fired') {

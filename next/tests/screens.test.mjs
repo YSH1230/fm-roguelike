@@ -7,7 +7,7 @@ import { beginDraft, beginOffseason, closeDraft, closeMarket, draftChoose, draft
 import { teamIdentity, nameOf } from '../engine/names.mjs';
 import { teamName } from '../ui/components.mjs';
 import {
-  chunkScreen, endScreen, hubScreen, introScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
+  chunkScreen, endScreen, endingScreen, hubScreen, introScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
 } from '../ui/screens.mjs';
 import { autoSeason, startedGame } from './helpers.mjs';
 
@@ -213,4 +213,19 @@ test('프롤로그: 구단주 제안 -> 감독 선임(이름·구단·색 입력
   clean(s3, '프롤로그 4');
   assert.ok(s3.includes('Kim Min') && s3.includes('data-act="introdone"'));
   assert.equal((s3.match(/<article[^>]*class="prow/g) ?? []).length, 5);
+});
+
+test('엔딩 장면: 시즌 화면에 ENDING 버튼이 나오고, 편지에 감독·구단 이름이 들어가며 계속/은퇴를 고른다', () => {
+  const g = startedGame(6);
+  autoSeason(g);
+  g.season.ending = 'league';
+  const before = seasonScreen(g, {});
+  assert.ok(before.includes('data-act="ending"') && !before.includes('data-act="offseason"'));
+  const seen = seasonScreen(g, { endingSeen: g.season.year });
+  assert.ok(!seen.includes('data-act="ending"') && seen.includes('data-act="offseason"'));
+  const letter = endingScreen(g);
+  clean(letter, '엔딩');
+  assert.ok(letter.includes('OH SEUNGMIN') && letter.includes(g.clubName) && letter.includes('data-act="endingdone"') && letter.includes('data-act="retire"'));
+  g.season.ending = 'champions';
+  assert.ok(endingScreen(g).includes('CHAMPIONS'));
 });

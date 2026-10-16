@@ -123,3 +123,14 @@ test('실제 두 시즌을 돌린 기록이 쌓인다', () => {
   assert.equal(s.seasons, 1);
   assert.ok(s.standout.length === 3);
 });
+
+test('엔딩: 1부 우승은 league, 챔피언스리그 우승은 champions, 각각 처음 한 번만, 겹치면 champions', async () => {
+  const { endingFor } = await import('../engine/honors.mjs');
+  assert.equal(endingFor({ tier: 3, rank: 1, clChampion: false }), null);
+  assert.equal(endingFor({ tier: 1, rank: 2, clChampion: false }), null);
+  assert.equal(endingFor({ tier: 1, rank: 1, clChampion: false }), 'league');
+  assert.equal(endingFor({ tier: 1, rank: 1, clChampion: false }, ['league']), null);
+  assert.equal(endingFor({ tier: 1, rank: 3, clChampion: true }, ['league']), 'champions');
+  assert.equal(endingFor({ tier: 1, rank: 1, clChampion: true }), 'champions');
+  assert.equal(endingFor({ tier: 1, rank: 1, clChampion: true }, ['champions']), 'league');
+});

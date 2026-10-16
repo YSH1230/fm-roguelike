@@ -14,7 +14,7 @@ import {
 import { SAVE_KEY, readSave, writeSave } from '../engine/save.mjs';
 import { KIT_CHOICES, REASON_TEXT, esc, onColor } from './components.mjs';
 import {
-  chunkScreen, endScreen, hubScreen, introScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
+  chunkScreen, endScreen, endingScreen, hubScreen, introScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
 } from './screens.mjs';
 
 const TIPS_KEY = 'fm-lite-tips';
@@ -40,7 +40,7 @@ function screenHtml() {
     case 'startDraft': return startDraftScreen(game, ui);
     case 'manage': return ui.view === 'chunk' ? chunkScreen(game, ui) : hubScreen(game, ui);
     case 'seasonEnd': return chunkScreen(game, ui);
-    case 'offseason': return game.off ? offseasonScreen(game, ui) : seasonScreen(game, ui);
+    case 'offseason': return game.off ? offseasonScreen(game, ui) : (ui.view === 'ending' ? endingScreen(game) : seasonScreen(game, ui));
     default: return ui.view === 'end' ? endScreen(game) : seasonScreen(game, ui);
   }
 }
@@ -83,6 +83,8 @@ const result = (r, ok) => { ui.flash = r.accepted ? ok : (REASON_TEXT[r.reason] 
 
 const ACTIONS = {
   new() { game = null; ui.intro = { step: 0 }; ui.flash = null; },
+  ending() { ui.view = 'ending'; },
+  endingdone() { ui.endingSeen = game.season.year; ui.view = 'hub'; },
   intronext() { ui.intro.step += 1; },
   introskip() { if (ui.intro.step < 2) ui.intro.step = 1; else ui.intro = null; },
   introsign() {
@@ -165,7 +167,7 @@ const ACTIONS = {
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['dpos', 'dsel', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['dpos', 'dsel', 'ending', 'endingdone', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;
