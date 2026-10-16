@@ -44,16 +44,17 @@ export const START_COINS = 30;
 export const START_FANS = 20; // 팬 지수 0~100
 export const FACILITY_KINDS = ['stadium', 'training', 'rehab'];
 export const FACILITY_MAX = 10;
-export const FACILITY_COST_STEP = 10; // n단계로 올리는 비용 = 10 x n 코인
+export const FACILITY_COST_FIRST = 5; // 시설 n번째 올리기 = 5 + 4(n-1) + (n-1)^2 코인(5, 10, 17, 26, ...)
 export const CAP_STEP = 10; // 캡 확장 1회당 늘어나는 캡 포인트
 export const CAP_EXPANSIONS_MAX = 5;
-export const CAP_COST_STEP = 20; // n번째 확장 비용 = 20 x n 코인
+export const CAP_COST_FIRST = 100; // 캡 확장 n번째 = 100 + 20(n-1) 코인(가장 비싼 항목)
+export const CAP_COST_STEP = 20;
 // 리그 단계(1=1부)별 수입
-export const WIN_INCOME = { 3: 5, 2: 8, 1: 12 };
+export const WIN_INCOME = { 3: 6, 2: 10, 1: 14 }; // 기준: 3부 중위권 한 시즌 수입 = 100코인
 export const CHAMPION_PRIZE = { 3: 50, 2: 100, 1: 200 };
 export const FAN_INCOME_SCALE = 2; // 홈경기 수입 = 경기장 단계 x 팬 지수/100 x 2
 export const FAN_PER_RESULT = 0.3; // 구간마다 (승 - 패) x 0.3 만큼 팬 지수 변화
-export const COACH_COST_FACTOR = 6; // 코치 계약 비용 = 6 x 별^2 코인(3년 계약 한 번에)
+export const COACH_COST_FACTOR = 4; // 코치 계약 비용 = 4 x 별^2 코인(3년 계약 한 번에): 3별 36, 5별 100
 // 훈련 강도: xp 배율, 컨디션 소모 배율, 사기 변화, 부상 배율
 export const INTENSITIES = {
   LIGHT: { xp: 0.8, fatigue: 0.7, mood: 1, injury: 0.8 },

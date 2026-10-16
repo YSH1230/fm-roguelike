@@ -23,17 +23,21 @@ test('음수 수입·지출은 오류다', () => {
   assert.throws(() => spend(club, -1), /0 이상/);
 });
 
-test('시설은 1단계에서 시작하고 n단계로 올리는 비용은 10 x n이다', () => {
+test('시설은 1단계에서 시작하고, 올릴수록 비싸진다(5, 10, 17, 26, ...)', () => {
   const club = createClub({ coins: 100 });
-  assert.equal(upgradeCost(club, 'stadium'), 20);
+  assert.equal(upgradeCost(club, 'stadium'), 5);
   upgradeFacility(club, 'stadium');
   assert.equal(club.facilities.stadium, 2);
-  assert.equal(club.coins, 80);
-  assert.equal(upgradeCost(club, 'stadium'), 30);
+  assert.equal(club.coins, 95);
+  assert.equal(upgradeCost(club, 'stadium'), 10);
+  upgradeFacility(club, 'stadium');
+  assert.equal(upgradeCost(club, 'stadium'), 17);
+  upgradeFacility(club, 'stadium');
+  assert.equal(upgradeCost(club, 'stadium'), 26);
 });
 
 test('코인이 모자라면 시설이 그대로이고, 10단계를 넘길 수 없다', () => {
-  const poor = createClub({ coins: 10 });
+  const poor = createClub({ coins: 4 });
   assert.throws(() => upgradeFacility(poor, 'rehab'), /모자랍니다/);
   assert.equal(poor.facilities.rehab, 1);
   const rich = createClub({ coins: 99999 });
@@ -43,10 +47,14 @@ test('코인이 모자라면 시설이 그대로이고, 10단계를 넘길 수 �
   assert.throws(() => upgradeFacility(rich, 'nope'), /알 수 없는 시설/);
 });
 
-test('캡 확장: 1회 +10, 비용 20 x n, 5회까지', () => {
+test('캡 확장: 1회 +10, 비용 100부터 20씩 늘고, 5회까지', () => {
   const club = createClub({ coins: 99999 });
   assert.equal(salaryCap(club, 3), 100);
-  assert.equal(capExpandCost(club), 20);
+  assert.equal(capExpandCost(club), 100);
+  expandCap(club);
+  assert.equal(capExpandCost(club), 120);
+  club.capLevel = 0;
+  club.coins = 99999;
   for (let i = 0; i < 5; i += 1) expandCap(club);
   assert.equal(salaryCap(club, 3), 150);
   assert.equal(salaryCap(club, 1), 250);
@@ -59,8 +67,8 @@ const result = (homeId, awayId, homeGoals, awayGoals) => ({ homeId, awayId, home
 test('수입: 승리는 리그 단계 수입, 무승부·패배는 0, 남의 경기는 무시한다', () => {
   const club = createClub({ fans: 0 }); // 팬 수입 0으로 만든다
   const results = [result('A', 'B', 2, 0), result('B', 'A', 1, 1), result('A', 'B', 0, 3), result('B', 'A', 0, 1), result('C', 'D', 5, 0)];
-  assert.deepEqual(chunkIncome(results, 'A', club, 3), { win: 10, fan: 0, total: 10 });
-  assert.equal(chunkIncome(results, 'A', club, 1).win, 24);
+  assert.deepEqual(chunkIncome(results, 'A', club, 3), { win: 12, fan: 0, total: 12 });
+  assert.equal(chunkIncome(results, 'A', club, 1).win, 28);
 });
 
 test('수입: 팬 수입은 홈경기에서만 나오고 경기장 단계와 팬 지수에 비례한다', () => {

@@ -20,7 +20,7 @@ test('코치 생성: 종류와 별(0.5 단위)을 검사한다', () => {
 });
 
 test('코치 비용은 별의 제곱에 비례한다', () => {
-  assert.deepEqual([1, 3, 5].map(coachCost), [6, 54, 150]);
+  assert.deepEqual([1, 3, 5].map(coachCost), [4, 36, 100]);
 });
 
 test('고용 후보 3명은 1~4별이다', () => {
@@ -78,7 +78,7 @@ test('고용: 비용을 내고 팀 코치가 바뀌며 조연 능력이 같이 �
   const previous = hireCoach(club, team, coach('attack', 4, { id: 'new' }));
   assert.equal(previous.stars, 2);
   assert.equal(team.coaches.attack.id, 'new');
-  assert.equal(club.coins, 100 - 96);
+  assert.equal(club.coins, 100 - 64);
   assert.ok(overall(filler) > before + 7); // 별 +2 -> 조연 수준 +8(공격·수비 평균이라 +8)
   assert.equal(filler.stats.goals, 3);
 });
