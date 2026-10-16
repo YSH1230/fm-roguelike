@@ -27,33 +27,21 @@ test('제목·시작 드래프트 화면', () => {
   assert.equal((titleScreen({ hasSave: false, kit: '#1f9d6a' }).match(/data-act="kit"/g) ?? []).length, 8);
 });
 
-test('시작 드래프트: 시작 전에는 순번표와 명단만, 시작하면 지명 현황, 내 차례에만 지명 버튼', () => {
+test('시작 드래프트: 시작 전에는 후보 명단과 DRAFT 버튼만, 누르면 바로 내 차례에 지명 버튼', () => {
   const g = createGame({ seed: 2 });
   const pre = startDraftScreen(g, freshUi());
   clean(pre, '드래프트 시작 전');
-  assert.ok(pre.includes('data-act="dstart"') && pre.includes('MY PICKS') && pre.includes('DRAFT ORDER') && pre.includes('RULES'));
-  assert.ok(pre.includes('지난 시즌 순위') && pre.includes('LAST YEAR') && !pre.includes('ROUND 2'));
-  assert.ok(!pre.includes('스네이크'));
-  assert.ok(!pre.includes('드래프트 시작')); // 버튼은 영문만
+  assert.ok(pre.includes('data-act="dstart"') && pre.includes('>DRAFT<'));
+  for (const gone of ['RULES', 'DRAFT ORDER', 'MY PICKS', 'START DRAFT', 'splash', 'dskip']) assert.ok(!pre.includes(gone), `${gone}는 없어야 한다`);
   assert.ok(!pre.includes('data-act="sdraft"')); // 시작 전에는 지명할 수 없다
   assert.equal((pre.match(/<article class="prow/g) ?? []).length, 20);
   startDraftAdvance(g);
   const live = startDraftScreen(g, freshUi());
   clean(live, '드래프트 진행');
-  assert.ok(live.includes('ON THE CLOCK') && live.includes('PICK LOG') && live.includes('clock--me'));
+  assert.ok(live.includes('YOUR PICK') && live.includes('PICK LOG') && live.includes('clock--me'));
   assert.equal((live.match(/data-act="sdraft"/g) ?? []).length, g.startDraft.pool.length);
-  // 지명 현황을 한 명씩 보여 주는 중에는 건너뛰기만 있고 지명 버튼은 없다
-  const showing = startDraftScreen(g, freshUi({ reveal: { from: 0, shown: 1, stage: 'logo' } }));
-  clean(showing, '지명 현황 공개 중(로고)');
-  assert.ok(showing.includes('splash--logo') && showing.includes('data-act="dskip"'));
-  const player = startDraftScreen(g, freshUi({ reveal: { from: 0, shown: 1, stage: 'player' } }));
-  clean(player, '지명 현황 공개 중(선수)');
-  assert.ok(player.includes('splash--player') && player.includes('splash__name'));
   const pos = startDraftScreen(g, freshUi({ dpos: 'DF' }));
   assert.ok(pos.includes('need--on') && pos.includes('class="needs__list"'));
-  assert.ok(!pos.includes('내 포지션'));
-  assert.ok(!showing.includes('data-act="sdraft"'));
-  assert.equal((showing.match(/<li class="pick/g) ?? []).length, 1);
 });
 
 test('시작 드래프트가 끝나면 내 지명 결과와 시즌 시작 버튼이 나온다', () => {
