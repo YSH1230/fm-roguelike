@@ -468,7 +468,16 @@ select { max-width: 160px; font-size: 13px; }
 .irow b { font: 700 16px var(--cond); letter-spacing: 0.06em; display: flex; align-items: center; gap: 8px; }
 .irow .xp { flex: 1; max-width: 55%; }
 .irow .xp .bar { height: 10px; }
-.acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0 6px; }
-.act { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 48px; background: none; color: var(--white); border: 2px solid var(--line); font: 800 15px var(--cond); letter-spacing: 0.12em; cursor: pointer; }
+.acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0 6px; }
+.act { display: inline-flex; justify-content: center; align-items: center; gap: 6px; min-height: 48px; background: none; color: var(--white); border: 2px solid var(--line); font: 800 14px var(--cond); letter-spacing: 0.08em; cursor: pointer; }
 .act:hover, .act--on { border-color: var(--white); }
 .act--off { color: var(--mute); }
+
+/* 로스터 상세 능력치 한 줄 */
+.attrs { display: grid; gap: 4px; }
+.arow { display: grid; grid-template-columns: 44px 1fr 32px auto 32px; gap: 10px; align-items: center; min-height: 36px; }
+.arow .bar { height: 14px; }
+.arow .num { font-size: 22px; text-align: right; }
+.arow .capnote { font: 500 12px var(--cond); letter-spacing: 0.08em; color: #3ec9ff; white-space: nowrap; }
+.arow .plus { margin-left: 0; }
+.arow .plus--none { visibility: hidden; }

@@ -2,7 +2,6 @@ import { nameOf } from '../engine/names.mjs';
 import { capOf, overall, starsOf } from '../engine/player.mjs';
 import { teamRatings } from '../engine/ratings.mjs';
 import { ATTRIBUTES } from '../engine/constants.mjs';
-import { benchmarks } from './bench.mjs';
 import {
   ATTR_LABEL, AWARD_LABEL, POS_LABEL, bar, chip, esc, facts, icon, moodFace, onColor, portrait, stars, xpBar,
 } from './components.mjs';
@@ -49,16 +48,18 @@ export function pitchBoard(game, ui) {
     <div class="power"><span><em>ATTACK</em><b class="num">${Math.round(r.attack)}</b>${bar(r.attack)}</span><span><em>DEFENSE</em><b class="num">${Math.round(r.defense)}</b>${bar(r.defense)}</span></div>`;
 }
 
-// 능력치 하나의 YOU / AVERAGE / BEST 비교. YOU 막대는 흰색(지금) 뒤로 천장(하늘색)까지 이어지고,
-// 쓸 포인트가 있으면 +1 버튼이 붙는다. 비교 상대가 없으면 YOU만 보인다.
-function compare(p, key, bench) {
+// 능력치 한 줄: 흰 막대와 숫자. 올릴 포인트가 있을 때만 천장(하늘색, MAX)과 +1 버튼이 보인다.
+function attrRow(p, key) {
   const you = p.attrs[key];
   const cap = capOf(p, key);
-  const canUp = (p.points ?? 0) > 0 && you < cap;
-  const youBar = `<span class="bar white bar--pot" role="img" aria-label="${you}, max ${cap}"><i class="pot" style="width:${cap}%"></i><i style="width:${you}%"></i></span>`;
-  const rows = [['YOU', youBar, you, 'you'], ...(bench ? [['AVERAGE', bar(bench.avg), bench.avg, 'avg'], ['BEST', bar(bench.best), bench.best, 'best']] : [])];
-  const plus = canUp ? `<button class="plus" data-act="spend" data-id="${esc(p.id)}" data-k="${key}" aria-label="${ATTR_LABEL[key]} +1">${icon('plus', 16)}</button>` : '';
-  return `<div class="col"><h5>${ATTR_LABEL[key]}<span class="capnote">MAX ${cap}</span>${plus}</h5>${rows.map(([who, b, v, cls]) => `<div class="cmp cmp--${cls}"><span class="who">${who}</span>${b}<b class="num">${v}</b></div>`).join('')}</div>`;
+  const leveling = (p.points ?? 0) > 0;
+  const bar = leveling
+    ? `<span class="bar white bar--pot" role="img" aria-label="${you}, max ${cap}"><i class="pot" style="width:${cap}%"></i><i style="width:${you}%"></i></span>`
+    : `<span class="bar white" role="img" aria-label="${you}"><i style="width:${you}%"></i></span>`;
+  const plus = leveling && you < cap
+    ? `<button class="plus" data-act="spend" data-id="${esc(p.id)}" data-k="${key}" aria-label="${ATTR_LABEL[key]} +1">${icon('plus', 16)}</button>`
+    : '<span class="plus plus--none"></span>';
+  return `<div class="arow"><span class="lab">${ATTR_LABEL[key]}</span>${bar}<b class="num">${you}</b><small class="capnote">${leveling ? `MAX ${cap}` : ''}</small>${plus}</div>`;
 }
 
 // 선수 카드: 왼쪽 위 포지션, 오른쪽 위 사기 표정, 가운데 초상화, 아래 이름·현재 별점·체력
@@ -95,7 +96,6 @@ export function playerDetail(game, ui, p) {
   const rec = game.history.players.get(p.id);
   const hurt = isHurt(p);
   const resting = ui.rest.has(p.id);
-  const bench = benchmarks(game, p.position);
   const awards = (p.awards ?? []).map((a) => chip(`${a.year}년차 ${AWARD_LABEL[a.key]}`, 'best')).join('');
   const per = p.stats.apps ? (p.stats.goals / p.stats.apps).toFixed(1) : '0.0';
   const cur = starsOf(overall(p));
@@ -119,7 +119,7 @@ export function playerDetail(game, ui, p) {
       <div class="irow"><span class="lab">XP LEVEL ${p.xpLevel}</span><span class="xp">${xpBar(p)}</span></div></div>
     ${(p.points ?? 0) > 0 ? `<p class="points"><b class="num">${p.points}</b> POINT${p.points > 1 ? 'S' : ''}<span>PRESS +</span></p>` : ''}
     <h4 class="sech">ATTRIBUTES</h4>
-    ${ATTRIBUTES[p.position].map((k) => compare(p, k, bench[k])).join('')}
+    <div class="attrs">${ATTRIBUTES[p.position].map((k) => attrRow(p, k)).join('')}</div>
     <div class="acts">${restBtn}<button class="act" data-act="traderequest" data-id="${esc(p.id)}">${icon('transfer', 16)}TRADE</button><button class="act" data-act="meeting" data-id="${esc(p.id)}">${icon('chat', 16)}MEETING</button></div>
     <h4 class="sech">STATS</h4>
     <div class="big"><b class="num">${p.stats.goals}</b><span>GOALS</span></div>
