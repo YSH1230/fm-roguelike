@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verge 기반 규칙 샘플</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Space+Grotesk:wght@300;500;700&display=swap">
+<style>
+@font-face { font-family: 'Anton'; src: url('../ui/fonts/Anton-Regular.ttf') format('truetype'); }
+:root { --canvas:#131313; --slate:#2d2d2d; --white:#fff; --mute:#949494; --mint:#3cffd0; --uv:#5200ff; --mintline:#309875; --focus:#1eaedb;
+  --team:#3cffd0; --on-team:#000; --display:'Anton',Impact,sans-serif; --ui:'Space Grotesk','Pretendard Variable',Pretendard,system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #000; color: var(--white); font-family: var(--ui); font-weight: 500; font-size: 16px; line-height: 1.5; display: flex; gap: 20px; padding: 12px; overflow-x: auto; }
+.phone { flex: none; width: 375px; background: var(--canvas); border-radius: 0; padding: 0 0 24px; }
+.phone h6 { font: 600 11px/1 var(--mono); letter-spacing: 1.5px; color: var(--mute); padding: 14px 16px 0; text-transform: uppercase; }
+.label { font: 600 11px/1.2 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; color: var(--mute); }
+.whisper { font-family: 'Pretendard Variable', Pretendard, sans-serif; font-weight: 300; font-size: 15px; letter-spacing: 0.08em; line-height: 1.2; }
+.num { font-family: var(--mono); font-weight: 700; font-variant-numeric: tabular-nums; }
+.wrap { padding: 16px; display: grid; gap: 14px; }
+/* 워드마크 */
+.mast { padding: 28px 16px 8px; }
+.mast .wm { font-family: var(--display); font-size: 88px; line-height: 0.95; letter-spacing: 0.02em; }
+.mast .whisper { color: var(--mute); margin-top: 8px; }
+/* 색 블록 선수 카드 */
+.block { background: var(--team); color: var(--on-team); border-radius: 24px; padding: 24px; display: grid; gap: 16px; }
+.block .head { display: flex; gap: 16px; align-items: center; }
+.frame { width: 72px; height: 72px; border-radius: 4px; border: 1px solid rgba(0,0,0,.45); background: rgba(0,0,0,.14); display: grid; place-items: center; flex: none; }
+.frame svg { image-rendering: pixelated; }
+.block h2 { font-size: 24px; font-weight: 700; line-height: 1.1; }
+.tag { display: inline-block; border-radius: 20px; padding: 4px 10px; font: 600 11px/1.2 var(--mono); letter-spacing: 1.8px; text-transform: uppercase; background: #000; color: #fff; margin-right: 6px; }
+.rows { display: grid; gap: 10px; }
+.rows .r { display: grid; grid-template-columns: 70px 1fr 34px; align-items: center; gap: 10px; }
+.bar { height: 8px; background: rgba(0,0,0,.18); border-radius: 2px; } .bar i { display: block; height: 100%; background: var(--on-team); border-radius: 2px; }
+.block .big { display: flex; align-items: baseline; gap: 14px; }
+.block .big b { font-family: var(--mono); font-size: 30px; font-weight: 700; }
+/* 어두운 타일 */
+.tile { border: 1px solid var(--white); border-radius: 20px; padding: 20px; display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center; }
+.tile .frame { width: 56px; height: 56px; border-color: #313131; background: transparent; }
+.tile h3 { font-size: 20px; font-weight: 700; line-height: 1.1; }
+.tile .tag { background: var(--mint); color: #000; }
+.tile .num { font-size: 22px; }
+/* 버튼 */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 10px 24px; border-radius: 24px; border: 0; font: 700 16px/1 var(--ui); cursor: pointer; }
+.btn--p { background: var(--mint); color: #000; }
+.btn--s { background: var(--slate); color: #e9e9e9; font-weight: 500; }
+.btn--o { background: transparent; color: var(--mint); border: 1px solid var(--mint); border-radius: 40px; font: 600 12px/1 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; }
+.btns { display: grid; gap: 10px; }
+/* 타임라인 */
+.tl { position: relative; display: grid; gap: 12px; padding-left: 78px; }
+.tl::before { content: ''; position: absolute; left: 66px; top: 4px; bottom: 4px; border-left: 1px dashed #3d00bf; }
+.tl li { list-style: none; position: relative; }
+.tl .ts { position: absolute; left: -78px; top: 16px; width: 58px; font: 600 10px/1.2 var(--mono); letter-spacing: 1.1px; color: var(--mute); text-transform: uppercase; }
+.tl .card { border: 1px solid #fff; border-radius: 20px; padding: 14px 16px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; }
+.tl .card.w { background: var(--mint); color: #000; border-color: var(--mint); }
+.tl .card.l { background: var(--uv); border-color: var(--uv); }
+.tl .card.d { background: var(--slate); border-color: var(--slate); }
+.tl .sc { font-family: var(--mono); font-weight: 700; font-size: 22px; }
+.tl .res { font: 600 11px/1 var(--mono); letter-spacing: 1.5px; }
+.tl small { color: inherit; opacity: .75; font-size: 13px; font-weight: 400; }
+/* 히어로(무대) */
+.hero { background: var(--team); color: var(--on-team); border-radius: 24px; padding: 28px 24px; display: grid; gap: 6px; }
+.hero .rank { font-family: var(--display); font-size: 120px; line-height: 0.95; letter-spacing: 0.02em; }
+.hero .rank span { font-size: 40px; margin-left: 6px; }
+/* 탭 */
+.tabs { display: grid; grid-template-columns: repeat(4,1fr); border-top: 1px solid #fff; margin-top: 4px; }
+.tabs button { background: none; border: 0; color: var(--mute); padding: 16px 0 14px; font: 600 11px/1 var(--mono); letter-spacing: 1.5px; text-transform: uppercase; }
+.tabs .on { color: var(--mint); box-shadow: inset 0 -1px 0 var(--mint); }
+.pal { display: flex; gap: 8px; flex-wrap: wrap; } .pal i { width: 36px; height: 36px; border-radius: 50%; display: block; }
+</style></head>
+<body>
+<div class="phone" id="a"></div>
+<div class="phone" id="b"></div>
+<script type="module">
+import { createGame, startDraftPick } from '../engine/game.mjs';
+import { portrait, stars } from '../ui/components.mjs';
+import { overall } from '../engine/player.mjs';
+import { nameOf } from '../engine/names.mjs';
+const g = createGame({ seed: 7 });
+for (const p of g.startDraft.pool.slice(0, 3)) startDraftPick(g, p.id);
+const s = g.myTeam.stars;
+const p = s[4]; const attrs = Object.entries(p.attrs);
+const L = { shooting:'슈팅', pace:'속도', dribbling:'드리블', stamina:'체력', tackling:'태클', marking:'대인', heading:'헤딩', passing:'패스', vision:'시야', workrate:'활동량', reflexes:'반응', handling:'핸들링', positioning:'위치' };
+const frame = (pl, size=72) => `<div class="frame">${portrait(pl, { size: size - 8, kit: '#2b7a6a' })}</div>`;
+document.getElementById('a').innerHTML = `
+  <h6>Home · 로스터</h6>
+  <div class="mast"><div class="wm">FM-LITE</div><p class="whisper">3부 리그에서 1부까지</p></div>
+  <div class="wrap">
+    <div class="block">
+      <div class="head">${frame(p)}<div><span class="tag">${p.position}</span><span class="tag">LV ${p.xpLevel + 2}</span>
+        <h2 style="margin-top:8px">${nameOf(p.id)}</h2></div></div>
+      <div class="rows">${attrs.map(([k, v]) => `<div class="r"><span class="whisper" style="font-size:14px">${L[k]}</span><div class="bar"><i style="width:${v}%"></i></div><b class="num" style="text-align:right;font-size:17px">${v}</b></div>`).join('')}</div>
+      <div class="big"><b>5</b><span class="whisper">골</span><b>3</b><span class="whisper">도움</span></div>
+    </div>
+    ${s.slice(0, 2).map((pl) => `<div class="tile">${frame(pl, 56)}<div><h3>${nameOf(pl.id)}</h3><span class="tag">${pl.position}</span> <span class="label">${pl.age}세</span></div><b class="num">${pl.contract.salary}</b></div>`).join('')}
+    <div class="btns"><button class="btn btn--p">2번째 구간 진행</button><button class="btn btn--s">감독 은퇴</button><button class="btn btn--o">새 코치 찾기</button></div>
+    <div class="pal"><i style="background:#3cffd0"></i><i style="background:#5200ff"></i><i style="background:#ffe600"></i><i style="background:#ff4fa3"></i><i style="background:#ff7a1a"></i><i style="background:#2e5bff"></i><i style="background:#fff"></i></div>
+  </div>
+  <div class="tabs"><button class="on">로스터</button><button>순위</button><button>프런트</button><button>기록실</button></div>`;
+document.getElementById('b').innerHTML = `
+  <h6>Result · 구간 결과 · 시즌 종료</h6>
+  <div class="wrap">
+    <div class="hero"><span class="label" style="color:rgba(0,0,0,.6)">1년차 · 3부</span><div class="rank">2<span>위</span></div><p class="whisper" style="font-size:17px">승격했습니다</p></div>
+    <ul class="tl">
+      <li><span class="ts">Round 14</span><div class="card w"><b>새벽 FC <span class="sc">2 : 1</span> 철새 City</b><span class="res">WIN</span><small>Saito 2골 · Adisa 도움</small></div></li>
+      <li><span class="ts">Round 13</span><div class="card d"><b>불꽃 Town <span class="sc">1 : 1</span> 새벽 FC</b><span class="res">DRAW</span></div></li>
+      <li><span class="ts">Round 12</span><div class="card l"><b>새벽 FC <span class="sc">0 : 2</span> 달빛 Rovers</b><span class="res">LOSS</span></div></li>
+      <li><span class="ts">Round 11</span><div class="card w"><b>은하 United <span class="sc">0 : 3</span> 새벽 FC</b><span class="res">WIN</span></div></li>
+    </ul>
+    <div class="btns"><button class="btn btn--p">오프시즌 시작</button><button class="btn btn--o">감독 은퇴</button></div>
+  </div>
+  <div class="tabs"><button>로스터</button><button class="on">순위</button><button>프런트</button><button>기록실</button></div>`;
+</script></body></html>

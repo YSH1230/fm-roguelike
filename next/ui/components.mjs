@@ -23,10 +23,10 @@ export const REASON_TEXT = {
   fans: '팬 수가 선수의 요구에 못 미칩니다', morale: '팀 사기가 선수의 요구에 못 미칩니다', salary: '제시 금액이 요구보다 낮습니다',
   mood: '선수 사기가 낮아 거절했습니다', roster: '스타 자리가 가득 찼습니다. 먼저 한 명을 내보내세요',
 };
-// 내 구단 색 후보(빨강·노랑은 행동·금액 신호색이라 뺀다)
+// 내 구단 색 = 화면의 "YOU" 색(내 수치, 내 선수, 주 행동). 기본은 주황.
 export const KIT_CHOICES = [
-  ['#2f6fed', '파랑'], ['#1f9d6a', '초록'], ['#8a4fd6', '보라'], ['#e07a1f', '주황'],
-  ['#18a5b3', '청록'], ['#d6508a', '분홍'], ['#4aa3e8', '하늘'], ['#7a8a3a', '올리브'],
+  ['#ff4a1c', '주황'], ['#2f7bff', '파랑'], ['#19e0b0', '민트'], ['#ffd500', '노랑'],
+  ['#ff4fa3', '핑크'], ['#8b5cff', '보라'], ['#b6f500', '라임'], ['#ffffff', '하양'],
 ];
 
 // 팀 색 위의 글자색: 밝기에 따라 검정 또는 흰색
@@ -42,6 +42,14 @@ export const facts = (...parts) => `<span class="facts">${parts.filter(Boolean).
 export const bar = (value, cls = '') => `<span class="bar ${cls}" role="img" aria-label="${Math.round(value)}%"><i style="width:${Math.max(0, Math.min(100, value))}%"></i></span>`;
 export const chip = (text, cls = '') => `<span class="chip ${cls}">${esc(text)}</span>`;
 export { icon, moodFace, stars };
+
+// 업적 배지의 금·은·동 그라디언트(이 배지 테두리와 아이콘 선에만 쓴다). 페이지에 한 번만 넣는다.
+export const METAL_DEFS = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <linearGradient id="g-gold" gradientUnits="userSpaceOnUse" x1="3" y1="3" x2="21" y2="21"><stop offset="0" stop-color="#fff3b0"/><stop offset=".3" stop-color="#f0c94c"/><stop offset=".55" stop-color="#b8860b"/><stop offset=".78" stop-color="#f8e58a"/><stop offset="1" stop-color="#a67c12"/></linearGradient>
+  <linearGradient id="g-silver" gradientUnits="userSpaceOnUse" x1="3" y1="3" x2="21" y2="21"><stop offset="0" stop-color="#fff"/><stop offset=".3" stop-color="#d5dade"/><stop offset=".55" stop-color="#8d949c"/><stop offset=".78" stop-color="#eef1f3"/><stop offset="1" stop-color="#7b828a"/></linearGradient>
+  <linearGradient id="g-bronze" gradientUnits="userSpaceOnUse" x1="3" y1="3" x2="21" y2="21"><stop offset="0" stop-color="#ffd9b0"/><stop offset=".3" stop-color="#dc8f50"/><stop offset=".55" stop-color="#8f4f21"/><stop offset=".78" stop-color="#f0b685"/><stop offset="1" stop-color="#6e3a14"/></linearGradient></defs></svg>`;
+
+export const metalIcon = (name, tier, size = 36) => icon(name, size).replace('<svg ', `<svg style="stroke:url(#g-${tier})" `);
 
 export function effectChips(effects) {
   const out = [];

@@ -22,7 +22,7 @@ import { careerSummary, recordChampions, recordMyTeam } from './honors.mjs';
 export const regionTeams = (world) => allTeams(world).filter((t) => t.region === MY_REGION);
 
 // 새 게임: 3부 팀, 배정된 스타 3명, 코치 2명, 시작 드래프트(3명 선택) 대기.
-export function createGame({ seed = 1, name = '감독', clubName = '내 구단', clubKit = '#2f6fed' } = {}) {
+export function createGame({ seed = 1, name = '감독', clubName = '내 구단', clubKit = '#ff4a1c' } = {}) {
   const rng = createRng(seed);
   const myTeam = createTeam({ rng, id: 'ME', attackStars: 2.5, defenseStars: 2.5, starLevel: 50, starPositions: START_ASSIGNED });
   myTeam.coaches.attack = createCoach({ rng, id: 'ME-ca', kind: 'attack', stars: 2.5 });
@@ -153,7 +153,7 @@ export function finishSeason(game) {
   const row = table.find((r) => r.id === team.id);
   game.season = {
     year, tier, rank, fate, awards, cl: { champion: cl.champion, runnerUp: cl.runnerUp }, outcome, prize,
-    wins: row.won, draftStandings: table.map((r) => ({ id: r.id })),
+    wins: row.won, record: { won: row.won, drawn: row.drawn, lost: row.lost, points: row.points }, draftStandings: table.map((r) => ({ id: r.id })),
   };
   if (fate === 'fired') {
     game.phase = 'ended';

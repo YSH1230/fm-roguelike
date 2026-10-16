@@ -112,7 +112,7 @@ test('런 종료 화면: 경질과 은퇴 모두 요약이 그려진다', () => 
   if (g.phase === 'offseason') retireManager(g);
   const html = endScreen(g);
   clean(html, '런 종료');
-  assert.ok(html.includes('커리어'));
+  assert.ok(html.includes('CAREER REPORT'));
   assert.ok(html.includes('data-act="newrun"'));
   assert.ok(html.includes(g.end.reason === 'fired' ? '경질' : '감독 은퇴'));
 });

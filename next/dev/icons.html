@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스텐실 아이콘 세트</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+body { background:#222; color:#d9ceff; font-family:'Barlow Condensed',sans-serif; margin:0; padding:18px; }
+h1 { font-size:14px; letter-spacing:.14em; color:#9a9a9a; font-weight:600; margin:0 0 14px; }
+.grid { display:grid; grid-template-columns:repeat(6,1fr); gap:20px 8px; max-width:760px; }
+.cell { display:grid; justify-items:center; gap:6px; }
+.cell span { font-weight:700; font-size:13px; letter-spacing:.06em; color:#a97cff; text-transform:uppercase; }
+.sm { display:flex; gap:10px; align-items:center; }
+svg { fill:none; stroke:currentColor; stroke-width:3; stroke-linecap:butt; stroke-linejoin:miter; }
+.row { display:flex; gap:18px; margin:26px 0 0; align-items:center; background:#2c2c2c; padding:14px; max-width:760px; flex-wrap:wrap; }
+.row svg { color:#fff; }
+</style></head><body>
+<h1>ICON SET · 24 GRID · STROKE 3 · BUTT CAP · MITER JOIN · SYMMETRIC · NO GAPS</h1>
+<div class="grid" id="g"></div>
+<div class="row" id="r"></div>
+<script>
+// 규칙: 24 격자, 직선·직각·45도·원호만. 윤곽마다 틈 한 곳.
+const I = {
+  roster:    '<path d="M8 3.5h2.5L12 6l1.5-2.5H16l5.5 4-2 4.5-3.5-1.5V21H8V10.5L4.5 12l-2-4.5z"/>',
+  table:     '<path d="M3.5 6h17M3.5 12h17M3.5 18h11"/>',
+  front:     '<path d="M3.5 21V10.5L12 4l8.5 6.5V21z"/><path d="M9 21v-6h6v6"/>',
+  records:   '<path d="M4 4h11.5A2.5 2.5 0 0 1 18 6.5V21H7A3 3 0 0 1 4 18z"/><path d="M4 18a3 3 0 0 1 3-3h11"/><path d="M8 8.5h6"/>',
+  play:      '<path d="M7 4.5L19.5 12 7 19.5z"/>',
+  coin:      '<circle cx="12" cy="12" r="8.5"/><path d="M8 8.8l1.8 6.4L12 10.8l2.2 4.4L16 8.8"/><path d="M7.5 12h9"/>',
+  fans: '<circle cx="7" cy="8" r="3"/><circle cx="17" cy="8" r="3"/><path d="M2.5 20.5v-1.5a4.5 4.5 0 0 1 9 0v1.5"/><path d="M12.5 20.5v-1.5a4.5 4.5 0 0 1 9 0v1.5"/>',
+  rest:      '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/>',
+  upgrade:   '<path d="M12 20.5V5M5.5 11.5L12 5l6.5 6.5"/>',
+  injury:    '<path d="M9 3.5h6v5.5h5.5v6H15v5.5H9V15H3.5V9H9z"/>',
+  mic: '<rect x="9" y="3" width="6" height="11"/><path d="M5 11.5v1a7 7 0 0 0 14 0v-1"/><path d="M12 19.5v2"/><path d="M8.5 21.5h7"/>',
+  chat:      '<path d="M4 4.5h16v11.5h-9L6.5 20.5V16H4z"/><path d="M8.5 10h7"/>',
+  transfer:  '<path d="M4 13L13 4"/><path d="M8 4h5v5"/><path d="M20 11L11 20"/><path d="M16 20h-5v-5"/>',
+  check:     '<path d="M4.5 12.5l5 5L19.5 7"/>',
+  close:     '<path d="M5 5l14 14M19 5L5 19"/>',
+  next:      '<path d="M3.5 12h17M13.5 5.5l7 6.5-7 6.5"/>',
+  globe: '<circle cx="12" cy="10" r="7.5"/><ellipse cx="12" cy="10" rx="3.6" ry="7.5"/><path d="M4.5 10h15"/><path d="M12 17.5v4M8 21.5h8"/>',
+  medal:     '<path d="M7.5 2.5l3 6.5"/><path d="M16.5 2.5L13.5 9"/><circle cx="12" cy="15" r="6"/><path d="M12 13v4"/>',
+  flag: '<path d="M5 21V4.5h14l-3.5 4 3.5 4H5"/>',
+  info:      '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v6"/><path d="M12 7v.1"/>',
+  plus:      '<path d="M12 4v16M4 12h16"/>',
+  bolt:      '<path d="M13.5 2.5L5 13.5h6l-1 8L19 10.5h-6z"/>',
+  shield:    '<path d="M12 3L4.5 6v6c0 4.5 3 7.5 7.5 9 4.5-1.5 7.5-4.5 7.5-9V6z"/>',
+  ball:      '<circle cx="12" cy="12" r="8.5"/><path d="M12 8.7l3.1 2.3-1.2 3.7h-3.8L8.9 11z"/><path d="M12 8.7V3.5M15.1 11l5-1.6M13.9 14.7l3.1 4.2M10.1 14.7l-3.1 4.2M8.9 11l-5-1.6"/>',
+  manager:   '<circle cx="12" cy="8" r="4.2"/><path d="M3.5 20.5V16.5h17v4z"/>',
+  training:  '<path d="M10.5 3.5h3L18.5 19h-13z"/><path d="M8.2 12.5h7.6"/><path d="M3 21.5h18"/>',
+  condition: '<path d="M12 20.5C6 15.5 3.5 12.5 3.5 9a4.5 4.5 0 0 1 8.5-2 4.5 4.5 0 0 1 8.5 2c0 3.5-2.5 6.5-8.5 11.5z"/>',
+  trophy:    '<path d="M8 3.5h8v7.5a4 4 0 0 1-8 0z"/><path d="M8 5.5H3.5v4H8M16 5.5h4.5v4H16"/><path d="M12 15.5v4"/><path d="M7.5 21h9"/>',
+};
+const svg = (n, s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24">${I[n]}</svg>`;
+document.getElementById('g').innerHTML = Object.keys(I).map((n) => `<div class="cell">${svg(n, 64)}<span>${n}</span></div>`).join('');
+document.getElementById('r').innerHTML = Object.keys(I).map((n) => svg(n, 24)).join('') + '<br>' + Object.keys(I).map((n) => svg(n, 20)).join('');
+</script></body></html>
