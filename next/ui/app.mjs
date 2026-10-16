@@ -2,7 +2,7 @@ import { setRest } from '../engine/condition.mjs';
 import { generateCoachCandidates, hireCoach, setIntensity } from '../engine/coach.mjs';
 import { expandCap, upgradeFacility } from '../engine/economy.mjs';
 import {
-  acceptTrade, answerInterview, answerPress, createGame, finishSeason, incomingTrade, leagueAiTeams, playNextChunk,
+  acceptPendingTrade, acceptTrade, answerInterview, declinePendingTrade, answerPress, createGame, finishSeason, leagueAiTeams, playNextChunk,
   renamePlayer, requestTrade, retireManager, spendPoint, startDraftAdvance, startDraftFinish, startDraftPick,
 } from '../engine/game.mjs';
 import { inductHallOfFame } from '../engine/honors.mjs';
@@ -12,7 +12,7 @@ import {
   placeRookie, releaseStar, renewCoachContract, startSeason, takeBuyout,
 } from '../engine/offseason.mjs';
 import { SAVE_KEY, readSave, writeSave } from '../engine/save.mjs';
-import { KIT_CHOICES, REASON_TEXT, esc, onColor, teamName } from './components.mjs';
+import { KIT_CHOICES, REASON_TEXT, esc, onColor, teamName, tradeSide } from './components.mjs';
 import {
   chunkScreen, endScreen, endingScreen, hubScreen, introScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
 } from './screens.mjs';
@@ -49,12 +49,8 @@ function modalHtml() {
   if (!ui.modal) return '';
   const { offer } = ui.modal;
   const ai = leagueAiTeams(game).find((t) => t.id === offer.aiTeamId);
-  const side = (players, picks) => [
-    ...players.map((id) => esc(nameOf(id))),
-    ...picks.map((k) => `Y${k.year} R${k.round ?? 1} · ${esc(teamName(game, k.from))}`),
-  ].map((t) => `<b>${t}</b>`).join(' + ');
   return `<div class="sheet" role="dialog" aria-modal="true" aria-label="트레이드 제안"><div class="sheet__box">
-    <h3>${esc(teamName(game, ai.id))}</h3><p class="offerline"><span class="lab">YOU GIVE</span>${side(offer.give.players, offer.give.picks)}</p><p class="offerline"><span class="lab">THEY OFFER</span>${side(offer.get.players, offer.get.picks)}</p>
+    <h3>${esc(teamName(game, ai.id))}</h3><p class="offerline"><span class="lab">YOU GIVE</span>${tradeSide(game, offer.give.players, offer.give.picks)}</p><p class="offerline"><span class="lab">THEY OFFER</span>${tradeSide(game, offer.get.players, offer.get.picks)}</p>
     <button class="btn btn--primary btn--wide" data-act="tradeyes">받아들이기</button><button class="btn btn--wide" data-act="tradeno">거절</button></div></div>`;
 }
 
@@ -112,7 +108,8 @@ const ACTIONS = {
       ui.intro.club = document.getElementById('club-name')?.value ?? ui.intro.club;
     }
   },
-  pick(el) { ui.sel = el.dataset.id; },
+  pick(el) { ui.sel = el.dataset.id; ui.detailId = el.dataset.id; },
+  pback() { ui.detailId = null; },
   dpos(el) { ui.dpos = ui.dpos === el.dataset.v ? null : el.dataset.v; },
   dsel(el) { ui.dsel = ui.dsel === el.dataset.id ? null : el.dataset.id; },
   tip(el) { ui.tips.add(el.dataset.id); store.set(TIPS_KEY, JSON.stringify([...ui.tips])); },
@@ -131,16 +128,12 @@ const ACTIONS = {
     hireCoach(game.club, game.myTeam, cand);
     ui.candidates[kind] = null;
   },
-  tradein() {
-    const offer = incomingTrade(game);
-    if (offer) ui.modal = { offer }; else ui.flash = '지금은 들어온 제안이 없어요';
-  },
+  pendtradeyes() { acceptPendingTrade(game); ui.flash = '트레이드가 성사되었어요'; },
+  pendtradeno() { declinePendingTrade(game); },
   tradeyes() { acceptTrade(game, ui.modal.offer); ui.modal = null; ui.flash = '트레이드가 성사되었어요'; },
   tradeno() { ui.modal = null; },
-  traderequest() {
-    const v = document.getElementById('tr-asset').value;
-    const give = v.startsWith('p:') ? { players: [v.slice(2)] } : (() => { const [, year, round, ...from] = v.split(':'); return { picks: [{ year: Number(year), round: Number(round), from: from.join(':') }] }; })();
-    const offer = requestTrade(game, give);
+  traderequest(el) {
+    const offer = requestTrade(game, { players: [el.dataset.id] });
     if (offer) ui.modal = { offer }; else ui.flash = '지금은 걸맞은 제안을 보낼 팀이 없어요';
   },
   play() {
@@ -169,7 +162,7 @@ const ACTIONS = {
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['dpos', 'dsel', 'ending', 'endingdone', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['dpos', 'dsel', 'pback', 'ending', 'endingdone', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;

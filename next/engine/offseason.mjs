@@ -214,7 +214,7 @@ export function takeBuyout(game, playerId) {
 export function startSeason(game) {
   need(game, 'rookies');
   game.off = null;
-  game.pending = { press: null, interviews: [] };
+  game.pending = { press: null, interviews: [], trade: null };
   game.chunk = 0;
   game.phase = 'manage';
   return game.world.year;

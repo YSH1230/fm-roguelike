@@ -1,5 +1,7 @@
 import { nameOf } from '../engine/names.mjs';
 import { capOf, overall, starsOf } from '../engine/player.mjs';
+import { marketValue } from '../engine/contract.mjs';
+import { pickValue } from '../engine/trade.mjs';
 import { teamRatings } from '../engine/ratings.mjs';
 import { ATTRIBUTES } from '../engine/constants.mjs';
 import { benchmarks } from './bench.mjs';
@@ -77,7 +79,16 @@ export function playerCard(game, ui, p) {
   </div>`;
 }
 
-// 선택한 스타의 리포트(모달이 아니라 보드 아래에 바로 붙는다)
+// 사기·컨디션을 짧은 영어 단어로
+const moodWord = (m) => (m >= 80 ? 'GREAT' : (m >= 60 ? 'GOOD' : (m >= 40 ? 'OK' : (m >= 20 ? 'LOW' : 'BAD'))));
+const condWord = (c) => (c >= 70 ? 'GOOD' : (c >= 40 ? 'OK' : 'TIRED'));
+// 선수의 값어치를 드래프트 지명권으로 환산: 1라운드 중간 순번(10번) 가치 이상이면 1라운드급
+const valueWord = (p) => {
+  const v = marketValue(p);
+  return v >= pickValue(10, 1) ? 'RND 1 PICK' : (v >= pickValue(10, 2) ? 'RND 2 PICK' : 'LOW VALUE');
+};
+
+// 선수 상세 페이지: 로스터에서 선수를 누르면 보드 대신 나온다.
 export function playerDetail(game, ui, p) {
   const rec = game.history.players.get(p.id);
   const hurt = isHurt(p);
@@ -85,22 +96,34 @@ export function playerDetail(game, ui, p) {
   const bench = benchmarks(game, p.position);
   const awards = (p.awards ?? []).map((a) => chip(`${a.year}년차 ${AWARD_LABEL[a.key]}`, 'best')).join('');
   const per = p.stats.apps ? (p.stats.goals / p.stats.apps).toFixed(1) : '0.0';
+  const cur = starsOf(overall(p));
+  const pot = Math.max(cur, starsOf(p.potential));
+  const info = [
+    ['AGE', `${p.age}`],
+    ['CONTRACT', `${p.contract.salary} (${p.contract.years}Y)`],
+    ['MORALE', `${moodFace(p.mood, 18)} ${moodWord(p.mood)}`],
+    ['CONDITION', condWord(p.condition)],
+    ['VALUE', valueWord(p)],
+  ].map(([k, v]) => `<div class="irow"><span class="lab">${k}</span><b>${v}</b></div>`).join('');
   const restBtn = hurt
-    ? `<p class="hurt">${icon('injury', 16)}부상으로 결장 중</p>`
-    : `<button class="pill${resting ? ' pill--on' : ''}" data-act="rest" data-id="${esc(p.id)}">${icon('rest', 16)}${resting ? '휴식 지정됨' : '다음 구간 쉬게 하기'}</button>`;
-  return `<section class="detail" aria-label="${esc(nameOf(p.id))} 상세">
+    ? `<span class="act act--off">${icon('injury', 16)}OUT</span>`
+    : `<button class="act${resting ? ' act--on' : ''}" data-act="rest" data-id="${esc(p.id)}">${icon('rest', 16)}${resting ? 'RESTING' : 'REST'}</button>`;
+  return `<section class="detail pdetail" aria-label="${esc(nameOf(p.id))} 상세">
+    <button class="back" data-act="pback">${icon('next', 18)}BACK</button>
     ${playerCard(game, ui, p)}
-    <div class="rephead"><span class="lab">PLAYER REPORT</span><span class="lab">${facts(`LV ${p.xpLevel}`, `AGE ${p.age}`)}</span></div>
-    <div class="repstars">${xpBar(p)}</div>
-    ${(p.points ?? 0) > 0 ? `<p class="points"><b class="num">${p.points}</b> LEVEL UP POINT${p.points > 1 ? 'S' : ''}<span>+ BUTTON</span></p>` : ''}
+    <div class="ibox"><h4 class="sech">PLAYER INFO</h4>${info}
+      <div class="irow irow--stars"><span class="lab">RATING</span>${stars(cur, cur, 18)}</div>
+      <div class="irow irow--stars"><span class="lab">POTENTIAL</span>${stars(pot, pot, 18)}</div>
+      <div class="irow"><span class="lab">XP LEVEL ${p.xpLevel}</span><span class="xp">${xpBar(p)}</span></div></div>
+    ${(p.points ?? 0) > 0 ? `<p class="points"><b class="num">${p.points}</b> POINT${p.points > 1 ? 'S' : ''}<span>PRESS +</span></p>` : ''}
     <h4 class="sech">ATTRIBUTES</h4>
     ${ATTRIBUTES[p.position].map((k) => compare(p, k, bench[k])).join('')}
-    <div class="big"><b class="num">${p.stats.goals}</b><span>시즌 골</span></div>
-    <div class="tri"><div><b class="num">${p.stats.apps}</b><span>출전</span></div><div><b class="num">${p.stats.assists}</b><span>도움</span></div><div><b class="num">${per}</b><span>경기당 골</span></div></div>
-    ${rec ? `<p class="career">통산 ${rec.career.goals}골 ${rec.career.assists}도움</p>` : ''}
-    <p class="contract"><span class="lab">CONTRACT</span><b class="num">${p.contract.salary}</b><span>${p.contract.years}년 남음</span></p>
+    <div class="acts">${restBtn}<button class="act" data-act="traderequest" data-id="${esc(p.id)}">${icon('transfer', 16)}TRADE</button></div>
+    <h4 class="sech">STATS</h4>
+    <div class="big"><b class="num">${p.stats.goals}</b><span>GOALS</span></div>
+    <div class="tri"><div><b class="num">${p.stats.apps}</b><span>APPS</span></div><div><b class="num">${p.stats.assists}</b><span>ASSISTS</span></div><div><b class="num">${per}</b><span>PER GAME</span></div></div>
+    ${rec ? `<p class="career">CAREER ${rec.career.goals} G · ${rec.career.assists} A</p>` : ''}
     ${awards ? `<div class="medals">${awards}</div>` : ''}
-    ${restBtn}
   </section>`;
 }
 

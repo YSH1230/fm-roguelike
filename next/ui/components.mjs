@@ -75,6 +75,12 @@ export const portrait = (p, { size = 48, kit } = {}) =>
   renderPortrait({ id: p.id, name: nameOf(p.id), continentTag: continentOf(p.id), age: p.age }, { size, kit, role: 'player' });
 
 export const teamKit = (game, id) => (id === game.myTeam.id ? game.clubKit : teamIdentity(id).kit);
+// 트레이드 한쪽 면: 선수 이름과 지명권(Y년 R라운드 · 팀)을 이어서 보여 준다
+export const tradeSide = (game, players, picks) => [
+  ...players.map((id) => esc(nameOf(id))),
+  ...picks.map((k) => `Y${k.year} R${k.round ?? 1} · ${esc(teamName(game, k.from))}`),
+].map((t) => `<b>${t}</b>`).join(' + ');
+
 export const teamName = (game, id) => (id === game.myTeam.id ? game.clubName : teamIdentity(id).name);
 export const crest = (game, id, size = 28) => renderCrest({ id, name: teamName(game, id), kit: teamKit(game, id) }, { size });
 

@@ -1,4 +1,4 @@
-import { CL_PRIZE, MY_REGION, ROSTER_STARS, SALARY_CAP, SEASON, TRADE_MARGIN, START_ASSIGNED, START_DRAFT_TEAMS, START_PROSPECTS, START_ROUNDS } from './constants.mjs';
+import { CL_PRIZE, MY_REGION, ROSTER_STARS, SALARY_CAP, SEASON, TRADE_INTEREST_CHANCE, TRADE_INTEREST_MIN, TRADE_MARGIN, START_ASSIGNED, START_DRAFT_TEAMS, START_PROSPECTS, START_ROUNDS } from './constants.mjs';
 import { askingSalary, marketValue, newContract } from './contract.mjs';
 import { createCoach } from './coach.mjs';
 import {
@@ -6,7 +6,7 @@ import {
 } from './draft.mjs';
 import { createClub, chunkIncome, earn, fansAfterChunk, salaryCap, seasonPrize } from './economy.mjs';
 import { applyChoice, interviewFor, pickPress, pressSituation } from './events.mjs';
-import { chunkStep, lineupView, snapshotStats } from './condition.mjs';
+import { chunkStep, lineupView, snapshotStats, statDelta } from './condition.mjs';
 import { createRng, randInt, shuffle } from './rng.mjs';
 import { teamRatings } from './ratings.mjs';
 import { setStars } from './roster.mjs';
@@ -60,7 +60,7 @@ export function createGame({ seed = 1, name = '감독', clubName = '내 구단',
   const order = repeatOrder(byPower.slice(0, START_DRAFT_TEAMS).sort((a, b) => lastYear[b] - lastYear[a]), START_ROUNDS);
   return {
     seed, rng, name, clubName, clubKit, names: {}, world, myTeam, club: createClub(), history: createHistory(),
-    endings: [], market: generateFreeAgents(rng, { prefix: 'FA0' }), phase: 'startDraft', chunk: 0, pending: { press: null, interviews: [] }, season: null, off: null, end: null,
+    endings: [], market: generateFreeAgents(rng, { prefix: 'FA0' }), phase: 'startDraft', chunk: 0, pending: { press: null, interviews: [], trade: null }, season: null, off: null, end: null,
     startDraft: { ...createDraft({ prospects: generateProspects(rng, { count: START_PROSPECTS, prefix: 'S1' }), order }), started: false, lastYear },
   };
 }
@@ -116,9 +116,31 @@ export function playNextChunk(game) {
   game.chunk += 1;
   const press = pickPress(rng, pressSituation(tally));
   const interviews = team.stars.map((p) => ({ playerId: p.id, interview: interviewFor(rng, p) })).filter((x) => x.interview).slice(0, 2);
-  game.pending = { press, interviews };
   game.phase = game.chunk >= SEASON.chunks.length ? 'seasonEnd' : 'manage';
-  return { chunk: game.chunk, matches: mine, ...tally, income, steps, press, interviews };
+  const trade = tradeInterest(game, before);
+  game.pending = { press, interviews, trade };
+  return { chunk: game.chunk, matches: mine, ...tally, income, steps, press, interviews, trade };
+}
+
+// 이번 구간에 눈에 띄게 잘한 선수(득점 x 2 + 도움이 4 이상)가 있으면 다른 팀이 그 선수를 원해서 제안이 온다.
+function tradeInterest(game, before) {
+  const best = game.myTeam.stars
+    .map((p) => { const d = statDelta(p, before); return { p, perf: d.goals * 2 + d.assists }; })
+    .sort((a, b) => b.perf - a.perf)[0];
+  if (!best || best.perf < TRADE_INTEREST_MIN || game.rng() >= TRADE_INTEREST_CHANCE) return null;
+  return requestTrade(game, { players: [best.p.id] });
+}
+
+// 받은 제안을 받아들이거나 거절한다(구간 결과 화면).
+export function acceptPendingTrade(game) {
+  const offer = game.pending.trade;
+  if (!offer) throw new Error('받은 제안이 없습니다');
+  acceptTrade(game, offer);
+  game.pending.trade = null;
+}
+
+export function declinePendingTrade(game) {
+  game.pending.trade = null;
 }
 
 export function answerPress(game, optionIndex) {

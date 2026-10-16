@@ -203,3 +203,26 @@ test('requestTrade: 지명권도 내놓을 수 있고 받는 쪽은 선수나 �
   assert.ok(offer);
   assert.deepEqual(offer.give.picks, [mine]);
 });
+
+test('잘한 선수에게 구간마다 트레이드 제안이 오고, 받아들이거나 거절할 수 있다', async () => {
+  const { acceptPendingTrade, declinePendingTrade, requestTrade } = await import('../engine/game.mjs');
+  let found = null;
+  for (let seed = 1; seed < 40 && !found; seed += 1) {
+    const g = startedGame(seed);
+    const r = playNextChunk(g);
+    if (r.trade) found = { g, r };
+  }
+  assert.ok(found, '40개 시드 어디에서도 제안이 오지 않았다');
+  const { g, r } = found;
+  assert.equal(g.pending.trade, r.trade);
+  const given = r.trade.give.players[0];
+  assert.ok(g.myTeam.stars.some((p) => p.id === given));
+  acceptPendingTrade(g);
+  assert.equal(g.pending.trade, null);
+  assert.ok(!g.myTeam.stars.some((p) => p.id === given));
+  assert.throws(() => acceptPendingTrade(g), /받은 제안이 없/);
+  const g2 = startedGame(3);
+  g2.pending.trade = requestTrade(g2, { picks: [g2.myTeam.picks[0]] });
+  declinePendingTrade(g2);
+  assert.equal(g2.pending.trade, null);
+});

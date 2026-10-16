@@ -65,13 +65,14 @@ test('관리 화면 4개 탭이 모두 그려지고 시트·카드가 선수 정
   assert.equal((roster.match(/class="pp pp--star/g) ?? []).length, 6); // 보드의 스타 6명
   assert.equal((roster.match(/class="pp pp--sub/g) ?? []).length, 5); // 조연 5명은 점
   assert.ok(roster.includes('START SEASON'));
-  assert.ok(roster.includes('다음 구간 쉬게 하기') && roster.includes('class="detail"'));
-  assert.ok(roster.includes(nameOf(g.myTeam.stars[0].id)));
+  assert.ok(!roster.includes('class="detail')); // 선수를 누르기 전에는 보드만 있다
+  assert.ok(roster.includes('data-act="pick"'));
   const table = hubScreen(g, freshUi({ tab: 'table' }));
   assert.equal((table.match(/class="rank__n"/g) ?? []).length, 20);
-  const picked = hubScreen(g, freshUi({ sel: g.myTeam.stars[3].id }));
+  const picked = hubScreen(g, freshUi({ detailId: g.myTeam.stars[3].id }));
   assert.ok(picked.includes(`aria-label="${nameOf(g.myTeam.stars[3].id)} 상세"`));
-  assert.ok(roster.includes(`aria-label="${nameOf(g.myTeam.stars[0].id)} 상세"`)); // 선택이 없으면 첫 스타
+  for (const w of ['PLAYER INFO', 'AGE', 'CONTRACT', 'MORALE', 'CONDITION', 'VALUE', 'RATING', 'POTENTIAL', 'XP LEVEL', 'ATTRIBUTES', 'data-act="pback"', 'data-act="traderequest"', 'data-act="rest"']) assert.ok(picked.includes(w), w);
+  assert.ok(!picked.includes('class="pitch"')); // 상세에서는 보드 대신 상세 페이지가 나온다
 });
 
 test('프런트: 코치 후보와 부족한 코인에서는 고용 버튼이 막힌다', () => {
@@ -86,10 +87,9 @@ test('프런트: 코치 후보와 부족한 코인에서는 고용 버튼이 막
 
 test('쉬게 지정한 선수는 카드에 휴식이 표시된다', () => {
   const g = startedGame(5);
-  const ui = freshUi({ rest: new Set([g.myTeam.stars[0].id]) });
-  const html = hubScreen(g, ui);
-  assert.ok(html.includes('휴식 지정됨'));
-  assert.ok(/pp--star( on)? out/.test(html));
+  const ui = freshUi({ rest: new Set([g.myTeam.stars[0].id]), detailId: g.myTeam.stars[0].id });
+  assert.ok(hubScreen(g, ui).includes('RESTING'));
+  assert.ok(/pp--star( on)? out/.test(hubScreen(g, freshUi({ rest: ui.rest }))));
 });
 
 test('구간 결과 화면: 경기 목록, 기자회견, 마지막 구간에는 시즌 마무리 버튼', () => {
@@ -180,16 +180,16 @@ test('드래프트·신인 배치 단계 화면도 깨지지 않는다', () => {
 test('선수 카드: 포인트가 있으면 +1 버튼과 안내가 나오고, 이름 수정 칸도 열린다', () => {
   const g = startedGame(3);
   const p = g.myTeam.stars[0];
-  const none = hubScreen(g, freshUi({ sel: p.id }));
+  const none = hubScreen(g, freshUi({ detailId: p.id }));
   assert.ok(none.includes('class="pcard"') || none.includes('class="pcard '));
   assert.ok(!none.includes('data-act="spend"'));
   p.points = 2;
   const key = Object.keys(p.attrs)[0];
   p.caps[key] = p.attrs[key] + 3;
-  const has = hubScreen(g, freshUi({ sel: p.id }));
+  const has = hubScreen(g, freshUi({ detailId: p.id }));
   clean(has, '포인트 있는 선수');
-  assert.ok(has.includes('data-act="spend"') && has.includes('LEVEL UP POINTS') && has.includes(`MAX ${p.caps[key]}`));
-  const editing = hubScreen(g, freshUi({ sel: p.id, editName: p.id }));
+  assert.ok(has.includes('data-act="spend"') && has.includes('POINTS') && has.includes(`MAX ${p.caps[key]}`));
+  const editing = hubScreen(g, freshUi({ detailId: p.id, editName: p.id }));
   assert.ok(editing.includes('id="renameInput"') && editing.includes('data-act="renamesave"'));
 });
 
@@ -243,8 +243,7 @@ test('트레이드: 내놓을 것을 고르는 칸과 REQUEST 버튼이 있고, 
   const g = startedGame(4);
   const front = hubScreen(g, freshUi({ tab: 'front' }));
   clean(front, '프런트');
-  assert.ok(front.includes('id="tr-asset"') && front.includes('data-act="traderequest"')); // 내놓을 것 하나를 골라 REQUEST
-  assert.ok(front.includes('R1') && front.includes('R2')); // 1·2라운드 지명권이 목록에 있다
+  assert.ok(!front.includes('traderequest') && !front.includes('id="tr-')); // 트레이드는 선수 상세에서 요청한다
   const g2 = startedGame(5);
   autoSeason(g2);
   beginOffseason(g2);
@@ -257,4 +256,16 @@ test('트레이드: 내놓을 것을 고르는 칸과 REQUEST 버튼이 있고, 
   const rookies = offseasonScreen(g2, freshUi());
   clean(rookies, '신인 배치');
   assert.equal((rookies.match(/data-act="buyout"/g) ?? []).length, 1); // 2라운드 신인만
+});
+
+test('구간 결과 화면: 잘한 선수에게 온 트레이드 제안이 ACCEPT/DECLINE 카드로 나온다', async () => {
+  const { requestTrade } = await import('../engine/game.mjs');
+  const g = startedGame(4);
+  const ui = freshUi({ view: 'chunk', last: playNextChunk(g) });
+  g.pending.trade = requestTrade(g, { picks: [g.myTeam.picks[0]] });
+  const html = chunkScreen(g, ui);
+  clean(html, '트레이드 제안 카드');
+  assert.ok(html.includes('TRADE OFFER') && html.includes('data-act="pendtradeyes"') && html.includes('data-act="pendtradeno"') && html.includes('YOU GIVE'));
+  g.pending.trade = null;
+  assert.ok(!chunkScreen(g, ui).includes('TRADE OFFER'));
 });

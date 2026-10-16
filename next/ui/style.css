@@ -457,3 +457,18 @@ select { max-width: 160px; font-size: 13px; }
 .intro { min-height: 100dvh; }
 .offerline { display: grid; gap: 4px; margin: 8px 0; }
 .offerline b { font: 700 17px var(--cond); letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* 선수 상세 페이지 */
+.back { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; color: var(--mute); font: 700 13px var(--cond); letter-spacing: 0.12em; cursor: pointer; padding: 8px 0; }
+.back .ico { transform: rotate(180deg); }
+.ibox { display: grid; gap: 0; margin-top: 8px; padding: 14px 14px 6px; background: var(--panel); border-top: 2px solid var(--white); }
+.ibox .sech { margin: 0 0 8px; }
+.irow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px dotted var(--line); }
+.irow:last-child { border-bottom: 0; }
+.irow b { font: 700 16px var(--cond); letter-spacing: 0.06em; display: flex; align-items: center; gap: 8px; }
+.irow .xp { flex: 1; max-width: 55%; }
+.irow .xp .bar { height: 10px; }
+.acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0 6px; }
+.act { display: inline-flex; justify-content: center; align-items: center; gap: 8px; min-height: 48px; background: none; color: var(--white); border: 2px solid var(--line); font: 800 15px var(--cond); letter-spacing: 0.12em; cursor: pointer; }
+.act:hover, .act--on { border-color: var(--white); }
+.act--off { color: var(--mute); }

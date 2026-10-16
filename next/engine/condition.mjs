@@ -16,7 +16,7 @@ export const teamMorale = (team) => (team.stars.length === 0 ? 0 : team.stars.re
 
 // 구간 시작 전에 기록을 찍어 두면 끝난 뒤 그 구간의 증가분을 구할 수 있다.
 export const snapshotStats = (team) => new Map(team.lineup.map((p) => [p.id, { ...p.stats }]));
-const statDelta = (p, before) => {
+export const statDelta = (p, before) => {
   const b = before.get(p.id) ?? { apps: 0, goals: 0, assists: 0 };
   return { apps: p.stats.apps - b.apps, goals: p.stats.goals - b.goals, assists: p.stats.assists - b.assists };
 };

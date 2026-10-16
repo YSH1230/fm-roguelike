@@ -1,7 +1,6 @@
 import { ATTRIBUTES, OWNER_NAME, TRAITS } from '../engine/constants.mjs';
 import { askingSalary, faPrice, payroll } from '../engine/contract.mjs';
 import { capExpandCost, salaryCap, upgradeCost } from '../engine/economy.mjs';
-import { leagueAiTeams } from '../engine/game.mjs';
 import { standings } from '../engine/league.mjs';
 import { nameOf } from '../engine/names.mjs';
 import { draftTurnIsMine } from '../engine/offseason.mjs';
@@ -11,7 +10,7 @@ import { coachCost, coachXpNeeded } from '../engine/coach.mjs';
 import { careerSummary } from '../engine/honors.mjs';
 import { myLeague } from '../engine/world.mjs';
 import {
-  ATTR_LABEL, AWARD_LABEL, KIT_CHOICES, METAL_DEFS, TIER_LABEL, askText, bar, chip, conditionTexts, crest, effectChips, esc, facts, faceTile,
+  ATTR_LABEL, AWARD_LABEL, KIT_CHOICES, METAL_DEFS, TIER_LABEL, askText, bar, chip, conditionTexts, crest, effectChips, esc, facts, faceTile, tradeSide,
   abilityStars, attrBars, icon, metalIcon, onColor, playerRow, stars, teamName,
 } from './components.mjs';
 import { defaultSelection, pitchBoard, playerDetail } from './pitch.mjs';
@@ -169,9 +168,10 @@ export function startDraftScreen(game, ui) {
 
 // ---------- 관리(허브) ----------
 function rosterTab(game, ui) {
-  const sel = game.myTeam.stars.find((p) => p.id === defaultSelection(game, ui));
-  return `${tip(ui, 'roster', '보드의 선수를 누르면 능력과 상태가 아래에 나와요. 큰 얼굴이 스타, 작은 점은 자동으로 뛰는 조연이에요. <b>쉬게 하기</b>를 지정하면 다음 구간에 그 자리를 조연이 메워요.')}
-    ${pitchBoard(game, { ...ui, sel: sel?.id })}${sel ? playerDetail(game, ui, sel) : ''}`;
+  const open = ui.detailId && game.myTeam.stars.find((p) => p.id === ui.detailId);
+  if (open) return `${flash(ui)}${playerDetail(game, ui, open)}`;
+  return `${tip(ui, 'roster', '보드의 선수를 누르면 상세 정보가 나와요. 큰 얼굴이 스타, 작은 점은 자동으로 뛰는 조연이에요. 상세에서 <b>REST</b>를 지정하면 다음 구간에 그 자리를 조연이 메워요.')}
+    ${pitchBoard(game, { ...ui, sel: null })}`;
 }
 
 function tableTab(game) {
@@ -206,16 +206,8 @@ function frontTab(game, ui) {
       <div class="seg" role="group" aria-label="${KIND_LABEL[kind]} 훈련 강도">${['LIGHT', 'NORMAL', 'HARD'].map((i) => `<button class="seg__b${c.intensity === i ? ' on' : ''}" aria-pressed="${c.intensity === i}" data-act="intensity" data-kind="${kind}" data-v="${i}">${INTENSITY_LABEL[i]}</button>`).join('')}</div>
       ${cands ? cands.map((cd) => `<div class="row cand"><div>${stars(cd.stars, cd.stars, 14)}<small>${TRAITS[cd.trait].label}</small></div><button class="btn btn--small" data-act="hire" data-kind="${kind}" data-id="${esc(cd.id)}" ${coachCost(cd.stars, game.myTeam.tier ?? 3) > club.coins ? 'disabled' : ''}>고용 ${coinNum(coachCost(cd.stars, game.myTeam.tier ?? 3))}</button></div>`).join('') : ''}</div>`;
   }).join('');
-  const ai = leagueAiTeams(game);
-  const mine = team.stars.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p.id))} (${p.position})</option>`).join('');
-  const pickLabel = (k) => `Y${k.year} R${k.round ?? 1} · ${teamName(game, k.from)}`;
-  const assets = `<optgroup label="MY STARS">${team.stars.map((p) => `<option value="p:${esc(p.id)}">${esc(nameOf(p.id))} (${p.position})</option>`).join('')}</optgroup>
-    <optgroup label="MY PICKS">${(team.picks ?? []).map((k) => `<option value="k:${k.year}:${k.round ?? 1}:${esc(k.from)}">${esc(pickLabel(k))}</option>`).join('')}</optgroup>`;
-  return `${tip(ui, 'front', '코인으로 시설을 키우고 코치를 바꿀 수 있어요. 샐러리캡은 <b>스타 연봉 합계</b>의 한도예요. 트레이드는 선수와 지명권을 서로 맞바꿔요. 코인은 못 얹어요.')}
-    ${capPanel}${section('FACILITIES', fac)}${section('COACHES', `${coaches}<p class="hint">강하게 훈련하면 성장은 빠르지만 컨디션·사기·부상이 나빠져요</p>`)}
-    ${section('TRADE', `<button class="btn btn--small" data-act="tradein">${icon('transfer', 16)}받은 제안 확인</button>
-      <div class="tradeform"><label>내놓을 것<select id="tr-asset">${assets}</select></label>
-      <button class="btn btn--small btn--primary" data-act="traderequest">REQUEST</button><p class="hint">내놓은 것에 걸맞은 제안을 다른 팀이 보내와요. 받아들이거나 거절하면 돼요</p></div>`)}`;
+  return `${tip(ui, 'front', '코인으로 시설을 키우고 코치를 바꿀 수 있어요. 샐러리캡은 <b>스타 연봉 합계</b>의 한도예요. 트레이드는 로스터에서 선수를 눌러 요청해요.')}
+    ${capPanel}${section('FACILITIES', fac)}${section('COACHES', `${coaches}<p class="hint">강하게 훈련하면 성장은 빠르지만 컨디션·사기·부상이 나빠져요</p>`)}`;
 }
 
 // 기록실의 업적 배지: 얻은 것은 금·은·동, 아직 못 얻은 것은 회색으로 몇 개 보여 준다.
@@ -295,6 +287,10 @@ export function chunkScreen(game, ui) {
     ...r.steps.filter((s) => s.levelUps > 0).map((s) => `<li>${icon('upgrade', 18)}<span><b>${esc(nameOf(s.id))}</b> 레벨업 ${s.levelUps}회</span></li>`),
     ...r.steps.filter((s) => s.injured).map((s) => `<li class="bad">${icon('injury', 18)}<span><b>${esc(nameOf(s.id))}</b> 부상</span></li>`),
   ];
+  const tr = game.pending.trade;
+  const tradeHtml = tr ? `<section class="ask"><h3>${icon('transfer', 20)}TRADE OFFER</h3><p>${esc(teamName(game, tr.aiTeamId))}가 눈여겨봤어요</p>
+    <p class="offerline"><span class="lab">YOU GIVE</span>${tradeSide(game, tr.give.players, tr.give.picks)}</p><p class="offerline"><span class="lab">THEY OFFER</span>${tradeSide(game, tr.get.players, tr.get.picks)}</p>
+    <button class="btn btn--primary btn--wide" data-act="pendtradeyes">ACCEPT</button><button class="btn btn--wide" data-act="pendtradeno">DECLINE</button></section>` : '';
   const press = game.pending.press;
   const opts = (list, attrs) => list.map((o, i) => `<button class="opt" ${attrs(i)} ${(o.effects.coins ?? 0) + game.club.coins < 0 ? 'disabled' : ''}><b>${esc(o.label)}</b><span>${effectChips(o.effects)}</span></button>`).join('');
   const pressHtml = press ? `<section class="ask"><h3>${icon('mic', 20)}PRESS</h3><p>${esc(press.text)}</p>${opts(press.options, (i) => `data-act="press" data-i="${i}"`)}</section>` : '';
@@ -308,7 +304,7 @@ export function chunkScreen(game, ui) {
     <p class="hint center">승리 수입 ${r.income.win} + 홈 팬 수입 ${r.income.fan}</p>
     <ol class="strip" aria-label="경기 결과">${strip}</ol>
     ${events.length ? `<ul class="notes">${events.join('')}</ul>` : ''}
-    ${pressHtml}${iv}
+    ${pressHtml}${iv}${tradeHtml}
     <h3 class="group">MATCHES</h3><ol class="matches">${rows}</ol>
   </main>
   <div class="dock"><button class="btn btn--primary btn--wide" data-act="${last ? 'finish' : 'back'}">${last ? 'FINISH SEASON' : 'BACK'}</button></div>`;
