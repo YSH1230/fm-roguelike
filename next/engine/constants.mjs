@@ -119,9 +119,9 @@ export const CAREER_SCORE = {
 };
 
 // ---- 계획 7: 게임 흐름 ----
-export const START_PROSPECTS = 24; // 시작 드래프트 후보 수
-export const START_DRAFT_TEAMS = 8; // 시작 드래프트에 참가하는 구단 수(나 포함)
-export const START_ROUNDS = 3; // 3라운드, 라운드마다 한 명씩 = 내가 3명 지명
-export const START_ASSIGNED = ['DF', 'MF', 'FW']; // 배정되는 스타 3명의 포지션
+export const START_PROSPECTS = 20; // 시작 드래프트 후보 수(오프시즌 드래프트와 같다)
+export const START_DRAFT_TEAMS = 20; // 시작 드래프트에 참가하는 구단 수(내 리그 전체)
+export const START_ROUNDS = 1; // 1라운드: 구단마다 한 명씩 지명
+export const START_ASSIGNED = ['GK', 'DF', 'DF', 'MF', 'FW']; // 배정되는 스타 5명의 포지션(6번째는 시작 드래프트에서 고른다)
 export const START_PICKS = 3;
 export const CL_PRIZE = 300; // 챔피언스리그 우승 상금(코인)

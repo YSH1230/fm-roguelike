@@ -19,15 +19,19 @@ test('이름은 선수 id만으로 정해져 늘 같고, id가 다르면 대체�
   assert.ok(names.size > 150);
 });
 
-test('새 게임: 3부 팀에 배정 스타 3명, 시작 드래프트 후보 24명과 8개 구단 24순번, 코치 2명이 있다', () => {
+test('새 게임: 3부 팀에 배정 스타 5명, 시작 드래프트 후보 20명과 20개 구단 1라운드, 코치 2명이 있다', () => {
   const g = createGame({ seed: 1 });
   assert.equal(g.phase, 'startDraft');
-  assert.deepEqual(g.myTeam.stars.map((p) => p.position), ['DF', 'MF', 'FW']);
+  assert.deepEqual(g.myTeam.stars.map((p) => p.position), ['GK', 'DF', 'DF', 'MF', 'FW']);
   const d = g.startDraft;
-  assert.equal(d.pool.length, 24);
-  assert.equal(d.order.length, 24);
-  assert.equal(new Set(d.order.map((o) => o.owner)).size, 8);
-  assert.equal(pickNumbers(d, 'ME').length, 3);
+  assert.equal(d.pool.length, 20);
+  assert.equal(d.order.length, 20);
+  assert.equal(new Set(d.order.map((o) => o.owner)).size, 20);
+  assert.equal(pickNumbers(d, 'ME').length, 1);
+  // 순번은 작년 순위가 나쁜 팀부터이고 내 구단의 작년 순위는 15~19위다
+  const ranks = d.order.map((o) => d.lastYear[o.owner]);
+  assert.deepEqual(ranks, [...ranks].sort((a, b) => b - a));
+  assert.ok(d.lastYear.ME >= 15 && d.lastYear.ME <= 19);
   assert.equal(d.started, false);
   assert.equal(g.myTeam.tier, 3);
   assert.equal(g.myTeam.coaches.attack.kind, 'attack');
@@ -35,7 +39,7 @@ test('새 게임: 3부 팀에 배정 스타 3명, 시작 드래프트 후보 24�
   assert.equal(g.myTeam.stars.every((p) => p.contract.years === 3), true);
 });
 
-test('시작 드래프트: 시작 전에는 지명할 수 없고, 시작하면 내 순번까지 AI가 지명하며, 3명을 고르면 끝난다', () => {
+test('시작 드래프트: 시작 전에는 지명할 수 없고, 시작하면 내 순번까지 AI가 지명하며, 한 명을 고르면 끝난다', () => {
   const g = createGame({ seed: 2 });
   const d = g.startDraft;
   assert.throws(() => startDraftPick(g, d.pool[0].id), /먼저 시작/);
@@ -44,7 +48,7 @@ test('시작 드래프트: 시작 전에는 지명할 수 없고, 시작하면 �
   assert.equal(d.next, first - 1); // 내 순번 직전까지 AI가 지명했다
   assert.equal(d.picks.length, first - 1);
   assert.equal(d.order[d.next].owner, 'ME');
-  for (let i = 0; i < 3; i += 1) startDraftPick(g, d.pool[0].id);
+  startDraftPick(g, d.pool[0].id);
   assert.ok(isDraftOver(d));
   assert.equal(g.phase, 'startDraft'); // 끝났지만 결과를 보고 직접 넘어간다
   assert.equal(d.pool.length, 0);
@@ -60,9 +64,9 @@ test('시작 드래프트: 끝나기 전에는 시즌을 시작할 수 없고, �
   startDraftAdvance(g);
   assert.throws(() => startDraftFinish(g), /아직 끝나지/);
   const d = g.startDraft;
-  for (let i = 0; i < 3; i += 1) startDraftPick(g, d.pool[0].id);
-  assert.equal(d.picks.filter((p) => p.owner === 'ME').length, 3);
-  assert.equal(new Set(d.picks.map((p) => p.player.id)).size, 24);
+  startDraftPick(g, d.pool[0].id);
+  assert.equal(d.picks.filter((p) => p.owner === 'ME').length, 1);
+  assert.equal(new Set(d.picks.map((p) => p.player.id)).size, 20);
 });
 
 test('시작 드래프트 전에는 시즌을 진행할 수 없다', () => {

@@ -153,7 +153,7 @@ export function startDraftScreen(game, ui) {
   const d = game.startDraft;
   return `${topBar(game)}<main class="page">${draftBoard(game, d, ui, {
     label: 'START DRAFT', title: '시작 드래프트', pickAct: 'sdraft', doneAct: 'dfinish', doneLabel: 'START SEASON',
-    tip: ['start', '8개 구단이 3라운드로 신인을 지명해요. 순번이 오면 후보 중에서 한 명을 고르세요. 별 색이 진한 만큼이 지금 실력, 옅은 만큼이 잠재(앞으로 클 한계)예요. 어린데 잠재가 큰 선수가 보석이에요.'],
+    tip: ['start', '20개 구단이 신인을 한 명씩 지명해요. 내 순번이 오면 후보 중에서 한 명을 골라 스타 6번째 자리를 채우세요. 진한 별이 지금 실력, 구단 색 별이 앞으로 클 수 있는 잠재예요. 어린데 잠재가 큰 선수가 보석이에요.'],
   })}</main>`;
 }
 

@@ -7,7 +7,8 @@ import {
 import { createClub, chunkIncome, earn, fansAfterChunk, salaryCap, seasonPrize } from './economy.mjs';
 import { applyChoice, interviewFor, pickPress, pressSituation } from './events.mjs';
 import { chunkStep, lineupView, snapshotStats } from './condition.mjs';
-import { createRng, shuffle } from './rng.mjs';
+import { createRng, randInt } from './rng.mjs';
+import { teamRatings } from './ratings.mjs';
 import { setStars } from './roster.mjs';
 import { createTeam } from './team.mjs';
 import { allTeams, createWorld, leagueKey, myLeague, playWorldChunk } from './world.mjs';
@@ -30,12 +31,14 @@ export function createGame({ seed = 1, name = '감독', clubName = '내 구단',
   for (const p of myTeam.stars) p.contract = newContract(Math.max(1, Math.round(askingSalary(p) * 0.6)));
   const world = createWorld({ rng, myTeam });
   grantPicks(regionTeams(world), 1);
-  // 내 리그의 AI 구단 7곳과 함께 8개 구단이 3라운드를 한다. 순번은 작년 순위가 나쁜 팀부터(꼴찌가 1번), 모든 라운드가 같은 순서다.
-  // 게임 시작 전의 "작년 순위"는 리그 20팀에 무작위로 매긴다(1위가 가장 좋다).
-  const lastYear = Object.fromEntries(shuffle(rng, [...myLeague(world).teams.keys()]).map((id, i) => [id, i + 1]));
-  const rivals = shuffle(rng, Object.keys(lastYear).filter((id) => id !== 'ME')).slice(0, START_DRAFT_TEAMS - 1);
-  const ranked = ['ME', ...rivals].sort((a, b) => lastYear[b] - lastYear[a]);
-  const order = repeatOrder(ranked, START_ROUNDS);
+  // 내 리그 20개 구단이 1라운드를 한다. 순번은 작년 순위가 나쁜 팀부터(꼴찌가 1번).
+  // 게임 시작 전의 "작년 순위"는 전력이 낮을수록 나쁘게 매기고(약간의 운 포함), 내 구단은 하위권(15~19위)에 둔다.
+  const teams = [...myLeague(world).teams.values()];
+  const power = (t) => { const r = teamRatings(t); return r.attack + r.defense + (rng() - 0.5) * 12; };
+  const byPower = teams.filter((t) => t.id !== 'ME').map((t) => ({ id: t.id, p: power(t) })).sort((a, b) => b.p - a.p).map((x) => x.id);
+  byPower.splice(randInt(rng, 14, 18), 0, 'ME'); // 내 구단의 작년 순위: 15~19위
+  const lastYear = Object.fromEntries(byPower.map((id, i) => [id, i + 1]));
+  const order = repeatOrder(byPower.slice(0, START_DRAFT_TEAMS).sort((a, b) => lastYear[b] - lastYear[a]), START_ROUNDS);
   return {
     seed, rng, name, clubName, clubKit, world, myTeam, club: createClub(), history: createHistory(),
     phase: 'startDraft', chunk: 0, pending: { press: null, interviews: [] }, season: null, off: null, end: null,
