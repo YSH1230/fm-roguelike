@@ -2,7 +2,7 @@ import { CL_PRIZE, MY_REGION, SALARY_CAP, SEASON, START_ASSIGNED, START_DRAFT_TE
 import { askingSalary, newContract } from './contract.mjs';
 import { createCoach } from './coach.mjs';
 import {
-  autoPickUntil, createDraft, draftPick, draftedBy, generateProspects, grantPicks, isDraftOver, snakeOrder,
+  autoPickUntil, createDraft, draftPick, draftedBy, generateProspects, grantPicks, isDraftOver, repeatOrder,
 } from './draft.mjs';
 import { createClub, chunkIncome, earn, fansAfterChunk, salaryCap, seasonPrize } from './economy.mjs';
 import { applyChoice, interviewFor, pickPress, pressSituation } from './events.mjs';
@@ -30,13 +30,16 @@ export function createGame({ seed = 1, name = '감독', clubName = '내 구단',
   for (const p of myTeam.stars) p.contract = newContract(Math.max(1, Math.round(askingSalary(p) * 0.6)));
   const world = createWorld({ rng, myTeam });
   grantPicks(regionTeams(world), 1);
-  // 내 리그의 AI 구단 7곳과 함께 8개 구단이 3라운드 스네이크 드래프트를 한다(내 순번은 추첨).
-  const rivals = shuffle(rng, [...myLeague(world).teams.keys()].filter((id) => id !== 'ME')).slice(0, START_DRAFT_TEAMS - 1);
-  const order = snakeOrder(shuffle(rng, ['ME', ...rivals]), START_ROUNDS);
+  // 내 리그의 AI 구단 7곳과 함께 8개 구단이 3라운드를 한다. 순번은 작년 순위가 나쁜 팀부터(꼴찌가 1번), 모든 라운드가 같은 순서다.
+  // 게임 시작 전의 "작년 순위"는 리그 20팀에 무작위로 매긴다(1위가 가장 좋다).
+  const lastYear = Object.fromEntries(shuffle(rng, [...myLeague(world).teams.keys()]).map((id, i) => [id, i + 1]));
+  const rivals = shuffle(rng, Object.keys(lastYear).filter((id) => id !== 'ME')).slice(0, START_DRAFT_TEAMS - 1);
+  const ranked = ['ME', ...rivals].sort((a, b) => lastYear[b] - lastYear[a]);
+  const order = repeatOrder(ranked, START_ROUNDS);
   return {
     seed, rng, name, clubName, clubKit, world, myTeam, club: createClub(), history: createHistory(),
     phase: 'startDraft', chunk: 0, pending: { press: null, interviews: [] }, season: null, off: null, end: null,
-    startDraft: { ...createDraft({ prospects: generateProspects(rng, { count: START_PROSPECTS, prefix: 'S1' }), order }), started: false },
+    startDraft: { ...createDraft({ prospects: generateProspects(rng, { count: START_PROSPECTS, prefix: 'S1' }), order }), started: false, lastYear },
   };
 }
 

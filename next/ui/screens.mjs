@@ -62,27 +62,23 @@ function pickSplash(game, d, ui) {
   const mine = k.owner === game.myTeam.id;
   const kit = teamKit(game, k.owner);
   const name = esc(teamName(game, k.owner));
-  const skip = `<button class="pill" data-act="dskip">${icon('next', 16)}SKIP</button>`;
   if ((ui.reveal.stage ?? 'logo') === 'logo') {
-    return `<div class="splash splash--logo${mine ? ' splash--me' : ''}"><span class="lab">PICK #${k.slot} / ${d.order.length}</span>${crest(game, k.owner, 112)}<h3>${name}</h3>${skip}</div>`;
+    return `<div class="splash splash--logo${mine ? ' splash--me' : ''}"><span class="lab">PICK #${k.slot} / ${d.order.length}</span>${crest(game, k.owner, 112)}<h3>${name}</h3></div>`;
   }
   return `<div class="splash splash--player${mine ? ' splash--me' : ''}"><span class="lab">${mine ? 'MY PICK' : 'PICK'} #${k.slot}</span>
     <div class="splash__face" style="--tile:${kit};--on-tile:${onColor(kit)}">${portrait(k.player, { size: 96, kit })}<span class="pos">${k.player.position}</span></div>
     <h3 class="splash__name">${esc(nameOf(k.player.id))}</h3>
     <p class="splash__meta">${abilityStars(k.player, 18)}<span>${k.player.age}세</span></p>
-    <p class="splash__team">${crest(game, k.owner, 20)}${name}</p>${skip}</div>`;
+    <p class="splash__team">${crest(game, k.owner, 20)}${name}</p></div>`;
 }
 
 // 규칙 한 줄 설명(시작 드래프트와 오프시즌 드래프트가 같은 보드를 쓴다)
 function draftRules(d, cfg) {
   const n = new Set(d.order.map((o) => o.owner)).size;
   const rounds = Math.max(...d.order.map((o) => o.round ?? 1));
-  const lines = [`${n}개 구단이 ${rounds}라운드에 걸쳐 한 명씩 지명해요. 모두 ${d.order.length}번의 지명이 이뤄져요.`];
-  if (rounds > 1) {
-    lines.push(`스네이크 방식이에요. 1라운드는 1번부터 ${n}번까지, 2라운드는 거꾸로 ${n}번부터 1번까지${rounds > 2 ? ', 3라운드는 다시 1번부터' : ''} 지명해요.`);
-  } else if (cfg.rule) {
-    lines.push(cfg.rule);
-  }
+  const lines = [`${n}개 구단이 ${rounds}라운드에 걸쳐 한 명씩 지명해요. 모두 ${d.order.length}번의 지명이 이뤄져요.`,
+    `지난 시즌 순위가 나쁜 팀부터 지명해요(꼴찌가 1번).${rounds > 1 ? ` ROUND 1부터 ${rounds}까지 모두 같은 순서예요.` : ''}`];
+  if (cfg.rule) lines.push(cfg.rule);
   lines.push('내 차례가 오면 남은 후보 중 한 명을 골라 지명해요. 순번이 되기 전에는 지명할 수 없어요.');
   lines.push('지명한 선수는 3년 신인 계약으로 내 팀에 들어와요.');
   return `<ul class="rules">${lines.map((l) => `<li>${l}</li>`).join('')}</ul>`;
@@ -102,9 +98,8 @@ function draftBoard(game, d, ui, cfg) {
   // 시작 전: 규칙, 내 순번, 순서표, 후보 명단
   if (!d.started) {
     const rounds = Math.max(...d.order.map((o) => o.round ?? 1));
-    const orderView = rounds > 1
-      ? `<div class="rounds">${Array.from({ length: rounds }, (_, r) => `<div class="rounds__row"><span class="lab">ROUND ${r + 1}</span><ol>${d.order.filter((o) => (o.round ?? 1) === r + 1).map((o) => `<li class="${o.owner === me ? 'me' : ''}" title="${esc(teamName(game, o.owner))}">${crest(game, o.owner, 24)}<b class="num">${o.slot}</b></li>`).join('')}</ol></div>`).join('')}</div>`
-      : `<ol class="order">${d.order.map((o) => `<li class="${o.owner === me ? 'me' : ''}"><b class="num">${o.slot}</b>${crest(game, o.owner, 22)}<span>${esc(teamName(game, o.owner))}</span></li>`).join('')}</ol>`;
+    const rankOf = (id) => d.lastYear?.[id] ?? (game.season?.draftStandings ?? []).findIndex((r) => r.id === id) + 1;
+    const orderView = `<ol class="order">${d.order.filter((o) => (o.round ?? 1) === 1).map((o) => `<li class="${o.owner === me ? 'me' : ''}"><b class="num">${o.slot}</b>${crest(game, o.owner, 22)}<span>${esc(teamName(game, o.owner))}</span>${rankOf(o.owner) ? `<small>LAST YEAR ${rankOf(o.owner)}</small>` : ''}</li>`).join('')}</ol>`;
     return `${head(cfg.label, `${total} PICKS`)}
       <div class="titlebar"><h2>${cfg.title}</h2></div>
       ${section('RULES', draftRules(d, cfg))}
@@ -148,7 +143,7 @@ function draftBoard(game, d, ui, cfg) {
     ? `<div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="${cfg.doneAct}">${cfg.doneLabel}</button></div>`
     : '';
   return `${head(cfg.label, `PICK ${Math.min(shown + 1, total)} / ${total}`)}
-    <div class="titlebar"><h2>${cfg.title}</h2></div>
+    <div class="titlebar"><h2>${cfg.title}</h2>${waiting ? `<button class="pill" data-act="dskip">${icon('next', 16)}SKIP</button>` : ''}</div>
     ${clock}${need}${pickList}${done}
     <h3 class="group">PICK LOG</h3><ol class="picklog">${log || '<li class="muted">아직 지명이 없어요</li>'}</ol>${cta}`;
 }

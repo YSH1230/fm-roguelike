@@ -32,7 +32,8 @@ test('시작 드래프트: 시작 전에는 순번표와 명단만, 시작하면
   const pre = startDraftScreen(g, freshUi());
   clean(pre, '드래프트 시작 전');
   assert.ok(pre.includes('data-act="dstart"') && pre.includes('MY PICKS') && pre.includes('DRAFT ORDER') && pre.includes('RULES'));
-  assert.ok(pre.includes('스네이크') && pre.includes('ROUND 3'));
+  assert.ok(pre.includes('지난 시즌 순위') && pre.includes('ROUND 3') && pre.includes('LAST YEAR'));
+  assert.ok(!pre.includes('스네이크'));
   assert.ok(!pre.includes('드래프트 시작')); // 버튼은 영문만
   assert.ok(!pre.includes('data-act="sdraft"')); // 시작 전에는 지명할 수 없다
   assert.equal((pre.match(/<article class="prow/g) ?? []).length, 24);

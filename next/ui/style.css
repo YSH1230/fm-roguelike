@@ -279,9 +279,10 @@ select { max-width: 160px; font-size: 13px; }
 .locked b, .locked small { color: #777; }
 
 /* ---------- 드래프트 보드 ---------- */
-.order { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
-.order li { display: flex; align-items: center; gap: 8px; padding: 8px 4px; border-bottom: 1px dotted var(--line); font-size: 13px; min-width: 0; }
-.order li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order { display: grid; gap: 0; }
+.order li { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px dotted var(--line); font-size: 14px; min-width: 0; }
+.order li small { margin-left: auto; font: 600 11px var(--cond); letter-spacing: 0.1em; flex: none; }
+.order li span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .order .num { width: 22px; font-size: 18px; color: var(--mute); text-align: right; }
 .order li.me { box-shadow: inset 0 0 0 1px var(--team); background: var(--panel); font-weight: 700; }
 .order li.me .num { color: var(--team); }
@@ -322,7 +323,7 @@ select { max-width: 160px; font-size: 13px; }
 .rounds li.me { border-color: var(--team); background: var(--panel); } .rounds li.me .num { color: var(--team); }
 
 /* 지명 연출: 구단 로고 -> 선수 크게 */
-.splash { display: grid; justify-items: center; gap: 10px; padding: 22px 16px 18px; background: var(--panel); border-top: 2px solid var(--white); text-align: center; animation: splash-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.splash { min-height: 330px; align-content: center; display: grid; justify-items: center; gap: 10px; padding: 22px 16px 18px; background: var(--panel); border-top: 2px solid var(--white); text-align: center; animation: splash-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .splash h3 { font: 800 26px/1.1 var(--cond); letter-spacing: 0.04em; text-transform: uppercase; }
 .splash--me { border-top-color: var(--team); } .splash--me .lab { color: var(--team); }
 .splash--logo .crest, .splash--logo svg { filter: none; }
