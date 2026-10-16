@@ -109,10 +109,10 @@ h3.group { font: 700 14px/1 var(--cond); letter-spacing: 0.1em; text-transform: 
 .chip.coin, .chip.best { color: var(--best); border-color: var(--best); }
 .stars { display: block; }
 .astars { display: inline-flex; align-items: center; gap: 8px; }
-.starnum { display: inline-flex; align-items: baseline; gap: 4px; font-family: var(--cond); }
-.starnum b { font-size: 15px; font-weight: 700; }
-.starnum i { font-style: normal; color: var(--mute); font-size: 13px; }
-.starnum .pot { color: var(--team); }
+._unused_starnum { display: inline-flex; align-items: baseline; gap: 4px; font-family: var(--cond); }
+._unused_starnum b { font-size: 15px; font-weight: 700; }
+._unused_starnum i { font-style: normal; color: var(--mute); font-size: 13px; }
+._unused_starnum .pot { color: var(--team); }
 .st-base { fill: none; stroke: #555; stroke-width: 1.4; }
 .st-pot { fill: var(--team); stroke: none; }
 .st-cur { fill: var(--white); stroke: none; }
@@ -291,10 +291,12 @@ select { max-width: 160px; font-size: 13px; }
 .clock p { display: flex; align-items: center; gap: 8px; color: var(--mute); }
 .clock--me { border-top-color: var(--team); } .clock--me .lab { color: var(--team); } .clock--me p { color: var(--white); font-weight: 700; }
 .clock--done .lab { color: var(--best); }
-.needs { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; }
-.needs .lab { flex-basis: 100%; }
+.needs { display: grid; gap: 8px; }
+.needs__row { display: flex; flex-wrap: wrap; gap: 8px; }
+.needs__list { display: grid; gap: 8px; }
 .need { display: inline-flex; align-items: baseline; gap: 6px; font: 700 14px var(--cond); letter-spacing: 0.08em; padding: 3px 8px; border: 1px solid var(--line); color: var(--mute); }
 .need b { color: var(--white); font-size: 18px; }
+.need--on { background: var(--white); color: #000; border-color: var(--white); } .need--on b { color: #000; }
 .need--zero { border-color: var(--team); color: var(--team); } .need--zero b { color: var(--team); }
 .picklog { display: grid; }
 .pick { display: grid; grid-template-columns: 38px 1fr; gap: 2px 8px; align-items: center; padding: 10px 4px; border-bottom: 1px dotted var(--line); }
@@ -307,6 +309,29 @@ select { max-width: 160px; font-size: 13px; }
 .pick--me > .num { color: var(--team); }
 .pick--new { animation: pick-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
 @keyframes pick-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+
+/* 규칙·라운드 순서표 */
+.rules { display: grid; gap: 8px; padding-top: 6px; }
+.rules li { position: relative; padding-left: 14px; font-size: 13px; line-height: 1.5; color: #d8d8d8; }
+.rules li::before { content: ''; position: absolute; left: 0; top: 8px; width: 6px; height: 6px; background: var(--best); }
+.rounds { display: grid; gap: 10px; padding-top: 6px; }
+.rounds__row { display: grid; gap: 6px; }
+.rounds ol { display: flex; flex-wrap: wrap; gap: 6px; }
+.rounds li { display: grid; justify-items: center; gap: 2px; padding: 5px 4px; min-width: 38px; border: 1px solid var(--line); }
+.rounds li .num { font-size: 14px; color: var(--mute); }
+.rounds li.me { border-color: var(--team); background: var(--panel); } .rounds li.me .num { color: var(--team); }
+
+/* 지명 연출: 구단 로고 -> 선수 크게 */
+.splash { display: grid; justify-items: center; gap: 10px; padding: 22px 16px 18px; background: var(--panel); border-top: 2px solid var(--white); text-align: center; animation: splash-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.splash h3 { font: 800 26px/1.1 var(--cond); letter-spacing: 0.04em; text-transform: uppercase; }
+.splash--me { border-top-color: var(--team); } .splash--me .lab { color: var(--team); }
+.splash--logo .crest, .splash--logo svg { filter: none; }
+.splash__face { position: relative; display: grid; place-items: center; width: 116px; height: 116px; background: var(--tile); border: 1px solid rgba(0, 0, 0, 0.5); }
+.splash__face .pos { font-size: 13px; padding: 2px 8px; }
+.splash__name { font-size: 40px !important; }
+.splash__meta { display: flex; align-items: center; gap: 12px; color: var(--mute); }
+.splash__team { display: flex; align-items: center; gap: 8px; color: var(--mute); font-size: 13px; }
+@keyframes splash-in { from { opacity: 0; transform: scale(0.94); } to { opacity: 1; transform: none; } }
 
 /* ---------- 오프시즌 단계(밑줄 탭) ---------- */
 .steps { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); }

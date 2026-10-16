@@ -77,18 +77,28 @@ function persist() {
 
 // 드래프트에서 새로 이뤄진 AI 지명을 하나씩 보여 주기 위한 시간표(건너뛰기 가능)
 const activeDraft = () => (game.phase === 'startDraft' ? game.startDraft : game.off.draft);
+// 지명 연출: 지명한 구단 로고(0.65초) -> 선수 크게(0.95초) -> 지명 현황에 쌓기. 건너뛰기로 한꺼번에 공개할 수 있다.
+const LOGO_MS = 650;
+const PLAYER_MS = 950;
 let revealTimer = null;
-const stopReveal = () => { clearInterval(revealTimer); ui.reveal = null; };
+const stopReveal = () => { clearTimeout(revealTimer); ui.reveal = null; };
 const reveal = (d, from) => {
-  clearInterval(revealTimer);
+  clearTimeout(revealTimer);
   if (d.picks.length <= from) { ui.reveal = null; return; }
-  ui.reveal = { from, shown: from };
-  revealTimer = setInterval(() => {
-    if (!ui.reveal) { clearInterval(revealTimer); return; }
-    ui.reveal.shown += 1;
-    if (ui.reveal.shown >= d.picks.length) stopReveal();
+  ui.reveal = { from, shown: from, stage: 'logo' };
+  const step = () => {
+    if (!ui.reveal) return;
+    if (ui.reveal.stage === 'logo') {
+      ui.reveal.stage = 'player';
+      revealTimer = setTimeout(step, PLAYER_MS);
+    } else {
+      ui.reveal.shown += 1;
+      if (ui.reveal.shown >= d.picks.length) stopReveal();
+      else { ui.reveal.stage = 'logo'; revealTimer = setTimeout(step, LOGO_MS); }
+    }
     render();
-  }, 520);
+  };
+  revealTimer = setTimeout(step, LOGO_MS);
 };
 
 const num = (id) => Number(document.getElementById(id)?.value);
@@ -109,8 +119,9 @@ const ACTIONS = {
     reveal(d, before);
   },
   dskip() { stopReveal(); },
+  dpos(el) { ui.dpos = ui.dpos === el.dataset.v ? null : el.dataset.v; },
   dfinish() { startDraftFinish(game); stopReveal(); ui.view = 'hub'; ui.tab = 'roster'; },
-  sdraft(el) { const d = game.startDraft; const before = d.picks.length; startDraftPick(game, el.dataset.id); reveal(d, before + 1); },
+  sdraft(el) { const d = game.startDraft; const before = d.picks.length; startDraftPick(game, el.dataset.id); reveal(d, before); },
   tab(el) { ui.tab = el.dataset.v; ui.flash = null; },
   kit(el) { ui.kit = el.dataset.v; },
   pick(el) { ui.sel = el.dataset.id; },
@@ -158,12 +169,12 @@ const ACTIONS = {
   offerfa(el) { result(offerFreeAgent(game, el.dataset.id, num(`sal-${el.dataset.id}`)), '영입했어요!'); },
   release(el) { releaseStar(game, el.dataset.id); },
   closemarket() { closeMarket(game); ui.flash = null; },
-  dpick(el) { const d = game.off.draft; const before = d.picks.length; draftChoose(game, el.dataset.id); reveal(d, before + 1); },
+  dpick(el) { const d = game.off.draft; const before = d.picks.length; draftChoose(game, el.dataset.id); reveal(d, before); },
   closedraft() { closeDraft(game); },
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['dskip', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['dpos', 'dskip', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;

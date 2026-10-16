@@ -83,11 +83,10 @@ export function faceTile(p, { kit, size = 48 } = {}) {
   return `<span class="tile" style="--tile:${kit};--on-tile:${onColor(kit)}">${portrait(p, { size, kit })}<span class="pos" title="${POS_LABEL[p.position]}">${p.position}</span></span>`;
 }
 
-// 별은 0.5 단위로만 움직인다. 진한 칸 = 지금 실력, 구단 색 칸 = 앞으로 클 수 있는 여지(잠재), 옆에 숫자로도 적는다.
+// 별은 0.5 단위로만 움직인다. 진한 칸 = 지금 실력, 구단 색 칸 = 앞으로 클 수 있는 여지(잠재).
 export function abilityStars(p, size = 16) {
   const cur = starsOf(overall(p));
-  const pot = Math.max(cur, starsOf(p.potential));
-  return `<span class="astars">${stars(cur, pot, size)}<span class="starnum"><b>${cur.toFixed(1)}</b>${pot > cur ? `<i>→</i><b class="pot">${pot.toFixed(1)}</b>` : ''}</span></span>`;
+  return stars(cur, Math.max(cur, starsOf(p.potential)), size);
 }
 
 // 후보·FA·신인·재계약처럼 목록에서 쓰는 한 줄 선수 행

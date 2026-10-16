@@ -31,7 +31,9 @@ test('시작 드래프트: 시작 전에는 순번표와 명단만, 시작하면
   const g = createGame({ seed: 2 });
   const pre = startDraftScreen(g, freshUi());
   clean(pre, '드래프트 시작 전');
-  assert.ok(pre.includes('data-act="dstart"') && pre.includes('MY PICKS') && pre.includes('DRAFT ORDER'));
+  assert.ok(pre.includes('data-act="dstart"') && pre.includes('MY PICKS') && pre.includes('DRAFT ORDER') && pre.includes('RULES'));
+  assert.ok(pre.includes('스네이크') && pre.includes('ROUND 3'));
+  assert.ok(!pre.includes('드래프트 시작')); // 버튼은 영문만
   assert.ok(!pre.includes('data-act="sdraft"')); // 시작 전에는 지명할 수 없다
   assert.equal((pre.match(/<article class="prow/g) ?? []).length, 24);
   startDraftAdvance(g);
@@ -40,9 +42,15 @@ test('시작 드래프트: 시작 전에는 순번표와 명단만, 시작하면
   assert.ok(live.includes('ON THE CLOCK') && live.includes('PICK LOG') && live.includes('clock--me'));
   assert.equal((live.match(/data-act="sdraft"/g) ?? []).length, g.startDraft.pool.length);
   // 지명 현황을 한 명씩 보여 주는 중에는 건너뛰기만 있고 지명 버튼은 없다
-  const showing = startDraftScreen(g, freshUi({ reveal: { from: 0, shown: 1 } }));
-  clean(showing, '지명 현황 공개 중');
-  assert.ok(showing.includes('AI PICKING') && showing.includes('data-act="dskip"'));
+  const showing = startDraftScreen(g, freshUi({ reveal: { from: 0, shown: 1, stage: 'logo' } }));
+  clean(showing, '지명 현황 공개 중(로고)');
+  assert.ok(showing.includes('splash--logo') && showing.includes('data-act="dskip"'));
+  const player = startDraftScreen(g, freshUi({ reveal: { from: 0, shown: 1, stage: 'player' } }));
+  clean(player, '지명 현황 공개 중(선수)');
+  assert.ok(player.includes('splash--player') && player.includes('splash__name'));
+  const pos = startDraftScreen(g, freshUi({ dpos: 'DF' }));
+  assert.ok(pos.includes('need--on') && pos.includes('class="needs__list"'));
+  assert.ok(!pos.includes('내 포지션'));
   assert.ok(!showing.includes('data-act="sdraft"'));
   assert.equal((showing.match(/<li class="pick/g) ?? []).length, 1);
 });

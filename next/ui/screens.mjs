@@ -10,7 +10,7 @@ import { coachCost, coachXpNeeded } from '../engine/coach.mjs';
 import { myLeague } from '../engine/world.mjs';
 import {
   AWARD_LABEL, KIT_CHOICES, METAL_DEFS, TIER_LABEL, askText, bar, chip, conditionTexts, crest, effectChips, esc, facts, faceTile,
-  abilityStars, icon, metalIcon, onColor, playerRow, stars, teamName,
+  abilityStars, icon, metalIcon, onColor, playerRow, portrait, stars, teamKit, teamName,
 } from './components.mjs';
 import { defaultSelection, pitchBoard, playerDetail } from './pitch.mjs';
 
@@ -52,49 +52,85 @@ export function titleScreen({ hasSave, kit }) {
 }
 
 
-// ---------- 드래프트 공통 보드: 시작 전(순번표 + 후보 명단) -> 진행(지명 현황 + 내 차례) -> 끝(내 지명 결과) ----------
+// ---------- 드래프트 공통 보드: 시작 전(규칙·순번표·후보 명단) -> 진행(지명 연출·내 차례) -> 끝(내 지명 결과) ----------
 const POS_ORDER = ['GK', 'DF', 'MF', 'FW'];
 const revealing = (ui) => Boolean(ui.reveal);
+
+// 지명 한 건의 연출: 먼저 지명한 구단 로고, 이어서 선수가 크게 나온다.
+function pickSplash(game, d, ui) {
+  const k = d.picks[ui.reveal.shown];
+  const mine = k.owner === game.myTeam.id;
+  const kit = teamKit(game, k.owner);
+  const name = esc(teamName(game, k.owner));
+  const skip = `<button class="pill" data-act="dskip">${icon('next', 16)}SKIP 건너뛰기</button>`;
+  if ((ui.reveal.stage ?? 'logo') === 'logo') {
+    return `<div class="splash splash--logo${mine ? ' splash--me' : ''}"><span class="lab">PICK #${k.slot} / ${d.order.length}</span>${crest(game, k.owner, 112)}<h3>${name}</h3>${skip}</div>`;
+  }
+  return `<div class="splash splash--player${mine ? ' splash--me' : ''}"><span class="lab">${mine ? 'MY PICK' : 'PICK'} #${k.slot}</span>
+    <div class="splash__face" style="--tile:${kit};--on-tile:${onColor(kit)}">${portrait(k.player, { size: 96, kit })}<span class="pos">${k.player.position}</span></div>
+    <h3 class="splash__name">${esc(nameOf(k.player.id))}</h3>
+    <p class="splash__meta">${abilityStars(k.player, 18)}<span>${k.player.age}세</span></p>
+    <p class="splash__team">${crest(game, k.owner, 20)}${name}</p>${skip}</div>`;
+}
+
+// 규칙 한 줄 설명(시작 드래프트와 오프시즌 드래프트가 같은 보드를 쓴다)
+function draftRules(d, cfg) {
+  const n = new Set(d.order.map((o) => o.owner)).size;
+  const rounds = Math.max(...d.order.map((o) => o.round ?? 1));
+  const lines = [`${n}개 구단이 ${rounds}라운드에 걸쳐 한 명씩 지명해요. 모두 ${d.order.length}번의 지명이 이뤄져요.`];
+  if (rounds > 1) {
+    lines.push(`스네이크 방식이에요. 1라운드는 1번부터 ${n}번까지, 2라운드는 거꾸로 ${n}번부터 1번까지${rounds > 2 ? ', 3라운드는 다시 1번부터' : ''} 지명해요.`);
+  } else if (cfg.rule) {
+    lines.push(cfg.rule);
+  }
+  lines.push('내 차례가 오면 남은 후보 중 한 명을 골라 지명해요. 순번이 되기 전에는 지명할 수 없어요.');
+  lines.push('지명한 선수는 3년 신인 계약으로 내 팀에 들어와요.');
+  return `<ul class="rules">${lines.map((l) => `<li>${l}</li>`).join('')}</ul>`;
+}
 
 function draftBoard(game, d, ui, cfg) {
   const me = game.myTeam.id;
   const kit = game.clubKit;
   const mineNums = pickNumbers(d, me);
   const total = d.order.length;
-  // 새로 이뤄진 AI 지명은 한 명씩 차례로 보여 준다(ui.reveal.shown까지만 공개). 건너뛰면 한꺼번에 공개한다.
   const waiting = d.started && revealing(ui);
   const shown = waiting ? ui.reveal.shown : d.picks.length;
   const over = isDraftOver(d) && !waiting;
   const upNext = over ? null : d.order[waiting ? Math.min(shown, total - 1) : d.next];
   const myTurn = d.started && !over && !waiting && upNext.owner === me;
 
-  // 시작 전: 순번표와 내 순번, 후보 명단
+  // 시작 전: 규칙, 내 순번, 순서표, 후보 명단
   if (!d.started) {
-    const round1 = d.order.filter((o) => (o.round ?? 1) === 1);
     const rounds = Math.max(...d.order.map((o) => o.round ?? 1));
+    const orderView = rounds > 1
+      ? `<div class="rounds">${Array.from({ length: rounds }, (_, r) => `<div class="rounds__row"><span class="lab">ROUND ${r + 1}</span><ol>${d.order.filter((o) => (o.round ?? 1) === r + 1).map((o) => `<li class="${o.owner === me ? 'me' : ''}" title="${esc(teamName(game, o.owner))}">${crest(game, o.owner, 24)}<b class="num">${o.slot}</b></li>`).join('')}</ol></div>`).join('')}</div>`
+      : `<ol class="order">${d.order.map((o) => `<li class="${o.owner === me ? 'me' : ''}"><b class="num">${o.slot}</b>${crest(game, o.owner, 22)}<span>${esc(teamName(game, o.owner))}</span></li>`).join('')}</ol>`;
     return `${head(cfg.label, `${total} PICKS`)}
       <div class="titlebar"><h2>${cfg.title}</h2></div>
-      ${tip(ui, cfg.tip[0], cfg.tip[1])}
+      ${section('RULES 드래프트 규칙', draftRules(d, cfg))}
       ${section('MY PICKS 내 지명 순번', `${triple(mineNums.map((n, i) => [`#${n}`, rounds > 1 ? `${i + 1}라운드` : '지명']))}
         <p class="hint center">${mineNums[0] - 1 > 0 ? `내 첫 지명 전에 ${mineNums[0] - 1}번의 지명이 먼저 이뤄져요` : '내가 가장 먼저 지명해요'}</p>`)}
-      ${section('DRAFT ORDER 지명 순서', `<ol class="order">${round1.map((o) => `<li class="${o.owner === me ? 'me' : ''}"><b class="num">${o.slot}</b>${crest(game, o.owner, 22)}<span>${esc(teamName(game, o.owner))}</span></li>`).join('')}</ol>${rounds > 1 ? `<p class="hint">${rounds}라운드 스네이크: 2라운드는 거꾸로, 3라운드는 다시 순서대로</p>` : ''}`)}
+      ${section('DRAFT ORDER 지명 순서', orderView)}
       <h3 class="group">PROSPECTS 후보 명단 <span class="count">${d.pool.length}</span></h3>
       ${d.pool.map((p) => playerRow(p, { kit })).join('')}
-      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="dstart">${icon('play', 20)}START DRAFT 드래프트 시작</button></div>`;
+      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="dstart">${icon('play', 20)}START DRAFT</button></div>`;
   }
 
-  // 진행·끝: 현재 지명 + 지명 현황
-  const clock = over
-    ? `<div class="clock clock--done"><span class="lab">DRAFT COMPLETE</span><b class="num">${total}<small>/${total}</small></b><p>모든 지명이 끝났어요</p></div>`
-    : `<div class="clock${upNext.owner === me ? ' clock--me' : ''}"><span class="lab">${waiting ? 'AI PICKING' : 'ON THE CLOCK'}</span>
+  // 진행·끝
+  const clock = waiting
+    ? pickSplash(game, d, ui)
+    : (over
+      ? `<div class="clock clock--done"><span class="lab">DRAFT COMPLETE</span><b class="num">${total}<small>/${total}</small></b><p>모든 지명이 끝났어요</p></div>`
+      : `<div class="clock${upNext.owner === me ? ' clock--me' : ''}"><span class="lab">ON THE CLOCK</span>
         <b class="num">#${upNext.slot}<small>/${total}</small></b>
-        <p>${upNext.owner === me ? '내 차례예요. 후보를 골라 지명하세요' : `${crest(game, upNext.owner, 22)}${esc(teamName(game, upNext.owner))}가 고르는 중`}</p>
-        ${waiting ? `<button class="pill" data-act="dskip">${icon('next', 16)}SKIP 건너뛰기</button>` : ''}</div>`;
+        <p>${upNext.owner === me ? '내 차례예요. 후보를 골라 지명하세요' : `${crest(game, upNext.owner, 22)}${esc(teamName(game, upNext.owner))}가 고르는 중`}</p></div>`);
 
-  const have = Object.fromEntries(POS_ORDER.map((k) => [k, 0]));
-  for (const p of game.myTeam.stars) have[p.position] += 1;
-  for (const k of d.picks.slice(0, shown).filter((x) => x.owner === me)) have[k.player.position] += 1;
-  const need = `<p class="needs"><span class="lab">MY ROSTER 내 포지션</span>${POS_ORDER.map((k) => `<span class="need${have[k] === 0 ? ' need--zero' : ''}">${k}<b class="num">${have[k]}</b></span>`).join('')}</p>`;
+  // 내 선수 포지션 현황: 포지션을 누르면 그 포지션의 내 선수가 보인다
+  const mineNow = [...game.myTeam.stars, ...d.picks.slice(0, shown).filter((x) => x.owner === me).map((x) => x.player)];
+  const have = Object.fromEntries(POS_ORDER.map((k) => [k, mineNow.filter((p) => p.position === k)]));
+  const need = `<div class="needs"><span class="lab">MY ROSTER</span>
+    <div class="needs__row">${POS_ORDER.map((k) => `<button class="need${have[k].length === 0 ? ' need--zero' : ''}${ui.dpos === k ? ' need--on' : ''}" data-act="dpos" data-v="${k}" aria-pressed="${ui.dpos === k}">${k}<b class="num">${have[k].length}</b></button>`).join('')}</div>
+    ${ui.dpos ? `<div class="needs__list">${have[ui.dpos].length ? have[ui.dpos].map((p) => playerRow(p, { kit })).join('') : '<p class="muted">이 포지션에는 아직 선수가 없어요</p>'}</div>` : ''}</div>`;
 
   const from = ui.reveal?.from ?? Infinity;
   const log = d.picks.slice(0, shown).map((k, i) => ({ k, i })).reverse().map(({ k, i }) => `<li class="pick${k.owner === me ? ' pick--me' : ''}${i >= from && waiting && i === shown - 1 ? ' pick--new' : ''}">
@@ -108,7 +144,7 @@ function draftBoard(game, d, ui, cfg) {
   const done = over
     ? `${section('MY DRAFT 내가 지명한 선수', myPicks.map((k) => playerRow(k.player, { kit })).join('') || '<p class="muted">이번에는 지명이 없었어요</p>')}`
     : '';
-  const cta = over && !waiting
+  const cta = over
     ? `<div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="${cfg.doneAct}">${cfg.doneLabel}</button></div>`
     : '';
   return `${head(cfg.label, `PICK ${Math.min(shown + 1, total)} / ${total}`)}
@@ -313,7 +349,7 @@ export function offseasonScreen(game, ui) {
       <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="closemarket">CLOSE MARKET 시장 마감</button></div>`;
   } else if (off.step === 'draft') {
     body = draftBoard(game, off.draft, ui, {
-      label: 'ROOKIE DRAFT', title: `${game.world.year}년차 신인 드래프트`, pickAct: 'dpick', doneAct: 'closedraft', doneLabel: 'CLOSE DRAFT 드래프트 마감',
+      label: 'ROOKIE DRAFT', title: `${game.world.year}년차 신인 드래프트`, rule: '지난 시즌 성적이 나쁜 팀부터 지명해요(꼴찌가 1번). 지명권은 트레이드로 오갈 수 있어요.', pickAct: 'dpick', doneAct: 'closedraft', doneLabel: 'CLOSE DRAFT 드래프트 마감',
       tip: ['draft', '성적이 나쁜 팀부터 신인을 한 명씩 지명해요. 순번이 오면 후보 중에서 고르세요. 지명권은 트레이드로 오갈 수 있어요.'],
     });
   } else {
