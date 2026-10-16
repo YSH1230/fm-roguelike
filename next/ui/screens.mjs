@@ -64,7 +64,9 @@ function draftBoard(game, d, ui, cfg) {
   // 후보는 별점까지만 보이고, 누르면 세부 능력치가 펼쳐진다(내 차례면 PICK 버튼도)
   const prospect = (p, canPick) => {
     const open = ui.dsel === p.id;
-    const bars = ATTRIBUTES[p.position].map((k) => `<div class="attr"><span>${ATTR_LABEL[k]}</span>${bar(p.attrs[k], 'white')}</div>`).join('');
+    // 잠재력은 능력치별 값이 따로 없어서, 전체 잠재 차이만큼 각 능력치가 더 자랄 수 있다고 보여 준다
+    const room = Math.max(0, p.potential - overall(p));
+    const bars = ATTRIBUTES[p.position].map((k) => `<div class="attr"><span>${ATTR_LABEL[k]}</span><span class="bar white bar--pot" role="img" aria-label="${p.attrs[k]}, potential ${Math.min(99, p.attrs[k] + room)}"><i class="pot" style="width:${Math.min(99, p.attrs[k] + room)}%"></i><i style="width:${p.attrs[k]}%"></i></span></div>`).join('');
     const info = `<button class="infobtn" data-act="dsel" data-id="${esc(p.id)}" aria-expanded="${open}" aria-label="DETAILS">${icon('down', 20)}</button>`;
     const action = `${info}${canPick ? `<button class="btn btn--small btn--primary" data-act="${cfg.pickAct}" data-id="${esc(p.id)}">PICK</button>` : ''}`;
     return playerRow(p, { kit, stats: false, tag: true, action, detail: open ? `<div class="prow__detail">${bars}</div>` : '' })

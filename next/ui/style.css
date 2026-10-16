@@ -420,3 +420,6 @@ select { max-width: 160px; font-size: 13px; }
 .lab { font-size: 12px; }
 .legend { font-size: 12px; }
 .needs .lab, .latest .lab { font-size: 12px; }
+
+/* 세부 능력 막대: 현재(흰색) 뒤로 잠재까지(하늘색)가 이어진다 */
+.bar--pot i.pot { background: #3ec9ff; clip-path: none; }
