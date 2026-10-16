@@ -83,9 +83,11 @@ function draftBoard(game, d, ui, cfg) {
   const myTurn = !over && upNext.owner === me;
 
   const mine = d.picks.filter((k) => k.owner === me).sort((x, y) => x.slot - y.slot);
+  const last = d.picks[d.picks.length - 1];
+  const latest = last ? `<p class="latest"><span class="lab">LATEST</span><b class="num">#${last.slot}</b>${crest(game, last.owner, 20)}<span class="latest__n">${esc(nameOf(last.player.id))}</span><span class="tag">${last.player.position}</span></p>` : '';
   const clock = over
     ? `<div class="clock clock--done"><span class="lab">DRAFT COMPLETE</span>${mine.length ? mine.map((k) => `<b class="mypick"><span class="num">#${k.slot}</span> <span class="mypos">${k.player.position}</span> ${esc(nameOf(k.player.id))}</b>`).join('') : '<b class="mypick">NO PICKS</b>'}</div>`
-    : `<div class="clock${myTurn ? ' clock--me' : ''}"><span class="lab">${myTurn ? 'YOUR PICK' : 'ON THE CLOCK'}</span><b class="num">#${upNext.slot}<small>/${total}</small></b></div>`;
+    : `<div class="clock clock--row${myTurn ? ' clock--me' : ''}"><span class="lab">${myTurn ? 'YOUR PICK' : 'ON THE CLOCK'}</span><b class="num">#${upNext.slot}<small>/${total}</small></b></div>${latest}`;
 
   // 내 선수 포지션 현황: 포지션을 누르면 그 포지션의 내 선수가 보인다
   const mineNow = [...game.myTeam.stars, ...d.picks.filter((x) => x.owner === me).map((x) => x.player)];
@@ -105,13 +107,12 @@ function draftBoard(game, d, ui, cfg) {
   const finalBoard = `<h3 class="group">DRAFT BOARD</h3><div class="fboard"><ol>${sorted.slice(0, half).map(cell).join('')}</ol><ol>${sorted.slice(half).map(cell).join('')}</ol></div>`;
 
   const pickList = myTurn
-    ? `<h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>${byPotential(d.pool).map((p) => prospect(p, true)).join('')}`
+    ? `<h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span><span class="sortnote">BY POTENTIAL</span></h3>${byPotential(d.pool).map((p) => prospect(p, true)).join('')}`
     : '';
   const cta = over
     ? `<div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="${cfg.doneAct}">${cfg.doneLabel}</button></div>`
     : '';
-  return `${head(cfg.label, `PICK ${Math.min(d.next + 1, total)} / ${total}`)}
-    <div class="titlebar"><h2>${cfg.title}</h2></div>
+  return `<div class="titlebar"><h2>${cfg.title}</h2></div>
     ${clock}${over ? '' : need}${pickList}
     ${over ? finalBoard : `<h3 class="group">PICK LOG</h3><ol class="picklog">${log || '<li class="muted">NO PICKS YET</li>'}</ol>`}${cta}`;
 }

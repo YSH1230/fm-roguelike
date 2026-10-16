@@ -372,3 +372,12 @@ select { max-width: 160px; font-size: 13px; }
 .clock .mypick { font: 700 24px/1.1 var(--cond); letter-spacing: 0.03em; text-transform: uppercase; }
 .mypick .num { color: var(--team); }
 .mypick .mypos { display: inline-block; margin: 0 6px; padding: 0 7px; border: 2px solid var(--white); line-height: 1.15; }
+
+/* 드래프트 진행 줄: 순번은 한 줄로 압축하고, 바로 앞 지명을 아래에 보여 준다 */
+.clock--row { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 16px; }
+.clock--row b { font-size: 36px; }
+.clock--row b small { font-size: 16px; }
+.latest { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--panel); border-top: 1px dotted var(--line); margin: 0; }
+.latest .num { font: 700 14px var(--cond); }
+.latest__n { font: 700 15px var(--cond); letter-spacing: 0.03em; text-transform: uppercase; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sortnote { float: right; font: 500 11px var(--cond); letter-spacing: 0.12em; color: var(--mute); }
