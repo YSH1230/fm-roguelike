@@ -4,7 +4,7 @@
 프로젝트가 **두 갈래**다: ① 기존 게임 FM-Roguelike(유지보수 중) ② 새 게임 **FM-Lite(`next/`, 설계·계획 완료, 구현 시작 전)**.
 
 ## 0. 새 세션이 가장 먼저 할 일
-1. 이 파일 전부 + `memory/feedback-director-reporting.md` 읽기.
+1. 이 파일 전부 + `docs/director-rules.md`(운영 규칙 원문) 읽기. (저장소에 없는 `memory/...` 파일은 이 파일로 대체됨)
 2. `docs/superpowers/specs/2026-10-16-fm-lite-next-design.md`(승인된 설계)와 `docs/superpowers/plans/2026-10-16-fm-lite-core-engine.md`(계획 1/8) 읽기.
 3. 사용자가 정한 실행 방식: **"한 세션에서 한다"(Native)**. 한 세션이 계획 1의 Task 1~5를 순서대로 직접 구현(`superpowers:executing-plans`)하고 마지막에 전체 테스트·검토. 사용자에게 시작해도 되는지 한 줄 확인 후 진행.
 4. `list_sessions`로 3세션 상태, `git status`/`git log`로 작업 트리 확인.
