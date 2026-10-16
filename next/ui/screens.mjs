@@ -65,7 +65,8 @@ function draftBoard(game, d, ui, cfg) {
   const prospect = (p, canPick) => {
     const open = ui.dsel === p.id;
     const bars = ATTRIBUTES[p.position].map((k) => `<div class="attr"><span>${ATTR_LABEL[k]}</span>${bar(p.attrs[k], 'white')}</div>`).join('');
-    const action = canPick ? `<button class="btn btn--small btn--primary" data-act="${cfg.pickAct}" data-id="${esc(p.id)}">PICK</button>` : '';
+    const info = `<button class="infobtn" data-act="dsel" data-id="${esc(p.id)}" aria-expanded="${open}" aria-label="DETAILS">${icon(open ? 'close' : 'plus', 16)}</button>`;
+    const action = `${info}${canPick ? `<button class="btn btn--small btn--primary" data-act="${cfg.pickAct}" data-id="${esc(p.id)}">PICK</button>` : ''}`;
     return playerRow(p, { kit, stats: false, action, detail: open ? `<div class="prow__detail">${bars}</div>` : '' })
       .replace('<article class="prow', `<article data-act="dsel" data-id="${esc(p.id)}" class="prow${open ? ' prow--open' : ''}`);
   };
@@ -74,6 +75,7 @@ function draftBoard(game, d, ui, cfg) {
   if (!d.started) {
     return `<div class="titlebar"><h2>${cfg.title}</h2></div>
       <h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>
+      <p class="legend"><i class="legend__k legend__k--cur"></i>NOW<i class="legend__k legend__k--pot"></i>POTENTIAL</p>
       ${byPotential(d.pool).map((p) => prospect(p, false)).join('')}
       <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="dstart">DRAFT</button></div>`;
   }
@@ -107,7 +109,7 @@ function draftBoard(game, d, ui, cfg) {
   const finalBoard = `<h3 class="group">DRAFT BOARD</h3><div class="fboard"><ol>${sorted.slice(0, half).map(cell).join('')}</ol><ol>${sorted.slice(half).map(cell).join('')}</ol></div>`;
 
   const pickList = myTurn
-    ? `<h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>${byPotential(d.pool).map((p) => prospect(p, true)).join('')}`
+    ? `<h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3><p class="legend"><i class="legend__k legend__k--cur"></i>NOW<i class="legend__k legend__k--pot"></i>POTENTIAL</p>${byPotential(d.pool).map((p) => prospect(p, true)).join('')}`
     : '';
   const cta = over
     ? `<div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="${cfg.doneAct}">${cfg.doneLabel}</button></div>`
