@@ -22,6 +22,7 @@ const SET = {
   flag: '<path d="M5 21V4.5h14l-3.5 4 3.5 4H5"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v6"/><path d="M12 7v.1"/>',
   plus: '<path d="M12 4v16M4 12h16"/>',
+  down: '<path d="M4.5 8.5L12 16l7.5-7.5"/>',
   bolt: '<path d="M13.5 2.5L5 13.5h6l-1 8L19 10.5h-6z"/>',
   shield: '<path d="M12 3L4.5 6v6c0 4.5 3 7.5 7.5 9 4.5-1.5 7.5-4.5 7.5-9V6z"/>',
   ball: '<circle cx="12" cy="12" r="8.5"/><path d="M12 8.7l3.1 2.3-1.2 3.7h-3.8L8.9 11z"/><path d="M12 8.7V3.5M15.1 11l5-1.6M13.9 14.7l3.1 4.2M10.1 14.7l-3.1 4.2M8.9 11l-5-1.6"/>',

@@ -65,7 +65,7 @@ function draftBoard(game, d, ui, cfg) {
   const prospect = (p, canPick) => {
     const open = ui.dsel === p.id;
     const bars = ATTRIBUTES[p.position].map((k) => `<div class="attr"><span>${ATTR_LABEL[k]}</span>${bar(p.attrs[k], 'white')}</div>`).join('');
-    const info = `<button class="infobtn" data-act="dsel" data-id="${esc(p.id)}" aria-expanded="${open}" aria-label="DETAILS">${icon(open ? 'close' : 'plus', 16)}</button>`;
+    const info = `<button class="infobtn" data-act="dsel" data-id="${esc(p.id)}" aria-expanded="${open}" aria-label="DETAILS">${icon('down', 20)}</button>`;
     const action = `${info}${canPick ? `<button class="btn btn--small btn--primary" data-act="${cfg.pickAct}" data-id="${esc(p.id)}">PICK</button>` : ''}`;
     return playerRow(p, { kit, stats: false, action, detail: open ? `<div class="prow__detail">${bars}</div>` : '' })
       .replace('<article class="prow', `<article data-act="dsel" data-id="${esc(p.id)}" class="prow${open ? ' prow--open' : ''}`);

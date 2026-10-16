@@ -384,8 +384,10 @@ select { max-width: 160px; font-size: 13px; }
 
 /* 후보 줄: 세부 정보 버튼(눌러서 펼침)과 별점 범례 */
 .prow__side { display: flex; align-items: center; gap: 8px; }
-.infobtn { width: 36px; height: 36px; display: grid; place-items: center; background: transparent; color: var(--white); border: 2px solid var(--line); cursor: pointer; }
-.infobtn:hover, .infobtn[aria-expanded="true"] { border-color: var(--white); }
+.infobtn { width: 36px; height: 36px; display: grid; place-items: center; background: transparent; color: var(--mute); border: 0; cursor: pointer; }
+.infobtn .ico { transition: transform 0.18s ease-out; }
+.infobtn:hover, .infobtn[aria-expanded="true"] { color: var(--white); }
+.infobtn[aria-expanded="true"] .ico { transform: rotate(180deg); }
 .legend { display: flex; align-items: center; gap: 6px; margin: 8px 0 12px; font: 500 11px var(--cond); letter-spacing: 0.12em; color: var(--mute); }
 .legend__k { width: 12px; height: 12px; margin-left: 10px; } .legend__k:first-child { margin-left: 0; }
 .legend__k--cur { background: #f2c230; } .legend__k--pot { background: #3ec9ff; }
