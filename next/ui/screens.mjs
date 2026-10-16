@@ -26,7 +26,7 @@ const teamStyle = (kit) => `--team:${kit};--on-team:${onColor(kit)}`;
 const section = (title, body, extra = '') => `<section class="panel ${extra}"><h3>${title}</h3>${body}</section>`;
 const pips = (n, total) => `<span class="pips" aria-label="${n}/${total}">${Array.from({ length: total }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</span>`;
 const coinNum = (n) => `<span class="res res--coin">${icon('coin', 16)}<b class="num">${n}</b></span>`;
-const head = (left, right) => `<div class="rephead"><span class="lab">${left}</span><span class="lab">${right}</span></div>`;
+const head = (left, right = '') => `<div class="rephead"><span class="lab">${left}</span><span class="lab">${right}</span></div>`;
 const triple = (items) => `<div class="tri">${items.map(([v, l]) => `<div><b class="num">${v}</b><span>${l}</span></div>`).join('')}</div>`;
 
 // ---------- 공통 ----------
@@ -62,8 +62,7 @@ function draftBoard(game, d, ui, cfg) {
   const total = d.order.length;
 
   if (!d.started) {
-    return `${head(cfg.label, `${total} PICKS`)}
-      <div class="titlebar"><h2>${cfg.title}</h2></div>
+    return `${head(cfg.label)}
       <h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>
       ${d.pool.map((p) => playerRow(p, { kit })).join('')}
       <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="dstart">DRAFT</button></div>`;
@@ -82,17 +81,17 @@ function draftBoard(game, d, ui, cfg) {
   const have = Object.fromEntries(POS_ORDER.map((k) => [k, mineNow.filter((p) => p.position === k)]));
   const need = `<div class="needs"><span class="lab">MY ROSTER</span>
     <div class="needs__row">${POS_ORDER.map((k) => `<button class="need${have[k].length === 0 ? ' need--zero' : ''}${ui.dpos === k ? ' need--on' : ''}" data-act="dpos" data-v="${k}" aria-pressed="${ui.dpos === k}">${k}<b class="num">${have[k].length}</b></button>`).join('')}</div>
-    ${ui.dpos ? `<div class="needs__list">${have[ui.dpos].length ? have[ui.dpos].map((p) => playerRow(p, { kit })).join('') : '<p class="muted">이 포지션에는 아직 선수가 없어요</p>'}</div>` : ''}</div>`;
+    ${ui.dpos ? `<div class="needs__list">${have[ui.dpos].length ? have[ui.dpos].map((p) => playerRow(p, { kit })).join('') : '<p class="muted">NONE YET</p>'}</div>` : ''}</div>`;
 
   const log = [...d.picks].reverse().map((k) => `<li class="pick${k.owner === me ? ' pick--me' : ''}">
       <b class="num">#${k.slot}</b><span class="pick__t">${crest(game, k.owner, 20)}<span>${esc(teamName(game, k.owner))}</span></span>
       <span class="pick__p"><b>${esc(nameOf(k.player.id))}</b><span class="tag">${k.player.position}</span>${abilityStars(k.player, 12)}</span></li>`).join('');
 
   const pickList = myTurn
-    ? `<h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>${d.pool.map((p) => playerRow(p, { kit, action: `<button class="btn btn--small btn--primary" data-act="${cfg.pickAct}" data-id="${esc(p.id)}">지명</button>` })).join('')}`
+    ? `<h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>${d.pool.map((p) => playerRow(p, { kit, action: `<button class="btn btn--small btn--primary" data-act="${cfg.pickAct}" data-id="${esc(p.id)}">PICK</button>` })).join('')}`
     : '';
   const done = over
-    ? section('MY DRAFT', d.picks.filter((k) => k.owner === me).map((k) => playerRow(k.player, { kit })).join('') || '<p class="muted">이번에는 지명이 없었어요</p>')
+    ? section('MY DRAFT', d.picks.filter((k) => k.owner === me).map((k) => playerRow(k.player, { kit })).join('') || '<p class="muted">NO PICKS</p>')
     : '';
   const cta = over
     ? `<div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="${cfg.doneAct}">${cfg.doneLabel}</button></div>`
@@ -100,7 +99,7 @@ function draftBoard(game, d, ui, cfg) {
   return `${head(cfg.label, `PICK ${Math.min(d.next + 1, total)} / ${total}`)}
     <div class="titlebar"><h2>${cfg.title}</h2></div>
     ${clock}${need}${pickList}${done}
-    <h3 class="group">PICK LOG</h3><ol class="picklog">${log || '<li class="muted">아직 지명이 없어요</li>'}</ol>${cta}`;
+    <h3 class="group">PICK LOG</h3><ol class="picklog">${log || '<li class="muted">NO PICKS YET</li>'}</ol>${cta}`;
 }
 
 // ---------- 시작 드래프트 ----------
