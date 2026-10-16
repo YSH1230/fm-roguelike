@@ -1,25 +1,28 @@
-import { TRADE_MARGIN, TRADE_MIN_MOOD } from './constants.mjs';
+import { ROSTER_STARS, TRADE_MARGIN, TRADE_MIN_MOOD } from './constants.mjs';
 import { marketValue, payroll } from './contract.mjs';
+import { overall } from './player.mjs';
 import { setStars } from './roster.mjs';
 import { weightedPick } from './rng.mjs';
+import { refillStars } from './aiWorld.mjs';
 
 // 지명권 가치: 1번 슬롯 68.5 ~ 20번 슬롯 40. slots는 원래 팀 id → 예상 슬롯(꼴찌가 1번)
-export const pickValue = (slot) => 40 + (20 - slot) * 1.5;
+export const pickValue = (slot, round = 1) => (round === 1 ? 40 + (20 - slot) * 1.5 : 20 + (20 - slot) * 0.8);
 
 // offer는 내 입장: { give: { players: [id], picks: [{year, from}] }, get: { players: [id], picks: [...] } }
 const find = (team, id) => team.stars.find((p) => p.id === id);
-const owns = (team, pick) => (team.picks ?? []).some((q) => q.year === pick.year && q.from === pick.from);
+const same = (a, b) => a.year === b.year && a.from === b.from && (a.round ?? 1) === (b.round ?? 1);
+const owns = (team, pick) => (team.picks ?? []).some((q) => same(q, pick));
 const sideValue = (players, picks, slots) =>
-  players.reduce((s, p) => s + marketValue(p), 0) + picks.reduce((s, k) => s + pickValue(slots.get(k.from) ?? 10), 0);
+  players.reduce((s, p) => s + marketValue(p), 0) + picks.reduce((s, k) => s + pickValue(slots.get(k.from) ?? 10, k.round ?? 1), 0);
 
 // 구조가 맞는지만 본다(수락 여부는 aiAccepts). 맞지 않으면 이유를 문자열로 돌려준다.
 export function checkOffer(offer, me, ai) {
   const gp = offer.give.players.map((id) => find(me, id));
   const ap = offer.get.players.map((id) => find(ai, id));
   if (gp.includes(undefined) || ap.includes(undefined)) return '교환할 선수가 팀에 없습니다';
-  if (gp.length !== ap.length) return '주고받는 선수 수가 같아야 합니다';
   if (!offer.give.picks.every((k) => owns(me, k)) || !offer.get.picks.every((k) => owns(ai, k))) return '지명권을 가지고 있지 않습니다';
-  if (gp.length + offer.give.picks.length === 0) return '빈 거래입니다';
+  if (gp.length + offer.give.picks.length === 0 || ap.length + offer.get.picks.length === 0) return '서로 한 가지 이상 주고받아야 합니다';
+  if (me.stars.length - gp.length + ap.length > ROSTER_STARS) return '스타는 6명을 넘을 수 없습니다(먼저 한 명을 내보내세요)';
   return null;
 }
 
@@ -56,8 +59,13 @@ export function executeTrade({ offer, me, ai, myCap, aiCap, rng }) {
   const ap = offer.get.players.map((id) => find(ai, id));
   setStars(me, rng, [...me.stars.filter((p) => !gp.includes(p)), ...ap]);
   setStars(ai, rng, [...ai.stars.filter((p) => !ap.includes(p)), ...gp]);
+  if (ai.stars.length > ROSTER_STARS) { // 선수를 더 받은 AI 팀은 가장 약한 선수를 내보낸다
+    const weakest = [...ai.stars].sort((a, b) => overall(a) - overall(b))[0];
+    setStars(ai, rng, ai.stars.filter((p) => p !== weakest));
+  }
+  if (ai.stars.length < ROSTER_STARS) refillStars(ai, rng); // 선수만 내준 AI 팀은 신인으로 6명을 다시 채운다
   const move = (from, to, picks) => {
-    from.picks = from.picks.filter((q) => !picks.some((k) => k.year === q.year && k.from === q.from));
+    from.picks = from.picks.filter((q) => !picks.some((k) => same(k, q)));
     (to.picks ??= []).push(...picks);
   };
   move(me, ai, offer.give.picks);

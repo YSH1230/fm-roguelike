@@ -9,7 +9,7 @@ import { inductHallOfFame } from '../engine/honors.mjs';
 import { nameOf } from '../engine/names.mjs';
 import {
   beginDraft, beginOffseason, closeDraft, closeMarket, declineResign, draftChoose, offerFreeAgent, offerResign, openMarket,
-  placeRookie, releaseStar, renewCoachContract, startSeason,
+  placeRookie, releaseStar, renewCoachContract, startSeason, takeBuyout,
 } from '../engine/offseason.mjs';
 import { SAVE_KEY, readSave, writeSave } from '../engine/save.mjs';
 import { KIT_CHOICES, REASON_TEXT, esc, onColor } from './components.mjs';
@@ -137,10 +137,19 @@ const ACTIONS = {
   tradeyes() { acceptTrade(game, ui.modal.offer); ui.modal = null; ui.flash = '트레이드가 성사되었어요'; },
   tradeno() { ui.modal = null; },
   tradeout() {
-    const mine = document.getElementById('tr-mine').value;
-    const [aiTeamId, theirs] = document.getElementById('tr-theirs').value.split(':');
-    const r = proposeTrade(game, { aiTeamId, give: { players: [mine], picks: [] }, get: { players: [theirs], picks: [] } });
-    ui.flash = r.accepted ? '상대가 받아들였어요. 트레이드 성사!' : ({ value: '상대가 가치가 모자란다고 거절했어요', cap: '샐러리캡 때문에 거절했어요', mood: '사기가 낮은 선수라 상대가 거절했어요' }[r.reason] ?? '거절당했어요');
+    const val = (id) => document.getElementById(id).value;
+    const mine = val('tr-mine');
+    const myPick = val('tr-mypick');
+    const [teamA, theirs] = val('tr-theirs') ? val('tr-theirs').split(':') : [null, null];
+    const [teamB, ...pk] = val('tr-theirpick') ? val('tr-theirpick').split(':') : [null];
+    if (teamA && teamB && teamA !== teamB) throw new Error('받을 선수와 지명권은 같은 팀 것으로 골라 주세요');
+    const aiTeamId = teamA ?? teamB;
+    if (!aiTeamId) throw new Error('받을 선수나 지명권을 하나 골라 주세요');
+    const asPick = (year, round, from) => ({ year: Number(year), round: Number(round), from });
+    const give = { players: mine ? [mine] : [], picks: myPick ? [asPick(...myPick.split(':'))] : [] };
+    const get = { players: theirs ? [theirs] : [], picks: pk.length ? [asPick(...pk)] : [] };
+    const r = proposeTrade(game, { aiTeamId, give, get });
+    ui.flash = r.accepted ? '상대가 받아들였어요. 트레이드 성사!' : ({ value: '상대가 가치가 모자란다고 거절했어요', cap: '샐러리캡 때문에 거절했어요', mood: '사기가 낮은 선수라 상대가 거절했어요', invalid: r.detail }[r.reason] ?? '거절당했어요');
   },
   play() {
     setRest(game.myTeam, [...ui.rest]);
@@ -164,6 +173,7 @@ const ACTIONS = {
   closemarket() { closeMarket(game); ui.flash = null; },
   dpick(el) { draftChoose(game, el.dataset.id); },
   closedraft() { closeDraft(game); },
+  buyout(el) { const c = takeBuyout(game, el.dataset.id); ui.flash = `${c}코인을 받았어요`; },
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };

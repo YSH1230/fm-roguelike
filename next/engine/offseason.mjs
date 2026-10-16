@@ -5,9 +5,9 @@ import { coachSeasonGrowth, createCoach, renewCoach, syncFillers, tickCoachContr
 import { teamMorale } from './condition.mjs';
 import { tickContracts } from './contract.mjs';
 import {
-  autoPickUntil, createDraft, draftOrder, draftPick, draftedBy, generateProspects, grantPicks, isDraftOver, spendPicks,
+  DRAFT_ROUNDS, autoPickUntil, buyoutCoins, createDraft, draftOrder, draftPick, draftedBy, generateProspects, grantPicks, isDraftOver, spendPicks,
 } from './draft.mjs';
-import { negotiationClub, spend } from './economy.mjs';
+import { earn, negotiationClub, spend } from './economy.mjs';
 import {
   aiSign, evaluateOffer, evaluateResign, generateFreeAgents, releaseToPool, resign, signFreeAgent, toEntry,
 } from './freeAgency.mjs';
@@ -139,7 +139,7 @@ export function closeMarket(game) {
   const year = game.season.year;
   const teams = new Map(regionTeams(world).map((t) => [t.id, t]));
   const order = draftOrder(game.season.draftStandings, [...teams.values()], year);
-  off.draft = { ...createDraft({ prospects: generateProspects(rng, { prefix: `D${year}` }), order }), started: false };
+  off.draft = { ...createDraft({ prospects: generateProspects(rng, { count: order.length, prefix: `D${year}` }), order }), started: false };
   off.step = 'draft';
   return off.draft;
 }
@@ -175,6 +175,8 @@ export function closeDraft(game) {
   const { off, world } = game;
   if (!isDraftOver(off.draft)) throw new Error('드래프트가 아직 끝나지 않았습니다');
   off.rookies = draftedBy(off.draft, game.myTeam.id);
+  // 2라운드 이후 신인은 계약하거나 돈(코인)으로 받을 수 있다.
+  for (const k of off.draft.picks) if (k.owner === game.myTeam.id && k.round > 1) k.player.buyout = buyoutCoins(k.slot, off.draft.order.length / DRAFT_ROUNDS);
   const teams = regionTeams(world);
   spendPicks(teams, game.season.year);
   grantPicks(teams, game.season.year + 1);
@@ -195,6 +197,17 @@ export function placeRookie(game, playerId, releaseId = null) {
   }
   setStars(game.myTeam, game.rng, [...stars, rookie]);
   game.off.rookies = game.off.rookies.filter((p) => p !== rookie);
+}
+
+// 2라운드 신인을 계약하지 않고 돈(코인)으로 받는다. 선수는 만들어지지 않고 떠난다.
+export function takeBuyout(game, playerId) {
+  need(game, 'rookies');
+  const rookie = game.off.rookies.find((p) => p.id === playerId);
+  if (!rookie) throw new Error('대기 중인 신인이 아닙니다');
+  if (!rookie.buyout) throw new Error('돈으로 받을 수 없는 신인입니다');
+  earn(game.club, rookie.buyout);
+  game.off.rookies = game.off.rookies.filter((p) => p !== rookie);
+  return rookie.buyout;
 }
 
 // 8) 새 시즌 시작: 남은 신인은 떠나고 관리 단계로.

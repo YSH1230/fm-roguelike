@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { finishSeason, playNextChunk } from '../engine/game.mjs';
 import {
   beginDraft, beginOffseason, closeDraft, closeMarket, declineResign, draftChoose, draftTurnIsMine, offerFreeAgent, offerResign,
-  openMarket, placeRookie, releaseStar, renewCoachContract, startSeason,
+  openMarket, placeRookie, releaseStar, renewCoachContract, startSeason, takeBuyout,
 } from '../engine/offseason.mjs';
 import { retireManager } from '../engine/game.mjs';
 import { allTeams } from '../engine/world.mjs';
@@ -121,7 +121,7 @@ test('시장 마감: 시장은 그대로 열려 있고 드래프트가 열린다
   const draft = closeMarket(g);
   assert.deepEqual(g.market.map((e) => e.player.id), left); // 닫혀도 목록은 그대로
   assert.equal(g.off.step, 'draft');
-  assert.equal(draft.order.length, 20);
+  assert.equal(draft.order.length, 40); // 2라운드
   for (const t of allTeams(g.world)) if (t.id !== 'ME') assert.equal(t.stars.length, 6);
 });
 
@@ -174,11 +174,31 @@ test('드래프트: 내 순번에 고르고 마감하면 신인이 계약과 함
     draftChoose(g, g.off.draft.pool[0].id);
     picks += 1;
   }
-  assert.equal(picks, 1);
+  assert.equal(picks, 2); // 1라운드와 2라운드 한 명씩
   const rookies = closeDraft(g);
-  assert.equal(rookies.length, 1);
+  assert.equal(rookies.length, 2);
   assert.equal(rookies[0].contract.years, 3);
+  assert.equal(rookies[0].buyout, undefined); // 1라운드 신인은 돈으로 받는 선택이 없다
+  assert.ok(rookies[1].buyout >= 5 && rookies[1].buyout <= 15); // 2라운드 신인은 돈으로 받을 수 있다
   assert.ok(g.myTeam.picks.every((k) => k.year === 2)); // 올해 지명권은 쓰였고 내년 지명권이 새로 생긴다
+  assert.equal(g.myTeam.picks.length, 2);
+});
+
+test('2라운드 신인은 돈(코인)으로 받을 수 있고, 1라운드 신인은 못 받는다', () => {
+  const g = atOffseason();
+  beginOffseason(g);
+  g.off.resignQueue = [];
+  openMarket(g);
+  closeMarket(g);
+  beginDraft(g);
+  while (draftTurnIsMine(g)) draftChoose(g, g.off.draft.pool[0].id);
+  const [first, second] = closeDraft(g);
+  const coins = g.club.coins;
+  assert.throws(() => takeBuyout(g, first.id), /돈으로 받을 수 없/);
+  assert.equal(takeBuyout(g, second.id), second.buyout);
+  assert.equal(g.club.coins, coins + second.buyout);
+  assert.ok(!g.off.rookies.includes(second));
+  assert.throws(() => takeBuyout(g, second.id), /대기 중인 신인이 아닙니다/);
 });
 
 test('신인 배치: 자리가 없으면 내보낼 스타를 지정해야 한다', () => {

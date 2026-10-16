@@ -4,7 +4,7 @@ import { createRng } from '../engine/rng.mjs';
 import { createTeam } from '../engine/team.mjs';
 import { marketValue } from '../engine/contract.mjs';
 import {
-  autoPickUntil, createDraft, draftOrder, draftPick, draftedBy, generateProspects, grantPicks, isDraftOver, spendPicks,
+  autoPickUntil, buyoutCoins, createDraft, draftOrder, draftPick, draftedBy, generateProspects, grantPicks, isDraftOver, spendPicks,
 } from '../engine/draft.mjs';
 
 const ids = Array.from({ length: 20 }, (_, i) => `T${i}`);
@@ -18,13 +18,21 @@ test('후보 20명은 19~21세이고 id가 겹치지 않는다', () => {
   for (const p of list) assert.ok(p.age >= 19 && p.age <= 21);
 });
 
-test('꼴찌가 1번 지명이고 지명권이 없으면 원래 팀이 주인이다', () => {
+test('2라운드: 꼴찌가 1번, 2라운드도 같은 순서로 이어지고 지명권이 없으면 원래 팀이 주인이다', () => {
   const t = teams();
   grantPicks(t, 2027);
   const order = draftOrder(standings, t, 2027);
-  assert.equal(order.length, 20);
-  assert.deepEqual(order[0], { slot: 1, from: 'T19', owner: 'T19' });
+  assert.equal(order.length, 40);
+  assert.deepEqual(order[0], { slot: 1, round: 1, from: 'T19', owner: 'T19' });
   assert.equal(order[19].from, 'T0');
+  assert.deepEqual(order[20], { slot: 21, round: 2, from: 'T19', owner: 'T19' });
+  assert.equal(order[39].from, 'T0');
+});
+
+test('2라운드 신인을 돈으로 받는 금액은 앞 순번일수록 많다(15 ~ 5코인)', () => {
+  assert.equal(buyoutCoins(21), 15);
+  assert.equal(buyoutCoins(40), 5);
+  assert.ok(buyoutCoins(25) > buyoutCoins(35));
 });
 
 test('지명권을 넘기면 슬롯 주인이 바뀐다', () => {
@@ -32,7 +40,9 @@ test('지명권을 넘기면 슬롯 주인이 바뀐다', () => {
   grantPicks(t, 2027);
   const moved = t[19].picks.pop();
   t[0].picks.push(moved);
-  assert.equal(draftOrder(standings, t, 2027)[0].owner, 'T0');
+  assert.equal(moved.round, 2); // pop은 마지막(2라운드) 지명권
+  assert.equal(draftOrder(standings, t, 2027)[20].owner, 'T0'); // 21번(2라운드 첫 칸)
+  assert.equal(draftOrder(standings, t, 2027)[0].owner, 'T19'); // 1라운드 지명권은 그대로
 });
 
 test('spendPicks는 그 해 지명권만 지운다', () => {
@@ -40,14 +50,14 @@ test('spendPicks는 그 해 지명권만 지운다', () => {
   grantPicks(t, 2027);
   grantPicks(t, 2028);
   spendPicks(t, 2027);
-  assert.deepEqual(t[0].picks, [{ year: 2028, from: 'T0' }]);
+  assert.deepEqual(t[0].picks, [{ year: 2028, round: 1, from: 'T0' }, { year: 2028, round: 2, from: 'T0' }]);
 });
 
 function setup(seed) {
   const rng = createRng(seed);
   const t = teams();
   grantPicks(t, 2027);
-  const draft = createDraft({ prospects: generateProspects(rng, { prefix: 'D' }), order: draftOrder(standings, t, 2027) });
+  const draft = createDraft({ prospects: generateProspects(rng, { count: 40, prefix: 'D' }), order: draftOrder(standings, t, 2027) });
   return { rng, draft };
 }
 
@@ -69,13 +79,14 @@ test('AI는 대체로 좋은 후보부터 가져간다', () => {
   assert.ok(topFive >= 3, `상위 5명 중 ${topFive}명`);
 });
 
-test('끝까지 가면 20명이 모두 팀에 갈라지고 신인 계약은 3년이다', () => {
+test('끝까지 가면 40명이 모두 팀에 갈라지고 신인 계약은 3년이다', () => {
   const { rng, draft } = setup(4);
   autoPickUntil(draft, 'nobody', rng);
   assert.ok(isDraftOver(draft));
   assert.equal(draft.pool.length, 0);
   const mine = draftedBy(draft, 'T19');
-  assert.equal(mine.length, 1);
+  assert.equal(mine.length, 2); // 1라운드와 2라운드 한 명씩
+  assert.deepEqual(draft.picks.filter((p) => p.owner === 'T19').map((p) => p.round), [1, 2]);
   assert.equal(mine[0].contract.years, 3);
   assert.ok(mine[0].contract.salary >= 1);
 });
@@ -83,7 +94,7 @@ test('끝까지 가면 20명이 모두 팀에 갈라지고 신인 계약은 3년
 test('내 팀이 순번표에 없으면 AI가 끝까지 지명하고 멈춘다', () => {
   const { rng, draft } = setup(5);
   autoPickUntil(draft, 'ghost', rng);
-  assert.equal(draft.picks.length, 20);
+  assert.equal(draft.picks.length, 40);
 });
 
 test('순번이 아닌 팀의 지명, 이미 뽑힌 선수, 끝난 뒤 지명은 오류다', () => {
@@ -100,9 +111,10 @@ test('한 팀이 지명권 2장을 쥐면 두 번 고른다', () => {
   const rng = createRng(7);
   const t = teams();
   grantPicks(t, 2027);
-  t[18].picks.push(t[19].picks.pop()); // T18이 1번과 2번 슬롯을 모두 쥔다
-  const draft = createDraft({ prospects: generateProspects(rng, { prefix: 'D' }), order: draftOrder(standings, t, 2027) });
+  t[18].picks.push(t[19].picks.shift()); // T18이 1번(T19의 1라운드)과 2번(자기 1라운드) 슬롯을 모두 쥔다
+  const draft = createDraft({ prospects: generateProspects(rng, { count: 40, prefix: 'D' }), order: draftOrder(standings, t, 2027) });
   draftPick(draft, 'T18', draft.pool[0].id);
   draftPick(draft, 'T18', draft.pool[0].id);
   assert.equal(draftedBy(draft, 'T18').length, 2);
+  assert.deepEqual(draft.picks.map((p) => p.slot), [1, 2]);
 });

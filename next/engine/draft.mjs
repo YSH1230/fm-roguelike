@@ -14,9 +14,13 @@ export function generateProspects(rng, { count = DRAFT_SIZE, prefix }) {
   }));
 }
 
-// 지명권은 팀이 들고 다닌다. { year, from }은 "from 팀의 year년 1라운드 지명권".
+// 지명권은 팀이 들고 다닌다. { year, round, from }은 "from 팀의 year년 round라운드 지명권".
+// 한 해에 1라운드와 2라운드 두 장을 받는다. 순번은 from 팀의 그 시즌 순위로 정해진다(꼴찌가 1번).
+export const DRAFT_ROUNDS = 2;
 export function grantPicks(teams, year) {
-  for (const team of teams) (team.picks ??= []).push({ year, from: team.id });
+  for (const team of teams) {
+    for (let round = 1; round <= DRAFT_ROUNDS; round += 1) (team.picks ??= []).push({ year, round, from: team.id });
+  }
 }
 
 export function spendPicks(teams, year) {
@@ -25,12 +29,24 @@ export function spendPicks(teams, year) {
 
 // 직전 성적 역순(꼴찌가 1번)으로 슬롯을 정하고, 슬롯마다 그 지명권을 쥔 팀을 주인으로 적는다.
 // standings: 1위부터 정렬된 순위표 행, teams: 팀 배열
-export function draftOrder(standings, teams, year) {
-  return [...standings].reverse().map((row, i) => {
-    const holder = teams.find((t) => (t.picks ?? []).some((pick) => pick.year === year && pick.from === row.id));
-    return { slot: i + 1, from: row.id, owner: holder ? holder.id : row.id };
-  });
+// 2라운드면 40칸: 1라운드 20칸 뒤에 2라운드가 같은 순서로 이어진다(slot은 전체 지명 번호).
+export function draftOrder(standings, teams, year, rounds = DRAFT_ROUNDS) {
+  const worstFirst = [...standings].reverse();
+  const out = [];
+  for (let round = 1; round <= rounds; round += 1) {
+    for (const row of worstFirst) {
+      const holder = teams.find((t) => (t.picks ?? []).some((pick) => pick.year === year && (pick.round ?? 1) === round && pick.from === row.id));
+      out.push({ slot: out.length + 1, round, from: row.id, owner: holder ? holder.id : row.id });
+    }
+  }
+  return out;
 }
+
+// 2라운드 신인을 계약하지 않고 돈(코인)으로 받을 때의 금액: 앞 순번일수록 많다(15 ~ 5코인).
+export const buyoutCoins = (slot, teamCount = 20) => {
+  const i = Math.max(0, slot - teamCount - 1); // 2라운드 안에서의 순번(0부터)
+  return 15 - Math.round((i * 10) / Math.max(1, teamCount - 1));
+};
 
 export const createDraft = ({ prospects, order }) => ({ order, pool: [...prospects], picks: [], next: 0 });
 export const isDraftOver = (draft) => draft.next >= draft.order.length;
@@ -41,7 +57,7 @@ export function draftPick(draft, ownerId, playerId) {
   const at = draft.pool.findIndex((p) => p.id === playerId);
   if (at < 0) throw new Error('이미 지명되었거나 후보가 아닌 선수입니다');
   const [player] = draft.pool.splice(at, 1);
-  draft.picks.push({ slot: draft.order[draft.next].slot, owner: ownerId, player });
+  draft.picks.push({ slot: draft.order[draft.next].slot, round: draft.order[draft.next].round ?? 1, owner: ownerId, player });
   draft.next += 1;
   return player;
 }

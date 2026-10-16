@@ -209,10 +209,18 @@ function frontTab(game, ui) {
   const ai = leagueAiTeams(game);
   const mine = team.stars.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p.id))} (${p.position})</option>`).join('');
   const theirs = ai.map((t) => `<optgroup label="${esc(teamName(game, t.id))}">${t.stars.map((p) => `<option value="${esc(t.id)}:${esc(p.id)}">${esc(nameOf(p.id))} (${p.position})</option>`).join('')}</optgroup>`).join('');
-  return `${tip(ui, 'front', '코인으로 시설을 키우고 코치를 바꿀 수 있어요. 샐러리캡은 <b>스타 연봉 합계</b>의 한도예요. 트레이드는 선수 맞교환만 가능하고 코인으로는 못 사요.')}
+  const pickLabel = (k) => `Y${k.year} R${k.round ?? 1} · ${teamName(game, k.from)}`;
+  const pickVal = (k) => `${k.year}:${k.round ?? 1}:${k.from}`;
+  const myPicks = (team.picks ?? []).map((k) => `<option value="${esc(pickVal(k))}">${esc(pickLabel(k))}</option>`).join('');
+  const theirPicks = ai.filter((t) => (t.picks ?? []).length).map((t) => `<optgroup label="${esc(teamName(game, t.id))}">${t.picks.map((k) => `<option value="${esc(t.id)}:${esc(pickVal(k))}">${esc(pickLabel(k))}</option>`).join('')}</optgroup>`).join('');
+  return `${tip(ui, 'front', '코인으로 시설을 키우고 코치를 바꿀 수 있어요. 샐러리캡은 <b>스타 연봉 합계</b>의 한도예요. 트레이드는 선수와 지명권을 서로 맞바꿔요. 코인은 못 얹어요.')}
     ${capPanel}${section('FACILITIES', fac)}${section('COACHES', `${coaches}<p class="hint">강하게 훈련하면 성장은 빠르지만 컨디션·사기·부상이 나빠져요</p>`)}
     ${section('TRADE', `<button class="btn btn--small" data-act="tradein">${icon('transfer', 16)}받은 제안 확인</button>
-      <div class="tradeform"><label>내 선수<select id="tr-mine">${mine}</select></label><label>상대 선수<select id="tr-theirs">${theirs}</select></label>
+      <div class="tradeform">
+        <label>내가 주는 선수<select id="tr-mine"><option value="">—</option>${mine}</select></label>
+        <label>내가 주는 지명권<select id="tr-mypick"><option value="">—</option>${myPicks}</select></label>
+        <label>내가 받는 선수<select id="tr-theirs"><option value="">—</option>${theirs}</select></label>
+        <label>내가 받는 지명권<select id="tr-theirpick"><option value="">—</option>${theirPicks}</select></label>
       <button class="btn btn--small btn--primary" data-act="tradeout">맞교환 제안</button></div>`)}`;
 }
 
@@ -387,8 +395,8 @@ export function offseasonScreen(game, ui) {
   } else {
     const full = game.myTeam.stars.length >= 6;
     const opts = game.myTeam.stars.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p.id))} (${p.position})</option>`).join('');
-    body = `${tip(ui, 'rookies', '뽑은 신인을 스타로 올리세요. 자리가 가득하면 내보낼 스타를 골라야 해요. 올리지 않은 신인은 떠나요.')}
-      ${off.rookies.map((p) => playerRow(p, { kit, contract: true, stack: true, action: `<div class="offer">${full ? `<select id="out-${esc(p.id)}" aria-label="내보낼 스타">${opts}</select>` : ''}<button class="btn btn--small btn--primary" data-act="place" data-id="${esc(p.id)}">스타로 올리기</button></div>` })).join('') || '<p class="muted pad">대기 중인 신인이 없어요</p>'}
+    body = `${tip(ui, 'rookies', '뽑은 신인을 스타로 올리세요. 자리가 가득하면 내보낼 스타를 골라야 해요. 2라운드 신인은 <b>계약하는 대신 코인으로 받을</b> 수 있어요. 올리지 않은 신인은 떠나요.')}
+      ${off.rookies.map((p) => playerRow(p, { kit, contract: true, stack: true, action: `<div class="offer">${full ? `<select id="out-${esc(p.id)}" aria-label="내보낼 스타">${opts}</select>` : ''}<button class="btn btn--small btn--primary" data-act="place" data-id="${esc(p.id)}">스타로 올리기</button>${p.buyout ? `<button class="btn btn--small" data-act="buyout" data-id="${esc(p.id)}">TAKE ${coinNum(p.buyout)}</button>` : ''}</div>` })).join('') || '<p class="muted pad">대기 중인 신인이 없어요</p>'}
       <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="startseason">START YEAR ${game.world.year}</button></div>`;
   }
   return `${topBar(game)}<main class="page" style="${teamStyle(kit)}">${head('OFFSEASON', `YEAR ${game.world.year}`)}${stepper(off.step)}${flash(ui)}${body}</main>`;
