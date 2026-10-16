@@ -95,6 +95,7 @@ const ACTIONS = {
   tab(el) { ui.tab = el.dataset.v; ui.flash = null; },
   kit(el) { ui.kit = el.dataset.v; },
   pick(el) { ui.sel = el.dataset.id; },
+  dpos(el) { ui.dpos = ui.dpos === el.dataset.v ? null : el.dataset.v; },
   dsel(el) { ui.dsel = ui.dsel === el.dataset.id ? null : el.dataset.id; },
   tip(el) { ui.tips.add(el.dataset.id); store.set(TIPS_KEY, JSON.stringify([...ui.tips])); },
   rest(el) { const id = el.dataset.id; if (ui.rest.has(id)) ui.rest.delete(id); else ui.rest.add(id); },
@@ -145,7 +146,7 @@ const ACTIONS = {
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['dpos', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['dpos', 'dsel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;

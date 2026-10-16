@@ -72,8 +72,16 @@ function draftBoard(game, d, ui, cfg) {
   };
   const byPotential = (pool) => [...pool].sort((x, y) => Math.max(starsOf(y.potential), starsOf(overall(y))) - Math.max(starsOf(x.potential), starsOf(overall(x))) || overall(y) - overall(x));
 
+  // 내 선수 포지션 현황: 포지션을 누르면 그 포지션의 내 선수가 보인다
+  const mineNow = [...game.myTeam.stars, ...d.picks.filter((x) => x.owner === me).map((x) => x.player)];
+  const have = Object.fromEntries(POS_ORDER.map((k) => [k, mineNow.filter((p) => p.position === k)]));
+  const need = `<div class="needs"><span class="lab">MY ROSTER</span>
+    <div class="needs__row">${POS_ORDER.map((k) => `<button class="need${have[k].length === 0 ? ' need--zero' : ''}${ui.dpos === k ? ' need--on' : ''}" data-act="dpos" data-v="${k}" aria-pressed="${ui.dpos === k}">${k}<b class="num">${have[k].length}</b></button>`).join('')}</div>
+    ${ui.dpos ? `<div class="needs__list">${have[ui.dpos].length ? have[ui.dpos].map((p) => playerRow(p, { kit, stats: false })).join('') : '<p class="muted">NONE YET</p>'}</div>` : ''}</div>`;
+
   if (!d.started) {
     return `<div class="titlebar"><h2>${cfg.title}</h2></div>
+      ${need}
       <h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>
       <p class="legend"><i class="legend__k legend__k--cur"></i>NOW<i class="legend__k legend__k--pot"></i>POTENTIAL</p>
       ${byPotential(d.pool).map((p) => prospect(p, false)).join('')}
@@ -90,13 +98,6 @@ function draftBoard(game, d, ui, cfg) {
   const clock = over
     ? `<div class="clock clock--done"><span class="lab">DRAFT COMPLETE</span>${mine.length ? mine.map((k) => `<b class="mypick"><span class="num">#${k.slot}</span> <span class="mypos">${k.player.position}</span> ${esc(nameOf(k.player.id))}</b>`).join('') : '<b class="mypick">NO PICKS</b>'}</div>`
     : `<div class="clock clock--row${myTurn ? ' clock--me' : ''}"><span class="lab">${myTurn ? 'YOUR PICK' : 'ON THE CLOCK'}</span><b class="num">#${upNext.slot}<small>/${total}</small></b></div>${latest}`;
-
-  // 내 선수 포지션 현황: 포지션을 누르면 그 포지션의 내 선수가 보인다
-  const mineNow = [...game.myTeam.stars, ...d.picks.filter((x) => x.owner === me).map((x) => x.player)];
-  const have = Object.fromEntries(POS_ORDER.map((k) => [k, mineNow.filter((p) => p.position === k)]));
-  const need = `<div class="needs"><span class="lab">MY ROSTER</span>
-    <div class="needs__row">${POS_ORDER.map((k) => `<button class="need${have[k].length === 0 ? ' need--zero' : ''}${ui.dpos === k ? ' need--on' : ''}" data-act="dpos" data-v="${k}" aria-pressed="${ui.dpos === k}">${k}<b class="num">${have[k].length}</b></button>`).join('')}</div>
-    ${ui.dpos ? `<div class="needs__list">${have[ui.dpos].length ? have[ui.dpos].map((p) => playerRow(p, { kit })).join('') : '<p class="muted">NONE YET</p>'}</div>` : ''}</div>`;
 
   const log = [...d.picks].reverse().map((k) => `<li class="pick${k.owner === me ? ' pick--me' : ''}">
       <b class="num">#${k.slot}</b><span class="pick__t">${crest(game, k.owner, 20)}<span>${esc(teamName(game, k.owner))}</span></span>
