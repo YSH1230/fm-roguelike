@@ -109,7 +109,7 @@ test('setStars: 스타가 0명이어도 라인업 11명을 채운다', () => {
 - [ ] **Step 2: 실패 확인**
 
 Run: `node --test next/tests/contract.test.mjs`
-Expected: FAIL (`Cannot find module`, 다음에 `node --test next/tests/*.test.mjs`로 계획 1의 40개가 그대로 통과하는지도 확인)
+Expected: FAIL (`Cannot find module '../engine/contract.mjs'` 또는 `roster.mjs`)
 
 - [ ] **Step 3: 상수 추가** — `next/engine/constants.mjs` 맨 아래에 붙인다
 
@@ -209,7 +209,7 @@ export function setStars(team, rng, stars) {
 - [ ] **Step 7: 통과 확인**
 
 Run: `node --test next/tests/contract.test.mjs`
-Expected: PASS (7 tests)
+Expected: PASS (7 tests). 이어서 `node --test next/tests/*.test.mjs`로 계획 1의 40개가 그대로 통과하는지도 확인한다(47개).
 
 - [ ] **Step 8: 커밋**
 
