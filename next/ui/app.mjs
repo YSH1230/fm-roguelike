@@ -14,7 +14,7 @@ import {
 import { SAVE_KEY, readSave, writeSave } from '../engine/save.mjs';
 import { KIT_CHOICES, REASON_TEXT, esc, onColor } from './components.mjs';
 import {
-  chunkScreen, endScreen, hubScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
+  chunkScreen, endScreen, hubScreen, introScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
 } from './screens.mjs';
 
 const TIPS_KEY = 'fm-lite-tips';
@@ -34,6 +34,7 @@ const ui = {
 };
 
 function screenHtml() {
+  if (ui.intro) return introScreen(ui, game);
   if (!game) return titleScreen({ hasSave: Boolean(store.get(SAVE_KEY)), kit: ui.kit });
   switch (game.phase) {
     case 'startDraft': return startDraftScreen(game, ui);
@@ -58,7 +59,7 @@ function modalHtml() {
 
 let lastKey = '';
 function render() {
-  const key = `${game?.phase}|${game?.off?.step}|${ui.view}|${ui.tab}`;
+  const key = `${game?.phase}|${game?.off?.step}|${ui.view}|${ui.tab}|${ui.intro?.step}`;
   const kit = game ? game.clubKit : ui.kit;
   document.documentElement.style.setProperty('--team', kit);
   document.documentElement.style.setProperty('--on-team', onColor(kit));
@@ -81,19 +82,33 @@ const num = (id) => Number(document.getElementById(id)?.value);
 const result = (r, ok) => { ui.flash = r.accepted ? ok : (REASON_TEXT[r.reason] ?? '거절당했어요'); };
 
 const ACTIONS = {
-  new(el) {
-    const clubName = document.getElementById('club-name').value.trim() || '내 구단';
-    game = createGame({ seed: (Date.now() & 0x7fffffff) || 1, clubName, clubKit: ui.kit });
-    ui.view = 'hub'; ui.tab = 'roster'; ui.rest.clear(); ui.candidates = {};
+  new() { game = null; ui.intro = { step: 0 }; ui.flash = null; },
+  intronext() { ui.intro.step += 1; },
+  introskip() { if (ui.intro.step < 2) ui.intro.step = 1; else ui.intro = null; },
+  introsign() {
+    const name = document.getElementById('mgr-name').value.trim();
+    const club = document.getElementById('club-name').value.trim() || '내 구단';
+    ui.intro.name = name; ui.intro.club = club;
+    if (!name) throw new Error('Enter a manager name');
+    game = createGame({ seed: (Date.now() & 0x7fffffff) || 1, name, clubName: club, clubKit: ui.kit });
+    ui.view = 'hub'; ui.tab = 'roster'; ui.rest.clear(); ui.candidates = {}; ui.flash = null;
+    ui.intro.step = 2;
   },
-  continue() { game = readSave(storage); ui.view = 'hub'; ui.rest.clear(); },
-  newrun() { game = null; },
+  introdone() { ui.intro = null; },
+  continue() { game = readSave(storage); ui.intro = null; ui.view = 'hub'; ui.rest.clear(); },
+  newrun() { game = null; ui.intro = null; },
   // 앞 순번 구단들의 지명은 한꺼번에 이뤄지고 곧바로 내 차례가 된다.
   dstart() { if (game.phase === 'startDraft') startDraftAdvance(game); else beginDraft(game); },
   dfinish() { startDraftFinish(game); ui.view = 'hub'; ui.tab = 'roster'; },
   sdraft(el) { startDraftPick(game, el.dataset.id); },
   tab(el) { ui.tab = el.dataset.v; ui.flash = null; },
-  kit(el) { ui.kit = el.dataset.v; },
+  kit(el) {
+    ui.kit = el.dataset.v;
+    if (ui.intro) { // 색을 눌러도 적어 둔 이름이 지워지지 않게
+      ui.intro.name = document.getElementById('mgr-name')?.value ?? ui.intro.name;
+      ui.intro.club = document.getElementById('club-name')?.value ?? ui.intro.club;
+    }
+  },
   pick(el) { ui.sel = el.dataset.id; },
   dpos(el) { ui.dpos = ui.dpos === el.dataset.v ? null : el.dataset.v; },
   dsel(el) { ui.dsel = ui.dsel === el.dataset.id ? null : el.dataset.id; },
@@ -150,7 +165,7 @@ const ACTIONS = {
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['dpos', 'dsel', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['dpos', 'dsel', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;

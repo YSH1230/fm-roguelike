@@ -125,3 +125,6 @@ export const START_ROUNDS = 1; // 1라운드: 구단마다 한 명씩 지명
 export const START_ASSIGNED = ['GK', 'DF', 'DF', 'MF', 'FW']; // 배정되는 스타 5명의 포지션(6번째는 시작 드래프트에서 고른다)
 export const START_PICKS = 3;
 export const CL_PRIZE = 300; // 챔피언스리그 우승 상금(코인)
+
+// 구단주(이야기 속 인물). 감독을 뽑고, 경질의 주체이며, 코인을 대는 사람.
+export const OWNER_NAME = 'OH SEUNGMIN';

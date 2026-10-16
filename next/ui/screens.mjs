@@ -1,4 +1,4 @@
-import { ATTRIBUTES, TRAITS } from '../engine/constants.mjs';
+import { ATTRIBUTES, OWNER_NAME, TRAITS } from '../engine/constants.mjs';
 import { askingSalary, payroll } from '../engine/contract.mjs';
 import { capExpandCost, salaryCap, upgradeCost } from '../engine/economy.mjs';
 import { leagueAiTeams } from '../engine/game.mjs';
@@ -44,14 +44,50 @@ export function titleScreen({ hasSave, kit }) {
   return `<section class="title" style="${teamStyle(kit)}">
     <div class="title__hero">${head('FM-LITE', 'MANAGER GAME')}<h1 class="wordmark">FM-<br>LITE</h1><p>3부 리그 작은 구단에서 시작해<br>1부, 그리고 챔피언스리그 정상까지.</p><div class="title__faces">${faces}</div></div>
     <div class="title__form">
-      <label class="field"><span class="lab">CLUB NAME</span><input id="club-name" maxlength="14" value="새벽 FC" autocomplete="off"></label>
-      <fieldset class="swatches"><legend class="lab">CLUB COLOR</legend>${KIT_CHOICES.map(([hex, label]) => `<button class="swatch${hex === kit ? ' on' : ''}" style="--c:${hex}" data-act="kit" data-v="${hex}" aria-pressed="${hex === kit}" aria-label="${label}"></button>`).join('')}</fieldset>
       <button class="btn btn--primary" data-act="new">NEW GAME</button>
       ${hasSave ? '<button class="btn btn--ghost" data-act="continue">CONTINUE</button>' : ''}
     </div>
   </section>`;
 }
 
+// ---------- 프롤로그: 구단주의 제안 -> 감독 선임 -> 사무국 안내 -> 첫 선수단 ----------
+const STORY = [
+  { who: OWNER_NAME, role: 'OWNER', lines: ['동네 클럽을 하나 더 만들려는 게 아닙니다.', '3부에서 시작해 1부 정상까지, 끝까지 올라갈 구단을 세우려 합니다.', '이 구단을 처음부터 이끌 감독이 필요합니다. 당신이 맡아 주세요.'] },
+  null,
+  { who: 'LEAGUE OFFICE', role: 'NOTICE', lines: ['올해부터 리그는 신인 드래프트를 처음 도입합니다.', '20개 구단이 한 명씩 지명하며, 순번은 작년 순위가 낮은 팀부터입니다.', '새로 가입한 구단은 하위권으로 간주되어 순번이 뒤쪽에 놓입니다.'] },
+  null,
+];
+
+export function introScreen(ui, game) {
+  const step = ui.intro.step;
+  const kit = game ? game.clubKit : ui.kit;
+  const tag = head('PROLOGUE', `${step + 1} / 4`);
+  const skip = '<button class="btn btn--ghost" data-act="introskip">SKIP</button>';
+  if (step === 1) {
+    return `<section class="intro" style="${teamStyle(kit)}">${tag}
+      <h2 class="intro__h">APPOINTMENT</h2>
+      <p class="intro__p">구단주는 구단 이름과 색을 감독에게 맡깁니다.</p>
+      <label class="field"><span class="lab">MANAGER NAME</span><input id="mgr-name" maxlength="14" placeholder="NAME" autocomplete="off" value="${esc(ui.intro.name ?? '')}"></label>
+      <label class="field"><span class="lab">CLUB NAME</span><input id="club-name" maxlength="14" value="${esc(ui.intro.club ?? '새벽 FC')}" autocomplete="off"></label>
+      <fieldset class="swatches"><legend class="lab">CLUB COLOR</legend>${KIT_CHOICES.map(([hex, label]) => `<button class="swatch${hex === ui.kit ? ' on' : ''}" style="--c:${hex}" data-act="kit" data-v="${hex}" aria-pressed="${hex === ui.kit}" aria-label="${label}"></button>`).join('')}</fieldset>
+      ${ui.flash ? `<p class="hurt">${esc(ui.flash)}</p>` : ''}
+      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="introsign">SIGN</button></div></section>`;
+  }
+  if (step === 3) {
+    return `<section class="intro" style="${teamStyle(kit)}">${tag}
+      <h2 class="intro__h">${esc(game.clubName)}</h2>
+      <p class="intro__who"><span class="lab">MANAGER</span><b>${esc(game.name)}</b></p>
+      <p class="intro__p">첫 선수단입니다. 드래프트에서 한 명이 더 합류합니다.</p>
+      <h3 class="group">SQUAD <span class="count">${game.myTeam.stars.length}</span></h3>
+      ${game.myTeam.stars.map((p) => playerRow(p, { kit, stats: false, tag: true })).join('')}
+      <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="introdone">DRAFT</button></div></section>`;
+  }
+  const s = STORY[step];
+  return `<section class="intro" style="${teamStyle(kit)}">${tag}
+    <p class="intro__who"><span class="lab">${s.role}</span><b>${esc(s.who)}</b></p>
+    <div class="intro__lines">${s.lines.map((l) => `<p>${esc(l)}</p>`).join('')}</div>
+    <div class="dock dock--page intro__dock">${skip}<button class="btn btn--primary" data-act="intronext">NEXT</button></div></section>`;
+}
 
 // ---------- 드래프트 공통 보드: 시작 전(후보 명단) -> DRAFT를 누르면 바로 내 차례 -> 끝(내 지명 결과) ----------
 // 연출과 규칙 안내는 두지 않는다. 앞 순번 구단들의 지명은 DRAFT를 누르는 순간 한꺼번에 이뤄지고 지명 현황에 쌓인다.

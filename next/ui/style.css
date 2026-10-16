@@ -445,3 +445,13 @@ select { max-width: 160px; font-size: 13px; }
 .points { display: flex; align-items: baseline; gap: 8px; margin: 14px 0 0; padding: 10px 12px; border-left: 3px solid var(--team); background: var(--panel); font: 700 14px var(--cond); letter-spacing: 0.1em; }
 .points .num { font-size: 28px; color: var(--team); }
 .points span { margin-left: auto; font: 500 12px var(--cond); color: var(--mute); }
+
+/* 프롤로그 */
+.intro { display: grid; gap: 18px; padding: 0 18px 120px; align-content: start; }
+.intro__h { font: 800 40px/1 var(--cond); letter-spacing: 0.03em; text-transform: uppercase; margin-top: 6px; }
+.intro__p { color: var(--mute); font-size: 15px; }
+.intro__who { display: grid; gap: 6px; margin-top: 18px; padding-top: 14px; border-top: 2px solid var(--team); }
+.intro__who b { font: 800 30px/1 var(--cond); letter-spacing: 0.04em; }
+.intro__lines { display: grid; gap: 14px; font-size: 18px; line-height: 1.55; }
+.intro__dock { display: grid; grid-template-columns: auto 1fr; gap: 10px; }
+.intro { min-height: 100dvh; }

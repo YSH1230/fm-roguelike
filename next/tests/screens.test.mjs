@@ -7,7 +7,7 @@ import { beginDraft, beginOffseason, closeDraft, closeMarket, draftChoose, draft
 import { teamIdentity, nameOf } from '../engine/names.mjs';
 import { teamName } from '../ui/components.mjs';
 import {
-  chunkScreen, endScreen, hubScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
+  chunkScreen, endScreen, hubScreen, introScreen, offseasonScreen, seasonScreen, startDraftScreen, titleScreen,
 } from '../ui/screens.mjs';
 import { autoSeason, startedGame } from './helpers.mjs';
 
@@ -24,7 +24,7 @@ test('제목·시작 드래프트 화면', () => {
   clean(titleScreen({ hasSave: true, kit: '#2f6fed' }), '제목');
   assert.ok(titleScreen({ hasSave: false, kit: '#2f6fed' }).includes('data-act="new"'));
   assert.ok(!titleScreen({ hasSave: false, kit: '#2f6fed' }).includes('data-act="continue"'));
-  assert.equal((titleScreen({ hasSave: false, kit: '#1f9d6a' }).match(/data-act="kit"/g) ?? []).length, 8);
+  assert.ok(!titleScreen({ hasSave: false, kit: '#1f9d6a' }).includes('data-act="kit"')); // 이름·색은 프롤로그에서 정한다
 });
 
 test('시작 드래프트: 시작 전에는 후보 명단과 DRAFT 버튼만, 누르면 바로 내 차례에 지명 버튼', () => {
@@ -191,4 +191,26 @@ test('선수 카드: 포인트가 있으면 +1 버튼과 안내가 나오고, �
   assert.ok(has.includes('data-act="spend"') && has.includes('LEVEL UP POINTS') && has.includes(`MAX ${p.caps[key]}`));
   const editing = hubScreen(g, freshUi({ sel: p.id, editName: p.id }));
   assert.ok(editing.includes('id="renameInput"') && editing.includes('data-act="renamesave"'));
+});
+
+test('프롤로그: 구단주 제안 -> 감독 선임(이름·구단·색 입력) -> 사무국 안내 -> 첫 선수단', () => {
+  const ui = freshUi({ kit: '#2f6fed', intro: { step: 0 } });
+  const s0 = introScreen(ui);
+  clean(s0, '프롤로그 1');
+  assert.ok(s0.includes('OH SEUNGMIN') && s0.includes('data-act="intronext"') && s0.includes('data-act="introskip"') && s0.includes('1 / 4'));
+  ui.intro.step = 1;
+  const s1 = introScreen(ui);
+  clean(s1, '프롤로그 2');
+  assert.ok(s1.includes('id="mgr-name"') && s1.includes('id="club-name"') && s1.includes('data-act="introsign"'));
+  assert.equal((s1.match(/data-act="kit"/g) ?? []).length, 8);
+  ui.intro.step = 2;
+  const s2 = introScreen(ui);
+  clean(s2, '프롤로그 3');
+  assert.ok(s2.includes('LEAGUE OFFICE'));
+  const g = createGame({ seed: 5, name: 'Kim Min', clubName: '새벽 FC', clubKit: '#2f6fed' });
+  ui.intro.step = 3;
+  const s3 = introScreen(ui, g);
+  clean(s3, '프롤로그 4');
+  assert.ok(s3.includes('Kim Min') && s3.includes('data-act="introdone"'));
+  assert.equal((s3.match(/<article[^>]*class="prow/g) ?? []).length, 5);
 });
