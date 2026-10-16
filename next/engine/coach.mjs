@@ -1,4 +1,4 @@
-import { COACH_COST_FACTOR, CONTRACT_YEARS, INTENSITIES, RESIGN_MIN_MOOD, TRAITS } from './constants.mjs';
+import { COACH_COST_FACTOR, CONTRACT_YEARS, INTENSITIES, RESIGN_MIN_MOOD, TIER_PRICE, TRAITS } from './constants.mjs';
 import { fillerLevel } from './team.mjs';
 import { randInt } from './rng.mjs';
 import { spend } from './economy.mjs';
@@ -25,7 +25,7 @@ export function createCoach({ rng, id, kind, stars = 2, age }) {
 }
 
 // 3년 계약 비용(코인, 한 번에 낸다): 1별 6, 3별 54, 5별 150
-export const coachCost = (stars) => Math.round(COACH_COST_FACTOR * stars * stars);
+export const coachCost = (stars, tier = 3) => Math.round(COACH_COST_FACTOR * stars * stars * TIER_PRICE[tier]);
 
 // 고용 후보: 1~4별 사이 3명
 export function generateCoachCandidates(rng, { kind, count = 3, prefix }) {
@@ -80,7 +80,7 @@ export function syncFillers(team) {
 
 // 새 코치를 고용한다: 비용을 내고(모자라면 아무것도 안 바뀐다) 팀 코치를 교체하고 조연을 맞춘다. 이전 코치를 돌려준다.
 export function hireCoach(club, team, coach) {
-  spend(club, coachCost(coach.stars));
+  spend(club, coachCost(coach.stars, team.tier ?? 3));
   const previous = team.coaches[coach.kind];
   team.coaches[coach.kind] = coach;
   syncFillers(team);
@@ -94,13 +94,13 @@ export function tickCoachContract(coach) {
 }
 
 // 재계약: 사기가 40 미만이면 거절한다.
-export function evaluateCoachRenewal(coach) {
-  if (coach.mood < RESIGN_MIN_MOOD) return { accepted: false, reason: 'mood', cost: coachCost(coach.stars) };
-  return { accepted: true, reason: null, cost: coachCost(coach.stars) };
+export function evaluateCoachRenewal(coach, tier = 3) {
+  if (coach.mood < RESIGN_MIN_MOOD) return { accepted: false, reason: 'mood', cost: coachCost(coach.stars, tier) };
+  return { accepted: true, reason: null, cost: coachCost(coach.stars, tier) };
 }
 
-export function renewCoach(club, coach) {
-  const result = evaluateCoachRenewal(coach);
+export function renewCoach(club, coach, tier = 3) {
+  const result = evaluateCoachRenewal(coach, tier);
   if (!result.accepted) throw new Error(`코치 재계약 실패: ${result.reason}`);
   spend(club, result.cost);
   coach.contract.years = CONTRACT_YEARS;

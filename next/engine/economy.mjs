@@ -1,6 +1,6 @@
 import {
   CAP_COST_FIRST, CAP_COST_STEP, CAP_EXPANSIONS_MAX, CAP_STEP, CHAMPION_PRIZE, FACILITY_COST_FIRST, FACILITY_KINDS, FACILITY_MAX,
-  FAN_INCOME_SCALE, FAN_PER_RESULT, SALARY_CAP, START_COINS, START_FANS, WIN_INCOME,
+  FAN_INCOME_SCALE, FAN_PER_RESULT, SALARY_CAP, START_COINS, START_FANS, TIER_PRICE, WIN_INCOME,
 } from './constants.mjs';
 import { payroll } from './contract.mjs';
 
@@ -43,11 +43,11 @@ export function upgradeFacility(club, kind) {
   club.facilities[kind] += 1;
 }
 
-export const capExpandCost = (club) => CAP_COST_FIRST + club.capLevel * CAP_COST_STEP;
+export const capExpandCost = (club, tier = 3) => Math.round((CAP_COST_FIRST + club.capLevel * CAP_COST_STEP) * TIER_PRICE[tier]);
 
-export function expandCap(club) {
+export function expandCap(club, tier = 3) {
   if (club.capLevel >= CAP_EXPANSIONS_MAX) throw new Error('캡을 더 늘릴 수 없습니다');
-  spend(club, capExpandCost(club));
+  spend(club, capExpandCost(club, tier));
   club.capLevel += 1;
 }
 

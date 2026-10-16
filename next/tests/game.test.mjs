@@ -35,7 +35,7 @@ test('새 게임: 3부 팀에 배정 스타 5명, 시작 드래프트 후보 20�
   assert.equal(d.started, false);
   assert.equal(g.myTeam.tier, 3);
   assert.equal(g.myTeam.coaches.attack.kind, 'attack');
-  assert.equal(g.club.coins, 30);
+  assert.equal(g.club.coins, 40);
   assert.equal(g.myTeam.stars.every((p) => p.contract.years === 3), true);
 });
 

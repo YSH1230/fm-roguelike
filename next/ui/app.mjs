@@ -119,7 +119,7 @@ const ACTIONS = {
   renamesave(el) { renamePlayer(game, el.dataset.id, document.getElementById('renameInput')?.value ?? ''); ui.editName = null; },
   rest(el) { const id = el.dataset.id; if (ui.rest.has(id)) ui.rest.delete(id); else ui.rest.add(id); },
   upgrade(el) { upgradeFacility(game.club, el.dataset.kind); },
-  capup() { expandCap(game.club); },
+  capup() { expandCap(game.club, game.myTeam.tier ?? 3); },
   intensity(el) { setIntensity(game.myTeam.coaches[el.dataset.kind], el.dataset.v); },
   coachfind(el) { ui.candidates[el.dataset.kind] = generateCoachCandidates(game.rng, { kind: el.dataset.kind, prefix: `C${game.world.year}${el.dataset.kind[0]}${Date.now() % 1000}` }); },
   hire(el) {

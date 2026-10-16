@@ -40,7 +40,7 @@ export const TRADE_MIN_MOOD = 30; // 사기가 이보다 낮은 선수는 AI가 
 export const AI_NAMED_MAX = 3;
 
 // ---- 계획 3: 경제 ----
-export const START_COINS = 30;
+export const START_COINS = 40;
 export const START_FANS = 20; // 팬 지수 0~100
 export const FACILITY_KINDS = ['stadium', 'training', 'rehab'];
 export const FACILITY_MAX = 10;
@@ -51,7 +51,9 @@ export const CAP_COST_FIRST = 100; // 캡 확장 n번째 = 100 + 20(n-1) 코인(
 export const CAP_COST_STEP = 20;
 // 리그 단계(1=1부)별 수입
 export const WIN_INCOME = { 3: 6, 2: 10, 1: 14 }; // 기준: 3부 중위권 한 시즌 수입 = 100코인
-export const CHAMPION_PRIZE = { 3: 50, 2: 100, 1: 200 };
+export const CHAMPION_PRIZE = { 3: 60, 2: 100, 1: 140 };
+// 코치·캡 확장 가격은 리그 단계 수입(이긴 경기 6/10/14)에 맞춰 3부 1.0, 2부 1.6, 1부 2.4배
+export const TIER_PRICE = { 3: 1, 2: 1.6, 1: 2.4 };
 export const FAN_INCOME_SCALE = 2; // 홈경기 수입 = 경기장 단계 x 팬 지수/100 x 2
 export const FAN_PER_RESULT = 0.3; // 구간마다 (승 - 패) x 0.3 만큼 팬 지수 변화
 export const COACH_COST_FACTOR = 4; // 코치 계약 비용 = 4 x 별^2 코인(3년 계약 한 번에): 3별 36, 5별 100
@@ -125,7 +127,7 @@ export const START_DRAFT_TEAMS = 20; // 시작 드래프트에 참가하는 구�
 export const START_ROUNDS = 1; // 1라운드: 구단마다 한 명씩 지명
 export const START_ASSIGNED = ['GK', 'DF', 'DF', 'MF', 'FW']; // 배정되는 스타 5명의 포지션(6번째는 시작 드래프트에서 고른다)
 export const START_PICKS = 3;
-export const CL_PRIZE = 300; // 챔피언스리그 우승 상금(코인)
+export const CL_PRIZE = 200; // 챔피언스리그 우승 상금(코인)
 
 // 구단주(이야기 속 인물). 감독을 뽑고, 경질의 주체이며, 코인을 대는 사람.
 export const OWNER_NAME = 'OH SEUNGMIN';

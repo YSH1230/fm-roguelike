@@ -91,8 +91,8 @@ test('팬 지수: 이기면 오르고 지면 내리며 0~100을 벗어나지 않
 });
 
 test('우승 상금은 우승했을 때만, 리그 단계별로 나온다', () => {
-  assert.equal(seasonPrize(3, true), 50);
-  assert.equal(seasonPrize(1, true), 200);
+  assert.equal(seasonPrize(3, true), 60);
+  assert.equal(seasonPrize(1, true), 140);
   assert.equal(seasonPrize(1, false), 0);
 });
 
@@ -113,4 +113,9 @@ test('협상용 club: 시설 평균(내림), 캡 여유가 계획 2의 evaluateO
   assert.deepEqual(view, { rank: 7, facility: 3, fans: 33, morale: 60, capRoom: 40 });
   const entry = { player: team.stars[0], conditions: { minFacility: 4 }, asking: 10 };
   assert.equal(evaluateOffer(entry, 10, view).reason, 'facility');
+});
+
+test('캡 확장 가격도 리그 단계 배율(1.0 / 1.6 / 2.4)을 따른다', () => {
+  const club = createClub({ coins: 99999 });
+  assert.deepEqual([3, 2, 1].map((t) => capExpandCost(club, t)), [100, 160, 240]);
 });

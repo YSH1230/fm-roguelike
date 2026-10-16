@@ -20,7 +20,8 @@ test('코치 생성: 종류와 별(0.5 단위)을 검사한다', () => {
 });
 
 test('코치 비용은 별의 제곱에 비례한다', () => {
-  assert.deepEqual([1, 3, 5].map(coachCost), [4, 36, 100]);
+  assert.deepEqual([1, 3, 5].map((s) => coachCost(s)), [4, 36, 100]);
+  assert.deepEqual([3, 2, 1].map((t) => coachCost(3, t)), [36, 58, 86]); // 리그 단계 배율 1.0 / 1.6 / 2.4
 });
 
 test('고용 후보 3명은 1~4별이다', () => {

@@ -76,7 +76,7 @@ export function renewCoachContract(game, kind) {
   need(game, 'resign');
   const coach = game.off.coachExpiring.find((c) => c.kind === kind);
   if (!coach) throw new Error('재계약 대상 코치가 아닙니다');
-  renewCoach(game.club, coach);
+  renewCoach(game.club, coach, game.myTeam.tier ?? 3);
   game.off.coachExpiring = game.off.coachExpiring.filter((c) => c !== coach);
 }
 

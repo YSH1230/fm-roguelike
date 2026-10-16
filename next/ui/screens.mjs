@@ -191,7 +191,7 @@ function frontTab(game, ui) {
   const cap = salaryCap(club, team.tier);
   const used = payroll(team);
   const capPanel = section('SALARY CAP', `<div class="capline"><b class="num">${used}</b><span>/ ${cap}</span>${bar((used / cap) * 100, used > cap * 0.9 ? 'low' : '')}</div>
-    <button class="btn btn--small" data-act="capup" ${capExpandCost(club) > club.coins || club.capLevel >= 5 ? 'disabled' : ''}>${icon('plus', 16)}캡 +10 확장 ${club.capLevel >= 5 ? '최대' : coinNum(capExpandCost(club))}</button>`);
+    <button class="btn btn--small" data-act="capup" ${capExpandCost(club, game.myTeam.tier ?? 3) > club.coins || club.capLevel >= 5 ? 'disabled' : ''}>${icon('plus', 16)}캡 +10 확장 ${club.capLevel >= 5 ? '최대' : coinNum(capExpandCost(club, game.myTeam.tier ?? 3))}</button>`);
   const fac = Object.keys(FACILITY_LABEL).map((k) => {
     const lv = club.facilities[k];
     const btn = lv >= 10 ? chip('MAX') : `<button class="btn btn--small" data-act="upgrade" data-kind="${k}" ${upgradeCost(club, k) > club.coins ? 'disabled' : ''}>${icon('upgrade', 16)}${coinNum(upgradeCost(club, k))}</button>`;
@@ -203,7 +203,7 @@ function frontTab(game, ui) {
     return `<div class="coach"><div class="row"><div><b>${KIND_LABEL[kind]}</b>${stars(c.stars, c.stars, 14)}<small>${facts(TRAITS[c.trait]?.label ?? '', `계약 ${c.contract.years}년`)}</small>${bar((c.xp / coachXpNeeded(c.stars)) * 100, 'xp')}</div>
       <button class="pill" data-act="coachfind" data-kind="${kind}">새 코치 찾기</button></div>
       <div class="seg" role="group" aria-label="${KIND_LABEL[kind]} 훈련 강도">${['LIGHT', 'NORMAL', 'HARD'].map((i) => `<button class="seg__b${c.intensity === i ? ' on' : ''}" aria-pressed="${c.intensity === i}" data-act="intensity" data-kind="${kind}" data-v="${i}">${INTENSITY_LABEL[i]}</button>`).join('')}</div>
-      ${cands ? cands.map((cd) => `<div class="row cand"><div>${stars(cd.stars, cd.stars, 14)}<small>${TRAITS[cd.trait].label}</small></div><button class="btn btn--small" data-act="hire" data-kind="${kind}" data-id="${esc(cd.id)}" ${coachCost(cd.stars) > club.coins ? 'disabled' : ''}>고용 ${coinNum(coachCost(cd.stars))}</button></div>`).join('') : ''}</div>`;
+      ${cands ? cands.map((cd) => `<div class="row cand"><div>${stars(cd.stars, cd.stars, 14)}<small>${TRAITS[cd.trait].label}</small></div><button class="btn btn--small" data-act="hire" data-kind="${kind}" data-id="${esc(cd.id)}" ${coachCost(cd.stars, game.myTeam.tier ?? 3) > club.coins ? 'disabled' : ''}>고용 ${coinNum(coachCost(cd.stars, game.myTeam.tier ?? 3))}</button></div>`).join('') : ''}</div>`;
   }).join('');
   const ai = leagueAiTeams(game);
   const mine = team.stars.map((p) => `<option value="${esc(p.id)}">${esc(nameOf(p.id))} (${p.position})</option>`).join('');
@@ -333,7 +333,7 @@ export function offseasonScreen(game, ui) {
   if (off.step === 'resign') {
     const ret = off.retired.map((c) => `<li>${icon('flag', 16)}<b>${esc(nameOf(c.playerId))}</b><span>${facts('은퇴', `${c.seasons}시즌`, `${c.career.goals}골 ${c.career.assists}도움`)}</span></li>`).join('');
     const list = off.resignQueue.map((p) => playerRow(p, { kit, contract: true, stack: true, action: `<div class="offer">${salaryInput(p.id, askingSalary(p))}<button class="btn btn--small btn--primary" data-act="resign" data-id="${esc(p.id)}">재계약</button><button class="link" data-act="decline" data-id="${esc(p.id)}">보내기</button></div>` })).join('');
-    const coaches = off.coachExpiring.map((c) => `<div class="row"><div><b>${KIND_LABEL[c.kind]}</b>${stars(c.stars, c.stars, 14)}<small>계약이 끝났어요</small></div><button class="btn btn--small" data-act="renewcoach" data-kind="${c.kind}">재계약 ${coinNum(coachCost(c.stars))}</button></div>`).join('');
+    const coaches = off.coachExpiring.map((c) => `<div class="row"><div><b>${KIND_LABEL[c.kind]}</b>${stars(c.stars, c.stars, 14)}<small>계약이 끝났어요</small></div><button class="btn btn--small" data-act="renewcoach" data-kind="${c.kind}">재계약 ${coinNum(coachCost(c.stars, game.myTeam.tier ?? 3))}</button></div>`).join('');
     body = `${tip(ui, 'resign', '계약이 끝난 선수에게 우선 재계약을 제안할 수 있어요. 사기가 낮으면 어떤 금액도 거절해요. 보내면 FA 시장에 나와요.')}
       ${ret ? section('RETIRED', `<ul class="lines">${ret}</ul>`) : ''}
       ${list || '<p class="muted pad">이번에 계약이 끝나는 스타는 없어요</p>'}
