@@ -1,5 +1,6 @@
 import { ATTRIBUTES, OWNER_NAME, TRAITS } from '../engine/constants.mjs';
 import { askingSalary, faPrice, payroll } from '../engine/contract.mjs';
+import { resignSalary } from '../engine/freeAgency.mjs';
 import { capExpandCost, salaryCap, upgradeCost } from '../engine/economy.mjs';
 import { standings } from '../engine/league.mjs';
 import { nameOf } from '../engine/names.mjs';
@@ -167,11 +168,19 @@ export function startDraftScreen(game, ui) {
 }
 
 // ---------- 관리(허브) ----------
+// 샐러리캡(스타 연봉 합계 / 한도)을 로스터에서도 본다
+function rosterCap(game) {
+  const cap = salaryCap(game.club, game.myTeam.tier);
+  const used = payroll(game.myTeam);
+  return section('SALARY CAP', `<div class="capline"><b class="num">${used}</b><span>/ ${cap}</span>${bar((used / cap) * 100, used > cap * 0.9 ? 'low' : '')}</div>
+    <p class="hint">스타 6명의 연봉 합계예요. 확장은 FRONT에서 해요</p>`);
+}
+
 function rosterTab(game, ui) {
   const open = ui.detailId && game.myTeam.stars.find((p) => p.id === ui.detailId);
   if (open) return `${flash(ui)}${playerDetail(game, ui, open)}`;
   return `${tip(ui, 'roster', '보드의 선수를 누르면 상세 정보가 나와요. 큰 얼굴이 스타, 작은 점은 자동으로 뛰는 조연이에요. 상세에서 <b>REST</b>를 지정하면 다음 구간에 그 자리를 조연이 메워요.')}
-    ${pitchBoard(game, { ...ui, sel: null })}`;
+    ${pitchBoard(game, { ...ui, sel: null })}${rosterCap(game)}`;
 }
 
 function tableTab(game) {
@@ -392,7 +401,7 @@ export function offseasonScreen(game, ui) {
   let body = '';
   if (off.step === 'resign') {
     const ret = off.retired.map((c) => `<li>${icon('flag', 16)}<b>${esc(nameOf(c.playerId))}</b><span>${facts('은퇴', `${c.seasons}시즌`, `${c.career.goals}골 ${c.career.assists}도움`)}</span></li>`).join('');
-    const list = off.resignQueue.map((p) => playerRow(p, { kit, contract: true, stack: true, action: `<div class="offer">${salaryInput(p.id, askingSalary(p))}<button class="btn btn--small btn--primary" data-act="resign" data-id="${esc(p.id)}">재계약</button><button class="link" data-act="decline" data-id="${esc(p.id)}">보내기</button></div>` })).join('');
+    const list = off.resignQueue.map((p) => playerRow(p, { kit, contract: true, stack: true, action: `<div class="offer"><small>SALARY <b class="num">${resignSalary(p)}</b></small><button class="btn btn--small btn--primary" data-act="resign" data-id="${esc(p.id)}">RESIGN</button><button class="link" data-act="decline" data-id="${esc(p.id)}">보내기</button></div>` })).join('');
     const coaches = off.coachExpiring.map((c) => `<div class="row"><div><b>${KIND_LABEL[c.kind]}</b>${stars(c.stars, c.stars, 14)}<small>계약이 끝났어요</small></div><button class="btn btn--small" data-act="renewcoach" data-kind="${c.kind}">재계약 ${coinNum(coachCost(c.stars, game.myTeam.tier ?? 3))}</button></div>`).join('');
     body = `${tip(ui, 'resign', '계약이 끝난 선수에게 우선 재계약을 제안할 수 있어요. 사기가 낮으면 어떤 금액도 거절해요. 보내면 FA 시장에 나와요.')}
       ${ret ? section('RETIRED', `<ul class="lines">${ret}</ul>`) : ''}

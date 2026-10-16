@@ -279,3 +279,19 @@ test('코치 연장: 코인을 내고 계약이 3년으로 늘고, 코인이 모
   assert.equal(coach.contract.years, 3);
   assert.ok(g.club.coins < 999);
 });
+
+test('재계약·연장 연봉은 선수 가치(요구 연봉)에 맞춰 고정이다: 사기 80 이상이면 90%', async () => {
+  const { resignSalary } = await import('../engine/freeAgency.mjs');
+  const g = startedGame(13);
+  const p = g.myTeam.stars[0];
+  p.mood = 60;
+  assert.equal(resignSalary(p), askingSalary(p));
+  p.mood = 85;
+  assert.equal(resignSalary(p), Math.round(askingSalary(p) * 0.9));
+  g.club.coins = 999;
+  g.myTeam.stars.forEach((x) => { x.contract.salary = 1; });
+  const r = extendPlayer(g, p.id); // 연봉을 따로 정하지 않는다
+  assert.equal(r.accepted, true);
+  assert.equal(p.contract.salary, resignSalary(p));
+  assert.equal(p.contract.years, 3);
+});

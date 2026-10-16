@@ -9,7 +9,7 @@ import {
 } from './draft.mjs';
 import { earn, negotiationClub, spend } from './economy.mjs';
 import {
-  aiSign, evaluateOffer, evaluateResign, generateFreeAgents, releaseToPool, resign, signFreeAgent, toEntry,
+  aiSign, evaluateOffer, evaluateResign, generateFreeAgents, releaseToPool, resign, resignSalary, signFreeAgent, toEntry,
 } from './freeAgency.mjs';
 import { regionTeams } from './game.mjs';
 import { startNextSeason } from './ladder.mjs';
@@ -51,10 +51,11 @@ export function beginOffseason(game) {
 }
 
 // 2) 재계약 협상. 거절이면 { accepted: false, reason }을 돌려주고 선수는 대기열에 남는다(금액을 올려 다시 제안할 수 있다).
-export function offerResign(game, playerId, salary) {
+export function offerResign(game, playerId, salary = null) {
   need(game, 'resign');
   const player = game.off.resignQueue.find((p) => p.id === playerId);
   if (!player) throw new Error('재계약 대상이 아닙니다');
+  salary ??= resignSalary(player);
   const result = evaluateResign(player, salary, clubView(game));
   if (result.accepted) {
     resign(player, salary, clubView(game));
@@ -81,12 +82,13 @@ export function renewCoachContract(game, kind) {
 }
 
 // 연장 계약: 계약 기간 중 언제든 새 연봉으로 3년을 다시 맺는다. 재계약과 같은 조건(사기, 캡, 요구 연봉)이다.
-export function extendPlayer(game, playerId, salary) {
+export function extendPlayer(game, playerId, salary = null) {
   marketOpen(game);
   const player = game.myTeam.stars.find((p) => p.id === playerId);
   if (!player) throw new Error('내 스타가 아닙니다');
   if (game.off?.resignQueue.includes(player)) throw new Error('재계약 단계에서 처리해 주세요');
   const club = clubView(game);
+  salary ??= resignSalary(player);
   const result = evaluateResign(player, salary, club);
   if (result.accepted) resign(player, salary, club);
   return result;

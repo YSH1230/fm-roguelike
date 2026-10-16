@@ -7,7 +7,7 @@ import {
 } from '../engine/game.mjs';
 import { inductHallOfFame } from '../engine/honors.mjs';
 import { nameOf } from '../engine/names.mjs';
-import { askingSalary } from '../engine/contract.mjs';
+import { resignSalary } from '../engine/freeAgency.mjs';
 import { ATTRIBUTES } from '../engine/constants.mjs';
 import { attrRow } from './pitch.mjs';
 import {
@@ -61,8 +61,8 @@ function modalHtml() {
     const p = game.myTeam.stars.find((x) => x.id === ui.extend);
     if (p) return `<div class="sheet" role="dialog" aria-modal="true" aria-label="연장 계약"><div class="sheet__box">
       <h3>EXTEND</h3><p class="offerline"><span class="lab">NOW ${p.contract.salary} · ${p.contract.years}Y LEFT</span><b>${esc(nameOf(p.id))}</b></p>
-      <p>새 연봉으로 3년을 다시 맺어요. 요구 연봉 이상이어야 해요.</p>
-      <input class="sal" type="number" min="1" max="99" id="ext-sal" value="${askingSalary(p)}" aria-label="새 연봉">
+      <p>선수 가치에 맞춘 연봉으로 3년을 다시 맺어요.</p>
+      <p class="offerline"><span class="lab">NEW SALARY</span><b>${resignSalary(p)}</b></p>
       <button class="btn btn--primary btn--wide" data-act="extendyes" data-id="${esc(p.id)}">CONFIRM</button><button class="btn btn--wide" data-act="extendclose">CLOSE</button></div></div>`;
   }
   if (ui.meeting) {
@@ -163,7 +163,7 @@ const ACTIONS = {
   extend(el) { ui.extend = el.dataset.id; },
   extendclose() { ui.extend = null; },
   extendyes(el) {
-    const r = extendPlayer(game, el.dataset.id, num('ext-sal'));
+    const r = extendPlayer(game, el.dataset.id);
     ui.extend = null;
     ui.flash = r.accepted ? '연장 계약했어요. 새 계약 3년이에요' : (REASON_TEXT[r.reason] ?? '거절당했어요');
   },
@@ -202,7 +202,7 @@ const ACTIONS = {
   retire() { retireManager(game); ui.view = 'end'; },
   hall(el) { inductHallOfFame(game.history, el.dataset.id); },
   offseason() { beginOffseason(game); ui.flash = null; },
-  resign(el) { result(offerResign(game, el.dataset.id, num(`sal-${el.dataset.id}`)), '재계약했어요'); },
+  resign(el) { result(offerResign(game, el.dataset.id), '재계약했어요'); },
   decline(el) { declineResign(game, el.dataset.id); },
   renewcoach(el) { renewCoachContract(game, el.dataset.kind); },
   openmarket() { openMarket(game); ui.flash = null; },

@@ -286,3 +286,16 @@ test('구간 결과: 잘한 선수에게 온 트레이드 제안이 마지막 �
   assert.ok(!chunkScreen(g, ui).includes('TRADE OFFER'));
 });
 ;
+
+test('로스터 탭에서 샐러리캡(연봉 합계 / 한도)을 볼 수 있고, 재계약 단계에는 연봉 입력칸이 없다', () => {
+  const g = startedGame(2);
+  const roster = hubScreen(g, freshUi());
+  assert.ok(roster.includes('SALARY CAP') && roster.includes('capline'));
+  const g2 = startedGame(5);
+  autoSeason(g2);
+  beginOffseason(g2);
+  const html = offseasonScreen(g2, freshUi());
+  clean(html, '재계약 단계');
+  assert.ok(!html.includes('id="sal-'));
+  if (g2.off.resignQueue.length) assert.ok(html.includes('data-act="resign"') && html.includes('SALARY'));
+});

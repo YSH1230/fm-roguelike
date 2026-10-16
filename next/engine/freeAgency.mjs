@@ -54,11 +54,14 @@ export function signFreeAgent(team, rng, entry, salary, club) {
   return entry.player;
 }
 
-// 재계약: 사기가 너무 낮으면 거절, 사기가 높으면 요구 연봉의 90%에 응한다.
+// 재계약·연장 연봉은 선수 가치(요구 연봉)에 비례해 고정이다. 사기가 80 이상이면 90%에 응한다.
+export const resignSalary = (player) => Math.round(askingSalary(player) * (player.mood >= 80 ? 0.9 : 1));
+
+// 재계약: 사기가 너무 낮으면 거절한다.
 export function evaluateResign(player, salary, club) {
   if (player.mood < RESIGN_MIN_MOOD) return { accepted: false, reason: 'mood' };
   if (salary > club.capRoom + player.contract.salary) return { accepted: false, reason: 'cap' };
-  const need = Math.round(askingSalary(player) * (player.mood >= 80 ? 0.9 : 1));
+  const need = resignSalary(player);
   if (salary < need) return { accepted: false, reason: 'salary' };
   return { accepted: true, reason: null };
 }
