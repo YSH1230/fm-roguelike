@@ -1,13 +1,13 @@
 import {
-  XP_BASE_PER_CHUNK, XP_PER_APP, XP_PER_ASSIST, XP_PER_GOAL,
+  LEVEL_GAIN, XP_BASE_PER_CHUNK, XP_NEED_BASE, XP_NEED_STEP, XP_PER_APP, XP_PER_ASSIST, XP_PER_GOAL,
 } from './constants.mjs';
 import { overall } from './player.mjs';
 import { randInt } from './rng.mjs';
 import { trainingMultipliers } from './coach.mjs';
 import { facilityEffects } from './economy.mjs';
 
-// 다음 레벨까지 필요한 XP: 레벨 1은 50, 레벨마다 10씩 늘어난다.
-export const xpNeeded = (level) => 40 + 10 * level;
+// 다음 레벨까지 필요한 XP: 레벨마다 조금씩 늘어난다.
+export const xpNeeded = (level) => XP_NEED_BASE + XP_NEED_STEP * level;
 
 // 어릴수록 XP 효율이 좋다.
 export function ageXpFactor(age) {
@@ -28,13 +28,13 @@ export function coachMul(team, position, key) {
   return (of(attack) + of(defense)) / 2;
 }
 
-// 능력이 잠재력보다 낮을 때만 능력 2개가 +1~2 오른다(99 상한).
+// 능력이 잠재력보다 낮을 때만 능력 2개가 올라간다(99 상한).
 export function raiseAttrs(p, rng) {
   const keys = Object.keys(p.attrs);
   let gained = 0;
   for (let i = 0; i < 2 && overall(p) < p.potential; i += 1) {
     const key = keys[randInt(rng, 0, keys.length - 1)];
-    const next = Math.min(99, p.attrs[key] + randInt(rng, 1, 2));
+    const next = Math.min(99, p.attrs[key] + randInt(rng, LEVEL_GAIN[0], LEVEL_GAIN[1]));
     gained += next - p.attrs[key];
     p.attrs[key] = next;
   }

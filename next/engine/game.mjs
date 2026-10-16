@@ -24,9 +24,9 @@ export const regionTeams = (world) => allTeams(world).filter((t) => t.region ===
 // 새 게임: 3부 팀, 배정된 스타 3명, 코치 2명, 시작 드래프트(3명 선택) 대기.
 export function createGame({ seed = 1, name = '감독', clubName = '내 구단' } = {}) {
   const rng = createRng(seed);
-  const myTeam = createTeam({ rng, id: 'ME', attackStars: 2, defenseStars: 2, starLevel: 50, starPositions: START_ASSIGNED });
-  myTeam.coaches.attack = createCoach({ rng, id: 'ME-ca', kind: 'attack', stars: 2 });
-  myTeam.coaches.defense = createCoach({ rng, id: 'ME-cd', kind: 'defense', stars: 2 });
+  const myTeam = createTeam({ rng, id: 'ME', attackStars: 2.5, defenseStars: 2.5, starLevel: 50, starPositions: START_ASSIGNED });
+  myTeam.coaches.attack = createCoach({ rng, id: 'ME-ca', kind: 'attack', stars: 2.5 });
+  myTeam.coaches.defense = createCoach({ rng, id: 'ME-cd', kind: 'defense', stars: 2.5 });
   for (const p of myTeam.stars) p.contract = newContract(Math.max(1, Math.round(askingSalary(p) * 0.6)));
   const world = createWorld({ rng, myTeam });
   grantPicks(regionTeams(world), 1);

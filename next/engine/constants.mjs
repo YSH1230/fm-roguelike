@@ -70,6 +70,9 @@ export const TRAITS = {
 
 // ---- 계획 4: 성장·상태 ----
 export const XP_BASE_PER_CHUNK = 6; // 구간마다 훈련으로 얻는 기본 XP
+export const XP_NEED_BASE = 15; // 레벨업에 필요한 XP = BASE + STEP x 레벨
+export const XP_NEED_STEP = 3;
+export const LEVEL_GAIN = [1, 3]; // 레벨업 때 능력 두 개가 오르는 폭(최소, 최대)
 export const XP_PER_APP = 0.5;
 export const XP_PER_GOAL = 2;
 export const XP_PER_ASSIST = 1.2;
@@ -90,9 +93,9 @@ export const MY_REGION = 0;
 export const TIER_COUNT = 3;
 // AI 팀 생성 범위, 리그 단계(1=1부)별. coach는 코치 별 범위, level은 스타 평균 능력 범위, target은 해마다 끌려가는 기준.
 export const TIER_PARAMS = {
-  1: { coach: [3, 5], level: [60, 78], target: 69 },
-  2: { coach: [2, 4], level: [50, 66], target: 58 },
-  3: { coach: [1.5, 3.5], level: [38, 54], target: 46 },
+  1: { coach: [3, 4.5], level: [58, 74], target: 66 },
+  2: { coach: [2, 3.5], level: [48, 63], target: 56 },
+  3: { coach: [1.5, 3], level: [36, 52], target: 44 },
 };
 export const CL_PER_REGION = 4; // 지역별 챔피언스리그 진출 팀 수(1부 상위)
 export const AI_REPLACEMENT_AGE = [19, 22];

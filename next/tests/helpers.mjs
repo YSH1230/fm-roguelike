@@ -20,7 +20,7 @@ import {
 } from '../engine/game.mjs';
 import {
   beginOffseason, closeDraft, closeMarket, draftBest, draftTurnIsMine, offerFreeAgent, offerResign, openMarket,
-  placeRookie, releaseStar, startSeason,
+  placeRookie, releaseStar, renewCoachContract, startSeason,
 } from '../engine/offseason.mjs';
 import { overall } from '../engine/player.mjs';
 
@@ -43,6 +43,7 @@ export function autoOffseason(g) {
   for (const p of [...g.off.resignQueue]) {
     offerResign(g, p.id, Math.max(askingSalary(p), 1)) ;
   }
+  for (const c of [...g.off.coachExpiring]) { try { renewCoachContract(g, c.kind); } catch { /* 코인 부족: 신임 코치 */ } }
   openMarket(g);
   for (const e of [...g.off.market].sort((a, b) => b.asking - a.asking)) {
     if (g.myTeam.stars.length >= 6) break;

@@ -10,8 +10,8 @@ import { addXp, ageXpFactor, chunkXp, coachMul, raiseAttrs, xpNeeded } from '../
 const young = (seed = 1, level = 50) => createPlayer({ rng: createRng(seed), id: 'p', position: 'FW', age: 19, level });
 const zero = { apps: 0, goals: 0, assists: 0 };
 
-test('필요 XP는 레벨마다 10씩 늘고, 어릴수록 효율이 좋다', () => {
-  assert.deepEqual([1, 2, 5].map(xpNeeded), [50, 60, 90]);
+test('필요 XP는 레벨마다 늘고, 어릴수록 효율이 좋다', () => {
+  assert.deepEqual([1, 2, 5].map(xpNeeded), [18, 21, 30]);
   assert.ok(ageXpFactor(19) > ageXpFactor(24) && ageXpFactor(24) > ageXpFactor(28));
   assert.ok(ageXpFactor(28) > ageXpFactor(31) && ageXpFactor(31) > ageXpFactor(35));
 });
@@ -20,7 +20,7 @@ test('레벨업하면 레벨이 오르고 남은 XP가 이어지며 능력이 �
   const p = young();
   p.potential = 90;
   const before = overall(p);
-  assert.equal(addXp(p, 50 + 60 + 7, createRng(2)), 2);
+  assert.equal(addXp(p, 18 + 21 + 7, createRng(2)), 2);
   assert.equal(p.xpLevel, 3);
   assert.equal(p.xp, 7);
   assert.ok(overall(p) > before);
@@ -29,7 +29,7 @@ test('레벨업하면 레벨이 오르고 남은 XP가 이어지며 능력이 �
 test('XP가 부족하면 레벨도 능력도 그대로다', () => {
   const p = young();
   const before = overall(p);
-  assert.equal(addXp(p, 49, createRng(3)), 0);
+  assert.equal(addXp(p, 17, createRng(3)), 0);
   assert.equal(p.xpLevel, 1);
   assert.equal(overall(p), before);
 });
