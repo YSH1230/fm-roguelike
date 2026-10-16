@@ -154,9 +154,12 @@ select { max-width: 160px; font-size: 13px; }
 .pitch__lines * { fill: none; stroke: color-mix(in srgb, var(--ivory) 16%, transparent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .pp { position: absolute; transform: translate(-50%, -50%); }
 .pp--sub { width: 12px; height: 12px; border-radius: 50%; background: color-mix(in srgb, var(--ivory) 24%, transparent); }
-.pp--star { display: grid; justify-items: center; gap: 3px; width: 64px; padding: 0; }
+.pp--star { display: grid; justify-items: center; gap: 3px; width: 58px; padding: 0; }
 .pp__face { position: relative; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 17px; background: var(--tile); border: 2.5px solid transparent; transition: transform 0.22s var(--ease), border-color 0.2s; }
 .pp__face .portrait { border-radius: 11px; }
+.pp--star.tight { width: 50px; }
+.pp--star.tight .pp__face { width: 44px; height: 44px; border-radius: 14px; }
+.pp--star.tight .portrait { width: 40px; height: 40px; }
 .pp--star.on .pp__face { border-color: var(--ivory); transform: scale(1.12); }
 .pp--star.out .pp__face { opacity: 0.55; }
 .pp__name { padding: 1px 8px; border-radius: 99px; background: rgba(11, 11, 11, 0.8); font-size: 11px; font-weight: 800; white-space: nowrap; }
@@ -308,10 +311,12 @@ select { max-width: 160px; font-size: 13px; }
 .prow--stack .offer select { max-width: 150px; }
 
 /* ---------- 모션: 눌림 반응, 화면 전환, 큰 순간 ---------- */
-.pill, .link, .opt, .seg__b, .swatch, .pp--star, .nav button { transition: transform 0.14s var(--ease), background-color 0.18s; }
+.pill, .link, .opt, .seg__b, .swatch, .nav button { transition: transform 0.14s var(--ease), background-color 0.18s; }
+.pp--star { transition: scale 0.14s var(--ease); } /* 보드 위 선수는 translate로 자리를 잡으므로 눌림은 scale 속성으로 따로 준다 */
 .pill:active, .opt:active:not(:disabled), .seg__b:active { transform: scale(0.97); }
 .link:active { transform: scale(0.97); }
-.swatch:active, .pp--star:active, .nav button:active { transform: scale(0.94); }
+.swatch:active, .nav button:active { transform: scale(0.94); }
+.pp--star:active { scale: 0.94; }
 .opt:active:not(:disabled) { transform: scale(0.985); }
 
 /* 화면이 바뀔 때만(app.mjs가 #screen에 enter를 붙인다) 투명도만 아주 짧게 */

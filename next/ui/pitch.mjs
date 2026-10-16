@@ -26,7 +26,8 @@ export function pitchBoard(game, ui) {
   for (const pos of ORDER) {
     const group = team.lineup.filter((p) => p.position === pos);
     group.forEach((p, i) => {
-      const x = ((i + 1) / (group.length + 1)) * 100;
+      // 얼굴 타일끼리 겹치지 않게 양 끝 14%~86% 안에서 고르게 펼친다(6명 이상이면 타일을 줄인다)
+      const x = group.length === 1 ? 50 : 14 + (72 * i) / (group.length - 1);
       const y = ROW_Y[pos];
       if (!stars.has(p)) {
         nodes.push(`<span class="pp pp--sub" style="left:${x}%;top:${y}%" aria-hidden="true"></span>`);
@@ -35,7 +36,7 @@ export function pitchBoard(game, ui) {
       const resting = ui.rest.has(p.id);
       const badge = isHurt(p) ? `<span class="pp__badge pp__badge--hurt" title="부상">${icon('cross', 12)}</span>`
         : (resting ? `<span class="pp__badge" title="휴식">${icon('moon', 12)}</span>` : '');
-      nodes.push(`<button class="pp pp--star${ui.sel === p.id ? ' on' : ''}${resting || isHurt(p) ? ' out' : ''}" style="left:${x}%;top:${y}%;--tile:${kit};--on-tile:${onColor(kit)}" data-act="pick" data-id="${esc(p.id)}" aria-pressed="${ui.sel === p.id}" aria-label="${esc(nameOf(p.id))}, ${POS_LABEL[p.position]}">
+      nodes.push(`<button class="pp pp--star${group.length > 5 ? ' tight' : ''}${ui.sel === p.id ? ' on' : ''}${resting || isHurt(p) ? ' out' : ''}" style="left:${x}%;top:${y}%;--tile:${kit};--on-tile:${onColor(kit)}" data-act="pick" data-id="${esc(p.id)}" aria-pressed="${ui.sel === p.id}" aria-label="${esc(nameOf(p.id))}, ${POS_LABEL[p.position]}">
         <span class="pp__face">${portrait(p, { size: 48, kit })}</span>
         <span class="pp__name">${esc(short(p.id))}</span>${badge}
         <i class="pp__cond${p.condition < 50 ? ' low' : ''}" style="--c:${p.condition}%"></i></button>`);
