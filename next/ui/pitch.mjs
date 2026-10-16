@@ -45,13 +45,13 @@ export function pitchBoard(game, ui) {
   }
   const r = teamRatings(team);
   return `<div class="pitch" role="group" aria-label="라인업 보드">${PITCH_LINES}${nodes.join('')}</div>
-    <div class="power"><span><em>ATTACK 공격력</em><b class="num">${Math.round(r.attack)}</b>${bar(r.attack)}</span><span><em>DEFENSE 수비력</em><b class="num">${Math.round(r.defense)}</b>${bar(r.defense)}</span></div>`;
+    <div class="power"><span><em>ATTACK</em><b class="num">${Math.round(r.attack)}</b>${bar(r.attack)}</span><span><em>DEFENSE</em><b class="num">${Math.round(r.defense)}</b>${bar(r.defense)}</span></div>`;
 }
 
 // 능력치 하나의 YOU / AVERAGE / BEST 비교. 비교 상대가 없으면 YOU만 보인다.
 function compare(key, you, bench) {
   const rows = [['YOU', you, 'you'], ...(bench ? [['AVERAGE', bench.avg, 'avg'], ['BEST', bench.best, 'best']] : [])];
-  return `<div class="col"><h5>${key.toUpperCase()}<span>${ATTR_LABEL[key]}</span></h5>${rows.map(([who, v, cls]) => `<div class="cmp cmp--${cls}"><span class="who">${who}</span>${bar(v)}<b class="num">${v}</b></div>`).join('')}</div>`;
+  return `<div class="col"><h5>${key.toUpperCase()}</h5>${rows.map(([who, v, cls]) => `<div class="cmp cmp--${cls}"><span class="who">${who}</span>${bar(v)}<b class="num">${v}</b></div>`).join('')}</div>`;
 }
 
 // 선택한 스타의 리포트(모달이 아니라 보드 아래에 바로 붙는다)
@@ -71,7 +71,7 @@ export function playerDetail(game, ui, p) {
     <h3 class="repname">${esc(last)}</h3>
     <p class="repsub"><span class="tag">${p.position}</span>${esc(first.reverse().join(' '))}<span class="mood">${moodFace(p.mood, 20)}</span></p>
     <div class="repstars">${abilityStars(p, 18)}<span class="lab">조건 ${Math.round(p.condition)} · 성장</span>${xpBar(p)}</div>
-    <h4 class="sech">ATTRIBUTES <span>능력치</span></h4>
+    <h4 class="sech">ATTRIBUTES</h4>
     ${ATTRIBUTES[p.position].map((k) => compare(k, p.attrs[k], bench[k])).join('')}
     <div class="big"><b class="num">${p.stats.goals}</b><span>시즌 골</span></div>
     <div class="tri"><div><b class="num">${p.stats.apps}</b><span>출전</span></div><div><b class="num">${p.stats.assists}</b><span>도움</span></div><div><b class="num">${per}</b><span>경기당 골</span></div></div>

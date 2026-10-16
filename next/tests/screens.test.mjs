@@ -72,7 +72,7 @@ test('관리 화면 4개 탭이 모두 그려지고 시트·카드가 선수 정
   const roster = hubScreen(g, freshUi());
   assert.equal((roster.match(/class="pp pp--star/g) ?? []).length, 6); // 보드의 스타 6명
   assert.equal((roster.match(/class="pp pp--sub/g) ?? []).length, 5); // 조연 5명은 점
-  assert.ok(roster.includes('시즌 시작'));
+  assert.ok(roster.includes('START SEASON'));
   assert.ok(roster.includes('다음 구간 쉬게 하기') && roster.includes('class="detail"'));
   assert.ok(roster.includes(nameOf(g.myTeam.stars[0].id)));
   const table = hubScreen(g, freshUi({ tab: 'table' }));
@@ -153,7 +153,7 @@ test('런 종료 화면: 경질과 은퇴 모두 요약이 그려진다', () => 
   clean(html, '런 종료');
   assert.ok(html.includes('CAREER REPORT'));
   assert.ok(html.includes('data-act="newrun"'));
-  assert.ok(html.includes(g.end.reason === 'fired' ? '경질' : '감독 은퇴'));
+  assert.ok(html.includes(g.end.reason === 'fired' ? 'FIRED' : 'RETIRED'));
 });
 
 test('트레이드 제안과 팀 이름 함수', () => {
@@ -181,5 +181,5 @@ test('드래프트·신인 배치 단계 화면도 깨지지 않는다', () => {
   closeDraft(g);
   const html = offseasonScreen(g, ui);
   clean(html, '신인 배치');
-  assert.ok(html.includes('시즌 시작'));
+  assert.ok(html.includes('START YEAR'));
 });
