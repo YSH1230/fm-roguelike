@@ -96,7 +96,7 @@ export function playerRow(p, { kit, note = '', action = '', contract = false, st
   return `<article class="prow${hurt ? ' prow--hurt' : ''}${stack ? ' prow--stack' : ''}">
     ${faceTile(p, { kit })}
     <div class="prow__main">
-      <h4 class="prow__name">${esc(nameOf(p.id))}${tag ? `<span class="tag">${p.position}</span>` : ''}<small>${p.age}세</small></h4>
+      <h4 class="prow__name"><span class="prow__nm">${esc(nameOf(p.id))}</span>${tag ? `<span class="tag">${p.position}</span>` : ''}<small>${p.age}세</small></h4>
       ${abilityStars(p)}
       ${stats ? `<div class="attrs-mini">${Object.entries(p.attrs).map(([k, v]) => `<span>${ATTR_LABEL[k]}<b>${v}</b></span>`).join('')}</div>` : ''}
       ${note}

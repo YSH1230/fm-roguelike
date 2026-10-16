@@ -403,3 +403,8 @@ select { max-width: 160px; font-size: 13px; }
 /* 후보 제목 줄: 별점 범례를 오른쪽에 붙이고, 이름 옆 포지션 태그 */
 .group .legend { float: right; margin: 2px 0 0; }
 .prow__name .tag { align-self: center; }
+
+/* 이름 줄은 한 줄 고정: 이름이 길면 말줄임, 태그와 나이는 줄바꿈 없음 */
+.prow__name { flex-wrap: nowrap; }
+.prow__nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prow__name .tag, .prow__name small { flex: none; white-space: nowrap; }
