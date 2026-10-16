@@ -62,7 +62,7 @@ function draftBoard(game, d, ui, cfg) {
   const total = d.order.length;
 
   if (!d.started) {
-    return `${head(cfg.label)}
+    return `<div class="titlebar"><h2>${cfg.title}</h2></div>
       <h3 class="group">PROSPECTS <span class="count">${d.pool.length}</span></h3>
       ${d.pool.map((p) => playerRow(p, { kit })).join('')}
       <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="dstart">DRAFT</button></div>`;
@@ -106,7 +106,7 @@ function draftBoard(game, d, ui, cfg) {
 export function startDraftScreen(game, ui) {
   const d = game.startDraft;
   return `${topBar(game)}<main class="page">${draftBoard(game, d, ui, {
-    label: 'DRAFT', title: '시작 드래프트', pickAct: 'sdraft', doneAct: 'dfinish', doneLabel: 'START SEASON',
+    label: 'DRAFT', title: 'DRAFT', pickAct: 'sdraft', doneAct: 'dfinish', doneLabel: 'START SEASON',
   })}</main>`;
 }
 
@@ -297,7 +297,7 @@ export function offseasonScreen(game, ui) {
       <div class="dock dock--page"><button class="btn btn--primary btn--wide" data-act="closemarket">CLOSE MARKET</button></div>`;
   } else if (off.step === 'draft') {
     body = draftBoard(game, off.draft, ui, {
-      label: 'ROOKIE DRAFT', title: `${game.world.year}년차 신인 드래프트`, pickAct: 'dpick', doneAct: 'closedraft', doneLabel: 'CLOSE DRAFT',
+      label: 'ROOKIE DRAFT', title: 'ROOKIE DRAFT', pickAct: 'dpick', doneAct: 'closedraft', doneLabel: 'CLOSE DRAFT',
     });
   } else {
     const full = game.myTeam.stars.length >= 6;
