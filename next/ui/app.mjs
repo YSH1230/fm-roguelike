@@ -187,7 +187,7 @@ const ACTIONS = {
   play() {
     setRest(game.myTeam, [...ui.rest]);
     ui.last = playNextChunk(game);
-    ui.rest.clear(); ui.flash = null; ui.view = 'chunk';
+    ui.rest.clear(); ui.flash = null; ui.view = 'chunk'; ui.reportDone = false;
   },
   press(el) { answerPress(game, Number(el.dataset.i)); },
   interview(el) { answerInterview(game, el.dataset.id, Number(el.dataset.i)); },
@@ -195,6 +195,7 @@ const ACTIONS = {
     ui.view = 'hub';
     ui.levelup = game.myTeam.stars.filter((p) => (p.points ?? 0) > 0).map((p) => p.id); // 레벨업한 선수의 카드를 차례로 띄운다
   },
+  reportnext() { ui.reportDone = true; },
   levellater() { ui.levelup.shift(); },
   finish() { finishSeason(game); },
   toend() { ui.view = 'end'; },
@@ -214,7 +215,7 @@ const ACTIONS = {
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['dpos', 'dsel', 'levellater', 'extend', 'extendclose', 'meeting', 'meetingclose', 'pback', 'ending', 'endingdone', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['dpos', 'dsel', 'reportnext', 'levellater', 'extend', 'extendclose', 'meeting', 'meetingclose', 'pback', 'ending', 'endingdone', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;

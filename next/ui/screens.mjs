@@ -287,15 +287,13 @@ export function chunkScreen(game, ui) {
     ...r.steps.filter((s) => s.levelUps > 0).map((s) => `<li>${icon('upgrade', 18)}<span><b>${esc(nameOf(s.id))}</b> 레벨업 ${s.levelUps}회</span></li>`),
     ...r.steps.filter((s) => s.injured).map((s) => `<li class="bad">${icon('injury', 18)}<span><b>${esc(nameOf(s.id))}</b> 부상</span></li>`),
   ];
-  const tr = game.pending.trade;
-  const tradeHtml = tr ? `<section class="ask"><h3>${icon('transfer', 20)}TRADE OFFER</h3><p>${esc(teamName(game, tr.aiTeamId))}가 눈여겨봤어요</p>
-    <p class="offerline"><span class="lab">YOU GIVE</span>${tradeSide(game, tr.give.players, tr.give.picks)}</p><p class="offerline"><span class="lab">THEY OFFER</span>${tradeSide(game, tr.get.players, tr.get.picks)}</p>
-    <button class="btn btn--primary btn--wide" data-act="pendtradeyes">ACCEPT</button><button class="btn btn--wide" data-act="pendtradeno">DECLINE</button></section>` : '';
-  const press = game.pending.press;
-  // 딜레마 카드: 선택지 두 개를 나란히 놓고 결과(사기·팬·코인)를 바로 옆에 보여 준다
-  const opts = (list, attrs) => `<div class="dilemma">${list.map((o, i) => `<button class="opt" ${attrs(i)} ${(o.effects.coins ?? 0) + game.club.coins < 0 ? 'disabled' : ''}><b>${esc(o.label)}</b><span>${effectChips(o.effects)}</span></button>`).join('<i class="vs">VS</i>')}</div>`;
-  const pressHtml = press ? `<section class="ask"><h3>${icon('mic', 20)}PRESS</h3><p>${esc(press.text)}</p>${opts(press.options, (i) => `data-act="press" data-i="${i}"`)}</section>` : '';
-  const iv = game.pending.interviews.map(({ playerId, interview }) => `<section class="ask"><h3>${icon('chat', 20)}${esc(nameOf(playerId))} 면담</h3><p>${esc(interview.text)}</p>${opts(interview.options, (i) => `data-act="interview" data-id="${esc(playerId)}" data-i="${i}"`)}</section>`).join('');
+  // 매치 리포트 다음에 기자회견, 면담(선수마다), 트레이드 제안이 각각 한 장면씩 이어진다
+  const queue = [
+    game.pending.press && { kind: 'press' },
+    ...game.pending.interviews.map((x) => ({ kind: 'iv', ...x })),
+    game.pending.trade && { kind: 'trade' },
+  ].filter(Boolean);
+  if (ui.reportDone && queue.length) return sceneScreen(game, queue[0], r.chunk, queue.length);
   const last = game.phase === 'seasonEnd';
   return `${topBar(game)}<main class="page" style="${teamStyle(game.clubKit)}">
     ${head('MATCH REPORT', `ROUND ${r.chunk}/3`)}
@@ -305,10 +303,35 @@ export function chunkScreen(game, ui) {
     <p class="hint center">승리 수입 ${r.income.win} + 홈 팬 수입 ${r.income.fan}</p>
     <ol class="strip" aria-label="경기 결과">${strip}</ol>
     ${events.length ? `<ul class="notes">${events.join('')}</ul>` : ''}
-    ${pressHtml}${iv}${tradeHtml}
     <h3 class="group">MATCHES</h3><ol class="matches">${rows}</ol>
   </main>
-  <div class="dock"><button class="btn btn--primary btn--wide" data-act="${last ? 'finish' : 'back'}">${last ? 'FINISH SEASON' : 'BACK'}</button></div>`;
+  <div class="dock">${queue.length
+    ? '<button class="btn btn--primary btn--wide" data-act="reportnext">NEXT</button>'
+    : `<button class="btn btn--primary btn--wide" data-act="${last ? 'finish' : 'back'}">${last ? 'FINISH SEASON' : 'BACK'}</button>`}</div>`;
+}
+
+// 딜레마 카드: 선택지 두 개를 나란히 놓고 결과(사기·팬·코인)를 바로 옆에 보여 준다
+const dilemma = (game, list, attrs) => `<div class="dilemma">${list.map((o, i) => `<button class="opt" ${attrs(i)} ${(o.effects.coins ?? 0) + game.club.coins < 0 ? 'disabled' : ''}><b>${esc(o.label)}</b><span>${effectChips(o.effects)}</span></button>`).join('<i class="vs">VS</i>')}</div>`;
+
+// 한 장면: 질문 하나와 딜레마 카드(또는 트레이드 제안)만 보인다. 답하면 다음 장면으로 넘어간다.
+function sceneScreen(game, item, chunk, left) {
+  let title = '';
+  let body = '';
+  if (item.kind === 'press') {
+    title = 'PRESS CONFERENCE';
+    body = `<p class="scene__q">${esc(game.pending.press.text)}</p>${dilemma(game, game.pending.press.options, (i) => `data-act="press" data-i="${i}"`)}`;
+  } else if (item.kind === 'iv') {
+    title = 'INTERVIEW';
+    body = `<div class="lvhead">${faceTile(game.myTeam.stars.find((p) => p.id === item.playerId), { kit: game.clubKit, size: 64 })}<p class="intro__who"><span class="lab">PLAYER</span><b>${esc(nameOf(item.playerId))}</b></p></div>
+      <p class="scene__q">${esc(item.interview.text)}</p>${dilemma(game, item.interview.options, (i) => `data-act="interview" data-id="${esc(item.playerId)}" data-i="${i}"`)}`;
+  } else {
+    const tr = game.pending.trade;
+    title = 'TRADE OFFER';
+    body = `<p class="scene__q">${esc(teamName(game, tr.aiTeamId))}가 눈여겨봤어요</p>
+      <p class="offerline"><span class="lab">YOU GIVE</span>${tradeSide(game, tr.give.players, tr.give.picks)}</p><p class="offerline"><span class="lab">THEY OFFER</span>${tradeSide(game, tr.get.players, tr.get.picks)}</p>
+      <button class="btn btn--primary btn--wide" data-act="pendtradeyes">ACCEPT</button><button class="btn btn--wide" data-act="pendtradeno">DECLINE</button>`;
+  }
+  return `${topBar(game)}<main class="page scene" style="${teamStyle(game.clubKit)}">${head(title, `ROUND ${chunk}/3 · ${left} LEFT`)}${body}</main>`;
 }
 
 // ---------- 시즌 종료 ----------

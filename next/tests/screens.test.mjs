@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, incomingTrade, playNextChunk, retireManager, startDraftAdvance, startDraftFinish, startDraftPick } from '../engine/game.mjs';
+import { answerInterview, answerPress, createGame, incomingTrade, playNextChunk, retireManager, startDraftAdvance, startDraftFinish, startDraftPick } from '../engine/game.mjs';
 import { isDraftOver } from '../engine/draft.mjs';
 import { generateCoachCandidates } from '../engine/coach.mjs';
 import { beginDraft, beginOffseason, closeDraft, closeMarket, draftChoose, draftTurnIsMine, openMarket } from '../engine/offseason.mjs';
@@ -92,17 +92,33 @@ test('쉬게 지정한 선수는 카드에 휴식이 표시된다', () => {
   assert.ok(/pp--star( on)? out/.test(hubScreen(g, freshUi({ rest: ui.rest }))));
 });
 
-test('구간 결과 화면: 경기 목록, 기자회견, 마지막 구간에는 시즌 마무리 버튼', () => {
+test('구간 결과: 매치 리포트 다음에 기자회견·면담이 한 장면씩 나오고, 모두 답하면 BACK, 마지막 구간에는 FINISH SEASON', () => {
   const g = startedGame(6);
   const ui = freshUi({ view: 'chunk' });
   ui.last = playNextChunk(g);
-  const html = chunkScreen(g, ui);
-  clean(html, '구간 결과');
-  assert.equal((html.match(/class="m m--/g) ?? []).length, 14);
-  assert.equal((html.match(/class="rs rs--/g) ?? []).length, 14);
-  assert.ok(html.includes('data-act="press"'));
-  assert.ok(html.includes('data-act="back"'));
+  const report = chunkScreen(g, ui);
+  clean(report, '매치 리포트');
+  assert.equal((report.match(/class="m m--/g) ?? []).length, 14);
+  assert.equal((report.match(/class="rs rs--/g) ?? []).length, 14);
+  assert.ok(!report.includes('data-act="press"')); // 리포트에는 선택지가 없다
+  assert.ok(report.includes('data-act="reportnext"') && !report.includes('data-act="back"'));
+  ui.reportDone = true;
+  const press = chunkScreen(g, ui);
+  clean(press, '기자회견 장면');
+  assert.ok(press.includes('PRESS CONFERENCE') && press.includes('data-act="press"') && press.includes('class="dilemma"'));
+  assert.ok(!press.includes('class="m m--')); // 장면에는 경기 목록이 없다
+  answerPress(g, 0);
+  for (const iv of [...g.pending.interviews]) {
+    const scene = chunkScreen(g, ui);
+    assert.ok(scene.includes('INTERVIEW') && scene.includes(`data-id="${iv.playerId}"`));
+    answerInterview(g, iv.playerId, 0);
+  }
+  g.pending.trade = null;
+  const done = chunkScreen(g, ui);
+  assert.ok(done.includes('data-act="back"') && !done.includes('reportnext'));
   playNextChunk(g); ui.last = playNextChunk(g);
+  ui.reportDone = false;
+  g.pending = { press: null, interviews: [], trade: null };
   const last = chunkScreen(g, ui);
   assert.ok(last.includes('data-act="finish"'));
   assert.equal((last.match(/class="m m--/g) ?? []).length, 10);
@@ -258,14 +274,15 @@ test('트레이드: 내놓을 것을 고르는 칸과 REQUEST 버튼이 있고, 
   assert.equal((rookies.match(/data-act="buyout"/g) ?? []).length, 1); // 2라운드 신인만
 });
 
-test('구간 결과 화면: 잘한 선수에게 온 트레이드 제안이 ACCEPT/DECLINE 카드로 나온다', async () => {
+test('구간 결과: 잘한 선수에게 온 트레이드 제안이 마지막 장면(ACCEPT/DECLINE)으로 나온다', async () => {
   const { requestTrade } = await import('../engine/game.mjs');
   const g = startedGame(4);
-  const ui = freshUi({ view: 'chunk', last: playNextChunk(g) });
-  g.pending.trade = requestTrade(g, { picks: [g.myTeam.picks[0]] });
+  const ui = freshUi({ view: 'chunk', last: playNextChunk(g), reportDone: true });
+  g.pending = { press: null, interviews: [], trade: requestTrade(g, { picks: [g.myTeam.picks[0]] }) };
   const html = chunkScreen(g, ui);
-  clean(html, '트레이드 제안 카드');
+  clean(html, '트레이드 제안 장면');
   assert.ok(html.includes('TRADE OFFER') && html.includes('data-act="pendtradeyes"') && html.includes('data-act="pendtradeno"') && html.includes('YOU GIVE'));
   g.pending.trade = null;
   assert.ok(!chunkScreen(g, ui).includes('TRADE OFFER'));
 });
+;

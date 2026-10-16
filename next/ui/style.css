@@ -491,3 +491,8 @@ select { max-width: 160px; font-size: 13px; }
 .lvhead { display: flex; align-items: center; gap: 14px; }
 .lvhead .tile { flex: none; width: 64px; height: 64px; }
 .lvhead .intro__who { margin-top: 0; padding-top: 0; border-top: 0; }
+
+/* 장면: 질문 하나와 선택 카드만 */
+.scene { display: grid; gap: 22px; align-content: start; }
+.scene__q { font: 700 24px/1.35 var(--ui); }
+.scene .dilemma .opt { min-height: 150px; }
