@@ -106,7 +106,7 @@ function draftBoard(game, d, ui, cfg) {
   // 드래프트가 끝나면 전체 지명 결과를 번호순 2열 보드로 보여 준다(지명한 구단 로고가 오른쪽)
   const sorted = [...d.picks].sort((x, y) => x.slot - y.slot);
   const half = Math.ceil(sorted.length / 2);
-  const cell = (k) => `<li class="fb${k.owner === me ? ' fb--me' : ''}"><b class="num">#${k.slot}</b><span class="fb__n">${esc(nameOf(k.player.id))}</span>${crest(game, k.owner, 26)}</li>`;
+  const cell = (k) => `<li class="fb${k.owner === me ? ' fb--me' : ''}" style="--i:${(k.slot - 1) % half}"><b class="num">#${k.slot}</b><span class="fb__n">${esc(nameOf(k.player.id))}</span>${crest(game, k.owner, 26)}</li>`;
   const finalBoard = `<h3 class="group">DRAFT BOARD</h3><div class="fboard"><ol>${sorted.slice(0, half).map(cell).join('')}</ol><ol>${sorted.slice(half).map(cell).join('')}</ol></div>`;
 
   const pickList = myTurn
