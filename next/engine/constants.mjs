@@ -114,3 +114,9 @@ export const AWARDS = [
 export const CAREER_SCORE = {
   bestTier: { 1: 100, 2: 40, 3: 0 }, leagueTitle: 30, clTitle: 100, award: 5, hallOfFame: 20, season: 5,
 };
+
+// ---- 계획 7: 게임 흐름 ----
+export const START_PROSPECTS = 12; // 시작 드래프트 후보 수(이 중 3명을 고른다)
+export const START_ASSIGNED = ['DF', 'MF', 'FW']; // 배정되는 스타 3명의 포지션
+export const START_PICKS = 3;
+export const CL_PRIZE = 300; // 챔피언스리그 우승 상금(코인)
