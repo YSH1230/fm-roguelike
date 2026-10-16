@@ -81,9 +81,12 @@ export function autoPickUntil(draft, myId, rng) {
 }
 
 // 지명된 선수에게 신인 계약(요구 연봉의 60%, 3년)을 붙여 팀별로 돌려준다.
-export function draftedBy(draft, ownerId) {
+// year를 주면 선수에게 영입 기록(몇 라운드 몇 번째 지명이었는지)도 남긴다.
+export function draftedBy(draft, ownerId, year = null) {
+  const teamCount = draft.order.length / Math.max(1, ...draft.order.map((o) => o.round ?? 1));
   return draft.picks.filter((p) => p.owner === ownerId).map((p) => {
     p.player.contract = newContract(Math.max(1, Math.round(askingSalary(p.player) * ROOKIE_DISCOUNT)));
+    if (year !== null) p.player.origin = { how: 'draft', year, round: p.round ?? 1, pick: ((p.slot - 1) % teamCount) + 1 };
     return p.player;
   });
 }

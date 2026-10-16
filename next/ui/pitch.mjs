@@ -1,7 +1,5 @@
 import { nameOf } from '../engine/names.mjs';
 import { capOf, overall, starsOf } from '../engine/player.mjs';
-import { marketValue } from '../engine/contract.mjs';
-import { pickValue } from '../engine/trade.mjs';
 import { teamRatings } from '../engine/ratings.mjs';
 import { ATTRIBUTES } from '../engine/constants.mjs';
 import { benchmarks } from './bench.mjs';
@@ -82,10 +80,14 @@ export function playerCard(game, ui, p) {
 // 사기·컨디션을 짧은 영어 단어로
 const moodWord = (m) => (m >= 80 ? 'GREAT' : (m >= 60 ? 'GOOD' : (m >= 40 ? 'OK' : (m >= 20 ? 'LOW' : 'BAD'))));
 const condWord = (c) => (c >= 70 ? 'GOOD' : (c >= 40 ? 'OK' : 'TIRED'));
-// 선수의 값어치를 드래프트 지명권으로 환산: 1라운드 중간 순번(10번) 가치 이상이면 1라운드급
-const valueWord = (p) => {
-  const v = marketValue(p);
-  return v >= pickValue(10, 1) ? 'RND 1 PICK' : (v >= pickValue(10, 2) ? 'RND 2 PICK' : 'LOW VALUE');
+// 이 선수를 어떻게 데려왔는지: 드래프트면 몇 년차 몇 라운드 몇 번째 지명이었는지
+const originWord = (p) => {
+  const o = p.origin;
+  if (!o) return '—';
+  if (o.how === 'draft') return `Y${o.year} · RND ${o.round} · #${o.pick}`;
+  if (o.how === 'fa') return `FREE AGENT · Y${o.year}`;
+  if (o.how === 'trade') return `TRADE · Y${o.year}`;
+  return 'FOUNDING SQUAD';
 };
 
 // 선수 상세 페이지: 로스터에서 선수를 누르면 보드 대신 나온다.
@@ -103,7 +105,7 @@ export function playerDetail(game, ui, p) {
     ['CONTRACT', `${p.contract.salary} (${p.contract.years}Y)`],
     ['MORALE', `${moodFace(p.mood, 18)} ${moodWord(p.mood)}`],
     ['CONDITION', condWord(p.condition)],
-    ['VALUE', valueWord(p)],
+    ['ACQUIRED', originWord(p)],
   ].map(([k, v]) => `<div class="irow"><span class="lab">${k}</span><b>${v}</b></div>`).join('');
   const restBtn = hurt
     ? `<span class="act act--off">${icon('injury', 16)}OUT</span>`
@@ -118,7 +120,7 @@ export function playerDetail(game, ui, p) {
     ${(p.points ?? 0) > 0 ? `<p class="points"><b class="num">${p.points}</b> POINT${p.points > 1 ? 'S' : ''}<span>PRESS +</span></p>` : ''}
     <h4 class="sech">ATTRIBUTES</h4>
     ${ATTRIBUTES[p.position].map((k) => compare(p, k, bench[k])).join('')}
-    <div class="acts">${restBtn}<button class="act" data-act="traderequest" data-id="${esc(p.id)}">${icon('transfer', 16)}TRADE</button></div>
+    <div class="acts">${restBtn}<button class="act" data-act="traderequest" data-id="${esc(p.id)}">${icon('transfer', 16)}TRADE</button><button class="act" data-act="meeting" data-id="${esc(p.id)}">${icon('chat', 16)}MEETING</button></div>
     <h4 class="sech">STATS</h4>
     <div class="big"><b class="num">${p.stats.goals}</b><span>GOALS</span></div>
     <div class="tri"><div><b class="num">${p.stats.apps}</b><span>APPS</span></div><div><b class="num">${p.stats.assists}</b><span>ASSISTS</span></div><div><b class="num">${per}</b><span>PER GAME</span></div></div>

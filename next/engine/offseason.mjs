@@ -119,6 +119,7 @@ export function offerFreeAgent(game, playerId, salary) {
   if (price > game.club.coins) return { accepted: false, reason: 'coins' };
   spend(game.club, price);
   signFreeAgent(game.myTeam, game.rng, entry, salary, club);
+  entry.player.origin = { how: 'fa', year: game.world.year };
   game.market = game.market.filter((e) => e !== entry);
   return { ...result, price };
 }
@@ -174,7 +175,7 @@ export function closeDraft(game) {
   need(game, 'draft');
   const { off, world } = game;
   if (!isDraftOver(off.draft)) throw new Error('드래프트가 아직 끝나지 않았습니다');
-  off.rookies = draftedBy(off.draft, game.myTeam.id);
+  off.rookies = draftedBy(off.draft, game.myTeam.id, game.season.year);
   // 2라운드 이후 신인은 계약하거나 돈(코인)으로 받을 수 있다.
   for (const k of off.draft.picks) if (k.owner === game.myTeam.id && k.round > 1) k.player.buyout = buyoutCoins(k.slot, off.draft.order.length / DRAFT_ROUNDS);
   const teams = regionTeams(world);

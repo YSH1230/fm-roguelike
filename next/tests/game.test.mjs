@@ -226,3 +226,34 @@ test('잘한 선수에게 구간마다 트레이드 제안이 오고, 받아들�
   declinePendingTrade(g2);
   assert.equal(g2.pending.trade, null);
 });
+
+test('영입 기록: 시작 선수는 FOUNDING, 시작 드래프트는 라운드와 몇 번째 지명인지 남고, 트레이드로 온 선수는 TRADE가 남는다', async () => {
+  const { acceptTrade, requestTrade } = await import('../engine/game.mjs');
+  const g = startedGame(9);
+  const origins = g.myTeam.stars.map((p) => p.origin);
+  assert.equal(origins.filter((o) => o.how === 'founding').length, 5);
+  const drafted = origins.find((o) => o.how === 'draft');
+  assert.ok(drafted && drafted.round === 1 && drafted.pick >= 1 && drafted.pick <= 20 && drafted.year === 1);
+  let offer = null;
+  for (let i = 0; i < 30 && !(offer && offer.get.players.length); i += 1) offer = requestTrade(g, { players: [g.myTeam.stars[0].id] });
+  if (offer?.get.players.length) {
+    acceptTrade(g, offer);
+    assert.equal(g.myTeam.stars.find((p) => p.id === offer.get.players[0]).origin.how, 'trade');
+  }
+});
+
+test('은퇴 면담: 젊은 선수는 거절, 나이가 많고 사기가 낮으면 받아들여 스타에서 빠지고 은퇴 기록이 남는다', async () => {
+  const { proposeRetirement } = await import('../engine/game.mjs');
+  const g = startedGame(10);
+  const [young, old] = g.myTeam.stars;
+  young.age = 25;
+  assert.deepEqual(proposeRetirement(g, young.id), { accepted: false, reason: 'young' });
+  assert.ok(g.myTeam.stars.includes(young));
+  old.age = 38; // 38세부터는 받아들인다
+  const before = g.history.retired.length;
+  assert.equal(proposeRetirement(g, old.id).accepted, true);
+  assert.ok(!g.myTeam.stars.includes(old));
+  assert.equal(g.history.retired.length, before + 1);
+  assert.equal(g.myTeam.lineup.length, 11);
+  assert.throws(() => proposeRetirement(g, 'nobody'), /내 스타가 아닙니다/);
+});

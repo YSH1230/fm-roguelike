@@ -71,7 +71,7 @@ test('관리 화면 4개 탭이 모두 그려지고 시트·카드가 선수 정
   assert.equal((table.match(/class="rank__n"/g) ?? []).length, 20);
   const picked = hubScreen(g, freshUi({ detailId: g.myTeam.stars[3].id }));
   assert.ok(picked.includes(`aria-label="${nameOf(g.myTeam.stars[3].id)} 상세"`));
-  for (const w of ['PLAYER INFO', 'AGE', 'CONTRACT', 'MORALE', 'CONDITION', 'VALUE', 'RATING', 'POTENTIAL', 'XP LEVEL', 'ATTRIBUTES', 'data-act="pback"', 'data-act="traderequest"', 'data-act="rest"']) assert.ok(picked.includes(w), w);
+  for (const w of ['PLAYER INFO', 'AGE', 'CONTRACT', 'MORALE', 'CONDITION', 'ACQUIRED', 'RATING', 'POTENTIAL', 'XP LEVEL', 'ATTRIBUTES', 'data-act="pback"', 'data-act="traderequest"', 'data-act="rest"']) assert.ok(picked.includes(w), w);
   assert.ok(!picked.includes('class="pitch"')); // 상세에서는 보드 대신 상세 페이지가 나온다
 });
 

@@ -3,7 +3,7 @@ import { generateCoachCandidates, hireCoach, setIntensity } from '../engine/coac
 import { expandCap, upgradeFacility } from '../engine/economy.mjs';
 import {
   acceptPendingTrade, acceptTrade, answerInterview, declinePendingTrade, answerPress, createGame, finishSeason, leagueAiTeams, playNextChunk,
-  renamePlayer, requestTrade, retireManager, spendPoint, startDraftAdvance, startDraftFinish, startDraftPick,
+  proposeRetirement, renamePlayer, requestTrade, retireManager, spendPoint, startDraftAdvance, startDraftFinish, startDraftPick,
 } from '../engine/game.mjs';
 import { inductHallOfFame } from '../engine/honors.mjs';
 import { nameOf } from '../engine/names.mjs';
@@ -46,6 +46,13 @@ function screenHtml() {
 }
 
 function modalHtml() {
+  if (ui.meeting) {
+    const p = game.myTeam.stars.find((x) => x.id === ui.meeting);
+    if (p) return `<div class="sheet" role="dialog" aria-modal="true" aria-label="면담"><div class="sheet__box">
+      <h3>MEETING</h3><p class="offerline"><span class="lab">${p.position} · AGE ${p.age}</span><b>${esc(nameOf(p.id))}</b></p>
+      <p>은퇴에 대해 이야기를 나눠 볼까요?</p>
+      <button class="btn btn--primary btn--wide" data-act="retireask" data-id="${esc(p.id)}">SUGGEST RETIREMENT</button><button class="btn btn--wide" data-act="meetingclose">CLOSE</button></div></div>`;
+  }
   if (!ui.modal) return '';
   const { offer } = ui.modal;
   const ai = leagueAiTeams(game).find((t) => t.id === offer.aiTeamId);
@@ -130,6 +137,16 @@ const ACTIONS = {
   },
   pendtradeyes() { acceptPendingTrade(game); ui.flash = '트레이드가 성사되었어요'; },
   pendtradeno() { declinePendingTrade(game); },
+  meeting(el) { ui.meeting = el.dataset.id; },
+  meetingclose() { ui.meeting = null; },
+  retireask(el) {
+    const p = game.myTeam.stars.find((x) => x.id === el.dataset.id);
+    const name = nameOf(p.id);
+    const r = proposeRetirement(game, el.dataset.id);
+    ui.meeting = null;
+    if (r.accepted) { ui.detailId = null; ui.flash = `${name}이(가) 은퇴를 받아들였어요. 지금까지 고마웠다고 인사를 나눴어요`; }
+    else ui.flash = r.reason === 'young' ? `${name}: "아직 한창입니다. 은퇴는 생각해 본 적 없어요"` : `${name}: "지금은 그런 얘기를 듣고 싶지 않습니다"`;
+  },
   tradeyes() { acceptTrade(game, ui.modal.offer); ui.modal = null; ui.flash = '트레이드가 성사되었어요'; },
   tradeno() { ui.modal = null; },
   traderequest(el) {
@@ -162,7 +179,7 @@ const ACTIONS = {
   place(el) { placeRookie(game, el.dataset.id, document.getElementById(`out-${el.dataset.id}`)?.value ?? null); ui.flash = null; },
   startseason() { startSeason(game); ui.view = 'hub'; ui.tab = 'roster'; ui.flash = null; },
 };
-const UI_ONLY = new Set(['dpos', 'dsel', 'pback', 'ending', 'endingdone', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
+const UI_ONLY = new Set(['dpos', 'dsel', 'meeting', 'meetingclose', 'pback', 'ending', 'endingdone', 'intronext', 'introskip', 'introdone', 'new', 'rename', 'renamecancel', 'tab', 'kit', 'pick', 'tip', 'rest', 'coachfind', 'tradeno', 'newrun', 'back', 'toend']);
 
 root.addEventListener('click', (e) => {
   if (e.target.closest('input, select, option, label')) return;

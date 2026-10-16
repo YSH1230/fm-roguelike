@@ -21,7 +21,8 @@ import { collectStats, createHistory, diffStats, recordSeason } from './records.
 import { buildRows, computeAwards, giveAwards } from './awards.mjs';
 import { playChampions } from './champions.mjs';
 import { managerFate, resolveLadder } from './ladder.mjs';
-import { careerSummary, endingFor, recordChampions, recordMyTeam } from './honors.mjs';
+import { careerSummary, endingFor, recordChampions, recordMyTeam, retirePlayer } from './honors.mjs';
+import { evaluateRetireOffer, retire } from './aging.mjs';
 
 export const regionTeams = (world) => allTeams(world).filter((t) => t.region === MY_REGION);
 
@@ -47,7 +48,7 @@ export function createGame({ seed = 1, name = '감독', clubName = '내 구단',
   const myTeam = createTeam({ rng, id: 'ME', attackStars: 2.5, defenseStars: 2.5, starLevel: 50, starPositions: START_ASSIGNED });
   myTeam.coaches.attack = createCoach({ rng, id: 'ME-ca', kind: 'attack', stars: 2.5 });
   myTeam.coaches.defense = createCoach({ rng, id: 'ME-cd', kind: 'defense', stars: 2.5 });
-  for (const p of myTeam.stars) p.contract = newContract(Math.max(1, Math.round(askingSalary(p) * 0.6)));
+  for (const p of myTeam.stars) { p.contract = newContract(Math.max(1, Math.round(askingSalary(p) * 0.6))); p.origin = { how: 'founding', year: 1 }; }
   const world = createWorld({ rng, myTeam });
   grantPicks(regionTeams(world), 1);
   // 내 리그 20개 구단이 1라운드를 한다. 순번은 작년 순위가 나쁜 팀부터(꼴찌가 1번).
@@ -89,7 +90,7 @@ export function startDraftPick(game, playerId) {
 export function startDraftFinish(game) {
   need(game, 'startDraft');
   if (!isDraftOver(game.startDraft)) throw new Error('드래프트가 아직 끝나지 않았습니다');
-  setStars(game.myTeam, game.rng, [...game.myTeam.stars, ...draftedBy(game.startDraft, 'ME')]);
+  setStars(game.myTeam, game.rng, [...game.myTeam.stars, ...draftedBy(game.startDraft, 'ME', game.world.year)]);
   game.phase = 'manage';
 }
 
@@ -178,6 +179,20 @@ export function acceptTrade(game, offer) {
   const ai = leagueAiTeams(game).find((t) => t.id === offer.aiTeamId);
   if (!ai) throw new Error('상대 팀을 찾을 수 없습니다');
   executeTrade({ offer, me: game.myTeam, ai, ...capsFor(game, ai), rng: game.rng });
+  for (const p of game.myTeam.stars) if (offer.get.players.includes(p.id)) p.origin = { how: 'trade', year: game.world.year };
+}
+
+// 선수에게 은퇴를 권하는 면담. 받아들이면 선수는 스타에서 빠지고 은퇴 기록이 남는다(나이와 사기에 따라 거절한다).
+export function proposeRetirement(game, playerId) {
+  if (game.phase !== 'manage' && game.phase !== 'offseason') throw new Error('지금은 면담할 수 없습니다');
+  const p = game.myTeam.stars.find((x) => x.id === playerId);
+  if (!p) throw new Error('내 스타가 아닙니다');
+  const result = evaluateRetireOffer(p);
+  if (result.accepted) {
+    retire(game.myTeam, game.rng, p);
+    retirePlayer(game.history, p, game.world.year);
+  }
+  return result;
 }
 
 // 내가 내놓은 한 가지(선수 한 명 또는 지명권 한 장)에 걸맞은 제안을 AI 팀 하나가 보낸다(실행은 하지 않는다).
