@@ -84,7 +84,7 @@ function draftBoard(game, d, ui, cfg) {
 
   const mine = d.picks.filter((k) => k.owner === me).sort((x, y) => x.slot - y.slot);
   const clock = over
-    ? `<div class="clock clock--done"><span class="lab">DRAFT COMPLETE</span>${mine.length ? mine.map((k) => `<b class="mypick"><span class="num">#${k.slot}</span> <span class="tag">${k.player.position}</span> ${esc(nameOf(k.player.id))}</b>`).join('') : '<b class="mypick">NO PICKS</b>'}</div>`
+    ? `<div class="clock clock--done"><span class="lab">DRAFT COMPLETE</span>${mine.length ? mine.map((k) => `<b class="mypick"><span class="num">#${k.slot}</span> <span class="pos">${k.player.position}</span> ${esc(nameOf(k.player.id))}</b>`).join('') : '<b class="mypick">NO PICKS</b>'}</div>`
     : `<div class="clock${myTurn ? ' clock--me' : ''}"><span class="lab">${myTurn ? 'YOUR PICK' : 'ON THE CLOCK'}</span><b class="num">#${upNext.slot}<small>/${total}</small></b></div>`;
 
   // 내 선수 포지션 현황: 포지션을 누르면 그 포지션의 내 선수가 보인다
@@ -112,7 +112,7 @@ function draftBoard(game, d, ui, cfg) {
     : '';
   return `${head(cfg.label, `PICK ${Math.min(d.next + 1, total)} / ${total}`)}
     <div class="titlebar"><h2>${cfg.title}</h2></div>
-    ${clock}${need}${pickList}
+    ${clock}${over ? '' : need}${pickList}
     ${over ? finalBoard : `<h3 class="group">PICK LOG</h3><ol class="picklog">${log || '<li class="muted">NO PICKS YET</li>'}</ol>`}${cta}`;
 }
 

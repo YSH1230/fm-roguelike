@@ -371,3 +371,4 @@ select { max-width: 160px; font-size: 13px; }
 .clock--done { display: grid; gap: 6px; }
 .mypick { font: 700 26px/1.1 var(--cond); letter-spacing: 0.03em; text-transform: uppercase; }
 .mypick .num { color: var(--team); }
+.mypick .pos { color: var(--white); }
