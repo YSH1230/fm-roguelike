@@ -83,3 +83,16 @@ export const DECLINE_AGE = 33;
 export const MAX_AGE = 40;
 // 33세부터 시즌이 끝날 때 은퇴할 확률(40세는 강제)
 export const RETIRE_CHANCE = { 33: 0.05, 34: 0.1, 35: 0.2, 36: 0.3, 37: 0.45, 38: 0.6, 39: 0.8 };
+
+// ---- 계획 5: 리그 세계 ----
+export const REGIONS = 8;
+export const MY_REGION = 0;
+export const TIER_COUNT = 3;
+// AI 팀 생성 범위, 리그 단계(1=1부)별. coach는 코치 별 범위, level은 스타 평균 능력 범위, target은 해마다 끌려가는 기준.
+export const TIER_PARAMS = {
+  1: { coach: [3, 5], level: [60, 78], target: 69 },
+  2: { coach: [2, 4], level: [50, 66], target: 58 },
+  3: { coach: [1.5, 3.5], level: [38, 54], target: 46 },
+};
+export const CL_PER_REGION = 4; // 지역별 챔피언스리그 진출 팀 수(1부 상위)
+export const AI_REPLACEMENT_AGE = [19, 22];

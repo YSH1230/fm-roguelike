@@ -22,7 +22,7 @@ export function generateFixtures(teamIds) {
   return [...firstLeg, ...secondLeg];
 }
 
-const emptyRow = () => ({ played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 });
+export const emptyRow = () => ({ played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 });
 
 export function createLeague(teams) {
   const ids = teams.map((t) => t.id);
@@ -35,7 +35,7 @@ export function createLeague(teams) {
   };
 }
 
-function record(table, homeId, awayId, { homeGoals, awayGoals }) {
+export function record(table, homeId, awayId, { homeGoals, awayGoals }) {
   const home = table.get(homeId);
   const away = table.get(awayId);
   home.played += 1;
