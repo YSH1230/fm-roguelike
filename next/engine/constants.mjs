@@ -67,3 +67,19 @@ export const TRAITS = {
   tactician: { label: '전술가', xp: 1.15, mood: 0, injury: 1.1 },
   caretaker: { label: '관리형', xp: 0.95, mood: 0, injury: 0.8 },
 };
+
+// ---- 계획 4: 성장·상태 ----
+export const XP_BASE_PER_CHUNK = 6; // 구간마다 훈련으로 얻는 기본 XP
+export const XP_PER_APP = 0.5;
+export const XP_PER_GOAL = 2;
+export const XP_PER_ASSIST = 1.2;
+export const FATIGUE_PER_ROUND = 1.3; // 뛴 라운드당 컨디션 소모
+export const NATURAL_RECOVERY = 8; // 뛰면서도 구간마다 자연 회복
+export const REST_RECOVERY = 35; // 쉬거나 다친 선수의 구간 회복
+export const INJURY_BASE = 0.06; // 구간당 기본 부상 확률
+export const INJURY_MAX_CHUNKS = 2;
+export const UNDERPAID_RATIO = 0.8; // 요구 연봉의 80% 미만이면 사기 하락
+export const DECLINE_AGE = 33;
+export const MAX_AGE = 40;
+// 33세부터 시즌이 끝날 때 은퇴할 확률(40세는 강제)
+export const RETIRE_CHANCE = { 33: 0.05, 34: 0.1, 35: 0.2, 36: 0.3, 37: 0.45, 38: 0.6, 39: 0.8 };
