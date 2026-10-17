@@ -2,7 +2,11 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FM-Lite">
 <meta name="theme-color" content="#222222">
 <title>FM-Lite 하이라이트 프로토타입</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap">
@@ -43,11 +47,18 @@
   <script>
     // 실제 보이는 영역(visualViewport: 주소창·툴바·노치를 뺀 크기)에 16:9 화면을 딱 맞춘다
     const wrap = document.getElementById('wrap');
+    // 노치·홈 바 같은 안전 영역을 재서 그만큼 비운다(홈 화면 앱으로 열었을 때)
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+    document.body.appendChild(probe);
+    const inset = { t: 0, r: 0, b: 0, l: 0 };
+    function measure() { const c = getComputedStyle(probe); inset.t = parseFloat(c.paddingTop) || 0; inset.r = parseFloat(c.paddingRight) || 0; inset.b = parseFloat(c.paddingBottom) || 0; inset.l = parseFloat(c.paddingLeft) || 0; }
     function fit() {
+      measure();
       const vv = window.visualViewport;
       const w = vv ? vv.width : window.innerWidth;
       const h = vv ? vv.height : window.innerHeight;
-      const s = Math.min(w / 16, h / 9);
+      const s = Math.min((w - inset.l - inset.r) / 16, (h - inset.t - inset.b) / 9);
       document.body.style.height = `${h}px`; document.body.style.width = `${w}px`;
       wrap.style.width = `${16 * s}px`; wrap.style.height = `${9 * s}px`; wrap.style.maxHeight = 'none';
       window.scrollTo(0, 0);
