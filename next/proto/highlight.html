@@ -10,7 +10,7 @@
   :root { --team: #ff4a1c; --mute: #9a9a9a; --line: #4a4a4a; --bg: #222; --cond: 'Barlow Condensed', sans-serif; }
   * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
   html, body { height: 100%; width: 100%; background: var(--bg); color: #fff; font-family: 'Pretendard Variable', system-ui, sans-serif; overscroll-behavior: none; }
-  body { display: grid; place-items: center; overflow: hidden; }
+  body { display: grid; place-items: center; overflow: hidden; position: fixed; left: 0; top: 0; }
   #wrap { position: relative; width: 100vw; height: 56.25vw; max-height: 100vh; touch-action: none; }
   canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; user-select: none; }
   .btn { min-height: 34px; padding: 0 14px; border: 2px solid var(--line); background: rgba(34, 34, 34, 0.92); color: #fff; font: 800 clamp(11px, 2.4vw, 15px) var(--cond); letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
@@ -41,14 +41,20 @@
   </div>
   <div id="rotate">ROTATE YOUR PHONE<br><span style="color:#9a9a9a;font-size:13px;font-weight:600">가로 화면으로 돌려 주세요</span></div>
   <script>
-    // 실제 보이는 크기(주소창·노치 제외)에 16:9 화면을 딱 맞춘다
+    // 실제 보이는 영역(visualViewport: 주소창·툴바·노치를 뺀 크기)에 16:9 화면을 딱 맞춘다
     const wrap = document.getElementById('wrap');
     function fit() {
-      const w = window.innerWidth; const h = window.innerHeight;
+      const vv = window.visualViewport;
+      const w = vv ? vv.width : window.innerWidth;
+      const h = vv ? vv.height : window.innerHeight;
       const s = Math.min(w / 16, h / 9);
+      document.body.style.height = `${h}px`; document.body.style.width = `${w}px`;
       wrap.style.width = `${16 * s}px`; wrap.style.height = `${9 * s}px`; wrap.style.maxHeight = 'none';
+      window.scrollTo(0, 0);
     }
-    window.addEventListener('resize', fit); window.addEventListener('orientationchange', () => setTimeout(fit, 250)); fit();
+    window.addEventListener('resize', fit); window.addEventListener('orientationchange', () => setTimeout(fit, 250));
+    if (window.visualViewport) { window.visualViewport.addEventListener('resize', fit); window.visualViewport.addEventListener('scroll', fit); }
+    fit(); setTimeout(fit, 400);
   </script>
   <script type="module" src="highlight.mjs"></script>
 </body>
