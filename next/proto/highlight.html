@@ -2,16 +2,16 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <meta name="theme-color" content="#222222">
 <title>FM-Lite 하이라이트 프로토타입</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap">
 <style>
   :root { --team: #ff4a1c; --mute: #9a9a9a; --line: #4a4a4a; --bg: #222; --cond: 'Barlow Condensed', sans-serif; }
   * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; background: var(--bg); color: #fff; font-family: 'Pretendard Variable', system-ui, sans-serif; overscroll-behavior: none; }
+  html, body { height: 100%; width: 100%; background: var(--bg); color: #fff; font-family: 'Pretendard Variable', system-ui, sans-serif; overscroll-behavior: none; }
   body { display: grid; place-items: center; overflow: hidden; }
-  #wrap { position: relative; width: min(100vw, calc(100dvh * 16 / 9)); aspect-ratio: 16 / 9; touch-action: none; }
+  #wrap { position: relative; width: 100vw; height: 56.25vw; max-height: 100vh; touch-action: none; }
   canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; user-select: none; }
   .btn { min-height: 34px; padding: 0 14px; border: 2px solid var(--line); background: rgba(34, 34, 34, 0.92); color: #fff; font: 800 clamp(11px, 2.4vw, 15px) var(--cond); letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
   .btn--primary { background: var(--team); border-color: var(--team); color: #000; min-height: 44px; }
@@ -40,6 +40,16 @@
     <div id="overlay"><div class="box"></div></div>
   </div>
   <div id="rotate">ROTATE YOUR PHONE<br><span style="color:#9a9a9a;font-size:13px;font-weight:600">가로 화면으로 돌려 주세요</span></div>
+  <script>
+    // 실제 보이는 크기(주소창·노치 제외)에 16:9 화면을 딱 맞춘다
+    const wrap = document.getElementById('wrap');
+    function fit() {
+      const w = window.innerWidth; const h = window.innerHeight;
+      const s = Math.min(w / 16, h / 9);
+      wrap.style.width = `${16 * s}px`; wrap.style.height = `${9 * s}px`; wrap.style.maxHeight = 'none';
+    }
+    window.addEventListener('resize', fit); window.addEventListener('orientationchange', () => setTimeout(fit, 250)); fit();
+  </script>
   <script type="module" src="highlight.mjs"></script>
 </body>
 </html>
