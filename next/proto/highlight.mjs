@@ -36,6 +36,24 @@ for (const k of Object.keys(stats)) {
 }
 document.getElementById('btn-tune').onclick = () => tunebox.classList.toggle('on');
 
+// ---------- 카메라: 항상 전체를 보여 주지 않고, 상황에 맞는 곳으로 확대한다 ----------
+const cam = { x: 320, y: 195, z: 1 };
+const camT = { x: 320, y: 195, z: 1 };
+const camTo = (x, y, z) => { camT.x = x; camT.y = y; camT.z = z; };
+// 점들을 모두 담는 확대 배율(최대 zoom까지)
+function camFit(points, { margin = 70, max = 1.8, uiBottom = 70 } = {}) {
+  const xs = points.map((q) => q.x); const ys = points.map((q) => q.y);
+  const x0 = Math.min(...xs) - margin; const x1 = Math.max(...xs) + margin; const y0 = Math.min(...ys) - margin; const y1 = Math.max(...ys) + margin;
+  const z = clamp(Math.min(W / (x1 - x0), (H - 38 - uiBottom) / (y1 - y0)), 1, max);
+  camTo((x0 + x1) / 2, (y0 + y1) / 2 - 8, z);
+}
+function stepCam(rdt) {
+  const k = 1 - Math.exp(-rdt * 5);
+  cam.x += (camT.x - cam.x) * k; cam.y += (camT.y - cam.y) * k; cam.z += (camT.z - cam.z) * k;
+}
+function world(fn) { ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(cam.z, cam.z); ctx.translate(-cam.x, -cam.y); fn(); ctx.restore(); }
+const toWorld = (p) => ({ x: (p.x - W / 2) / cam.z + cam.x, y: (p.y - H / 2) / cam.z + cam.y });
+
 let scene = null;
 let last = 0;
 let timeScale = 1;
@@ -101,7 +119,6 @@ function token(x, y, color, label = '', { ring = null, size = 22, dim = false } 
 function ball(x, y) { ctx.fillStyle = WHITE; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill(); }
 
 function drawField({ goalRight = true } = {}) {
-  ctx.fillStyle = '#222'; ctx.fillRect(0, 0, W, H);
   ctx.fillStyle = '#1c2a20'; ctx.fillRect(PITCH.x0, PITCH.y0, PITCH.x1 - PITCH.x0, PITCH.y1 - PITCH.y0);
   // 가로 띠(아주 옅게)
   for (let i = 0; i < 10; i++) { ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.0)'; ctx.fillRect(PITCH.x0 + i * 61.2, PITCH.y0, 61.2, PITCH.y1 - PITCH.y0); }
@@ -170,10 +187,14 @@ class ShootScene {
   settle(r) { this.result = r; this.hold = 0; hud.banner = ''; }
 
   draw() {
-    drawField(); drawHud('SHOT');
-    const ky = 195 + (this.result ? clamp(aimOf(this.aim) * 30, -40, 40) * 0.7 : Math.sin(this.t * 1.5) * 12);
-    token(PITCH.x1 - 40, ky, OPP, 'GK');
-    if (this.result) ball(PITCH.x1 - 6, clamp(195 + aimOf(this.aim) * 36, 150, 240));
+    camTo(px(0.93), 195, 2.1); // 골문 쪽으로 확대
+    world(() => {
+      drawField();
+      const ky = 195 + (this.result ? clamp(aimOf(this.aim) * 30, -40, 40) * 0.7 : Math.sin(this.t * 1.5) * 12);
+      token(PITCH.x1 - 40, ky, OPP, 'GK');
+      if (this.result) ball(PITCH.x1 - 6, clamp(195 + aimOf(this.aim) * 36, 150, 240));
+    });
+    drawHud('SHOT');
     const gx = 150; const gw = 340; const gy = 296;
     const [lo, hi] = powerWindow(stats.shooting, { curl: this.curl });
     T(this.phase === 'power' ? (this.curl ? 'CURL' : 'POWER') : 'AIM', 320, gy - 10, 14);
@@ -269,7 +290,7 @@ class AttackScene {
   startLong() {
     this.phase = 'longpass'; this.t = 0; this.wantsDoubleTap = false; this.drag = false; this.pull = null; this.released = false;
     this.range = slingRange(stats.pass, stats.stamina, 5);
-    this.pressT = this.time * 0.7;
+    this.pressT = this.time * 1.2 + 2.5; // 당기고 놓을 시간을 충분히 준다(능력은 시야로)
     const lane = pick([1, 3]);
     this.path = [{ x: px(0.6), y: LY(lane) }, { x: px(0.86), y: LY(2) + (lane === 1 ? -14 : 14) }]; // 스트라이커의 침투 점선
     flash('DRAG BACK ← AND RELEASE TO PASS');
@@ -302,7 +323,8 @@ class AttackScene {
   onGesture(g) {
     if (this.phase === 'shoot') { this.sub.onGesture(g); return; }
     if (this.phase === 'choose' && g.type === 'tap') {
-      const t = this.targets.find((q) => Math.hypot(q.x - g.x, q.y - g.y) < 34);
+      const wp = toWorld(g);
+      const t = this.targets.find((q) => Math.hypot(q.x - wp.x, q.y - wp.y) < 34);
       if (!t) return;
       if (t.id === 'ST') this.startLong(); else this.startRun(t.id);
       return;
@@ -333,42 +355,55 @@ class AttackScene {
     this.end(r === 'goal', r === 'goal' ? 'GOAL' : ({ save: 'SAVED', post: 'OFF THE POST', miss: 'MISS' }[r]), r === 'goal' ? '공격이 골로 이어졌어요' : '마무리가 막혔어요');
   }
 
+  aimCamera() {
+    const mx = px(this.depth); const my = LY(this.startLane);
+    if (this.phase === 'choose') camFit([{ x: mx, y: my }, ...this.targets, this.press], { max: 1.7 });
+    else if (this.phase === 'run') camTo(px(this.p) + 70, LY(this.laneNow), 2.0); // 달리는 선수를 따라간다
+    else if (this.phase === 'longpass') camFit([{ x: mx, y: my }, ...this.path, this.press], { max: 1.5 });
+  }
+
   draw() {
     if (this.phase === 'shoot') { this.sub.draw(); return; }
-    drawField(); drawHud();
+    this.aimCamera();
     const mx = px(this.depth); const my = LY(this.startLane);
-    if (this.phase === 'choose') {
-      for (const t of this.targets) route(mx + 14, my, t.x - 20, t.y);
-      for (const t of this.targets) token(t.x, t.y, TEAM, t.label, { ring: WHITE });
-      token(mx, my, TEAM, 'MF'); ball(mx + 18, my + 2);
-      token(this.press.x, this.press.y, OPP, '', { size: 18 });
-      for (let i = 0; i < 3; i++) token(px(this.depth + 0.4 + i * 0.1), LY(1 + i), OPP, '', { size: 18, dim: true });
-      bar(260, 346, 120, 4, 1 - this.t / this.time, TEAM);
-    } else if (this.phase === 'run') {
-      const zx = px(this.zoneStart);
-      ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(zx, PITCH.y0 + 1, PITCH.x1 - zx, PITCH.y1 - PITCH.y0 - 2);
-      line(zx, PITCH.y0, zx, PITCH.y1, 'rgba(255,255,255,0.45)', 1, [3, 4]);
-      if (this.p < 1) T('SHOOT ZONE', zx + (PITCH.x1 - zx) / 2, PITCH.y0 + 18, 12, '#b9a35a');
-      for (const d of this.defs) token(px(d.p), LY(d.lane), OPP, '', { size: 20, dim: Boolean(d.beaten) });
-      token(px(this.chaser), LY(this.laneNow), '#c94b4b', '', { size: 18 });
-      const x = px(this.p); const y = LY(this.laneNow);
-      token(x, y, TEAM, this.kind, { ring: this.skill.active > 0 ? WHITE : (this.sprint.t > 0 ? '#b9a35a' : null) });
-      ball(x + 18, y + 2);
+    world(() => {
+      drawField();
+      if (this.phase === 'choose') {
+        for (const t of this.targets) route(mx + 14, my, t.x - 20, t.y);
+        for (const t of this.targets) token(t.x, t.y, TEAM, t.label, { ring: WHITE });
+        token(mx, my, TEAM, 'MF'); ball(mx + 18, my + 2);
+        token(this.press.x, this.press.y, OPP, '', { size: 18 });
+        for (let i = 0; i < 3; i++) token(px(this.depth + 0.4 + i * 0.1), LY(1 + i), OPP, '', { size: 18, dim: true });
+      } else if (this.phase === 'run') {
+        const zx = px(this.zoneStart);
+        ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(zx, PITCH.y0 + 1, PITCH.x1 - zx, PITCH.y1 - PITCH.y0 - 2);
+        line(zx, PITCH.y0, zx, PITCH.y1, 'rgba(255,255,255,0.45)', 1, [3, 4]);
+        if (this.p < 1) T('SHOOT ZONE', zx + (PITCH.x1 - zx) / 2, PITCH.y0 + 18, 12, '#b9a35a');
+        for (const d of this.defs) token(px(d.p), LY(d.lane), OPP, '', { size: 20, dim: Boolean(d.beaten) });
+        token(px(this.chaser), LY(this.laneNow), '#c94b4b', '', { size: 18 });
+        const x = px(this.p); const y = LY(this.laneNow);
+        token(x, y, TEAM, this.kind, { ring: this.skill.active > 0 ? WHITE : (this.sprint.t > 0 ? '#b9a35a' : null) });
+        ball(x + 18, y + 2);
+      } else if (this.phase === 'longpass') {
+        line(this.path[0].x, this.path[0].y, this.path[1].x, this.path[1].y, WHITE, 1.5, [3, 5]);
+        ctx.fillStyle = WHITE; for (const q of this.path) ctx.fillRect(q.x - 3, q.y - 3, 6, 6);
+        token(this.path[0].x, this.path[0].y, TEAM, 'ST', { ring: WHITE });
+        token(mx, my, TEAM, 'MF'); ball(mx + 18, my + 2);
+        token(this.press.x, this.press.y, OPP, '', { size: 18 });
+        if (this.pull) {
+          const len = Math.hypot(this.pull.x, this.pull.y) || 1;
+          const dist = Math.min(len / 100, 1) * this.range * 500;
+          route(mx + 14, my, mx + (this.pull.x / len) * dist, my + (this.pull.y / len) * dist, TEAM);
+        }
+      }
+    });
+    drawHud();
+    // 화면 고정 UI(제한 시간 막대, 조작 안내)
+    if (this.phase === 'choose') bar(260, 346, 120, 4, 1 - this.t / this.time, TEAM);
+    else if (this.phase === 'run') {
       const cd = (a, b, label) => T(label, a, 354, 11, b > 0 ? '#555' : '#9a9a9a');
       cd(200, this.laneCd, 'DODGE ↑↓'); cd(320, this.sprint.used ? 1 : 0, 'SPRINT: TAP'); cd(440, this.skill.cd, 'SKILL: 2× TAP');
-    } else if (this.phase === 'longpass') {
-      line(this.path[0].x, this.path[0].y, this.path[1].x, this.path[1].y, WHITE, 1.5, [3, 5]);
-      ctx.fillStyle = WHITE; for (const q of this.path) ctx.fillRect(q.x - 3, q.y - 3, 6, 6);
-      token(this.path[0].x, this.path[0].y, TEAM, 'ST', { ring: WHITE });
-      token(mx, my, TEAM, 'MF'); ball(mx + 18, my + 2);
-      token(this.press.x, this.press.y, OPP, '', { size: 18 });
-      if (this.pull) {
-        const len = Math.hypot(this.pull.x, this.pull.y) || 1;
-        const dist = Math.min(len / 100, 1) * this.range * 500;
-        route(mx + 14, my, mx + (this.pull.x / len) * dist, my + (this.pull.y / len) * dist, TEAM);
-      }
-      bar(260, 346, 120, 4, 1 - this.t / this.pressT, '#c94b4b');
-    }
+    } else if (this.phase === 'longpass') bar(260, 346, 120, 4, 1 - this.t / this.pressT, '#c94b4b');
   }
 }
 
@@ -406,6 +441,7 @@ class DefenseScene {
     this.results.push(ok);
     if (!ok) this.gap = widenGap(this.gap);
     this.n += 1; this.ring = { t: 0 };
+    this.interval = shoulderInterval(stats.oppAtk) * rnd(0.8, 1.25); // 매번 박자가 조금씩 달라 외워서는 못 맞춘다
     if (this.n >= this.total) this.startBlock();
   }
 
@@ -439,40 +475,49 @@ class DefenseScene {
   }
 
   draw() {
-    drawField({ goalRight: false }); drawHud('DEFENSE');
     const a = this.atk();
+    if (this.phase === 'dive') camTo((a.x + PITCH.x0) / 2, 195, 1.45);
+    else camTo(a.x - 20, a.y, 2.3); // 공을 가진 상대와 내 윙백을 크게
+    world(() => {
+      drawField({ goalRight: false });
+      if (this.phase === 'shoulder') {
+        token(a.x, a.y, OPP, 'ATK'); ball(a.x - 18, a.y + 2);
+        token(a.x - 44, a.y + (this.lane === 0 ? -14 : 14), TEAM, 'WB');
+        const k = clamp(this.ring.t / this.interval, 0, 1.3);
+        const r = 44 - k * 30; // 줄어드는 링이 목표 반지름(14)에 닿는 순간이 박자
+        ctx.strokeStyle = WHITE; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(a.x, a.y, Math.max(r, 6), 0, 7); ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(a.x, a.y, 14, 0, 7); ctx.stroke();
+        token(40, 195, TEAM, 'GK');
+      } else if (this.phase === 'block') {
+        token(a.x, a.y, OPP, 'ATK'); ball(a.x - 18, a.y + 2);
+        token(a.x - 50 + this.gap * 12, a.y + (this.lane === 0 ? -14 : 14), TEAM, 'WB');
+        token(40, 195, TEAM, 'GK');
+      } else if (this.phase === 'dive') {
+        const k = clamp(this.diveT / this.flight, 0, 1);
+        const sx = a.x - 18; const sy = a.y + 2; const ex = PITCH.x0 + 8; const ey = 195 + this.dir * 30;
+        ball(sx + (ex - sx) * k, sy + (ey - sy) * k);
+        token(a.x, a.y, OPP, 'ATK');
+        token(44, 195 + this.dir * 30 * (this.diveT > this.flight - this.win / 2 ? 1 : 0.2), TEAM, 'GK');
+      }
+    });
+    drawHud('DEFENSE');
     if (this.phase === 'shoulder') {
-      token(a.x, a.y, OPP, 'ATK'); ball(a.x - 18, a.y + 2);
-      token(a.x - 44, a.y + (this.lane === 0 ? -14 : 14), TEAM, 'WB');
-      const k = clamp(this.ring.t / this.interval, 0, 1.3);
-      const r = 44 - k * 30; // 줄어드는 링이 목표 반지름(14)에 닿는 순간이 박자
-      ctx.strokeStyle = WHITE; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(a.x, a.y, Math.max(r, 6), 0, 7); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(a.x, a.y, 14, 0, 7); ctx.stroke();
-      T(`${this.n + 1} / ${this.total}`, 320, 112, 20);
-      this.results.forEach((r2, i) => { ctx.fillStyle = r2 ? '#ffffff' : '#555'; ctx.fillRect(298 + i * 14, 122, 10, 6); });
-      T(`GAP ${this.gap}`, 320, 148, 12, '#9a9a9a');
-      token(40, 195, TEAM, 'GK');
+      T(`${this.n + 1} / ${this.total}`, 320, 104, 20);
+      this.results.forEach((r2, i) => { ctx.fillStyle = r2 ? '#ffffff' : '#555'; ctx.fillRect(298 + i * 14, 112, 10, 6); });
+      T(`GAP ${this.gap}`, 320, 134, 12, '#9a9a9a');
     } else if (this.phase === 'block') {
-      token(a.x, a.y, OPP, 'ATK'); ball(a.x - 18, a.y + 2);
-      token(a.x - 50 + this.gap * 12, a.y + (this.lane === 0 ? -14 : 14), TEAM, 'WB');
       const bx = 150; const bw = 340; const by = 296;
       ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(bx, by, bw, 20);
       ctx.fillStyle = 'rgba(185,163,90,0.9)'; ctx.fillRect(bx + bw * (0.5 - this.win.total / 2), by, bw * this.win.total, 20);
       if (this.win.center > 0) { ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(bx + bw * (0.5 - this.win.center / 2), by, bw * this.win.center, 20); }
       ctx.fillStyle = TEAM; ctx.fillRect(bx + bw * (this.cur ?? 0) - 2, by - 5, 4, 30);
       T('BLOCK', 320, by - 10, 14);
-      token(40, 195, TEAM, 'GK');
     } else if (this.phase === 'dive') {
-      const k = clamp(this.diveT / this.flight, 0, 1);
-      const sx = a.x - 18; const sy = a.y + 2; const ex = PITCH.x0 + 8; const ey = 195 + this.dir * 30;
-      ball(sx + (ex - sx) * k, sy + (ey - sy) * k);
-      token(a.x, a.y, OPP, 'ATK');
-      token(44, 195 + this.dir * 30 * (this.diveT > this.flight - this.win / 2 ? 1 : 0.2), TEAM, 'GK');
       const bw = 320; const x0 = 160;
-      ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(x0, 96, bw, 12);
-      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillRect(x0 + ((this.flight - this.win / 2) / (this.flight + this.win)) * bw, 96, (this.win / (this.flight + this.win)) * bw, 12);
-      ctx.fillStyle = TEAM; ctx.fillRect(x0 + (this.diveT / (this.flight + this.win)) * bw - 2, 91, 4, 22);
-      T('DIVE', 320, 86, 14);
+      ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(x0, 296, bw, 12);
+      ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillRect(x0 + ((this.flight - this.win / 2) / (this.flight + this.win)) * bw, 296, (this.win / (this.flight + this.win)) * bw, 12);
+      ctx.fillStyle = TEAM; ctx.fillRect(x0 + (this.diveT / (this.flight + this.win)) * bw - 2, 291, 4, 22);
+      T('DIVE', 320, 286, 14);
     }
   }
 }
@@ -493,8 +538,10 @@ document.getElementById('btn-auto').onclick = () => {
 };
 
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000) * timeScale; last = now;
-  if (scene) { scene.update?.(dt); scene?.draw?.(); } else { drawField(); drawHud('HIGHLIGHT'); }
+  const raw = Math.min(0.05, (now - last) / 1000);
+  const dt = raw * timeScale; last = now;
+  ctx.fillStyle = '#222'; ctx.fillRect(0, 0, W, H);
+  if (scene) { scene.update?.(dt); stepCam(raw); scene?.draw?.(); } else { camTo(320, 195, 1); stepCam(raw); world(() => drawField()); drawHud('HIGHLIGHT'); }
   requestAnimationFrame(frame);
 }
 box.innerHTML = '<h2>HIGHLIGHT</h2><p>가로 화면에서 사이드 공격과 사이드 수비를 해볼 수 있어요. 아래 버튼으로 시작하세요.</p>';

@@ -79,9 +79,9 @@ export function resolveShot({ power, aim, shooting, curl = false, farSide = 1 })
 
 // ---- 수비 ----
 // 어깨싸움 박자 간격(초): 상대 팀 공격력이 높을수록 빠르다.
-export const shoulderInterval = (oppAttack) => 1.15 - clamp(oppAttack, 0, 20) * 0.025;
+export const shoulderInterval = (oppAttack) => 0.9 - clamp(oppAttack, 0, 20) * 0.02;
 // 어깨싸움 허용 오차(초): 내 속도가 높을수록 넓다.
-export const shoulderTolerance = (speed) => 0.11 + clamp(speed, 0, 20) * 0.007;
+export const shoulderTolerance = (speed) => 0.06 + clamp(speed, 0, 20) * 0.004;
 // 놓칠 때마다 간격이 한 단계씩 벌어진다(0~3).
 export const widenGap = (gap) => Math.min(3, gap + 1);
 
