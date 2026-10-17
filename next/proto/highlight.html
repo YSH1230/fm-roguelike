@@ -20,14 +20,15 @@
   .btn { min-height: 34px; padding: 0 14px; border: 2px solid var(--line); background: rgba(34, 34, 34, 0.92); color: #fff; font: 800 clamp(11px, 2.4vw, 15px) var(--cond); letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
   .btn--primary { background: var(--team); border-color: var(--team); color: #000; min-height: 44px; }
   .btn:active { transform: scale(0.97); }
-  #btn-auto { position: absolute; left: 1.5%; bottom: 3%; }
-  #menu { position: absolute; right: 1.5%; bottom: 3%; display: flex; gap: 6px; }
-  #overlay { position: absolute; inset: 0; display: none; place-items: center; background: rgba(34, 34, 34, 0.88); }
+  #btn-auto { position: absolute; left: 1.5%; bottom: 3%; z-index: 3; }
+  #menu { position: absolute; right: 1.5%; bottom: 3%; display: flex; gap: 6px; z-index: 3; }
+  #overlay { position: absolute; inset: 0; display: none; place-items: center; background: rgba(34, 34, 34, 0.88); pointer-events: none; z-index: 1; }
+  #overlay .box { pointer-events: auto; }
   #overlay.on { display: grid; }
   #overlay .box { display: grid; gap: 10px; width: min(60%, 340px); text-align: center; }
   #overlay h2 { font: 800 clamp(28px, 8vw, 52px)/1 var(--cond); letter-spacing: 0.04em; text-transform: uppercase; }
   #overlay p { color: #cfcfcf; font-size: clamp(12px, 2.4vw, 15px); line-height: 1.5; }
-  #tunebox { position: absolute; right: 1.5%; top: 12%; display: none; width: min(44%, 260px); max-height: 62%; overflow: auto; padding: 8px 10px; background: rgba(34, 34, 34, 0.96); border: 2px solid var(--line); }
+  #tunebox { z-index: 3; position: absolute; right: 1.5%; top: 12%; display: none; width: min(44%, 260px); max-height: 62%; overflow: auto; padding: 8px 10px; background: rgba(34, 34, 34, 0.96); border: 2px solid var(--line); }
   #tunebox.on { display: grid; gap: 4px; }
   #tunebox label { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; font: 700 11px var(--cond); letter-spacing: 0.1em; color: var(--mute); text-transform: uppercase; }
   #tunebox input { grid-column: 1 / -1; width: 100%; accent-color: var(--team); }
