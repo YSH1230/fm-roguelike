@@ -98,6 +98,6 @@
     window.addEventListener('error', (e) => { errBox.textContent += `${e.message} @${(e.filename || '').split('/').pop()}:${e.lineno}\n`; });
     window.addEventListener('unhandledrejection', (e) => { errBox.textContent += `${e.reason}\n`; });
   </script>
-  <script type="module" src="highlight.mjs?v13"></script>
+  <script type="module" src="highlight.mjs?v14"></script>
 </body>
 </html>

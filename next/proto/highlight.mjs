@@ -2,10 +2,11 @@
 // 규칙 수치는 rules.mjs의 TUNE 한 곳에서 읽는다. 공격은 오른쪽, 우리 골문은 왼쪽이다.
 // 화면은 FM-Lite 디자인 규칙(어두운 면, 얇은 선, 점선, 클럽 색, 각진 토큰)을 따른다.
 import {
-  TUNE, aimOf, blockResult, chaserSpeed, chooseTime, clamp, diveWindow, finishBlockWindow, frontDefenderCount, gaugeAt,
-  powerWindow, resolveShot, runnerSpeed, shootTime, shotFlightTime, shoulderInterval, shoulderTolerance, skillWindow, slingRange,
-  widenGap,
-} from './rules.mjs?v13';
+  TUNE, aimOf, autoGoalProb, blockResult, chaserSpeed, chooseTime, clamp, diveWindow, fatigue, finishBlockWindow, frontDefenderCount, gaugeAt,
+  headerWindow, looseWindow, pAttack, powerWindow, resolveShot, runnerSpeed, shootTime, shotFlightTime, shoulderInterval, shoulderTolerance, skillWindow,
+  slingRange, widenGap, classifyGesture,
+} from './rules.mjs?v14';
+import { Attack, FIELD, cameraTarget, nextCell } from './attack.mjs?v14';
 
 const W = 640;
 const H = 360;
@@ -27,7 +28,7 @@ const pick = (list) => list[Math.floor(Math.random() * list.length)];
 
 // 능력 슬라이더(시연용). 장면은 이 값만 읽는다.
 export const stats = {
-  speed: 12, dribble: 12, shooting: 12, finishing: 12, pass: 12, vision: 12, stamina: 12, tackle: 12, reaction: 12, position: 12,
+  speed: 12, dribble: 12, shooting: 12, finishing: 12, pass: 12, vision: 12, stamina: 12, tackle: 12, reaction: 12, position: 12, activity: 12,
   oppDef: 10, oppAtk: 10,
 };
 const tunebox = document.getElementById('tunebox');
@@ -129,18 +130,34 @@ let last = 0;
 let timeScale = 1;
 let paused = false;
 const hud = { me: 0, opp: 0, no: 1, banner: '', clock: '45:00' };
-let intro = null; // 장면 시작 전 안내: { t, kind, clock }
 let ghost = null; // 결과가 나온 뒤에도 마지막 장면 모습을 남겨 둔다
 
-// ---------- 입력: 탭, 더블탭, 스와이프, 당기기 ----------
+// ---------- 입력 ----------
+// 내 공격(play): 탭 / 앞뒤 플릭 / 손가락을 대고 있는 동안 옆으로 틀기 / 당겼다 놓기(새총). 판정은 지연 없이 즉시.
+// 직접 수비 연습(scene): 예전 탭, 더블탭, 스와이프 입력을 그대로 쓴다.
 const toLocal = (e) => {
   const r = cv.getBoundingClientRect();
   return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
 };
 let down = null;
 let pendingTap = null;
-cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); if (intro) { if (intro.t > 0.7) intro = null; return; } down = toLocal(e); scene?.onDown?.(down); });
-cv.addEventListener('pointermove', (e) => { if (down && !intro) scene?.onMove?.(toLocal(e), down); });
+let gest = null;
+cv.addEventListener('pointerdown', (e) => {
+  cv.setPointerCapture(e.pointerId); down = toLocal(e);
+  if (play && !paused) { gest = { p: down, t: performance.now() }; return; }
+  scene?.onDown?.(down);
+});
+cv.addEventListener('pointermove', (e) => {
+  if (!down) return;
+  const p = toLocal(e);
+  if (gest && play) {
+    const dx = p.x - gest.p.x; const dy = p.y - gest.p.y;
+    if (play.phase === 'aim') play.input({ type: 'aimPull', dx, dy });
+    else if (Math.hypot(dx, dy) > 6 || performance.now() - gest.t > 120) play.input({ type: 'steer', y: toWorld(p).y });
+    return;
+  }
+  scene?.onMove?.(p, down);
+});
 cv.addEventListener('pointerup', (e) => {
   if (!down) return;
   const p = toLocal(e);
@@ -148,6 +165,17 @@ cv.addEventListener('pointerup', (e) => {
   const dy = p.y - down.y;
   const d0 = down;
   down = null;
+  if (gest) {
+    const g = gest; gest = null;
+    if (!play) return;
+    const ms = Math.max(1, performance.now() - g.t); const m = Math.hypot(dx, dy);
+    if (play.phase === 'aim') { play.input({ type: 'aimRelease', dx, dy }); return; }
+    play.input({ type: 'steer', y: null });
+    const kind = classifyGesture({ m, ms });
+    if (kind === 'tap') { const w = toWorld(p); play.input({ type: 'tap', x: w.x, y: w.y }); }
+    else if (kind === 'flick') play.input({ type: 'flick', dx, dy });
+    return;
+  }
   scene?.onUp?.(p, d0);
   if (Math.abs(dx) > 22 || Math.abs(dy) > 22) {
     const g = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'swipeRight' : 'swipeLeft') : (dy > 0 ? 'swipeDown' : 'swipeUp');
@@ -155,7 +183,6 @@ cv.addEventListener('pointerup', (e) => {
     scene?.onGesture?.({ type: g, x: p.x, y: p.y, dx, dy });
     return;
   }
-  // 탭과 더블탭: 첫 탭 뒤 짧게 기다려 두 번째 탭이 오면 더블탭으로 본다
   if (scene?.wantsDoubleTap && pendingTap) {
     clearTimeout(pendingTap.timer); pendingTap = null;
     scene.onGesture({ type: 'dtap', x: p.x, y: p.y });
@@ -290,25 +317,7 @@ function updateHud() {
   const set = (id, v) => { const el = document.getElementById(id); if (el && el.textContent !== String(v)) el.textContent = String(v); };
   set('s-me', hud.me); set('s-opp', hud.opp); set('s-time', hud.clock);
 }
-// 장면 시작 안내: 시간이 딱 뜨고, 공격인지 수비인지 보여 준 다음 플레이가 시작된다
-function drawIntro() {
-  const k = Math.min(1, intro.t / 0.35); const out = clamp((TUNE.introTime - intro.t) / 0.3, 0, 1); const a = Math.min(k, out);
-  ctx.fillStyle = `rgba(8,12,20,${0.62 * a})`; ctx.fillRect(0, 0, W, H);
-  ctx.globalAlpha = a;
-  const atk = intro.kind === 'attack';
-  // 시간: 스코어보드와 같은 흰 박스
-  ctx.fillStyle = '#ffffff'; ctx.fillRect(320 - 62, 112, 124, 46);
-  ctx.fillStyle = C.ink; ctx.font = '800 30px "Silkscreen","Barlow Condensed",monospace'; ctx.textAlign = 'center'; ctx.fillText(intro.clock, 320, 147);
-  // 상황: 공격(에메랄드) / 수비(레드)
-  const col = atk ? '#10b981' : '#ef4444';
-  ctx.fillStyle = col; ctx.fillRect(320 - 92, 172, 184, 34);
-  ctx.fillStyle = '#ffffff'; ctx.font = '800 22px "Silkscreen","Barlow Condensed",monospace'; ctx.fillText(atk ? 'ATTACK' : 'DEFENSE', 320, 197);
-  ctx.fillStyle = '#cbd5e1'; ctx.font = '700 10px "Barlow Condensed",sans-serif'; ctx.fillText(atk ? 'OUR BALL' : 'THEY ATTACK', 320, 224);
-  if (intro.t > 0.7) { ctx.globalAlpha = a * (0.5 + 0.5 * Math.sin(performance.now() / 260)); ctx.fillStyle = '#94a3b8'; ctx.fillText('TAP TO START', 320, 250); }
-  ctx.globalAlpha = 1;
-}
 function drawCaption() {
-  if (intro) return;
   if (!hud.banner) return;
   const big = ['GOAL', 'GOAL AGAINST', 'SAVED', 'SAVE', 'PERFECT BLOCK', 'OFF THE POST', 'MISS', 'TURNOVER', 'MISSED PASS'].includes(hud.banner);
   if (big) { ctx.font = '800 30px "Silkscreen","Barlow Condensed",sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(hud.banner, 322, 132); ctx.fillStyle = WHITE; ctx.fillText(hud.banner, 320, 130); return; }
@@ -320,46 +329,85 @@ const drawHud = () => { drawCaption(); };
 function bar(x, y, w, h, v, color) { ctx.fillStyle = 'rgba(255,255,255,0.1)'; ctx.fillRect(x, y, w, h); ctx.fillStyle = color; ctx.fillRect(x, y, w * clamp(v, 0, 1), h); }
 const flash = (t) => { hud.banner = t; };
 
-// ---------- 미니 경기: 공격/수비 장면을 이어서 한 경기를 해본다 ----------
-const match = { on: false, n: 0, total: 10 };
-const pAttack = () => { const x = 10 / Math.max(1, stats.oppDef); const y = stats.oppAtk / 10; return x / (x + y); };
-function nextMatchScene() {
-  if (!match.on) return;
+// ---------- 경기 루프: 공격권 20번, 내 공격은 직접 플레이, 상대 공격은 자동 ----------
+const match = { on: false, n: 0, total: TUNE.possessions, mine: 0, stance: 'balanced', half: false, cell: null, fat: { MF: 0, WB: 0, WG: 0, ST: 0 } };
+let play = null; // 지금 진행 중인 내 공격(Attack)
+let autoPoss = null; // 지금 진행 중인 상대 공격 요약
+let banner = null; // 결과 오버레이(비차단): { t, dur }
+let camPunch = 0;
+const myAtk = () => (stats.dribble + stats.pass + stats.vision) / 3;
+const myDef = () => (stats.activity + stats.tackle + stats.position) / 3;
+const pMine = () => pAttack({ me: { atk: myAtk(), def: myDef() }, opp: { atk: stats.oppAtk, def: stats.oppDef }, m: TUNE.stance[match.stance].m });
+const pOppGoal = () => autoGoalProb({ oppAtk: stats.oppAtk, myDef: myDef(), gk: (stats.reaction + stats.position) / 2, stance: match.stance });
+function nextPossession() {
+  if (!match.on) { startPlay(); return; } // 연습 모드: 계속 내 공격
   if (match.n >= match.total) { endMatch(); return; }
-  match.n += 1; hud.no = match.n;
-  start(Math.random() < pAttack() ? 'attack' : 'defense', { keepScore: true });
+  match.n += 1; hud.no = match.n; hud.clock = clockText(((match.n - 1) / match.total) * 5400);
+  if (Math.random() < pMine()) startPlay(); else startAuto();
+}
+function startPlay() {
+  match.mine += 1; plays.total += 1; scene = null; autoPoss = null;
+  match.cell = nextCell(match.cell);
+  const A = new Attack({ stats, easy: easyNow(), attackNo: match.mine - 1, fatigue: match.fat, cell: match.cell });
+  A.on(onPlayEvent);
+  A.update(0.35); // 이미 움직이는 상태로 시작한다
+  play = A;
+}
+function afterPlay() {
+  const A = play;
+  if (A?.runner) match.fat[A.runner.role] += 1;
+  if (match.on && match.mine === TUNE.halftimeAfter && !match.half) { showHalftime(); return; }
+  nextPossession();
+}
+function startAuto() {
+  const goal = Math.random() < pOppGoal();
+  autoPoss = { t: 0, goal, dur: goal ? TUNE.goalHold : TUNE.autoHold, done: false };
+  play = null; scene = null;
+}
+function updateAuto(raw) {
+  const a = autoPoss; a.t += raw;
+  if (!a.shown && a.goal && a.t > 0.4) { a.shown = true; hud.opp += 1; hud.banner = 'GOAL AGAINST'; banner = { t: 0, dur: 1.1 }; sfx.bad(); fx.shake = 9; fx.freeze = 0.08; burst(PITCH.x0 + 30, GY, '#c94b4b', 20, 150); }
+  if (a.t >= a.dur) { autoPoss = null; nextPossession(); }
+}
+function drawAuto() {
+  const a = autoPoss; const k = clamp(a.t / Math.min(a.dur, 0.5), 0, 1);
+  const x = lerp(420, 40, k);
+  world(() => {
+    drawField();
+    for (const [dx, dy] of [[120, 100], [96, 189], [120, 280]]) sprite(dx, dy, C.home, { num: 4, anim: 'idle' });
+    sprite(FIELD.x0 + 10, GY, C.gkHome, { num: 1, anim: 'idle', lay: a.goal && k > 0.9 ? 1.1 : 0 });
+    sprite(x, GY + (a.goal ? 0 : 20), C.away, { num: 11, anim: 'run', kick: k > 0.85 });
+    ball(x - 6, GY + (a.goal ? 0 : 20) + 6, 0);
+  });
 }
 function endMatch() {
-  match.on = false; scene = null; ghost = null; hud.banner = '';
+  match.on = false; play = null; autoPoss = null; hud.banner = ''; banner = null;
   const r = hud.me > hud.opp ? 'WIN' : (hud.me < hud.opp ? 'LOSS' : 'DRAW');
-  box.innerHTML = `<h2>${r}</h2><p>ME ${hud.me} : ${hud.opp} OPP · ${match.total} SCENES</p><button class="btn btn--primary" id="again">PLAY AGAIN</button>`;
+  box.innerHTML = `<h2>${r}</h2><p>ME ${hud.me} : ${hud.opp} OPP · ${match.mine} OF ${match.total} POSSESSIONS WERE YOURS</p><button class="btn btn--primary" id="again">PLAY AGAIN</button>`;
   overlay.classList.add('on');
   document.getElementById('again').onclick = startMatch;
 }
 function startMatch() {
-  paused = false; match.on = true; match.n = 0; hud.me = 0; hud.opp = 0; hud.no = 0; fx.trail = [];
+  paused = false; match.on = true; match.n = 0; match.mine = 0; match.half = false; match.cell = null; match.fat = { MF: 0, WB: 0, WG: 0, ST: 0 };
+  hud.me = 0; hud.opp = 0; hud.no = 0; fx.trail = []; banner = null; hud.banner = '';
   overlay.classList.remove('on');
-  nextMatchScene();
+  nextPossession();
 }
-function finish(title, sub, ok) {
-  const kind = lastKind; ghost = scene; scene = null; timeScale = 1; hud.banner = '';
-  if (title === 'GOAL') hud.me += 1;
-  if (title === 'GOAL AGAINST') hud.opp += 1;
-  // 손맛: 결과마다 소리, 정지, 흔들림, 파티클
-  if (title === 'GOAL') { sfx.goal(); fx.flash = 0.9; fx.shake = 10; fx.freeze = 0.12; burst(PITCH.x1 - 30, GY, TEAM, 34, 200); burst(PITCH.x1 - 30, GY, WHITE, 14, 160); }
-  else if (title === 'GOAL AGAINST') { sfx.bad(); fx.shake = 9; fx.freeze = 0.1; burst(PITCH.x0 + 30, GY, '#c94b4b', 20, 150); }
-  else if (['SAVED', 'SAVE', 'PERFECT BLOCK', 'OFF THE POST'].includes(title)) { sfx.save(); fx.shake = 4; fx.freeze = 0.06; burst(kind === 'attack' ? PITCH.x1 - 30 : PITCH.x0 + 30, GY, WHITE, 12, 110); }
-  else { sfx.bad(); fx.shake = 3; }
-  if (match.on) { // 경기 중에는 결과를 잠깐 보여 주고 다음 장면으로
-    hud.banner = title;
-    setTimeout(() => { hud.banner = ''; nextMatchScene(); }, TUNE.resultTime * 1000);
-    return;
-  }
-  setTimeout(() => {
-    box.innerHTML = `<h2 style="color:${ok ? '#fff' : '#9a9a9a'}">${title}</h2><p>${sub}</p><button class="btn btn--primary" id="again">AGAIN</button>`;
-    overlay.classList.add('on');
-    document.getElementById('again').onclick = () => start(lastKind);
-  }, 1300);
+// 하프타임: 성향을 한 번 바꾸고 선발의 체력을 점검한다(전환과 재개는 즉시)
+function showHalftime() {
+  match.half = true; paused = true;
+  const tired = (role) => Math.round((1 - fatigue(1, { scene: match.mine, stamina: stats.stamina, ranScenes: match.fat[role], c: role === 'WB' ? 2 : 1 })) * 100);
+  const render = () => {
+    const worst = ['MF', 'WB', 'WG', 'ST'].sort((a, b) => match.fat[b] - match.fat[a])[0];
+    box.innerHTML = `<h2>HALFTIME</h2><p>ME ${hud.me} : ${hud.opp} OPP</p>
+      <div class="row" style="grid-template-columns:repeat(3,1fr)">${['attack', 'balanced', 'defense'].map((s) => `<button class="btn ${match.stance === s ? 'btn--primary' : ''}" data-s="${s}">${s === 'attack' ? 'ATTACK 4-2-4' : s === 'balanced' ? 'BALANCED 4-3-3' : 'DEFENSE 5-3-2'}</button>`).join('')}</div>
+      <div style="display:grid;gap:4px;text-align:left">${['MF', 'WB', 'WG', 'ST'].map((role) => `<div style="display:grid;grid-template-columns:34px 1fr 44px;gap:8px;align-items:center;font:700 12px var(--cond);letter-spacing:.08em"><span>${role}</span><span style="height:6px;background:rgba(255,255,255,.12)"><i style="display:block;height:6px;width:${100 - tired(role) * 3}%;background:${tired(role) > 18 ? '#ef4444' : '#22c55e'}"></i></span><button class="btn" style="min-height:22px;padding:0 6px;font-size:9px;${role === worst && match.fat[role] > 0 ? 'border-color:#fde047' : ''}" data-r="${role}">REST</button></div>`).join('')}</div>
+      <button class="btn btn--primary" id="resume2">SECOND HALF</button>`;
+    box.querySelectorAll('[data-s]').forEach((b) => { b.onclick = () => { match.stance = b.dataset.s; render(); }; });
+    box.querySelectorAll('[data-r]').forEach((b) => { b.onclick = () => { match.fat[b.dataset.r] = 0; render(); }; });
+    document.getElementById('resume2').onclick = () => { paused = false; overlay.classList.remove('on'); nextPossession(); };
+  };
+  render(); overlay.classList.add('on');
 }
 
 // ---------- 공통 애니메이션 도우미 ----------
@@ -375,452 +423,131 @@ function flightAt(a, b, u, arc = 18, endZ = 0) {
 // 이 선수가 지금 달리고 있는지에 따라 포즈를 정한다
 const POSE_RUN = { anim: 'run' };
 
-// ---------- 슛 장면(공통): 두 게이지를 차례로 탭하고, 차는 동작과 공이 날아가는 모션이 나온다 ----------
-class ShootScene {
-  constructor({ curl = false, striker = false, farSide = 1, rebound = false, shooter, onDone }) {
-    Object.assign(this, { curl, striker, farSide, rebound, onDone });
-    this.shooter = shooter ?? { x: PITCH.x1 - 120, y: GY };
-    this.t = 0; this.real = 0; this.phase = rebound ? 'aim' : 'power'; this.power = 0.65; this.aim = 0.5; this.result = null; this.hold = 0; this.cur = 0;
-    this.kick = null; // { t, r, ... } 슛을 찬 뒤의 모션
-    this.limit = shootTime(stats.finishing, striker) * easyNow();
-    timeScale = 0.55; // 마무리 순간은 슬로우 모션
-    this.keeperY = GY;
-    this.defs = [{ x: this.shooter.x + 40, y: this.shooter.y - 30 }, { x: this.shooter.x + 54, y: this.shooter.y + 28 }];
-    flash(rebound ? 'REBOUND · TAP TO AIM' : (curl ? 'TAP: CURL, THEN TAP: AIM' : 'TAP: POWER, THEN TAP: AIM'));
-  }
-
-  update(dt) {
-    this.t += dt; this.real += dt / timeScale; // 제한 시간은 실제 시간(슬로우 모션과 무관)
-    if (this.kick) { this.stepKick(dt); return; }
-    if (this.result) { this.hold += dt / timeScale; if (this.hold > 1.0) { timeScale = 1; this.onDone(this.result); } return; }
-    if (this.real > this.limit) { this.settle('miss'); return; }
-    this.cur = gaugeAt(this.t, this.phase === 'power' ? TUNE.gaugeCycle : TUNE.gaugeCycle * 0.9);
-    this.keeperY = GY + Math.sin(this.t * 1.5) * 10; // 키퍼가 좌우로 조금씩 움직인다
-  }
-
-  onGesture(g) {
-    if (this.result || this.kick || g.type !== 'tap') return;
-    if (this.phase === 'power') {
-      this.power = gaugeAt(this.t, TUNE.gaugeCycle); this.phase = 'aim'; sfx.tap();
-      const [lo, hi] = powerWindow(stats.shooting, { curl: this.curl });
-      if (this.power >= lo && this.power <= hi) { if (Math.abs(this.power - (lo + hi) / 2) < (hi - lo) * 0.2) sfx.perfect(); else sfx.ok(); }
-      return;
+// ---------- v3: 연속 공격 화면(Attack 상태 머신을 그린다) ----------
+const GX = FIELD.x1;
+const ROLE_NUM = { MF: 8, WB: 2, WG: 7, ST: 9, GK: 1, DF: 4 };
+function drawPlayer(A, p) {
+  const mine = p.team === 'me';
+  const gk = p.role === 'GK';
+  const kit = gk ? (mine ? C.gkHome : C.gkAway) : (mine ? C.home : C.away);
+  const num = ROLE_NUM[p.role] ?? '';
+  let lay = p.lay ? Math.min(1.4, p.lay) : 0;
+  if (gk && p.dive && (A.phase === 'shotFlight' || A.phase === 'result' || A.phase === 'rebound')) lay = 1.1 * p.dive;
+  const hold = A.ball.holder === p;
+  sprite(p.x, p.y, kit, { num, anim: lay ? null : p.anim, lay, kick: p.kick > 0, skin: (p.id.charCodeAt(0) + p.id.length) % 2, ring: null });
+  if (hold && !A.result) marker(p.x, p.y);
+}
+function ringAt(x, y, color, w = 1.6, rx = 13, ry = 5, alpha = 1) {
+  ctx.globalAlpha = alpha; ctx.strokeStyle = color; ctx.lineWidth = w; ctx.beginPath(); ctx.ellipse(x, y + 13, rx, ry, 0, 0, 7); ctx.stroke(); ctx.globalAlpha = 1;
+}
+function drawGaugeBar(A) {
+  const g = A.gauge; const x0 = 190; const w = 260; const y = H - 40;
+  ctx.fillStyle = 'rgba(8,12,20,0.78)'; ctx.fillRect(x0 - 8, y - 20, w + 16, 40);
+  ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x0, y, w, 9);
+  const seg = (a, b, c) => { ctx.fillStyle = c; ctx.fillRect(x0 + a * w, y, (b - a) * w, 9); };
+  if (A.phase === 'pow') { const [lo, hi] = powerWindow(stats.shooting, { curl: g.curl, mul: g.mul }); seg(lo, hi, '#22c55e'); }
+  else { seg(0, 0.0625, '#ef4444'); seg(0.0625, 0.104, '#fde047'); seg(0.104, 0.3125, '#22c55e'); seg(0.3125, 0.6875, '#64748b'); seg(0.6875, 0.896, '#22c55e'); seg(0.896, 0.9375, '#fde047'); seg(0.9375, 1, '#ef4444'); }
+  const v = A.gaugeNow();
+  ctx.fillStyle = '#fff'; ctx.fillRect(x0 + v * w - 1.5, y - 5, 3, 19);
+  // 남은 시간
+  const left = clamp(1 - (g.t ?? 0) / g.limit, 0, 1); ctx.fillStyle = left < 0.25 ? '#ef4444' : '#e2e8f0'; ctx.fillRect(x0, y - 12, w * left, 2);
+  T(A.phase === 'pow' ? (g.curl ? 'CURL' : 'POWER') : 'AIM', x0 + w / 2, y - 14, 8, '#cbd5e1');
+}
+function drawPlay(A) {
+  world(() => {
+    drawField();
+    if (A.phase === 'first' || A.phase === 'aim') { // 스트라이커의 침투 경로(점선)
+      const st = A.st; const ex = Math.min(st.x + 120, GX - 40);
+      ctx.strokeStyle = 'rgba(253,224,71,0.55)'; ctx.lineWidth = 1.3; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(st.x, st.y + 13); ctx.lineTo(ex, st.y + 13 + (st.vy ?? 0) * 0.5); ctx.stroke(); ctx.setLineDash([]);
     }
-    this.aim = gaugeAt(this.t, TUNE.gaugeCycle * 0.9);
-    this.settle(resolveShot({ power: this.rebound ? 0.65 : this.power, aim: aimOf(this.aim), shooting: stats.shooting, curl: this.curl, farSide: this.farSide }));
-  }
-
-  // 결과를 정하고 슛 모션을 시작한다(찰 준비 → 공 비행 → 키퍼 다이빙 → 결과)
-  settle(r) {
-    const gx = PITCH.x1; const a = aimOf(this.aim); const sgn = Math.sign(a) || 1;
-    const [lo, hi] = powerWindow(stats.shooting, { curl: this.curl });
-    const from = { x: this.shooter.x + 9, y: this.shooter.y + 11 };
-    let to; let endZ = 0; let arc = this.curl ? 26 : 12;
-    if (r === 'goal') to = { x: gx + 5, y: GY + clamp(a, -1, 1) * 18 };
-    else if (r === 'post') to = { x: gx, y: GY + sgn * 20 };
-    else if (r === 'save') to = { x: gx - 14, y: clamp(GY + clamp(a, -1, 1) * 14, GY - 24, GY + 24) };
-    else if (this.power > hi) { to = { x: gx + 40, y: GY + clamp(a, -1.2, 1.2) * 18 }; endZ = 46; arc = 40; } // 너무 세서 크로스바 위로
-    else to = { x: gx + 22, y: GY + sgn * 38 }; // 빗나감(골대 옆)
-    const flightDur = clamp(dist2(from, to) / 260, 0.55, 1.1);
-    this.kick = { t: 0, r, from, to, endZ, arc, flightDur, windup: 0.4, keeperTo: this.keeperTarget(r, to, sgn) };
-    hud.banner = '';
-    sfx.tap();
-  }
-
-  keeperTarget(r, to, sgn) {
-    if (r === 'save') return { x: PITCH.x1 - 24, y: to.y, reach: 1 };
-    if (r === 'goal') return { x: PITCH.x1 - 24, y: GY - sgn * 14 + (Math.random() - 0.5) * 6, reach: 0.55 }; // 반대로 몸을 던지거나 늦는다
-    if (r === 'post') return { x: PITCH.x1 - 24, y: to.y, reach: 0.9 };
-    return { x: PITCH.x1 - 24, y: GY + (Math.random() - 0.5) * 20, reach: 0.4 };
-  }
-
-  stepKick(dt) {
-    const k = this.kick; k.t += dt / timeScale;
-    const u = (k.t - k.windup) / k.flightDur;
-    if (!k.struck && k.t >= k.windup) { k.struck = true; sfx.tap(); fx.shake = 2; }
-    if (u >= 1 && !k.landed) {
-      k.landed = true;
-      // 공이 도착했을 때의 반응: 골대 맞춤 소리, 네트 출렁임
-      if (k.r === 'post') { fx.shake = 5; sfx.save(); }
+    if (A.phase === 'run' || A.phase === 'loose') { // 슛 사거리
+      ctx.strokeStyle = A.inRange ? 'rgba(253,224,71,0.9)' : 'rgba(255,255,255,0.28)'; ctx.lineWidth = A.inRange ? 1.8 : 1; ctx.setLineDash([4, 5]);
+      ctx.beginPath(); ctx.arc(GX, FIELD.gy, A.range, Math.PI * 0.5, Math.PI * 1.5); ctx.stroke(); ctx.setLineDash([]);
     }
-    if (u >= 1.35) { this.result = k.r; this.kick = null; this.hold = 0; hud.banner = { goal: 'GOAL', save: 'SAVED', post: 'OFF THE POST', miss: 'MISS' }[this.result]; }
-  }
-
-  camera() { camTo((this.shooter.x + PITCH.x1) / 2, GY, 1.25); }
-
-  // 월드(필드) 안의 선수·공
-  drawWorld() {
-    const k = this.kick; const gx = PITCH.x1;
-    const t = nowT();
-    for (const d of this.defs) token(d.x, d.y, OPP, '', { dim: true, anim: 'idle' });
-    // 슈터: 찰 준비 때 한 걸음 앞으로, 공을 차는 순간 다리를 휘두른다
-    const wind = k ? clamp(k.t / k.windup, 0, 1) : 0;
-    const sh = { x: this.shooter.x + wind * 6, y: this.shooter.y };
-    const kicking = k && k.t > k.windup * 0.55 && k.t < k.windup + 0.35;
-    token(sh.x, sh.y, TEAM, this.striker ? 'ST' : 'WG', { anim: k ? (wind < 1 ? 'run' : null) : 'idle', kick: kicking });
-    // 키퍼
-    let ky = this.keeperY; let kx = gx - 24; let lay = 0;
-    if (k) {
-      const u = clamp((k.t - k.windup) / k.flightDur, 0, 1);
-      const dive = ease(clamp(u * 1.15, 0, 1)) * k.keeperTo.reach;
-      ky = lerp(this.keeperY, k.keeperTo.y, dive); kx = lerp(gx - 24, k.keeperTo.x, dive);
-      lay = clamp((k.keeperTo.y - GY) / 24, -1, 1) * 1.25 * dive; // 몸을 던진 방향으로 기울어진다
+    for (const p of [...A.players].sort((a, b) => a.y - b.y)) drawPlayer(A, p);
+    // 위협 예고: 접촉 지점 링과 수비수 발밑 링(1.0초 전)
+    if (A.phase === 'run') {
+      for (const th of A.threats) {
+        if (th.state !== 'warn' && th.state !== 'windup') continue;
+        const k = clamp(1 - (th.tc - A.runClock) / TUNE.warnLead, 0, 1);
+        ctx.strokeStyle = th.state === 'windup' ? '#ef4444' : 'rgba(239,68,68,0.7)'; ctx.lineWidth = th.state === 'windup' ? 2.4 : 1.4; ctx.beginPath(); ctx.arc(th.P.x, th.P.y + 13, 22 - k * 8, 0, 7); ctx.stroke();
+        if (th.state === 'windup') { ctx.fillStyle = 'rgba(239,68,68,0.22)'; ctx.beginPath(); ctx.arc(th.P.x, th.P.y + 13, 14, 0, 7); ctx.fill(); }
+        for (const q of th.defs) ringAt(q.p.x, q.p.y, '#ef4444', 1.8, 14, 5.5, 0.6 + 0.4 * k);
+      }
+      const r = A.runner;
+      if (A.runClock < A.skill.until) ringAt(r.x, r.y, '#38bdf8', 2.2, 17, 7);
+      else if (A.skill.cd > 0) arcRing(r.x, r.y + 13, 15, 1 - A.skill.cd / TUNE.skillCD, 'rgba(255,255,255,0.5)');
+      if (A.inRange) { ringAt(r.x, r.y, C.yellow, 2, 16, 6.5); arcRing(r.x, r.y - 22, 6, 1 - A.rangeT / TUNE.rangeWindow, C.yellow); }
     }
-    token(kx, ky, OPP, 'GK', { lay, anim: lay ? null : 'idle' });
-    // 공
-    if (!k) { ball(sh.x + 9, sh.y + 11); return; }
-    if (k.t < k.windup) { ball(this.shooter.x + 9, this.shooter.y + 11); return; }
-    const u = (k.t - k.windup) / k.flightDur;
-    if (u < 1) { const p = flightAt(k.from, k.to, u, k.arc, k.endZ); ball(p.x, p.y, p.z); return; }
-    // 도착 뒤: 결과별 모션
-    const v = clamp((u - 1) / 0.35, 0, 1);
-    if (k.r === 'goal') ball(k.to.x + v * 3, k.to.y + v * 4, 0); // 그물에 걸려 멈춘다
-    else if (k.r === 'save') { const q = flightAt({ x: k.to.x, y: k.to.y }, { x: k.to.x - 30, y: k.to.y + (k.to.y < GY ? -26 : 26) }, v, 12); ball(q.x, q.y, q.z); } // 키퍼가 쳐낸다
-    else if (k.r === 'post') { const q = flightAt(k.to, { x: gx - 46, y: k.to.y + (k.to.y < GY ? -34 : 34) }, v, 14); ball(q.x, q.y, q.z); } // 골대를 맞고 튕겨 나온다
-    else ball(k.to.x + v * 24, k.to.y + (k.to.y < GY ? -v * 8 : v * 8), k.endZ * (1 - v * 0.3)); // 빗나가 뒤로 굴러간다
-  }
-
-  draw() {
-    this.camera();
-    world(() => { drawField(); this.drawWorld(); });
-    drawHud();
-    const gx = 150; const gw = 340; const gy = 312;
-    const [lo, hi] = powerWindow(stats.shooting, { curl: this.curl });
-    if (this.kick || this.result) return; // 찬 뒤에는 게이지를 숨기고 모션만 보여 준다
-    ctx.fillStyle = 'rgba(15,23,42,0.85)'; ctx.fillRect(gx - 6, gy - 8, gw + 12, 34);
-    ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(gx, gy, gw, 18);
-    if (this.phase === 'power') {
-      ctx.fillStyle = 'rgba(16,185,129,0.8)'; ctx.fillRect(gx + gw * lo, gy, gw * (hi - lo), 18);
-      ctx.fillStyle = C.yellow; ctx.fillRect(gx + gw * this.cur - 2, gy - 5, 4, 28);
-    } else {
-      const g = (a) => (a + 1.2) / 2.4;
-      const zone = (a, b, c) => { ctx.fillStyle = c; ctx.fillRect(gx + gw * a, gy, gw * (b - a), 18); };
-      zone(g(-1.05), g(-0.95), 'rgba(245,158,11,0.95)'); zone(g(0.95), g(1.05), 'rgba(245,158,11,0.95)');
-      if (this.curl) zone(this.farSide > 0 ? g(0.45) : g(-0.95), this.farSide > 0 ? g(0.95) : g(-0.45), 'rgba(16,185,129,0.8)');
-      else { zone(g(-0.95), g(-0.45), 'rgba(16,185,129,0.8)'); zone(g(0.45), g(0.95), 'rgba(16,185,129,0.8)'); }
-      ctx.fillStyle = C.yellow; ctx.fillRect(gx + gw * this.cur - 2, gy - 5, 4, 28);
+    if (A.phase === 'first') {
+      for (const c of Object.values(A.cands)) {
+        const m = c.me; const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 110);
+        if (c.state === 'closed') ringAt(m.x, m.y, '#ef4444', 1.6, 13, 5, 0.5);
+        else if (c.state === 'warn') ringAt(m.x, m.y, '#fde047', 2, 14, 5.5, 0.6 + 0.4 * pulse);
+        else if (c.state === 'open') { ringAt(m.x, m.y, '#22c55e', 2.8, 15, 6.5, 0.7 + 0.3 * pulse); arcRing(m.x, m.y + 13, 13, (c.close - A.pt) / (c.close - c.open), '#22c55e'); }
+        else ringAt(m.x, m.y, '#ef4444', 1.2, 13, 5, 0.25);
+      }
+      arcRing(A.mf.x, A.mf.y + 13, 16, clamp((A.arrival - A.pt) / A.arrival, 0, 1), '#ef4444'); // 압박 도달까지 남은 시간
     }
-    bar(250, 350, 140, 3, 1 - this.real / this.limit, C.yellow);
-  }
+    if (A.phase === 'aim') {
+      const h = A.aim.holder; const pl = A.aim.pull;
+      arcRing(h.x, h.y + 13, 17, 1 - A.prt / TUNE.aimMax, '#38bdf8');
+      if (pl && Math.hypot(pl.dx, pl.dy) >= TUNE.aimMinPull) {
+        const len = Math.hypot(pl.dx, pl.dy); const loft = len < TUNE.aimLowPull; const a = Math.atan2(-pl.dy, -pl.dx);
+        const L = (loft ? 90 : 190); const ex = h.x + Math.cos(a) * L; const ey = h.y + Math.sin(a) * L;
+        ctx.strokeStyle = loft ? '#67e8f9' : '#ffffff'; ctx.lineWidth = 1.8; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(h.x, h.y);
+        if (loft) ctx.quadraticCurveTo((h.x + ex) / 2, Math.min(h.y, ey) - 30, ex, ey); else ctx.lineTo(ex, ey);
+        ctx.stroke(); ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(ex, ey, 4, 0, 7); ctx.stroke();
+      }
+    }
+    if (A.phase === 'loose') { // 루즈볼 확보: 수축 링 하나
+      const b = A.ball; const k = A.prt / TUNE.looseTarget; const w = looseWindow(stats.dribble, A.easy);
+      const okNow = Math.abs(A.prt - TUNE.looseTarget) <= w;
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(b.x, b.y, 8, 0, 7); ctx.stroke();
+      ctx.strokeStyle = okNow ? '#22c55e' : '#fde047'; ctx.lineWidth = okNow ? 3 : 2; ctx.beginPath(); ctx.arc(b.x, b.y, Math.max(8, lerp(34, 8, Math.min(1, k)) ), 0, 7); ctx.stroke();
+    }
+    if (A.phase === 'header') { // 헤더: 수축 링
+      const st = A.st; const k = A.prt / TUNE.headerPeak; const w = headerWindow(stats.finishing, A.header.mul) * A.easy;
+      const okNow = Math.abs(A.prt - TUNE.headerPeak) <= w;
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(st.x, st.y - 8, 11, 0, 7); ctx.stroke();
+      ctx.strokeStyle = okNow ? '#22c55e' : '#fde047'; ctx.lineWidth = okNow ? 3 : 2; ctx.beginPath(); ctx.arc(st.x, st.y - 8, Math.max(11, lerp(48, 11, Math.min(1, k))), 0, 7); ctx.stroke();
+    }
+    ball(A.ball.x, A.ball.y, A.ball.z);
+  });
+  if (A.phase === 'pow' || A.phase === 'dir') drawGaugeBar(A);
+  if (A.phase === 'rebound') drawGaugeBar({ ...A, phase: 'dir', gaugeNow: () => gaugeAt(A.prt, TUNE.gaugeCycle * 0.9), gauge: { ...A.gauge, t: 0, limit: 2.5 } });
+  // 조준·슛 슬로우 때 가장자리를 살짝 어둡게
+  if (A.slow < 1 || A.phase === 'aim') { const gr = ctx.createRadialGradient(W / 2, H / 2, 120, W / 2, H / 2, 360); gr.addColorStop(0, 'rgba(8,12,20,0)'); gr.addColorStop(1, 'rgba(8,12,20,0.5)'); ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H); }
+  // 뒤 추격이 0.14초 이하로 붙으면 가장자리 비네팅, 니어미스는 가장자리 펄스
+  if (A.phase === 'run' && A.presserGap <= TUNE.vignetteGap) { const gr = ctx.createRadialGradient(W / 2, H / 2, 150, W / 2, H / 2, 380); gr.addColorStop(0, 'rgba(239,68,68,0)'); gr.addColorStop(1, `rgba(239,68,68,${0.38 + 0.12 * Math.sin(performance.now() / 70)})`); ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H); }
+  if (fx.edge > 0) { ctx.strokeStyle = `rgba(255,255,255,${fx.edge})`; ctx.lineWidth = 8; ctx.strokeRect(0, 0, W, H); }
+}
+// Attack 이벤트 → 소리, 정지, 흔들림, 파티클
+function onPlayEvent(name, d) {
+  const A = play;
+  if (name === 'pass') sfx.ok();
+  else if (name === 'tap') sfx.tap();
+  else if (name === 'skill') { sfx.sprint(); }
+  else if (name === 'skillOK') { sfx.perfect(); fx.freeze = TUNE.skillHitstop; fx.shake = 4; fx.edge = 0.5; burst(d.by.x, d.by.y, C.home, 14, 120); camPunch = 1; }
+  else if (name === 'warn') tone(240, 0.06, 'square', 0.025);
+  else if (name === 'nearMiss') { tone(900, 0.07, 'square', 0.04, 400); fx.edge = 0.7; A.slowTo(0.5, 0.08); }
+  else if (name === 'loose') { sfx.bad(); fx.shake = 4; fx.freeze = 0.04; }
+  else if (name === 'secured') { sfx.ok(); burst(A.runner.x, A.runner.y, C.home, 10, 90); }
+  else if (name === 'kick' || name === 'instant') sfx.tap();
+  else if (name === 'rebound') { sfx.save(); fx.shake = 3; }
+  else if (name === 'result') onPlayResult(d);
+}
+const BANNER = { goal: 'GOAL', save: 'SAVED', post: 'OFF THE POST', miss: 'MISS', turnover: 'TURNOVER' };
+function onPlayResult({ kind }) {
+  const A = play;
+  hud.banner = BANNER[kind] ?? '';
+  banner = { t: 0, dur: kind === 'goal' ? TUNE.goalHold : TUNE.otherHold };
+  if (kind === 'goal') { if (match.on) hud.me += 1; sfx.goal(); fx.flash = 0.9; fx.shake = 10; fx.freeze = 0.1; burst(GX - 30, FIELD.gy, TEAM, 34, 200); burst(GX - 30, FIELD.gy, WHITE, 14, 160); }
+  else if (kind === 'save' || kind === 'post') { sfx.save(); fx.shake = 4; fx.freeze = 0.05; burst(GX - 30, FIELD.gy, WHITE, 12, 110); }
+  else { sfx.bad(); fx.shake = 3; if (A.result.why === 'tackle' || A.result.why === 'loose') burst(A.runner.x, A.runner.y, '#c94b4b', 10, 100); }
 }
 
-// ---------- 공격 장면 ----------
-class AttackScene {
-  constructor() {
-    this.wantsDoubleTap = false;
-    this.phase = 'choose'; this.t = 0;
-    this.startLane = pick([0, 2, 4]); // 위쪽 / 중앙 / 아래쪽 해시
-    this.depth = rnd(0.05, 0.4); // 깊이 0~1(상대 진영)
-    this.easy = easyNow();
-    this.time = chooseTime(stats.vision) * this.easy;
-    this.side = this.startLane >= 2 ? -1 : 1;
-    const mx = px(this.depth); const my = LY(this.startLane);
-    this.mf = { x: mx, y: my };
-    // 모두 천천히 움직인다: 동료는 앞으로 조깅, 수비수는 미드필더에게 다가온다
-    this.mates = {
-      WG: { x: px(this.depth + 0.2), y: my + this.side * 52, vx: 11, vy: -this.side * 2 },
-      WB: { x: px(Math.max(0, this.depth - 0.1)), y: my + this.side * 52, vx: 9, vy: this.side * 1 },
-      ST: { x: px(0.7), y: LY(2) - this.side * 18, vx: 8, vy: this.side * 3 },
-    };
-    this.opps = [
-      { x: mx - 120, y: my + this.side * 46, tx: 'mf', v: 30 }, // 압박수: 미드필더에게 접근
-      { x: px(this.depth + 0.34), y: LY(1), tx: 'WG', v: 14 },
-      { x: px(this.depth + 0.44), y: LY(3), tx: 'WG', v: 12 },
-      { x: px(0.86), y: LY(2) - 30, tx: 'ST', v: 10 },
-      { x: px(0.82), y: LY(2) + 36, tx: 'ST', v: 10 },
-    ];
-    this.fl = null; // 공 비행
-    flash(['OWN HALF', 'MIDFIELD', 'FINAL THIRD'][this.depth < 0.25 ? 0 : (this.depth < 0.45 ? 1 : 2)] + ' · PICK A TARGET');
-  }
-
-  actorPos(id) { return id === 'mf' ? this.mf : this.mates[id]; }
-
-  update(dt) {
-    this.t += dt;
-    if (this.phase === 'choose') {
-      for (const m of Object.values(this.mates)) { m.x += m.vx * dt; m.y += m.vy * dt; }
-      for (const o of this.opps) {
-        const tg = this.actorPos(o.tx); const d = dist2(o, tg); const stop = o.tx === 'mf' ? 18 : 26;
-        if (d > stop) { o.x += ((tg.x - o.x) / d) * o.v * dt * (o.tx === 'mf' ? 1 + this.t * 0.35 : 1); o.y += ((tg.y - o.y) / d) * o.v * dt * (o.tx === 'mf' ? 1 + this.t * 0.35 : 1); }
-      }
-      if (dist2(this.opps[0], this.mf) < 20 || this.t >= this.time) this.end(false, 'TURNOVER', '압박수에게 공을 뺏겼어요');
-    } else if (this.phase === 'pass') this.updatePass(dt);
-    else if (this.phase === 'run') this.updateRun(dt);
-    else if (this.phase === 'tackle') this.updateTackle(dt);
-    else if (this.phase === 'longpass') this.updateLong(dt);
-    else if (this.phase === 'through') this.updateThrough(dt);
-    else if (this.phase === 'sling') this.updateSling(dt);
-    else if (this.phase === 'shoot') this.sub?.update(dt);
-  }
-
-  get ph() { return this.phase === 'result' ? this.resultPhase : this.phase; }
-  end(ok, title, sub) { this.resultPhase = this.phase; this.phase = 'result'; finish(title, sub, ok); }
-
-  // ----- 미드필더의 첫 패스: 공이 동료에게 날아간다 -----
-  startPass(kind) {
-    this.phase = 'pass'; this.pt = 0; this.kind = kind; this.wantsDoubleTap = false;
-    this.pfrom = { x: this.mf.x + 9, y: this.mf.y + 11 }; this.pdur = 0.7; sfx.tap();
-    flash('');
-  }
-
-  updatePass(dt) {
-    this.pt += dt; // 날아가는 동안에도 모두 계속 움직인다
-    for (const m of Object.values(this.mates)) { m.x += m.vx * dt; m.y += m.vy * dt; }
-    for (const o of this.opps) { const tg = this.actorPos(o.tx); const d = dist2(o, tg) || 1; if (d > 26) { o.x += ((tg.x - o.x) / d) * o.v * dt; o.y += ((tg.y - o.y) / d) * o.v * dt; } }
-    if (this.pt >= this.pdur) this.startRun(this.kind, this.mates[this.kind]);
-  }
-
-  // ----- 윙/윙백 달리기 -----
-  startRun(kind, pos) {
-    this.phase = 'run'; this.kind = kind; this.t = 0;
-    this.p = clamp((pos.x - 70) / 500, 0, 0.8);
-    this.lane = clamp(Math.round((pos.y - 66) / 58), 0, TUNE.lanes - 1); this.laneTo = this.lane; this.laneT = 1; this.laneNow = clamp((pos.y - 66) / 58, 0, TUNE.lanes - 1); this.lane = Math.round(this.laneNow);
-    this.speedBase = runnerSpeed(stats.speed) * 0.15;
-    this.sprint = { used: false, t: 0 }; this.skill = { cd: 0, active: 0 }; this.laneCd = 0; this.vig = 0;
-    const n = frontDefenderCount(this.p, stats.oppDef);
-    const span = 0.8 - (this.p + 0.22);
-    this.defs = Array.from({ length: n }, (_, i) => ({ p: this.p + 0.22 + (span * (i + 0.5)) / n, lane: Math.floor(rnd(0, TUNE.lanes)), passed: false, react: Math.random() < 0.55, delay: rnd(0.1, 0.35), fell: -1 }));
-    this.zoneStart = Math.max(...this.defs.map((d) => d.p)) + 0.05;
-    this.chaser = Math.max(0, this.p - 0.34);
-    this.chaserV = chaserSpeed(stats.oppDef, this.p) * 0.15;
-    this.stRun = { x: px(0.72), y: LY(2) - this.side * 22 }; // 스트라이커도 같이 달린다
-    this.wantsDoubleTap = true;
-    flash('RUN · SWIPE UP/DOWN TO DODGE');
-  }
-
-  updateRun(dt) {
-    const sprinting = this.sprint.t > 0;
-    if (sprinting) this.sprint.t -= dt;
-    this.laneCd = Math.max(0, this.laneCd - dt);
-    this.skill.cd = Math.max(0, this.skill.cd - dt); this.skill.active = Math.max(0, this.skill.active - dt);
-    this.p += this.speedBase * (sprinting ? TUNE.sprintMul : 1) * dt;
-    this.chaser += this.chaserV * dt;
-    this.stRun.x = Math.min(px(0.93), this.stRun.x + 9 * dt);
-    if (this.laneT < 1) { this.laneT = Math.min(1, this.laneT + dt * 5); if (this.laneT >= 1) this.lane = this.laneTo; }
-    this.laneNow = this.laneT < 1 ? (this.lane + (this.laneTo - this.lane) * this.laneT) : this.lane;
-    for (const d of this.defs) {
-      if (d.fell >= 0) d.fell += dt;
-      if (d.react && !d.passed && d.p - this.p < 0.3 && d.p - this.p > 0.03) {
-        d.delay -= dt;
-        if (d.delay <= 0) { const dir = Math.sign(this.laneNow - d.lane); d.lane += dir * Math.min(Math.abs(this.laneNow - d.lane), (0.8 + stats.oppDef / 20) * dt * 0.8); }
-      }
-      if (d.passed || this.p < d.p - 0.012) continue;
-      if (Math.abs(this.p - d.p) <= 0.025 && Math.abs(this.laneNow - d.lane) < 0.7) {
-        if (this.skill.active > 0) { d.passed = true; d.beaten = true; d.fell = 0; sfx.perfect(); burst(px(d.p), LY(d.lane), WHITE, 10, 90); fx.shake = 3; }
-        else return this.startTackle({ x: px(d.p), y: LY(d.lane) }, '앞 수비수에게 막혔어요');
-      } else if (this.p > d.p + 0.025) d.passed = true;
-    }
-    this.vig = clamp(1 - (this.p - this.chaser) / 0.14, 0, 1);
-    if (this.chaser >= this.p) return this.startTackle({ x: px(this.chaser), y: LY(this.laneNow) }, '뒤에서 따라온 압박에 공을 뺏겼어요');
-    this.inZone = this.p >= this.zoneStart;
-    if (this.inZone) flash(this.kind === 'WG' ? 'SHOOT ZONE · SWIPE → SHOT · SWIPE ← PASS TO ST' : 'SHOOT ZONE · SWIPE ← PASS TO ST');
-    if (this.p >= 0.97) this.end(false, 'TURNOVER', '슛 구간 끝까지 입력이 없었어요');
-  }
-
-  // 막히거나 따라잡혔을 때: 수비수가 달려들어 태클하고 선수가 넘어지며 공이 튕겨 나간다
-  startTackle(by, sub) {
-    this.phase = 'tackle'; this.tk = { t: 0, by: { ...by }, sub, at: { x: px(this.p), y: LY(this.laneNow) }, ball: { x: px(this.p) + 12, y: LY(this.laneNow) + 12 } };
-    this.wantsDoubleTap = false; sfx.bad(); fx.shake = 4; flash('');
-  }
-
-  updateTackle(dt) {
-    const k = this.tk; k.t += dt;
-    k.ball.x += 26 * dt * Math.max(0, 1 - k.t / 1.2); k.ball.y += (k.by.y < k.at.y ? 14 : -14) * dt * Math.max(0, 1 - k.t / 1.2);
-    if (k.t > 1.4) this.end(false, 'TURNOVER', k.sub);
-  }
-
-  // ----- 스트라이커 직결: 침투하는 스트라이커를 보며 새총으로 겨냥 -----
-  startLong() {
-    this.phase = 'longpass'; this.t = 0; this.wantsDoubleTap = false; this.drag = false; this.pull = null; this.released = false;
-    this.range = slingRange(stats.pass, stats.stamina, 5);
-    this.runT = (this.time * 1.2 + 2.5) * 1.1; // 스트라이커가 점선을 다 달리는 데 걸리는 시간
-    this.pressT = this.runT * 0.95;
-    const up = Math.random() < 0.5 ? -1 : 1; // 어느 쪽에서 침투하는지
-    this.path = [{ x: px(0.58), y: LY(2) + up * 70 }, { x: px(0.9), y: LY(2) - up * 6 }]; // 스트라이커의 침투 점선(수비 사이를 파고든다)
-    // 점선 앞을 막는 수비수 둘: 침투를 따라 좁혀 오지만 그 사이로 빠져나간다
-    const mid = { x: lerp(this.path[0].x, this.path[1].x, 0.6), y: lerp(this.path[0].y, this.path[1].y, 0.6) };
-    this.squeeze = [
-      { a: { x: mid.x - 70, y: mid.y - 62 }, b: { x: mid.x + 6, y: mid.y - 22 } },
-      { a: { x: mid.x - 50, y: mid.y + 66 }, b: { x: mid.x + 10, y: mid.y + 24 } },
-    ];
-    flash('DRAG BACK ← AND RELEASE TO PASS');
-  }
-
-  stPos(u) { const k = clamp(u, 0, 1); return { x: lerp(this.path[0].x, this.path[1].x, k), y: lerp(this.path[0].y, this.path[1].y, k) }; }
-  stU() { return clamp(this.t / this.runT, 0, 1); }
-
-  updateLong(dt) {
-    this.t += dt;
-    for (const o of this.opps) { if (o.tx === 'mf') { const d = dist2(o, this.mf) || 1; if (d > 22) { o.x += ((this.mf.x - o.x) / d) * 12 * dt; o.y += ((this.mf.y - o.y) / d) * 12 * dt; } } }
-    if (this.t > this.pressT && !this.released) this.end(false, 'TURNOVER', '조준하는 동안 압박수가 닿았어요');
-  }
-
-  onDown() { if (this.phase === 'longpass') this.drag = true; }
-  onMove(p, d) { if (this.phase === 'longpass' && this.drag) this.pull = { x: d.x - p.x, y: d.y - p.y }; }
-  onUp(p, d) {
-    if (this.phase !== 'longpass' || !this.drag) return;
-    this.drag = false;
-    const vx = d.x - p.x; const vy = d.y - p.y; // 왼쪽 뒤로 당긴 만큼 반대(오른쪽 앞)로 날아간다
-    const len = Math.hypot(vx, vy);
-    if (len < 20 || vx < 0) { this.pull = null; return; }
-    const dist = Math.min(len / 100, 1) * this.range * 500;
-    const land = { x: this.mf.x + (vx / len) * dist, y: this.mf.y + (vy / len) * dist };
-    this.released = true; this.pull = null;
-    this.th = { t: 0, from: { x: this.mf.x + 9, y: this.mf.y + 11 }, land, dur: 0.95, u0: this.stU() };
-    // 공이 도착하는 순간 스트라이커가 있을 곳(앞으로 달려가며 받는다)
-    const arrive = this.stPos(this.th.u0 + this.th.dur / this.runT);
-    this.th.arrive = arrive; this.th.ok = dist2(land, arrive) <= 26 + stats.speed * 1.4;
-    this.phase = 'through'; sfx.tap(); flash('');
-  }
-
-  updateThrough(dt) {
-    const th = this.th; th.t += dt; this.t += dt;
-    if (th.t >= th.dur + 0.45) {
-      if (th.ok) { this.phase = 'shoot'; this.sub = new ShootScene({ striker: true, shooter: { x: th.arrive.x, y: th.arrive.y }, onDone: (r) => this.shotEnd(r, true) }); }
-      else this.end(false, 'MISSED PASS', '패스가 스트라이커의 침투 경로에서 벗어났어요');
-    }
-  }
-
-  // 슛 구간에서 스트라이커에게 새총 패스(윙/윙백에서)
-  startSling() {
-    this.phase = 'sling'; this.wantsDoubleTap = false;
-    const from = { x: px(this.p) + 9, y: LY(this.laneNow) + 11 }; const to = { x: this.stRun.x, y: this.stRun.y };
-    this.sl = { t: 0, from, to, dur: 0.75 }; sfx.tap(); flash('');
-  }
-
-  updateSling(dt) {
-    this.sl.t += dt;
-    this.stRun.x += 9 * dt;
-    if (this.sl.t >= this.sl.dur + 0.3) { this.phase = 'shoot'; this.sub = new ShootScene({ striker: true, shooter: { x: this.stRun.x, y: this.stRun.y }, onDone: (r) => this.shotEnd(r, true) }); }
-  }
-
-  // ----- 입력 -----
-  onGesture(g) {
-    if (this.phase === 'shoot') { this.sub.onGesture(g); return; }
-    if (this.phase === 'choose' && g.type === 'tap') {
-      const wp = toWorld(g);
-      const hit = ['WG', 'WB', 'ST'].find((id) => dist2(this.mates[id], wp) < 30);
-      if (!hit) return;
-      if (hit === 'ST') this.startLong(); else this.startPass(hit);
-      return;
-    }
-    if (this.phase === 'run') {
-      if (g.type === 'swipeUp' || g.type === 'swipeDown') {
-        if (this.laneCd > 0 || this.laneT < 1) return;
-        const to = clamp(this.lane + (g.type === 'swipeUp' ? -1 : 1), 0, TUNE.lanes - 1);
-        if (to !== this.lane) { this.laneTo = to; this.laneT = 0; this.laneCd = TUNE.laneCutCooldown; sfx.tap(); }
-      } else if (g.type === 'tap') {
-        if (!this.sprint.used) { this.sprint.used = true; this.sprint.t = TUNE.sprintTime; sfx.sprint(); fx.shake = 2; }
-      } else if (g.type === 'dtap') {
-        if (this.skill.cd <= 0 && this.sprint.t <= 0) { this.skill.cd = TUNE.skillCooldown; this.skill.active = skillWindow(stats.dribble); sfx.tap(); }
-      } else if (g.type === 'swipeRight') {
-        if (this.kind !== 'WG' || !this.inZone) return; // 윙만 직접 슛
-        this.phase = 'shoot'; this.wantsDoubleTap = false;
-        this.sub = new ShootScene({ curl: true, farSide: this.laneNow >= 2 ? -1 : 1, shooter: { x: px(this.p), y: LY(this.laneNow) }, onDone: (r) => this.shotEnd(r, false) });
-      } else if (g.type === 'swipeLeft') {
-        if (!this.inZone) return; // 뒤로 당기기 = 스트라이커에게 새총 패스
-        this.startSling();
-      }
-    }
-  }
-
-  shotEnd(r, striker) {
-    if (r === 'post' && !this.reb) {
-      this.reb = true;
-      const sh = this.sub.shooter;
-      this.sub = new ShootScene({ striker, rebound: true, shooter: { x: PITCH.x1 - 48, y: GY + (this.sub.aim >= 0.5 ? 30 : -30) }, onDone: (r2) => this.shotEnd(r2, striker) }); void sh; return;
-    }
-    this.end(r === 'goal', r === 'goal' ? 'GOAL' : ({ save: 'SAVED', post: 'OFF THE POST', miss: 'MISS' }[r]), r === 'goal' ? '공격이 골로 이어졌어요' : '마무리가 막혔어요');
-  }
-
-  aimCamera() {
-    if (this.ph === 'choose' || this.ph === 'pass') camFit([this.mf, ...Object.values(this.mates), this.opps[0]], { max: 1.15, margin: 90 });
-    else if (this.ph === 'run') camTo(px(this.p) + 90, LY(this.laneNow), 1.15);
-    else if (this.ph === 'tackle') camTo(this.tk.at.x + 40, this.tk.at.y, 1.5);
-    else if (this.ph === 'longpass' || this.ph === 'through') { const s = this.stPos(this.stU()); camFit([this.mf, ...this.path, s], { max: 1.15, margin: 90 }); }
-    else if (this.ph === 'sling') camTo((px(this.p) + this.stRun.x) / 2 + 40, GY, 1.15);
-  }
-
-  draw() {
-    if (this.ph === 'shoot') { this.sub.draw(); return; }
-    this.aimCamera();
-    const t = nowT();
-    world(() => {
-      drawField();
-      if (this.ph === 'choose' || this.ph === 'pass') {
-        if (this.ph === 'choose') for (const id of ['WG', 'WB', 'ST']) { const m = this.mates[id]; route(this.mf.x + 6, this.mf.y, m.x - 8, m.y - 6); }
-        for (const o of this.opps) token(o.x, o.y, OPP, '', { anim: 'run' });
-        for (const id of ['WG', 'WB', 'ST']) token(this.mates[id].x, this.mates[id].y, TEAM, id, { ring: this.ph === 'choose' ? true : null, anim: 'run' });
-        token(this.mf.x, this.mf.y, TEAM, 'MF', { anim: this.ph === 'pass' ? null : 'idle' });
-        if (this.ph === 'choose') { ball(this.mf.x + 9, this.mf.y + 11); marker(this.mf.x, this.mf.y); }
-        else { const tgt = this.mates[this.kind]; const p = flightAt(this.pfrom, { x: tgt.x + 4, y: tgt.y + 11 }, this.pt / this.pdur, 14); ball(p.x, p.y, p.z); }
-      } else if (this.ph === 'run' || this.ph === 'tackle') {
-        const zx = px(this.zoneStart);
-        ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fillRect(zx, PITCH.y0 + 1, PITCH.x1 - zx, PITCH.y1 - PITCH.y0 - 2);
-        line(zx, PITCH.y0, zx, PITCH.y1, 'rgba(255,255,255,0.45)', 1, [3, 4]);
-        for (const d of this.defs) token(px(d.p), LY(d.lane), OPP, '', { dim: Boolean(d.beaten) && d.fell > 0.9, lay: d.fell >= 0 ? Math.min(1.3, d.fell * 3) : 0, anim: d.fell >= 0 ? null : 'idle' });
-        token(this.stRun.x, this.stRun.y, TEAM, 'ST', { anim: 'run' });
-        if (this.ph === 'run') {
-          token(px(this.chaser), LY(this.laneNow), OPP, '', { anim: 'run' });
-          const x = px(this.p); const y = LY(this.laneNow);
-          token(x, y, TEAM, this.kind, { ring: this.skill.active > 0 ? true : null, anim: 'run' });
-          ball(x + 11, y + 12); marker(x, y);
-          arcRing(x, y + 13, 14, this.laneCd > 0 ? 1 - this.laneCd / TUNE.laneCutCooldown : 0, '#9a9a9a');
-          arcRing(x, y + 13, 17, this.sprint.t / TUNE.sprintTime, '#fde047');
-          arcRing(x, y + 13, 20, this.skill.cd > 0 ? 1 - this.skill.cd / TUNE.skillCooldown : (this.skill.active > 0 ? 1 : 0), WHITE);
-          if (this.sprint.t > 0) for (let i = 1; i <= 4; i++) line(x - 12 - i * 10, y - 6 + i * 3, x - 22 - i * 10, y - 6 + i * 3, 'rgba(255,255,255,0.4)', 1.5);
-        } else {
-          const k = this.tk;
-          const lunge = clamp(k.t / 0.35, 0, 1);
-          token(lerp(k.by.x + 30, k.at.x + 6, lunge), lerp(k.by.y, k.at.y + 2, lunge), OPP, '', { anim: 'run' }); // 태클하러 달려든 수비수
-          token(k.at.x, k.at.y, TEAM, this.kind, { lay: clamp((k.t - 0.25) * 4, 0, 1.4) * (k.by.y > k.at.y ? 1 : -1) });
-          ball(k.ball.x, k.ball.y);
-        }
-      } else if (this.ph === 'longpass' || this.ph === 'through') {
-        const u = this.stU();
-        line(this.path[0].x, this.path[0].y, this.path[1].x, this.path[1].y, C.yellow, 1.4, [3, 5]);
-        for (const q of this.path) { ctx.fillStyle = '#fff'; ctx.fillRect(q.x - 2, q.y - 2, 4, 4); }
-        // 수비수 둘이 점선 앞에서 좁혀 오지만 스트라이커는 그 사이로 파고든다
-        const sq = clamp(u * 1.05, 0, 1);
-        for (const s2 of this.squeeze) token(lerp(s2.a.x, s2.b.x, ease(sq)), lerp(s2.a.y, s2.b.y, ease(sq)), OPP, '', { anim: 'run' });
-        for (const o of this.opps) if (o.tx === 'mf') token(o.x, o.y, OPP, '', { anim: 'run' });
-        for (const o of this.opps) if (o.tx !== 'mf' && o.tx !== 'ST') token(o.x, o.y, OPP, '', { dim: true, anim: 'idle' });
-        const st = this.stPos(u);
-        token(st.x, st.y, TEAM, 'ST', { ring: this.ph === 'longpass' ? true : null, anim: u < 1 ? 'run' : null });
-        token(this.mf.x, this.mf.y, TEAM, 'MF', { anim: null });
-        if (this.ph === 'longpass') {
-          ball(this.mf.x + 9, this.mf.y + 11); marker(this.mf.x, this.mf.y);
-          if (this.pull) {
-            const len = Math.hypot(this.pull.x, this.pull.y) || 1;
-            const dist = Math.min(len / 100, 1) * this.range * 500;
-            route(this.mf.x + 6, this.mf.y, this.mf.x + (this.pull.x / len) * dist, this.mf.y + (this.pull.y / len) * dist);
-          }
-        } else {
-          const th = this.th; const q = flightAt(th.from, th.land, th.t / th.dur, 34); ball(q.x, q.y, q.z);
-          if (th.t >= th.dur) { /* 공이 떨어졌다 */ }
-        }
-      } else if (this.ph === 'sling') {
-        const x = px(this.p); const y = LY(this.laneNow);
-        for (const d of this.defs) token(px(d.p), LY(d.lane), OPP, '', { dim: true, anim: 'idle' });
-        token(x, y, TEAM, this.kind, { anim: null });
-        token(this.stRun.x, this.stRun.y, TEAM, 'ST', { ring: true, anim: 'run' });
-        const q = flightAt(this.sl.from, { x: this.stRun.x, y: this.stRun.y + 11 }, this.sl.t / this.sl.dur, 24); ball(q.x, q.y, q.z);
-      }
-    });
-    drawHud();
-    if (this.vig > 0 && this.ph === 'run') { const g = ctx.createLinearGradient(0, 0, 110, 0); g.addColorStop(0, `rgba(201,75,75,${0.55 * this.vig * (0.7 + 0.3 * Math.sin(performance.now() / 90))})`); g.addColorStop(1, 'rgba(201,75,75,0)'); ctx.fillStyle = g; ctx.fillRect(0, 38, 110, H - 38); }
-    if (this.easy > 1) {
-      if (this.ph === 'choose') { const t0 = toScreen(this.mates.WG.x, this.mates.WG.y); pulse(t0.x, t0.y, 18); }
-      else if (this.ph === 'run' && !this.inZone) { const r0 = toScreen(px(this.p), LY(this.laneNow)); finger(r0.x - 6, r0.y + 34, 0, -48); }
-      else if (this.ph === 'run' && this.inZone) { const r0 = toScreen(px(this.p), LY(this.laneNow)); finger(r0.x - 30, r0.y + 34, 80, 0); }
-      else if (this.ph === 'longpass') { const m0 = toScreen(this.mf.x, this.mf.y); finger(m0.x + 10, m0.y + 34, -70, 0); }
-    }
-    if (this.ph === 'choose') bar(260, 350, 120, 3, 1 - this.t / this.time, C.yellow);
-    else if (this.ph === 'longpass') bar(260, 350, 120, 3, 1 - this.t / this.pressT, '#ef4444');
-  }
-}
-
-// ---------- 수비 장면(사이드): 어깨싸움 → 마무리 막기 → 골키퍼 다이빙 (우리 골문은 왼쪽) ----------
 class DefenseScene {
   constructor() {
     this.wantsDoubleTap = false;
@@ -988,38 +715,45 @@ class DefenseScene {
 
 // ---------- 시작과 루프 ----------
 let lastKind = 'attack';
-function start(kind, { keepScore = false } = {}) {
-  paused = false;
-  if (!keepScore) match.on = false;
-  plays.total += 1;
-  lastKind = kind; overlay.classList.remove('on'); timeScale = 1; pendingTap = null; hud.banner = ''; fx.trail = [];
-  hud.clock = clockText(match.on ? ((match.n - 1) / match.total) * 5400 + Math.random() * 180 : 2700);
-  ghost = null;
-  scene = kind === 'attack' ? new AttackScene() : new DefenseScene();
-  intro = { t: 0, kind, clock: hud.clock }; // 시간과 공격/수비 상황을 먼저 보여 준 뒤 플레이한다
+// 직접 수비 장면(보류): 경기 루프에서는 빼고 연습 메뉴에서만 연다
+function finish(title, sub, ok) {
+  ghost = scene; scene = null; timeScale = 1; hud.banner = '';
+  if (title === 'GOAL AGAINST') { sfx.bad(); fx.shake = 9; fx.freeze = 0.1; } else if (['SAVE', 'PERFECT BLOCK'].includes(title)) { sfx.save(); fx.shake = 4; fx.freeze = 0.06; } else { sfx.bad(); fx.shake = 3; }
+  setTimeout(() => {
+    box.innerHTML = `<h2 style="color:${ok ? '#fff' : '#9a9a9a'}">${title}</h2><p>${sub}</p><button class="btn btn--primary" id="again">AGAIN</button>`;
+    overlay.classList.add('on');
+    document.getElementById('again').onclick = () => start('defense');
+  }, 1300);
 }
-// SIM: 이 장면을 건너뛰고 능력으로 자동 처리한다(경기 중에는 남은 장면 전부)
+function start(kind) {
+  paused = false; match.on = false; play = null; autoPoss = null; banner = null; hud.banner = ''; fx.trail = []; overlay.classList.remove('on');
+  lastKind = kind; timeScale = 1; pendingTap = null; ghost = null; hud.clock = '45:00';
+  if (kind === 'attack') { match.mine = 0; match.cell = null; startPlay(); return; }
+  plays.total += 1;
+  scene = new DefenseScene();
+}
+// SIM: 남은 내 공격을 기대값으로 잇는다(득점 -10%, 실점 x1.1). 되돌리지 않는다.
 function sim() {
   if (match.on) {
-    scene = null; ghost = null; const left = match.total - match.n;
-    for (let i = 0; i < left; i++) { if (Math.random() < pAttack()) { if (Math.random() < 0.13 * 0.9) hud.me += 1; } else if (Math.random() < 0.2 * 1.1) hud.opp += 1; }
+    play = null; autoPoss = null; banner = null; hud.banner = '';
+    for (let i = match.n; i < match.total; i += 1) {
+      if (Math.random() < pMine()) { if (Math.random() < TUNE.baseGoal * TUNE.autoGoalFactor) hud.me += 1; } else if (Math.random() < pOppGoal() * TUNE.autoConcedeFactor) hud.opp += 1;
+    }
     match.n = match.total; hud.no = match.total; endMatch(); return;
   }
-  if (!scene) return;
-  const goal = Math.random() < (lastKind === 'attack' ? 0.13 : 0.2);
-  finish(goal ? (lastKind === 'attack' ? 'GOAL' : 'GOAL AGAINST') : 'AUTO', goal ? '자동 진행 결과예요' : '자동으로 넘겼어요', lastKind === 'attack' ? goal : !goal);
+  if (play) { play = null; nextPossession(); }
 }
 document.getElementById('btn-auto').onclick = sim;
 
-// 일시정지 메뉴(시작 화면과 같다): 경기, 연습 장면, 소리, 수치 조정
+// 일시정지 메뉴(시작 화면과 같다): 경기, 연습, 소리, 수치 조정
 function showMenu(title, sub, { resume = false } = {}) {
   paused = true;
   box.innerHTML = `<h2>${title}</h2><p>${sub}</p>
     ${resume ? '<button class="btn btn--primary" data-m="resume">RESUME</button>' : ''}
-    <button class="btn ${resume ? '' : 'btn--primary'}" data-m="match">MATCH · 10 SCENES</button>
-    <div class="row"><button class="btn" data-m="atk">ATTACK</button><button class="btn" data-m="def">DEFENSE</button></div>
+    <button class="btn ${resume ? '' : 'btn--primary'}" data-m="match">MATCH · 20 POSSESSIONS</button>
+    <div class="row"><button class="btn" data-m="atk">ATTACK</button><button class="btn" data-m="def">DEFENSE (ON HOLD)</button></div>
     <div class="row"><button class="btn" data-m="snd">${soundOn ? 'SOUND ON' : 'SOUND OFF'}</button><button class="btn" data-m="tune">TUNE</button></div>
-    <p style="font-size:10px;color:#64748b">BUILD v13</p>`;
+    <p style="font-size:10px;color:#64748b">BUILD v14</p>`;
   overlay.classList.add('on');
   box.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', (e) => {
     const m = e.currentTarget.dataset.m;
@@ -1034,17 +768,29 @@ document.getElementById('btn-pause').onclick = () => { if (!overlay.classList.co
 
 function frame(now) {
   const raw = Math.min(0.05, (now - last) / 1000);
-  if (intro && !paused) { intro.t += raw; if (intro.t >= TUNE.introTime) intro = null; }
-  const dt = (fx.freeze > 0 || paused || intro) ? 0 : raw * timeScale * TUNE.pace; last = now; // 히트스톱·안내 중에는 멈추고, 평소에도 천천히 흐른다
+  last = now;
   if (!paused) stepFx(raw);
+  const frozen = fx.freeze > 0 || paused;
+  if (play && !frozen) {
+    play.update(raw);
+    if (play.result && !play.advanced && play.result.t >= (play.result.kind === 'goal' ? 0.9 : 0.5)) { play.advanced = true; afterPlay(); }
+  }
+  if (autoPoss && !frozen) updateAuto(raw);
+  if (banner && !paused) { banner.t += raw; if (banner.t >= banner.dur) { banner = null; hud.banner = ''; } }
+  if (!frozen && scene) scene.update?.(raw * timeScale);
+  fx.edge = Math.max(0, (fx.edge ?? 0) - raw * 2.5); camPunch = Math.max(0, camPunch - raw * 4);
   ctx.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0); // 캔버스는 2배 해상도(1280x720), 좌표는 640x360
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = C.turf; ctx.fillRect(0, 0, W, H);
   updateHud();
-  if (scene) { scene.update?.(dt); stepCam(raw); scene?.draw?.(); if (intro) drawIntro(); } else if (ghost) { stepCam(raw); ghost.draw?.(); } else { camTo(320, GY, 1); stepCam(raw); world(() => drawField()); }
+  if (play) { const tg = cameraTarget(play, W, H); camTo(tg.x, tg.y, tg.z + camPunch * 0.08); stepCam(raw); drawPlay(play); drawCaption(); }
+  else if (autoPoss) { camTo(200, GY, 1.25); stepCam(raw); drawAuto(); drawCaption(); }
+  else if (scene) { stepCam(raw); scene.draw?.(); }
+  else if (ghost) { stepCam(raw); ghost.draw?.(); }
+  else { camTo(320, GY, 1); stepCam(raw); world(() => drawField()); }
   if (fx.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${fx.flash * 0.35})`; ctx.fillRect(0, 0, W, H); }
   requestAnimationFrame(frame);
 }
 showMenu('HIGHLIGHT', '가로 화면에서 직접 플레이하는 하이라이트예요');
 requestAnimationFrame((n) => { last = n; frame(n); });
-window.fmHighlight = { stats, start, startMatch, match, fx, sim, cam, camT, get scene() { return scene; } };
+window.fmHighlight = { stats, start, startMatch, match, fx, sim, cam, camT, get play() { return play; }, get scene() { return scene; } };
