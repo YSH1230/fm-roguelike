@@ -124,7 +124,8 @@ let scene = null;
 let last = 0;
 let timeScale = 1;
 let paused = false;
-const hud = { me: 0, opp: 0, no: 1, banner: '' };
+const hud = { me: 0, opp: 0, no: 1, banner: '', clock: '45:00' };
+let intro = null; // 장면 시작 전 안내: { t, kind, clock }
 
 // ---------- 입력: 탭, 더블탭, 스와이프, 당기기 ----------
 const toLocal = (e) => {
@@ -133,8 +134,8 @@ const toLocal = (e) => {
 };
 let down = null;
 let pendingTap = null;
-cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); down = toLocal(e); scene?.onDown?.(down); });
-cv.addEventListener('pointermove', (e) => { if (down) scene?.onMove?.(toLocal(e), down); });
+cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); if (intro) { if (intro.t > 0.7) intro = null; return; } down = toLocal(e); scene?.onDown?.(down); });
+cv.addEventListener('pointermove', (e) => { if (down && !intro) scene?.onMove?.(toLocal(e), down); });
 cv.addEventListener('pointerup', (e) => {
   if (!down) return;
   const p = toLocal(e);
@@ -266,13 +267,30 @@ function drawStands() {
 }
 
 // HUD는 DOM(스코어보드, SIM, 일시정지)이다. 캔버스에는 튜토리얼 자막만 그린다(처음 3장면).
+function clockText(t) { return `${String(Math.floor(Math.max(0, t) / 60)).padStart(2, '0')}:${String(Math.floor(Math.max(0, t) % 60)).padStart(2, '0')}`; }
 function updateHud() {
-  const t = match.on ? ((match.n - 1 + 0.5) / match.total) * 5400 : 2700;
-  const mm = String(Math.floor(Math.max(0, t) / 60)).padStart(2, '0'); const ss = String(Math.floor(Math.max(0, t) % 60)).padStart(2, '0');
   const set = (id, v) => { const el = document.getElementById(id); if (el && el.textContent !== String(v)) el.textContent = String(v); };
-  set('s-me', hud.me); set('s-opp', hud.opp); set('s-time', `${mm}:${ss}`);
+  set('s-me', hud.me); set('s-opp', hud.opp); set('s-time', hud.clock);
+}
+// 장면 시작 안내: 시간이 딱 뜨고, 공격인지 수비인지 보여 준 다음 플레이가 시작된다
+function drawIntro() {
+  const k = Math.min(1, intro.t / 0.35); const out = clamp((TUNE.introTime - intro.t) / 0.3, 0, 1); const a = Math.min(k, out);
+  ctx.fillStyle = `rgba(8,12,20,${0.62 * a})`; ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = a;
+  const atk = intro.kind === 'attack';
+  // 시간: 스코어보드와 같은 흰 박스
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(320 - 62, 112, 124, 46);
+  ctx.fillStyle = C.ink; ctx.font = '800 30px "Silkscreen","Barlow Condensed",monospace'; ctx.textAlign = 'center'; ctx.fillText(intro.clock, 320, 147);
+  // 상황: 공격(에메랄드) / 수비(레드)
+  const col = atk ? '#10b981' : '#ef4444';
+  ctx.fillStyle = col; ctx.fillRect(320 - 92, 172, 184, 34);
+  ctx.fillStyle = '#ffffff'; ctx.font = '800 22px "Silkscreen","Barlow Condensed",monospace'; ctx.fillText(atk ? 'ATTACK' : 'DEFENSE', 320, 197);
+  ctx.fillStyle = '#cbd5e1'; ctx.font = '700 10px "Barlow Condensed",sans-serif'; ctx.fillText(atk ? 'OUR BALL' : 'THEY ATTACK', 320, 224);
+  if (intro.t > 0.7) { ctx.globalAlpha = a * (0.5 + 0.5 * Math.sin(performance.now() / 260)); ctx.fillStyle = '#94a3b8'; ctx.fillText('TAP TO START', 320, 250); }
+  ctx.globalAlpha = 1;
 }
 function drawCaption() {
+  if (intro) return;
   if (!hud.banner) return;
   const big = ['GOAL', 'GOAL AGAINST', 'SAVED', 'SAVE', 'PERFECT BLOCK', 'OFF THE POST', 'MISS', 'TURNOVER', 'MISSED PASS'].includes(hud.banner);
   if (big) { ctx.font = '800 30px "Silkscreen","Barlow Condensed",sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(hud.banner, 322, 132); ctx.fillStyle = WHITE; ctx.fillText(hud.banner, 320, 130); return; }
@@ -316,14 +334,14 @@ function finish(title, sub, ok) {
   else { sfx.bad(); fx.shake = 3; }
   if (match.on) { // 경기 중에는 결과를 잠깐 보여 주고 다음 장면으로
     hud.banner = title;
-    setTimeout(() => { hud.banner = ''; nextMatchScene(); }, 1100);
+    setTimeout(() => { hud.banner = ''; nextMatchScene(); }, TUNE.resultTime * 1000);
     return;
   }
   setTimeout(() => {
     box.innerHTML = `<h2 style="color:${ok ? '#fff' : '#9a9a9a'}">${title}</h2><p>${sub}</p><button class="btn btn--primary" id="again">AGAIN</button>`;
     overlay.classList.add('on');
     document.getElementById('again').onclick = () => start(lastKind);
-  }, 650);
+  }, 1300);
 }
 
 // ---------- 슛 장면(공통): 두 게이지를 차례로 탭한다 ----------
@@ -718,7 +736,9 @@ function start(kind, { keepScore = false } = {}) {
   if (!keepScore) match.on = false;
   plays.total += 1;
   lastKind = kind; overlay.classList.remove('on'); timeScale = 1; pendingTap = null; hud.banner = ''; fx.trail = [];
+  hud.clock = clockText(match.on ? ((match.n - 1) / match.total) * 5400 + Math.random() * 180 : 2700);
   scene = kind === 'attack' ? new AttackScene() : new DefenseScene();
+  intro = { t: 0, kind, clock: hud.clock }; // 시간과 공격/수비 상황을 먼저 보여 준 뒤 플레이한다
 }
 // SIM: 이 장면을 건너뛰고 능력으로 자동 처리한다(경기 중에는 남은 장면 전부)
 function sim() {
@@ -755,13 +775,14 @@ document.getElementById('btn-pause').onclick = () => { if (!overlay.classList.co
 
 function frame(now) {
   const raw = Math.min(0.05, (now - last) / 1000);
-  const dt = (fx.freeze > 0 || paused) ? 0 : raw * timeScale; last = now; // 히트스톱: 잠깐 멈춘다
+  if (intro && !paused) { intro.t += raw; if (intro.t >= TUNE.introTime) intro = null; }
+  const dt = (fx.freeze > 0 || paused || intro) ? 0 : raw * timeScale * TUNE.pace; last = now; // 히트스톱·안내 중에는 멈추고, 평소에도 천천히 흐른다
   if (!paused) stepFx(raw);
   ctx.setTransform(cv.width / W, 0, 0, cv.height / H, 0, 0); // 캔버스는 2배 해상도(1280x720), 좌표는 640x360
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = C.turf; ctx.fillRect(0, 0, W, H);
   updateHud();
-  if (scene) { scene.update?.(dt); stepCam(raw); scene?.draw?.(); } else { camTo(320, GY, 1); stepCam(raw); world(() => drawField()); }
+  if (scene) { scene.update?.(dt); stepCam(raw); scene?.draw?.(); if (intro) drawIntro(); } else { camTo(320, GY, 1); stepCam(raw); world(() => drawField()); }
   if (fx.flash > 0) { ctx.fillStyle = `rgba(255,255,255,${fx.flash * 0.35})`; ctx.fillRect(0, 0, W, H); }
   requestAnimationFrame(frame);
 }

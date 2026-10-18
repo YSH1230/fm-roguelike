@@ -14,6 +14,9 @@ export const TUNE = {
   shoulderTaps: { wingRun: 3, overlap: 4 },
   gaugeCycle: 1.3, // 왕복 게이지가 한 번 오가는 시간(초)
   fatigueD: 0.35, // 체력 감쇠 상수
+  pace: 0.7, // 전체 진행 속도 배율(1보다 작을수록 천천히)
+  introTime: 2.2, // 장면 시작 전 시간·상황 안내를 보여 주는 시간(초)
+  resultTime: 2.0, // 결과를 보여 주는 시간(초)
 };
 
 export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
