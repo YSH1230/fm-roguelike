@@ -496,3 +496,11 @@ select { max-width: 160px; font-size: 13px; }
 .scene { display: grid; gap: 22px; align-content: start; }
 .scene__q { font: 700 24px/1.35 var(--ui); }
 .scene .dilemma .opt { min-height: 150px; }
+
+/* 내 차례 줄: 별점이 PICK 버튼에 가려지지 않게 좁은 화면에서 칸을 줄인다 */
+.prow__main { min-width: 0; }
+.prow__meta { grid-template-columns: 38px 50px auto; }
+.prow__meta .stars { width: 72px; height: 14.4px; }
+.prow__side { gap: 2px; }
+.infobtn { width: 28px; }
+.prow__side .btn--small { padding: 0 12px; min-height: 40px; }

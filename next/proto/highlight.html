@@ -7,49 +7,70 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="FM-Lite">
-<meta name="theme-color" content="#222222">
+<meta name="theme-color" content="#246b24">
 <title>FM-Lite 하이라이트 프로토타입</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Silkscreen:wght@400;700&display=swap">
 <style>
-  :root { --team: #ff4a1c; --mute: #9a9a9a; --line: #4a4a4a; --bg: #222; --cond: 'Barlow Condensed', sans-serif; }
+  :root { --u: 1; --pix: 'Silkscreen', 'Barlow Condensed', monospace; --cond: 'Barlow Condensed', sans-serif; }
   * { box-sizing: border-box; margin: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { height: 100%; width: 100%; background: var(--bg); color: #fff; font-family: 'Pretendard Variable', system-ui, sans-serif; overscroll-behavior: none; }
+  html, body { height: 100%; width: 100%; background: #0b1220; color: #fff; font-family: system-ui, sans-serif; overscroll-behavior: none; }
   body { display: grid; place-items: center; overflow: hidden; position: fixed; left: 0; top: 0; }
   #wrap { position: relative; width: 100vw; height: 56.25vw; max-height: 100vh; touch-action: none; }
-  canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; user-select: none; }
-  .btn { min-height: 34px; padding: 0 14px; border: 2px solid var(--line); background: rgba(34, 34, 34, 0.92); color: #fff; font: 800 clamp(11px, 2.4vw, 15px) var(--cond); letter-spacing: 0.12em; text-transform: uppercase; cursor: pointer; }
-  .btn--accent { background: var(--team); border-color: var(--team); color: #000; }
-  .btn--primary { background: var(--team); border-color: var(--team); color: #000; min-height: 44px; }
-  .btn:active { transform: scale(0.97); }
-  #btn-auto { position: absolute; left: 1.5%; bottom: 3%; z-index: 3; }
-  #menu { position: absolute; right: 1.5%; bottom: 3%; display: flex; gap: 6px; z-index: 3; }
-  #overlay { position: absolute; inset: 0; display: none; place-items: center; background: rgba(34, 34, 34, 0.88); pointer-events: none; z-index: 1; }
-  #overlay .box { pointer-events: auto; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; touch-action: none; user-select: none; }
+
+  /* 스코어보드(상단 좌측): 가운데 흰 타임 박스 (설계서 4.1) */
+  #score { position: absolute; left: calc(6px * var(--u)); top: calc(3px * var(--u)); height: calc(17px * var(--u)); display: flex; align-items: center; background: rgba(15, 23, 42, 0.95); border: 1px solid #1e293b; border-radius: calc(2px * var(--u)); padding: 0 calc(5px * var(--u)); z-index: 2; }
+  #score .tb { display: flex; align-items: center; gap: calc(4px * var(--u)); }
+  #score .dot { width: calc(4px * var(--u)); height: calc(4px * var(--u)); border-radius: 50%; }
+  #score .name { font: 800 calc(5.5px * var(--u)) var(--pix); letter-spacing: 0.5px; }
+  #score .num { font: 900 calc(7px * var(--u)) var(--pix); color: #fff; min-width: calc(5px * var(--u)); text-align: center; }
+  #score .home .name { color: #38bdf8; } #score .away .name { color: #f87171; }
+  #score .timebox { display: flex; align-items: baseline; gap: calc(2px * var(--u)); margin: 0 calc(4px * var(--u)); padding: calc(1.5px * var(--u)) calc(4px * var(--u)); background: #fff; color: #0f172a; font: 800 calc(6px * var(--u)) var(--pix); }
+  #score .timebox small { color: #ef4444; font-size: calc(5px * var(--u)); }
+
+  /* 컨트롤(상단 우측): SIM → 일시정지 (설계서 4.2) */
+  #ctrl { position: absolute; right: calc(6px * var(--u)); top: calc(3px * var(--u)); display: flex; gap: calc(3px * var(--u)); z-index: 2; }
+  #ctrl button { height: calc(14px * var(--u)); border: 0; border-radius: calc(2px * var(--u)); cursor: pointer; color: #fff; }
+  #btn-auto { width: calc(36px * var(--u)); background: #10b981; font: 700 calc(5px * var(--u)) var(--pix); letter-spacing: 0.5px; }
+  #btn-auto:hover { background: #059669; }
+  #btn-pause { width: calc(14px * var(--u)); background: #1e293b; display: grid; place-content: center; grid-auto-flow: column; gap: calc(1.5px * var(--u)); }
+  #btn-pause i { width: 2px; height: calc(6px * var(--u)); min-height: 10px; background: #fff; display: block; }
+  #ctrl button:active { transform: scale(0.96); }
+
+  /* 시작·일시정지 메뉴 */
+  #overlay { position: absolute; inset: 0; display: none; place-items: center; background: rgba(8, 12, 20, 0.86); z-index: 4; }
   #overlay.on { display: grid; }
-  #overlay .box { display: grid; gap: 10px; width: min(60%, 340px); text-align: center; }
-  #overlay h2 { font: 800 clamp(28px, 8vw, 52px)/1 var(--cond); letter-spacing: 0.04em; text-transform: uppercase; }
-  #overlay p { color: #cfcfcf; font-size: clamp(12px, 2.4vw, 15px); line-height: 1.5; }
-  #tunebox { z-index: 3; position: absolute; right: 1.5%; top: 12%; display: none; width: min(44%, 260px); max-height: 62%; overflow: auto; padding: 8px 10px; background: rgba(34, 34, 34, 0.96); border: 2px solid var(--line); }
+  #overlay .box { display: grid; gap: 8px; width: min(56%, 320px); text-align: center; }
+  #overlay h2 { font: 400 clamp(20px, 6vw, 40px)/1.1 var(--pix); letter-spacing: 0.04em; text-transform: uppercase; }
+  #overlay p { color: #cbd5e1; font-size: clamp(11px, 2.4vw, 14px); line-height: 1.5; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn { min-height: 40px; padding: 0 14px; border: 2px solid #334155; background: #0f172a; color: #fff; font: 700 clamp(11px, 2.4vw, 14px) var(--pix); letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; border-radius: 3px; }
+  .btn--primary { background: #10b981; border-color: #10b981; color: #fff; }
+  .btn:active { transform: scale(0.97); }
+  #tunebox { z-index: 5; position: absolute; right: calc(6px * var(--u)); top: calc(22px * var(--u)); display: none; width: min(44%, 260px); max-height: 62%; overflow: auto; padding: 8px 10px; background: rgba(15, 23, 42, 0.96); border: 2px solid #334155; }
   #tunebox.on { display: grid; gap: 4px; }
-  #tunebox label { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; font: 700 11px var(--cond); letter-spacing: 0.1em; color: var(--mute); text-transform: uppercase; }
-  #tunebox input { grid-column: 1 / -1; width: 100%; accent-color: var(--team); }
-  #rotate { display: none; position: fixed; inset: 0; place-items: center; background: var(--bg); font: 800 20px var(--cond); letter-spacing: 0.12em; text-align: center; padding: 24px; z-index: 5; }
+  #tunebox label { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; font: 700 11px var(--cond); letter-spacing: 0.1em; color: #94a3b8; text-transform: uppercase; }
+  #tunebox input { grid-column: 1 / -1; width: 100%; accent-color: #10b981; }
+  #rotate { display: none; position: fixed; inset: 0; place-items: center; background: #0b1220; font: 400 16px var(--pix); letter-spacing: 0.08em; text-align: center; padding: 24px; z-index: 9; line-height: 1.8; }
   @media (orientation: portrait) { #rotate { display: grid; } }
 </style>
 </head>
 <body>
   <div id="wrap">
-    <canvas id="cv" width="640" height="360"></canvas>
-    <button class="btn" id="btn-auto">AUTO</button>
-    <div id="menu"><button class="btn btn--accent" id="btn-match">MATCH</button><button class="btn" id="btn-atk">ATTACK</button><button class="btn" id="btn-def">DEFENSE</button><button class="btn" id="btn-snd">SOUND ON</button><button class="btn" id="btn-tune">TUNE</button></div>
+    <canvas id="cv" width="1280" height="720"></canvas>
+    <div id="score">
+      <span class="tb home"><i class="dot" style="background:#0284c7"></i><span class="name">DAWN</span><span class="num" id="s-me">0</span></span>
+      <span class="timebox"><span id="s-time">45:00</span><small id="s-extra"></small></span>
+      <span class="tb away"><span class="num" id="s-opp">0</span><span class="name">STR</span><i class="dot" style="background:#dc2626"></i></span>
+    </div>
+    <div id="ctrl"><button id="btn-auto" aria-label="SIM">SIM &#9654;&#9654;</button><button id="btn-pause" aria-label="PAUSE"><i></i><i></i></button></div>
     <div id="tunebox"></div>
     <div id="overlay"><div class="box"></div></div>
   </div>
-  <div id="rotate">ROTATE YOUR PHONE<br><span style="color:#9a9a9a;font-size:13px;font-weight:600">가로 화면으로 돌려 주세요</span></div>
+  <div id="rotate">ROTATE YOUR PHONE<br><span style="font-size:11px">가로 화면으로 돌려 주세요</span></div>
   <script>
     // 실제 보이는 영역(visualViewport: 주소창·툴바·노치를 뺀 크기)에 16:9 화면을 딱 맞춘다
     const wrap = document.getElementById('wrap');
-    // 노치·홈 바 같은 안전 영역을 재서 그만큼 비운다(홈 화면 앱으로 열었을 때)
     const probe = document.createElement('div');
     probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
     document.body.appendChild(probe);
@@ -63,6 +84,7 @@
       const s = Math.min((w - inset.l - inset.r) / 16, (h - inset.t - inset.b) / 9);
       document.body.style.height = `${h}px`; document.body.style.width = `${w}px`;
       wrap.style.width = `${16 * s}px`; wrap.style.height = `${9 * s}px`; wrap.style.maxHeight = 'none';
+      wrap.style.setProperty('--u', String((16 * s) / 640)); // 640 기준 1단위 = 화면에서의 실제 픽셀
       window.scrollTo(0, 0);
     }
     window.addEventListener('resize', fit); window.addEventListener('orientationchange', () => setTimeout(fit, 250));
