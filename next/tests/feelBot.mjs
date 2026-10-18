@@ -1,6 +1,6 @@
 // 헤드리스 봇: 렌더링 없이 Attack 상태 머신을 돌려 "느낌"의 합격 기준을 숫자로 잰다.
-import { Attack } from '../proto/attack.mjs?v14';
-import { TUNE, aimOf } from '../proto/rules.mjs?v14';
+import { Attack } from '../proto/attack.mjs?v15';
+import { TUNE, aimOf } from '../proto/rules.mjs?v15';
 
 export const mulberry = (seed) => () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 const gauss = (r) => { let u = 0; for (let i = 0; i < 6; i += 1) u += r(); return (u - 3) / Math.sqrt(0.5); };
@@ -56,13 +56,13 @@ function act(A, c) {
     for (const th of A.threats) if (th.state === 'warn' || th.state === 'windup' || th.state === 'lunge') for (const q of th.defs) if (q.p.stun <= 0 && q.p.state !== 'done') { const d = Math.hypot(q.p.x - run.x, q.p.y - run.y); if (!danger || d < danger.d) danger = { d, q, th }; }
     const pd = Math.hypot(A.presser.x - run.x, A.presser.y - run.y);
     if (danger) {
-      const score = (dir) => Math.abs(run.y + dir * 45 - danger.q.p.y) - Math.abs(run.y + dir * 45 - 189) * 0.6;
+      const score = (dir) => Math.abs(run.y + dir * 100 - danger.q.p.y) - Math.abs(run.y + dir * 100 - 213) * 0.6;
       steer = run.y + (score(1) >= score(-1) ? 1 : -1) * 45;
       // 가까이 오면 개인기
-      if (c.bot !== 'straight' && !did['s' + danger.th.tc] && A.skill.cd <= 0 && (danger.th.state === 'windup' || (danger.th.state === 'lunge' && danger.d < 40)) && (c.bot === 'skilled') && r() < 0.9) { did['s' + danger.th.tc] = true; A.input({ type: 'tap', x: run.x, y: run.y }); }
+      if (c.bot !== 'straight' && !did['s' + danger.th.tc] && A.skill.cd <= 0 && (danger.th.state === 'lunge' && danger.d < 130) && (c.bot === 'skilled') && r() < 0.9) { did['s' + danger.th.tc] = true; A.input({ type: 'tap', x: run.x, y: run.y }); }
     }
     if (c.bot === 'straight') steer = run.y;
-    A.input({ type: 'steer', y: steer == null ? 189 + (run.x < 300 ? (run.y > 189 ? 60 : -60) * 0 : 0) : steer });
+    A.input({ type: 'steer', y: steer == null ? 213 : steer });
     if (A.inRange && !did.range && c.bot !== 'straight') {
       did.range = true;
       if (run.role === 'WG') { if (r() < 0.5) A.input({ type: 'flick', dx: 60, dy: 0 }); else A.input({ type: 'tap', x: run.x, y: run.y }); }

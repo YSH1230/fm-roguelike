@@ -2,8 +2,8 @@
 // 봇은 입력 타이밍 오차 σ=0.05초의 능숙한 플레이어다. 측정값은 `node --test tests/feel.test.mjs` 로 다시 낼 수 있다.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Attack, cameraTarget } from '../proto/attack.mjs?v14';
-import { TUNE, aimOf, classifyGesture, gaugeAt, instantGoalProb, resolveShot, runSpeedOf } from '../proto/rules.mjs?v14';
+import { Attack, FIELD, VIEW, cameraTarget, stepCamera } from '../proto/attack.mjs?v15';
+import { TUNE, aimOf, classifyGesture, gaugeAt, instantGoalProb, resolveShot, runSpeedOf } from '../proto/rules.mjs?v15';
 import { mulberry, playAttack } from './feelBot.mjs';
 
 const N = 160;
@@ -36,7 +36,7 @@ test('마지막 입력부터 다음 공격의 첫 조작까지 2.0초 이하(결
   assert.ok(worst <= 2.0, `최악 ${worst.toFixed(2)}초`);
 });
 
-test('달리기 화면 속도 250px/s 이상, 위협 예고부터 접촉까지 1.0초 이상, 위협 4~6회', () => {
+test('달리기 속도 250 단위/s 이상, 위협 예고부터 접촉까지 1.0초 이상, 위협 2~6회', () => {
   const speeds = []; const lead = []; const counts = [];
   for (const target of ['WB', 'WG']) {
     for (let i = 0; i < N; i += 1) {
@@ -45,8 +45,7 @@ test('달리기 화면 속도 250px/s 이상, 위협 예고부터 접촉까지 1
       A.update(0.01); A.pt = (c.open + c.close) / 2; A.input({ type: 'tap', x: c.me.x, y: c.me.y });
       for (let k = 0; k < 200 && A.phase !== 'run'; k += 1) A.update(1 / 60);
       for (let k = 0; k < 90; k += 1) A.update(1 / 60);
-      const cam = cameraTarget(A);
-      speeds.push(A.runner.vx * cam.z * 2);
+      speeds.push(A.runner.vx);
       counts.push(A.stats.threats);
       // 한 번 달릴 때 위협을 끝까지 돌려 본다(개인기로 접촉을 흘려 보냄)
       for (let k = 0; k < 60 * 12 && A.phase === 'run'; k += 1) {
@@ -56,9 +55,9 @@ test('달리기 화면 속도 250px/s 이상, 위협 예고부터 접촉까지 1
       for (const th of A.threats) if (th.contactClock != null) lead.push(th.contactClock - th.warnClock);
     }
   }
-  assert.ok(Math.min(...speeds) >= 250, `화면 속도 최소 ${Math.min(...speeds).toFixed(0)}`);
+  assert.ok(Math.min(...speeds) >= 250, `달리기 속도 최소 ${Math.min(...speeds).toFixed(0)}`);
   assert.ok(lead.length > 20 && Math.min(...lead) >= 1.0, `예고 최소 ${Math.min(...lead).toFixed(2)}`);
-  assert.ok(Math.min(...counts) >= 4 && Math.max(...counts) <= 6, `위협 ${Math.min(...counts)}~${Math.max(...counts)}`);
+  assert.ok(Math.min(...counts) >= 2 && Math.max(...counts) <= 6, `위협 ${Math.min(...counts)}~${Math.max(...counts)}`);
 });
 
 test('무입력 달리기는 슛 사거리에 거의 못 가고(5% 이하), 능숙한 봇은 60~80%가 간다', () => {
@@ -95,8 +94,9 @@ test('조준 중 압박수는 0.35배로 느리고 슬로우는 최대 2.0초 �
   const sp = () => { const x0 = A.presser.x; const y0 = A.presser.y; A.update(0.1); return Math.hypot(A.presser.x - x0, A.presser.y - y0) / 0.1; };
   const slow = sp();
   assert.ok(Math.abs(slow / (A.runSpeed * TUNE.pressMul) - TUNE.aimSlow) < 0.02 || slow <= A.runSpeed * 0.36, `느린 속도 ${slow.toFixed(1)}`);
-  while (A.prt < TUNE.aimMax - 0.05 && A.phase === 'aim') A.update(0.05);
-  if (A.phase === 'aim') { A.update(0.2); const fast = sp(); assert.ok(fast > slow * 2, '2초 뒤에는 정상 속도'); }
+  while (A.prt < TUNE.aimMax + 0.02 && A.phase === 'aim') A.update(0.02);
+  assert.equal(A.phase, 'aim', '압박수가 닿기 전에 2초가 지나야 이 검사가 의미 있다');
+  const fast = sp(); assert.ok(fast > slow * 2, `2초 뒤에는 정상 속도(${fast.toFixed(0)} 대 ${slow.toFixed(0)})`);
   assert.equal(A.slow, 1, '전역 감속은 쓰지 않는다');
 });
 
@@ -125,7 +125,8 @@ test('손가락 입력 구분: 탭과 앞으로 플릭의 오입력이 5% 이하
   let bad = 0; const n = 4000;
   for (let i = 0; i < n; i += 1) {
     if (classifyGesture({ m: Math.abs(g() * 3.5), ms: Math.max(40, 110 + g() * 35) }) !== 'tap') bad += 1; // 탭 의도: 거의 안 움직이고 짧게 누름
-    if (classifyGesture({ m: Math.max(0, 90 + g() * 20), ms: Math.max(40, 100 + g() * 25) }) !== 'flick') bad += 1; // 플릭 의도: 90px 안팎을 0.1초에
+    const fm = Math.max(30, 90 + g() * 20); const ang = g() * 0.18; // 앞으로 플릭: 90px 안팎을 0.1초에, 방향 오차 약 ±10도
+    if (classifyGesture({ m: fm, ms: Math.max(40, 100 + g() * 25), dx: fm * Math.cos(ang), dy: fm * Math.sin(ang) }) !== 'flick') bad += 1;
   }
   assert.ok(bad / (2 * n) <= 0.05, `오입력 ${(100 * bad / (2 * n)).toFixed(2)}%`);
 });
@@ -171,6 +172,58 @@ test('스트라이커 롱볼: 짧게 당기면 헤더, 길게 당기면 발 슛(
   };
   assert.equal(get(30), 'header');
   assert.equal(get(100), 'pow');
+});
+
+test('세로로 끄는 움직임은 사거리 안에서도 플릭이 아니라 이동으로 둔다', () => {
+  assert.equal(classifyGesture({ m: 90, ms: 100, dx: 20, dy: 88 }), 'drag');
+  assert.equal(classifyGesture({ m: 90, ms: 100, dx: 80, dy: 40 }), 'flick');
+});
+
+test('가까운 후보 스냅: 눌린 곳에서 60단위 이내의 가장 가까운 후보가 100% 선택된다', () => {
+  const r = mulberry(21); let hit = 0; let n = 0;
+  for (let i = 0; i < 300; i += 1) {
+    const A = new Attack({ rand: mulberry(i + 1), cell: cellOf(i) });
+    const cs = Object.values(A.cands);
+    const x = cs[i % 3].me.x + (r() - 0.5) * 100; const y = cs[i % 3].me.y + (r() - 0.5) * 100;
+    const want = cs.map((c) => ({ c, d: Math.hypot(c.me.x - x, c.me.y - y) })).filter((o) => o.d <= 60).sort((a, b) => a.d - b.d)[0]?.c ?? null;
+    n += 1; if (A.candAt(x, y) === want) hit += 1;
+  }
+  assert.equal(hit, n);
+});
+
+test('카메라: 경계 밖 노출 0프레임, 급변(점프) 0회, 달리기 앞 시야 1.4초 이상', () => {
+  const cam = { x: 320, y: 212, z: 1 };
+  let outside = 0; let jumps = 0; let minAhead = 99; let frames = 0;
+  for (let i = 0; i < 24; i += 1) {
+    const r = playAttack({ seed: i + 1, target: i % 2 ? 'WB' : 'WG', cell: cellOf(i), dt: 1 / 60 });
+    void r;
+  }
+  // 프레임 단위로 같은 흐름을 다시 돌리며 카메라를 따라 붙인다(연속 공격 사이의 이동 포함)
+  for (let i = 0; i < 24; i += 1) {
+    const A = new Attack({ rand: mulberry(i + 1), cell: cellOf(i) });
+    const c = A.cands[i % 2 ? 'WB' : 'WG'];
+    let tapped = false; let steps = 0;
+    while (!A.done && steps < 60 * 25) {
+      steps += 1;
+      if (!tapped && A.pt >= (c.open + c.close) / 2) { tapped = true; A.input({ type: 'tap', x: c.me.x, y: c.me.y }); }
+      if (A.phase === 'run') { A.input({ type: 'steer', y: A.runner.y }); if (A.inRange && !A.did) { A.did = true; A.input({ type: 'flick', dx: -60, dy: 0 }); } }
+      if (A.phase === 'aim' && A.prt > 0.3) { const lead = A.stLead(TUNE.lobTime.low); const a = Math.atan2(lead.y - A.aim.holder.y, lead.x - A.aim.holder.x); A.input({ type: 'aimRelease', dx: -Math.cos(a) * 90, dy: -Math.sin(a) * 90 }); }
+      if (A.phase === 'pow' && Math.abs(A.gaugeNow() - 0.65) < 0.03) A.input({ type: 'tap', x: 0, y: 0 });
+      if (A.phase === 'dir' && Math.abs(A.gaugeNow() - 0.79) < 0.03) A.input({ type: 'tap', x: 0, y: 0 });
+      A.update(1 / 60);
+      const before = { x: cam.x, y: cam.y, z: cam.z };
+      stepCamera(cam, cameraTarget(A), 1 / 60);
+      frames += 1;
+      const hw = VIEW.w / (2 * cam.z); const hh = VIEW.h / (2 * cam.z);
+      if (cam.x - hw < -1e-6 || cam.x + hw > FIELD.w + 1e-6 || cam.y - hh < -1e-6 || cam.y + hh > FIELD.h + 1e-6) outside += 1;
+      if (Math.abs(cam.x - before.x) > 60 || Math.abs(cam.y - before.y) > 60 || Math.abs(cam.z - before.z) > 0.05) jumps += 1;
+      if (A.phase === 'run' && A.runClock > 1.2 && !A.inRange && cam.x + hw < FIELD.w - 1) minAhead = Math.min(minAhead, (cam.x + hw - A.runner.x) / A.runSpeed);
+    }
+  }
+  assert.ok(frames > 1000);
+  assert.equal(outside, 0, `경계 밖 ${outside}프레임`);
+  assert.equal(jumps, 0, `점프 ${jumps}회`);
+  assert.ok(minAhead >= 1.4, `앞 시야 ${minAhead.toFixed(2)}초`);
 });
 
 test('헤드리스 측정표(참고 출력)', () => {

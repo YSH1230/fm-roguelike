@@ -21,18 +21,18 @@ export const TUNE = {
   windows: { WB: [0.4, 1.4], WG: [1.1, 2.1], ST: [2.0, 3.0] },
   visionPreview: 0.4, visionWiden: 0.1, // 시야 20: 링이 +0.4초 일찍, 창 +10%
   oppDefNarrow: 0.015, // 상대 수비력 1당 창이 좁아지는 비율
-  candSpeed: { WB: 34, WG: 30, ST: 52 }, // 후보가 달리는 속도(월드 단위/초)
+  candSpeed: { WB: 60, WG: 54, ST: 110 }, stRun: 230, // 후보가 달리는 속도(월드 단위/초). 스트라이커는 롱볼 뒤 박스로 침투
   // 조준(새총)
   aimSlow: 0.35, aimMax: 2.0, aimAngle: 24, aimLowPull: 55, aimMinPull: 14, lobTime: { low: 0.45, loft: 0.8 },
   slowShot: 0.3, // 정밀 슛, 헤더 중 월드 속도(게이지는 실시간)
-  // 달리기: 월드 75단위/초 x 줌 1.7 x 캔버스 2배 = 화면 약 255~300px/초
-  runSpeed: 75, runPerSpeed: 0.01, runLat: 65, runAccel: 0.12, latCost: 0.6, // latCost: 옆 속도가 앞 속도를 깎는 정도(1이면 전체 속도 일정)
-  threatFirst: 1.4, threatGap: [0.8, 1.0], warnLead: 1.0, windup: 0.25, contactR: 14, defSpeedMul: [0.9, 1.05], lungeMax: 1.3,
-  pressGap0: 0.34, pressMul: 1.0, pressCatchUp: 1.6, vignetteGap: 0.14, nearMiss: 24,
+  // 달리기: 월드 약 300단위/초(v4: 필드 2400 단위)
+  runSpeed: 300, runPerSpeed: 0.01, runLat: 220, runAccel: 0.12, latCost: 0.6, // latCost: 옆 속도가 앞 속도를 깎는 정도(1이면 전체 속도 일정)
+  threatFirst: 1.4, threatGap: [0.8, 1.0], warnLead: 1.0, windup: 0.25, contactR: 20, defSpeedMul: [0.9, 1.05], lungeMax: 1.3,
+  pressGap0: 0.34, pressMul: 1.0, pressCatchUp: 1.6, vignetteGap: 0.14, nearMiss: 36, repoSpeed: 420, pressStop: 100,
   looseTime: 0.8, looseTarget: 0.6, looseStop: 0.3, looseBase: 0.06, loosePerDribble: 0.008,
   skillCD: 0.8, skillStall: 0.15, skillVoid: 0.6, skillSlow: 0.12, skillHitstop: 0.05,
   // 슛
-  rangeBase: 60, rangePerShot: 5, rangeWindow: 2.0, rangeMulMax: 1.3, rangeMulMin: 0.5,
+  rangeFrac: 0.15, rangeFracPerShot: 0.01, rangeWindow: 2.0, rangeMulMax: 1.3, rangeMulMin: 0.5,
   instantRatio: 0.5, preciseBase: 0.35, precisePerShot: 0.015,
   headerTime: 1.0, headerPeak: 0.7, headerBase: 0.08, headerPerFin: 0.012, headerCenter: 0.35,
   shotFlight: 0.35, goalHold: 1.5, otherHold: 0.5,
@@ -147,7 +147,7 @@ export function openWindow(role, { arrival, vision, oppDef, easy = 1 }) {
   return { open, close: open + width, warn: 0.5 + TUNE.visionPreview * (clamp(vision, 0, 20) / 20) };
 }
 // 슛 유효 사거리(골라인에서 월드 단위)와 거리 배율
-export const shotRange = (shooting) => TUNE.rangeBase + clamp(shooting, 0, 20) * TUNE.rangePerShot;
+export const shotRange = (shooting, len = 2400) => len * (TUNE.rangeFrac + TUNE.rangeFracPerShot * clamp(shooting, 0, 20));
 export const rangeMul = (dist, range) => clamp(1.3 - 0.8 * (dist / range), TUNE.rangeMulMin, TUNE.rangeMulMax);
 // 정밀 슛 골 확률의 기대값(숙련 플레이어)과 즉발 슛(그 절반)
 export const preciseExpect = (shooting, mul = 1) => clamp((TUNE.preciseBase + clamp(shooting, 0, 20) * TUNE.precisePerShot) * mul, 0.02, 0.95);
@@ -161,9 +161,10 @@ export const runSpeedOf = (speed) => TUNE.runSpeed * (0.9 + clamp(speed, 0, 20) 
 export const pAttack = ({ me, opp, m = 1 }) => { const x = m * (me.atk / opp.def); const y = opp.atk / me.def; return x / (x + y); };
 export const autoGoalProb = ({ oppAtk, myDef, gk = 10, stance = 'balanced' }) => clamp(TUNE.baseGoal * (oppAtk / Math.max(1, myDef)) * TUNE.stance[stance].opp * (1 - (gk - 10) * 0.01), 0.02, 0.6);
 
-// 손가락 입력 구분(지연 없이 즉시 판정): 탭 = 이동 12px 이내 + 250ms 이내, 플릭 = 28px 이상 + 속도 0.5px/ms 이상, 그 밖은 옆으로 틀기(드래그)
-export function classifyGesture({ m, ms }) {
+// 손가락 입력 구분(지연 없이 즉시 판정): 탭 = 이동 12px 이내 + 250ms 이내.
+// 플릭 = 28px 이상 + 속도 0.5px/ms 이상 + 가로 우세(|dx| > 1.5|dy|). 세로 성분이 큰 움직임은 계속 이동(드래그)으로 둔다.
+export function classifyGesture({ m, ms, dx = m, dy = 0 }) {
   if (m <= TUNE.tapMove && ms <= TUNE.tapMs) return 'tap';
-  if (m >= TUNE.flickPx && m / Math.max(1, ms) >= TUNE.flickSpeed) return 'flick';
+  if (m >= TUNE.flickPx && m / Math.max(1, ms) >= TUNE.flickSpeed && Math.abs(dx) > 1.5 * Math.abs(dy)) return 'flick';
   return 'drag';
 }

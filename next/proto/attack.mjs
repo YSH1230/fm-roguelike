@@ -4,9 +4,11 @@
 import {
   TUNE, aimOf, clamp, fatigue, gaugeAt, headerWindow, instantGoalProb, looseWindow, openWindow, pressArrival, rangeMul,
   resolveShot, runSpeedOf, shootTime, shotRange, slingRange,
-} from './rules.mjs?v14';
+} from './rules.mjs?v15';
 
-export const FIELD = { x0: 14, x1: 626, y0: 32, y1: 346, gy: 189 };
+// 월드(v4): 필드 길이 2400 x 높이 314, 좌우 끝 여백 60, 위아래 관중석 여백(줌 0.85에서도 경계 밖이 보이지 않도록 전체 높이 424)
+export const FIELD = { x0: 60, x1: 2460, y0: 56, y1: 370, gy: 213, w: 2520, h: 424, len: 2400 };
+export const GOAL_HALF = 24;
 const GX = FIELD.x1;
 const GY = FIELD.gy;
 export const DEFAULT_STATS = {
@@ -15,6 +17,16 @@ export const DEFAULT_STATS = {
 };
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const lerp = (a, b, t) => a + (b - a) * t;
+// 수비수가 러너를 가로막는 시간: 속도 vd로 달려 러너의 앞쪽 지점에 닿는 가장 이른 t(0.1~1.2초). 풀리지 않으면 거리/속도.
+function interceptTime(d, r, vd, dd) {
+  const dx = r.x - d.x; const dy = r.y - d.y;
+  const a = r.vx * r.vx + r.vy * r.vy - vd * vd; const b = 2 * (dx * r.vx + dy * r.vy); const c = dx * dx + dy * dy;
+  let t;
+  if (Math.abs(a) < 1e-6) t = b < 0 ? -c / b : dd / vd;
+  else { const disc = b * b - 4 * a * c; if (disc < 0) t = dd / vd; else { const t1 = (-b - Math.sqrt(disc)) / (2 * a); const t2 = (-b + Math.sqrt(disc)) / (2 * a); const ok = [t1, t2].filter((v) => v > 0); t = ok.length ? Math.min(...ok) : dd / vd; } }
+  return clamp(t, 0.1, 1.2);
+}
+const smoothstep = (t) => { const k = clamp(t, 0, 1); return k * k * (3 - 2 * k); };
 const smooth = (t) => { const k = clamp(t, 0, 1); return k * k * (3 - 2 * k); };
 
 // 시작 칸 3x3: 해시(좌/중/우) x 깊이(우리 진영/하프라인/상대 진영). 다음 칸은 해시도 깊이도 모두 다른 4칸 중 하나.
@@ -58,37 +70,39 @@ export class Attack {
   // ---------- 월드 만들기: 모든 선수는 여기서 한 번만 ----------
   build() {
     const { h, d } = this.cell; const r = this.rand;
-    const sy = [96, GY, 282][h] + (r() - 0.5) * 30;
-    const sx = [64, 112, 164][d] + (r() - 0.5) * 20; // 공격이 짧게 끝나지 않도록 시작 칸은 앞쪽 절반 안에 둔다(달리기 3.2초 이상 확보)
+    const sy = [150, GY, 276][h] + (r() - 0.5) * 40;
+    const sx = [180, 600, 1020][d] + (r() - 0.5) * 120; // 달리기가 2~5초가 되도록 시작 칸은 앞쪽 3/4 안에 둔다
     this.players = [];
     this.byId = {};
     const add = (id, team, role, x, y, extra = {}) => { const p = { id, team, role, x, y, vx: 0, vy: 0, anim: 'idle', kick: 0, lay: 0, stun: 0, ...extra }; this.players.push(p); this.byId[id] = p; return p; };
-    const sideY = sy < GY - 20 ? 62 : (sy > GY + 20 ? 316 : (r() < 0.5 ? 62 : 316));
-    const wgY = sideY < GY ? 268 : 110;
+    const sideY = sy < GY - 30 ? 92 : (sy > GY + 30 ? 334 : (r() < 0.5 ? 92 : 334));
+    const wgY = sideY < GY ? 290 : 136;
     this.mf = add('MF', 'me', 'MF', sx, sy);
-    this.wb = add('WB', 'me', 'WB', sx + 14, sideY, { vx: TUNE.candSpeed.WB });
-    this.wg = add('WG', 'me', 'WG', sx + 36, wgY, { vx: TUNE.candSpeed.WG });
-    this.st = add('ST', 'me', 'ST', sx + 170, GY + (r() - 0.5) * 70, { vx: TUNE.candSpeed.ST });
-    add('GKm', 'me', 'GK', FIELD.x0 + 10, GY);
-    [[120, 96], [96, 189], [120, 282]].forEach(([x, y], i) => add(`DF${i}`, 'me', 'DF', x, y));
+    this.wb = add('WB', 'me', 'WB', sx + 50, sideY, { vx: TUNE.candSpeed.WB });
+    this.wg = add('WG', 'me', 'WG', sx + 110, wgY, { vx: TUNE.candSpeed.WG });
+    this.st = add('ST', 'me', 'ST', sx + 170, GY + (r() - 0.5) * 100, { vx: TUNE.candSpeed.ST });
+    add('GKm', 'me', 'GK', FIELD.x0 + 26, GY);
+    [[FIELD.x0 + 330, 140], [FIELD.x0 + 300, GY], [FIELD.x0 + 330, 290]].forEach(([x, y], i) => add(`DF${i}`, 'me', 'DF', x, y));
     // 상대: 골키퍼 + 필드 10명(마커 3, 압박수 1, 나머지 6). 위협으로 쓰는 수비수는 모두 여기 있던 선수다.
-    this.gk = add('GKo', 'opp', 'GK', GX - 10, GY);
+    this.gk = add('GKo', 'opp', 'GK', GX - 26, GY);
     this.arrival = pressArrival(this.s.activity) * (this.easy > 1 ? 1.2 : 1);
-    const pStart = { x: Math.max(FIELD.x0 + 20, sx - this.arrival * 38), y: clamp(sy + 12, 50, 330) };
+    const pStart = { x: Math.max(FIELD.x0 + 40, sx - Math.max(260, this.arrival * 70)), y: clamp(sy + 24, FIELD.y0 + 20, FIELD.y1 - 20) };
     this.presser = add('P', 'opp', 'DF', pStart.x, pStart.y);
     this.pStart = pStart;
     this.cands = {};
     for (const role of ['WB', 'WG', 'ST']) {
       const me = this.byId[role];
       const w = openWindow(role, { arrival: this.arrival, vision: this.s.vision, oppDef: this.s.oppDef, easy: this.easy });
-      const marker = add(`M${role}`, 'opp', 'DF', me.x - 6, me.y + (role === 'ST' ? 8 : 5), { vx: me.vx });
+      const marker = add(`M${role}`, 'opp', 'DF', me.x - 10, me.y + (role === 'ST' ? 12 : 8), { vx: me.vx });
       this.cands[role] = { role, me, marker, ...w, state: 'closed' };
     }
-    const spots = [[330, 80], [335, 189], [330, 300], [430, 120], [430, 258], [500, 80], [500, 189], [500, 300], [560, 130], [560, 250]];
+    // 달리는 길 위에 서 있는 나머지 수비수(위협으로 달려드는 선수는 모두 여기서 나온다)
     this.pool = [];
-    let n = 0;
-    for (const [x, y] of spots.sort(() => r() - 0.5)) { if (n >= 6) break; if (x > sx + 90) { this.pool.push(add(`O${n}`, 'opp', 'DF', x + (r() - 0.5) * 16, y + (r() - 0.5) * 16, { home: { x, y } })); n += 1; } }
-    for (let i = n; i < 6; i += 1) this.pool.push(add(`O${i}`, 'opp', 'DF', 540 + (r() - 0.5) * 30, 60 + i * 45, { home: { x: 540, y: 60 + i * 45 } }));
+    const xa = sx + 500; const xb = GX - 120;
+    for (let i = 0; i < 8; i += 1) {
+      const x = lerp(xa, Math.max(xa + 300, xb), i / 7) + (r() - 0.5) * 60; const y = FIELD.y0 + 50 + ((i * 3 + r() * 2) % 8) / 8 * (FIELD.y1 - FIELD.y0 - 100);
+      this.pool.push(add(`O${i}`, 'opp', 'DF', x, y, { home: { x, y }, off: ((i * 5) % 8 - 3.5) * 40 }));
+    }
     for (const p of this.pool) p.home ??= { x: p.x, y: p.y };
     this.ball = { state: 'held', holder: this.mf, x: sx, y: sy, z: 0, vx: 0, vy: 0, fx: 0, fy: 0, tx: 0, ty: 0, t: 0, dur: 0, arc: 0 };
     this.runner = null; this.shooter = null;
@@ -120,13 +134,14 @@ export class Attack {
   }
 
   // ---------- 첫 패스: 열린 선수를 타이밍에 맞춰 탭 ----------
-  candAt(x, y) {
-    let best = null; let bd = 26;
+  // 가장 가까운 후보로 스냅: 눌린 위치에서 r(기본 60단위) 안의 가장 가까운 후보
+  candAt(x, y, r = 60) {
+    let best = null; let bd = r;
     for (const c of Object.values(this.cands)) { const d = Math.hypot(c.me.x - x, c.me.y - y); if (d < bd) { bd = d; best = c; } }
     return best;
   }
   tapFirst(ev) {
-    const c = this.candAt(ev.x, ev.y);
+    const c = this.candAt(ev.x, ev.y, ev.r ?? 60);
     if (!c) return;
     if (this.pt < c.open) return this.turnover('cut', { at: c });
     if (this.pt > c.close) return this.turnover('late', { at: c });
@@ -161,12 +176,12 @@ export class Attack {
     const got = Math.atan2(-ev.dy, -ev.dx);
     let err = Math.abs(want - got); if (err > Math.PI) err = 2 * Math.PI - err;
     const tol = (TUNE.aimAngle * (1 + this.s.pass / 40) * this.easy * Math.PI) / 180;
-    const maxD = slingRange(this.s.pass, this.s.stamina, this.attackNo) * 620;
+    const maxD = slingRange(this.s.pass, this.s.stamina, this.attackNo) * 1400;
     const ok = err <= tol && dist(holder, lead) <= maxD;
     this.lastSling = { err, tol, d: dist(holder, lead), maxD, ok };
     this.emit('sling', { loft, ok });
     if (!ok) {
-      const end = { x: holder.x + Math.cos(got) * Math.min(maxD, 200), y: clamp(holder.y + Math.sin(got) * Math.min(maxD, 200), FIELD.y0 + 8, FIELD.y1 - 8) };
+      const end = { x: holder.x + Math.cos(got) * Math.min(maxD, 500), y: clamp(holder.y + Math.sin(got) * Math.min(maxD, 500), FIELD.y0 + 8, FIELD.y1 - 8) };
       Object.assign(this.ball, { state: 'flying', holder: null, fx: this.ball.x, fy: this.ball.y, tx: end.x, ty: end.y, t: 0, dur, arc: loft ? 26 : 8 });
       this.flight = { fail: true };
       this.setPhase('lob');
@@ -183,6 +198,7 @@ export class Attack {
     this.ball.state = 'held'; this.ball.holder = r;
     this.runClock = 0; this.rangeT = 0; this.inRange = false;
     r.runVx = Math.max(r.vx, 20);
+    this.st.vx = Math.max(this.st.vx, TUNE.stRun); // 스트라이커는 박스로 침투한다
     this.scheduleThreats();
     this.setPhase('run');
     this.runStartX = r.x;
@@ -226,15 +242,16 @@ export class Attack {
     this.stats.contacts += 1;
     if (by.threat) by.threat.contactClock = this.runClock;
     const r = this.runner;
-    if (this.runClock < this.skill.until) { // 개인기: 접촉 한 번 무효
+    if (by.threat?.voided || this.runClock < this.skill.until) { // 개인기: 접촉 한 번(같은 위협의 협공 수비수까지) 무효
       this.skill.until = 0; by.stun = 0.6; by.state = 'done';
+      if (by.threat) by.threat.voided = true;
       this.slowTo(0.4, TUNE.skillSlow);
       this.emit('skillOK', { by }); return;
     }
     if (this.looseUsed) return this.turnover('tackle', { by });
     this.looseUsed = true; this.stats.looseTries += 1;
     by.stun = 0.5; by.state = 'done';
-    Object.assign(this.ball, { state: 'loose', holder: null, vx: 70, vy: (this.rand() - 0.5) * 40, t: 0 });
+    Object.assign(this.ball, { state: 'loose', holder: null, vx: 260, vy: (this.rand() - 0.5) * 120, t: 0 });
     r.pause = 9;
     this.slow = TUNE.slowShot;
     this.setPhase('loose');
@@ -246,7 +263,7 @@ export class Attack {
       this.slow = 1;
       this.ball.state = 'held'; this.ball.holder = this.runner; this.runner.pause = TUNE.looseStop;
       for (const th of this.threats) if (th.state === 'warn' || th.state === 'windup') th.state = 'wait';
-      this.presser.x = Math.max(FIELD.x0, this.runner.x - 40); // 압박수가 잠깐 밀린다
+      this.presser.x = Math.max(FIELD.x0, this.runner.x - 120); // 압박수가 잠깐 밀린다
       this.emit('secured');
       this.setPhase('run');
     } else this.turnover('loose');
@@ -284,8 +301,8 @@ export class Attack {
     this.shooter = p;
     p.kick = 0.3;
     this.slow = 1;
-    const goalY = GY + clamp(aim, -1.2, 1.2) * 18;
-    const end = out === 'goal' ? { x: GX + 6, y: goalY } : (out === 'save' ? { x: GX - 8, y: GY + aim * 8 } : (out === 'post' ? { x: GX, y: GY + (aim > 0 ? 20 : -20) } : { x: GX + 18, y: GY + (aim > 0 ? 44 : -44) }));
+    const goalY = GY + clamp(aim, -1.2, 1.2) * (GOAL_HALF - 3);
+    const end = out === 'goal' ? { x: GX + 10, y: goalY } : (out === 'save' ? { x: GX - 14, y: GY + aim * 10 } : (out === 'post' ? { x: GX, y: GY + (aim > 0 ? GOAL_HALF : -GOAL_HALF) } : { x: GX + 24, y: GY + (aim > 0 ? 64 : -64) }));
     Object.assign(this.ball, { state: 'flying', holder: null, fx: this.ball.x, fy: this.ball.y, tx: end.x, ty: end.y, t: 0, dur: TUNE.shotFlight, arc: out === 'miss' ? 14 : 6 });
     this.flight = { shot: out, rebound, instant };
     if (out === 'save' || out === 'post') this.gk.dive = aim >= 0 ? 1 : -1;
@@ -375,13 +392,16 @@ export class Attack {
     for (const k of ['WB', 'WG', 'ST']) {
       const p = this.byId[k];
       if (p === this.runner && this.phase !== 'pass') continue;
-      p.x = Math.min(p.x + p.vx * dt, k === 'ST' ? GX - 56 : GX - 90); p.y += p.vy * dt;
-      if (p.x >= (k === 'ST' ? GX - 56 : GX - 90)) p.vx = Math.max(0, p.vx - 150 * dt);
+      const cap = k === 'ST' ? GX - 260 : GX - 420;
+      p.x = Math.min(p.x + p.vx * dt, cap); p.y += p.vy * dt;
+      if (p.x >= cap) p.vx = Math.max(0, p.vx - 600 * dt);
     }
     void hold;
   }
   ambient(dt) {
-    for (const p of this.pool) { if (p.state === 'idle' || !p.state || p.state === 'done') { p.state = p.stun > 0 ? 'done' : 'idle'; const hx = p.home.x - p.x; const hy = p.home.y - p.y; const d = Math.hypot(hx, hy) || 1; const v = Math.min(30, d * 2); if (p.stun <= 0 && d > 2) { p.vx = (hx / d) * v; p.vy = (hy / d) * v; } else { p.vx = 0; p.vy = 0; } p.x += p.vx * dt; p.y += p.vy * dt; } }
+    // 수비 라인은 공이 있는 쪽으로 따라 움직인다(그래서 달리는 길 근처에 이미 서 있다)
+    for (const p of this.pool) if (p.off != null && !p.home.fixed) p.home.y = clamp(this.ball.y + p.off, FIELD.y0 + 30, FIELD.y1 - 30);
+    for (const p of this.pool) { if (p.state === 'idle' || !p.state || p.state === 'done') { p.state = p.stun > 0 ? 'done' : 'idle'; const hx = p.home.x - p.x; const hy = p.home.y - p.y; const d = Math.hypot(hx, hy) || 1; const v = Math.min(75, d * 2); if (p.stun <= 0 && d > 2) { p.vx = (hx / d) * v; p.vy = (hy / d) * v; } else { p.vx = 0; p.vy = 0; } p.x += p.vx * dt; p.y += p.vy * dt; } }
   }
   markers(dt) {
     const t = this.pt;
@@ -401,8 +421,8 @@ export class Attack {
     for (const c of Object.values(this.cands)) c.state = t < c.open - c.warn ? 'closed' : (t < c.open ? 'warn' : (t <= c.close ? 'open' : 'gone'));
     // 압박수: 직선으로 다가온다. 도달하면 턴오버.
     const k = clamp(t / this.arrival, 0, 1);
-    this.presser.x = lerp(this.pStart.x, this.mf.x - 34, k); this.presser.y = lerp(this.pStart.y, this.mf.y + 6, k);
-    this.presser.vx = (this.mf.x - 34 - this.pStart.x) / this.arrival; this.presser.vy = (this.mf.y + 6 - this.pStart.y) / this.arrival;
+    this.presser.x = lerp(this.pStart.x, this.mf.x - TUNE.pressStop, k); this.presser.y = lerp(this.pStart.y, this.mf.y + 14, k);
+    this.presser.vx = (this.mf.x - TUNE.pressStop - this.pStart.x) / this.arrival; this.presser.vy = (this.mf.y + 14 - this.pStart.y) / this.arrival;
     this.presserGap = (this.arrival - t);
     if (k >= 1) this.turnover('pressed');
   }
@@ -417,7 +437,7 @@ export class Attack {
     const p = this.presser;
     const d = dist(p, target);
     let v = this.runSpeed * TUNE.pressMul * scale;
-    if (this.phase === 'aim') v = Math.max(18, v);
+    if (this.phase === 'aim') v = Math.max(60, v);
     if (this.phase === 'lob') v = this.runSpeed * 0.6;
     if (d > 4) { p.vx = ((target.x - p.x) / d) * v; p.vy = ((target.y - p.y) / d) * v; p.x += p.vx * dt; p.y += p.vy * dt; }
     if (this.phase === 'aim' && dist(p, this.aim.holder) < TUNE.contactR) this.turnover('pressed');
@@ -454,7 +474,7 @@ export class Attack {
     // 사거리
     const toGoalX = GX - r.x;
     if (!this.inRange && this.toGoal(r) <= this.range) { this.inRange = true; this.rangeT = 0; this.emit('inRange'); }
-    if (this.inRange) { this.rangeT += dt; if (this.rangeT > TUNE.rangeWindow || toGoalX < 18) return this.turnover('noShot'); }
+    if (this.inRange) { this.rangeT += dt; if (this.rangeT > TUNE.rangeWindow || toGoalX < 60) return this.turnover('noShot'); }
     if (!this.inRange && toGoalX < 8) return this.turnover('noRange'); // 사거리에 못 들어간 채 골라인까지 달려 버렸다
     this.updateThreats(dt);
     this.updatePresserRun(dt);
@@ -480,7 +500,7 @@ export class Attack {
         const kinds = th.kind === 'pair' ? ['front', 'side'] : [th.kind];
         for (const kd of kinds) {
           const vd = this.runSpeed * lerp(TUNE.defSpeedMul[0], TUNE.defSpeedMul[1], this.rand());
-          const amb = kd === 'front' ? { x: P.x + vd * 0.4, y: clamp(P.y + (this.rand() - 0.5) * 24, FIELD.y0 + 12, FIELD.y1 - 12) } : { x: P.x + 10, y: clamp(P.y + side * (vd * 0.4 + 12), FIELD.y0 + 12, FIELD.y1 - 12) };
+          const amb = kd === 'front' ? { x: P.x + vd * 0.4, y: clamp(P.y + (this.rand() - 0.5) * 40, FIELD.y0 + 20, FIELD.y1 - 20) } : { x: P.x + 20, y: clamp(P.y + side * 92, FIELD.y0 + 20, FIELD.y1 - 20) };
           const d = this.pickDefender(amb, th.defs.map((q) => q.p));
           if (!d) continue;
           th.defs.push({ p: d, amb, vd, kind: kd });
@@ -496,7 +516,7 @@ export class Attack {
           if (d.stun > 0) continue;
           if (th.state !== 'lunge') {
             const dx = q.amb.x - d.x; const dy = q.amb.y - d.y; const dd = Math.hypot(dx, dy);
-            const v = Math.min(120, dd / 0.7);
+            const v = Math.min(TUNE.repoSpeed, dd / 0.7);
             if (dd > 2) { d.vx = (dx / dd) * v; d.vy = (dy / dd) * v; d.x += d.vx * dt; d.y += d.vy * dt; } else { d.vx = 0; d.vy = 0; }
             alive = true;
           }
@@ -509,7 +529,7 @@ export class Attack {
             const d = q.p;
             if (d.stun > 0 || d.state === 'done') continue;
             const dd = dist(d, r);
-            const tl = clamp(dd / q.vd, 0.2, 1.2);
+            const tl = interceptTime(d, r, q.vd, dd);
             const tx = r.x + r.vx * tl; const ty = r.y + r.vy * tl;
             const ex = tx - d.x; const ey = ty - d.y; const el = Math.hypot(ex, ey) || 1;
             d.vx = (ex / el) * q.vd; d.vy = (ey / el) * q.vd;
@@ -563,7 +583,7 @@ export class Attack {
     if (this.phase !== 'rebound') {
       const sh = this.shooter;
       const def = this.presser; const dd = dist(def, sh);
-      if (sh === this.runner) { const v = this.runSpeed * TUNE.pressMul * 0.15; def.x += ((sh.x - def.x) / (dd || 1)) * v * dt; def.y += ((sh.y - def.y) / (dd || 1)) * v * dt; if (dd < TUNE.contactR) return this.turnover('blocked'); }
+      if (sh === this.runner) { const v = this.runSpeed * TUNE.pressMul * TUNE.aimSlow; def.x += ((sh.x - def.x) / (dd || 1)) * v * dt; def.y += ((sh.y - def.y) / (dd || 1)) * v * dt; if (dd < TUNE.contactR) return this.turnover('blocked'); }
     }
     if (g.t >= g.limit) this.turnover('shotTimeout');
   }
@@ -576,7 +596,7 @@ export class Attack {
     const f = this.flight; const out = f.shot;
     if (out === 'goal') return this.finish('goal', f.instant ? 'instant' : 'shot');
     if (out === 'post' && !f.rebound) {
-      this.ball.state = 'loose'; this.ball.vx = -50; this.ball.vy = (this.rand() - 0.5) * 60; this.ball.x = GX - 6;
+      this.ball.state = 'loose'; this.ball.vx = -150; this.ball.vy = (this.rand() - 0.5) * 160; this.ball.x = GX - 10;
       this.gauge = { curl: false, mul: this.mulAt(this.shooter), farSide: 1, shooterId: this.shooter.id };
       this.setPhase('rebound'); this.slow = TUNE.slowShot; this.emit('rebound'); return;
     }
@@ -592,30 +612,50 @@ export class Attack {
   }
 }
 
-// ---------- 카메라 규칙(하나): 공과 조종 선수, 눈여겨볼 위협/후보를 담고 진행 방향으로 앞서 본다. 줌은 연속으로 변한다 ----------
-export function cameraPlan(A) {
+// ---------- 카메라: 하나의 규칙, 컷 없이 연속 ----------
+// 달리기: 러너를 화면 왼쪽 25%에 두고(앞 시야 = 화면의 75%) 줌 1.0~1.1. 첫 패스와 슛: 눈여겨볼 점을 담는다(줌 0.85~1.1).
+// 단계가 바뀌면 두 목표를 속도 비율로 섞는다. 카메라 중심은 항상 월드(끝 여백과 관중석 포함) 안으로 제한한다.
+export const VIEW = { w: 640, h: 360, zMin: 0.85, zMax: 1.1, runZ: 1.05, runLeft: 0.25, tau: 0.25 };
+export function interestPoints(A) {
   const pts = [{ x: A.ball.x, y: A.ball.y }];
-  const focus = A.phase === 'first' ? A.mf : (A.runner ?? A.shooter ?? A.mf);
-  pts.push({ x: focus.x, y: focus.y });
-  if (A.phase === 'first') { for (const c of Object.values(A.cands)) if (c.state !== 'closed' && c.state !== 'gone') pts.push({ x: c.me.x, y: c.me.y }); pts.push({ x: A.presser.x, y: A.presser.y }); }
-  if (A.phase === 'aim') { pts.push({ x: A.st.x, y: A.st.y }); pts.push({ x: A.presser.x, y: A.presser.y }); }
-  if (A.phase === 'lob' || A.phase === 'pow' || A.phase === 'dir' || A.phase === 'header' || A.phase === 'shotFlight' || A.phase === 'rebound') { pts.push({ x: A.shooter?.x ?? A.st.x, y: A.shooter?.y ?? A.st.y }); pts.push({ x: GX - 20, y: GY }); }
-  if (A.phase === 'run') for (const th of A.threats) if (th.state === 'warn' || th.state === 'windup' || th.state === 'lunge') for (const q of th.defs) pts.push({ x: q.p.x, y: q.p.y });
-  if (A.phase === 'result' && A.result.kind === 'goal') pts.push({ x: GX - 20, y: GY });
-  const vx = focus.vx ?? 0;
-  return { pts, lead: { x: vx * 0.35, y: (focus.vy ?? 0) * 0.2 } };
+  if (A.phase === 'first') { pts.push({ x: A.mf.x, y: A.mf.y }, { x: A.presser.x, y: A.presser.y }); for (const c of Object.values(A.cands)) pts.push({ x: c.me.x, y: c.me.y }); }
+  else if (A.phase === 'aim') { pts.push({ x: A.aim.holder.x, y: A.aim.holder.y }, { x: A.st.x, y: A.st.y }, { x: A.presser.x, y: A.presser.y }); }
+  else if (['lob', 'pow', 'dir', 'header', 'shotFlight', 'rebound'].includes(A.phase) || (A.phase === 'result' && A.result.kind !== 'turnover')) { const sh = A.shooter ?? A.st; pts.push({ x: sh.x, y: sh.y }, { x: GX - 30, y: GY }); }
+  else if (A.runner) pts.push({ x: A.runner.x, y: A.runner.y });
+  else pts.push({ x: A.mf.x, y: A.mf.y });
+  return pts;
 }
-
-// 카메라 목표(하나의 규칙): 눈여겨볼 점을 담고 진행 방향으로 앞서 본다. 줌 최소값은 조종 선수의 속도에 연속으로 비례한다.
-export function cameraTarget(A, W = 640, H = 360) {
-  const { pts, lead } = cameraPlan(A);
+export function cameraTarget(A) {
+  const { w, h, zMin, zMax } = VIEW;
+  const pts = interestPoints(A);
+  const margin = 70;
   const xs = pts.map((q) => q.x); const ys = pts.map((q) => q.y);
-  const margin = 56;
   const x0 = Math.min(...xs) - margin; const x1 = Math.max(...xs) + margin; const y0 = Math.min(...ys) - margin; const y1 = Math.max(...ys) + margin;
-  const focus = A.phase === 'first' ? A.mf : (A.runner ?? A.shooter ?? A.mf);
-  const zMin = 1.2 + 0.5 * clamp(Math.abs(focus.vx ?? 0) / A.runSpeed, 0, 1);
-  const z = clamp(Math.min(W / (x1 - x0), (H - 70) / (y1 - y0)), zMin, 1.8);
-  const x = clamp((x0 + x1) / 2 + lead.x, W / (2 * z), W - W / (2 * z));
-  const y = clamp((y0 + y1) / 2 + lead.y - 6, H / (2 * z), H - H / (2 * z));
-  return { x, y, z };
+  const fit = { z: clamp(Math.min(w / (x1 - x0), h / (y1 - y0)), zMin, zMax), x: (x0 + x1) / 2, y: (y0 + y1) / 2 };
+  const r = A.runner; const running = A.phase === 'run' || A.phase === 'loose';
+  let t = fit;
+  if (r && running) {
+    const z = VIEW.runZ;
+    const run = { z, x: r.x + r.vx * VIEW.tau + (0.5 - VIEW.runLeft) * (w / z), y: r.y + (r.vy ?? 0) * VIEW.tau }; // 속도 앞먹임: 추적 지연만큼 앞서 본다
+    const k = smoothstep(Math.abs(r.vx) / Math.max(1, A.runSpeed * 0.4)); // 속도에 따라 연속으로 섞는다(달리는 중에는 항상 달리기 카메라)
+    t = { z: lerp(fit.z, run.z, k), x: lerp(fit.x, run.x, k), y: lerp(fit.y, run.y, k) };
+  }
+  return clampCam(t);
+}
+// 월드 안으로 제한: 보이는 영역이 월드를 넘지 않게 중심을 자른다(월드 높이 424 = 줌 0.85의 시야 높이)
+export function clampCam(c) {
+  const z = clamp(c.z, VIEW.zMin, VIEW.zMax);
+  const hw = VIEW.w / (2 * z); const hh = VIEW.h / (2 * z);
+  return { z, x: clamp(c.x, hw, FIELD.w - hw), y: clamp(c.y, hh, FIELD.h - hh) };
+}
+// 시간 상수 약 0.25초의 부드러운 추적. 한 프레임에 움직일 수 있는 양을 제한해 급변(점프)을 막는다.
+export function stepCamera(cam, target, dt) {
+  const k = 1 - Math.exp(-dt / VIEW.tau);
+  const maxMove = 3000 * dt; const maxZ = 1.2 * dt;
+  const dx = clamp((target.x - cam.x) * k, -maxMove, maxMove);
+  const dy = clamp((target.y - cam.y) * k, -maxMove, maxMove);
+  const dz = clamp((target.z - cam.z) * k, -maxZ, maxZ);
+  const next = clampCam({ x: cam.x + dx, y: cam.y + dy, z: cam.z + dz });
+  cam.x = next.x; cam.y = next.y; cam.z = next.z;
+  return cam;
 }
