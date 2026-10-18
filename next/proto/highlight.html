@@ -91,6 +91,13 @@
     if (window.visualViewport) { window.visualViewport.addEventListener('resize', fit); window.visualViewport.addEventListener('scroll', fit); }
     fit(); setTimeout(fit, 400);
   </script>
-  <script type="module" src="highlight.mjs"></script>
+  <pre id="err" style="position:fixed;left:4px;bottom:4px;z-index:20;max-width:92vw;color:#fecaca;font:10px monospace;white-space:pre-wrap;pointer-events:none"></pre>
+  <script>
+    // 폰에서 오류가 나면 화면 아래에 보여 준다(원인 확인용)
+    const errBox = document.getElementById('err');
+    window.addEventListener('error', (e) => { errBox.textContent += `${e.message} @${(e.filename || '').split('/').pop()}:${e.lineno}\n`; });
+    window.addEventListener('unhandledrejection', (e) => { errBox.textContent += `${e.reason}\n`; });
+  </script>
+  <script type="module" src="highlight.mjs?v13"></script>
 </body>
 </html>

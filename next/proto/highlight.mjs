@@ -5,7 +5,7 @@ import {
   TUNE, aimOf, blockResult, chaserSpeed, chooseTime, clamp, diveWindow, finishBlockWindow, frontDefenderCount, gaugeAt,
   powerWindow, resolveShot, runnerSpeed, shootTime, shotFlightTime, shoulderInterval, shoulderTolerance, skillWindow, slingRange,
   widenGap,
-} from './rules.mjs';
+} from './rules.mjs?v13';
 
 const W = 640;
 const H = 360;
@@ -68,6 +68,8 @@ function burst(x, y, color, n = 18, speed = 140) {
 }
 function pop() { /* 설계서: 플레이 화면의 글자는 스코어보드만. 팝업 글자는 쓰지 않는다 */ }
 function stepFx(raw) {
+  if (!Number.isFinite(raw)) raw = 0.016;
+  if (!Number.isFinite(fx.shake)) fx.shake = 0;
   fx.shake = Math.max(0, fx.shake - raw * 30); fx.freeze = Math.max(0, fx.freeze - raw); fx.flash = Math.max(0, fx.flash - raw * 3);
   for (const p of fx.particles) { p.t += raw; p.x += p.vx * raw; p.y += p.vy * raw; p.vy += 200 * raw; }
   fx.particles = fx.particles.filter((p) => p.t < p.life);
@@ -84,7 +86,7 @@ document.addEventListener('pointerdown', unlockAudio, { passive: true });
 // ---------- 카메라: 항상 전체를 보여 주지 않고, 상황에 맞는 곳으로 확대한다 ----------
 const cam = { x: 320, y: GY, z: 1 };
 const camT = { x: 320, y: GY, z: 1 };
-const camTo = (x, y, z) => { camT.x = x; camT.y = y; camT.z = z; };
+const camTo = (x, y, z) => { if (![x, y, z].every(Number.isFinite)) return; camT.x = x; camT.y = y; camT.z = z; };
 // 점들을 모두 담는 확대 배율(최대 zoom까지)
 function camFit(points, { margin = 70, max = 1.8, uiBottom = 70 } = {}) {
   const xs = points.map((q) => q.x); const ys = points.map((q) => q.y);
@@ -93,6 +95,8 @@ function camFit(points, { margin = 70, max = 1.8, uiBottom = 70 } = {}) {
   camTo((x0 + x1) / 2, (y0 + y1) / 2 - 8, z);
 }
 function stepCam(rdt) {
+  if (![cam.x, cam.y, cam.z, camT.x, camT.y, camT.z].every(Number.isFinite)) { Object.assign(cam, { x: 320, y: GY, z: 1 }); Object.assign(camT, { x: 320, y: GY, z: 1 }); }
+  if (!Number.isFinite(rdt)) rdt = 0.016;
   const k = 1 - Math.exp(-rdt * 5);
   cam.x += (camT.x - cam.x) * k; cam.y += (camT.y - cam.y) * k; cam.z += (camT.z - cam.z) * k;
 }
@@ -1014,7 +1018,8 @@ function showMenu(title, sub, { resume = false } = {}) {
     ${resume ? '<button class="btn btn--primary" data-m="resume">RESUME</button>' : ''}
     <button class="btn ${resume ? '' : 'btn--primary'}" data-m="match">MATCH · 10 SCENES</button>
     <div class="row"><button class="btn" data-m="atk">ATTACK</button><button class="btn" data-m="def">DEFENSE</button></div>
-    <div class="row"><button class="btn" data-m="snd">${soundOn ? 'SOUND ON' : 'SOUND OFF'}</button><button class="btn" data-m="tune">TUNE</button></div>`;
+    <div class="row"><button class="btn" data-m="snd">${soundOn ? 'SOUND ON' : 'SOUND OFF'}</button><button class="btn" data-m="tune">TUNE</button></div>
+    <p style="font-size:10px;color:#64748b">BUILD v13</p>`;
   overlay.classList.add('on');
   box.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', (e) => {
     const m = e.currentTarget.dataset.m;
@@ -1042,4 +1047,4 @@ function frame(now) {
 }
 showMenu('HIGHLIGHT', '가로 화면에서 직접 플레이하는 하이라이트예요');
 requestAnimationFrame((n) => { last = n; frame(n); });
-window.fmHighlight = { stats, start, startMatch, match, fx, sim, get scene() { return scene; } };
+window.fmHighlight = { stats, start, startMatch, match, fx, sim, cam, camT, get scene() { return scene; } };
