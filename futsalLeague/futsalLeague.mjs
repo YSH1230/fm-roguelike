@@ -9,23 +9,12 @@ export const TEAM_NAMES = [
 export const CONFERENCE_NAMES = ['메트로', '도원'];
 export const DIVISION_NAMES = ['북부', '남부'];
 export const FIELD_ABILITIES = ['speed', 'stamina', 'power', 'tech', 'shoot'];
-export const GK_ABILITIES = ['speed', 'stamina', 'power', 'reaction', 'handling'];
-export const GOALS_PER_TEAM = 2.5;
+export const GK_ABILITIES = ['reaction', 'handling'];
+export const ALL_ABILITIES = [...FIELD_ABILITIES, ...GK_ABILITIES];
+// 기준 2.5골을 평균 득점 2.5로 맞추려고 보정한 값 (골키퍼 배율 평균 약 0.94가 평균을 깎는다)
+export const GOALS_PER_TEAM = 2.715;
 export const SEGMENT_SIZES = [7, 7, 8];
 export const OT_MINUTES_RATIO = 5 / 40; // 연장 5분 = 정규 40분의 1/8
-
-// 설계 6.6절: 잠재 별 분포 (1.5 ~ 5.0, 0.5 단위). 5성은 AI 팀 스타 생성에서만 1%.
-export const STAR_LEVELS = [1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
-export const STAR_WEIGHTS = [5, 12, 20, 25, 20, 11, 6, 1];
-// 설계 6.6절: 현재 칸 ÷ 천장 (입단 나이별)
-export const AGE_RATIO = [
-  { from: 19, to: 21, ratio: 0.5 },
-  { from: 22, to: 25, ratio: 0.65 },
-  { from: 26, to: 29, ratio: 0.8 },
-  { from: 30, to: 32, ratio: 0.95 },
-  { from: 33, to: 35, ratio: 0.9 },
-];
-export const LATE_BLOOMER_RATE = 0.03; // 28세 이상, 현재 칸이 천장의 약 60%
 
 // 팀 id 0~15: 컨퍼런스 = id >> 3, 디비전 = (id >> 2) & 1 (0 북부, 1 남부)
 export const conferenceOf = (id) => id >> 3;
@@ -36,85 +25,16 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const fieldSum = (p) => FIELD_ABILITIES.reduce((s, k) => s + p.abilities[k], 0);
 const gkRatingOf = (p) => (p.abilities.reaction + p.abilities.handling) / 2;
 
-// 가중치로 뽑기 (index 반환)
-function pickWeighted(weights, rng) {
-  const total = weights.reduce((a, b) => a + b, 0);
-  let r = rng() * total;
-  for (let i = 0; i < weights.length; i++) {
-    r -= weights[i];
-    if (r < 0) return i;
-  }
-  return weights.length - 1;
-}
-
-// 유형별 가중치: 고른형 = 균등, 특화형 = 2개 강조, 극단형 = 1개 크게 (유형은 1/3씩 가정)
-function typeWeights(keys, rng) {
-  const type = pickWeighted([1, 1, 1], rng);
-  const w = keys.map(() => 1);
-  if (type === 1) {
-    const i = Math.floor(rng() * keys.length);
-    let j = Math.floor(rng() * (keys.length - 1));
-    if (j >= i) j++;
-    w[i] = 3;
-    w[j] = 3;
-  } else if (type === 2) {
-    w[Math.floor(rng() * keys.length)] = 4;
-  }
-  return w;
-}
-
-// 총량 T를 가중치대로 나누고, 칸 상한 20을 넘는 몫은 잘라서 나머지에 재분배한다.
-function allocateCeiling(total, weights) {
-  const out = new Array(weights.length).fill(0);
-  let active = weights.map((_, i) => i);
-  let rem = total;
-  while (active.length) {
-    const sw = active.reduce((s, i) => s + weights[i], 0);
-    const over = active.filter((i) => (rem * weights[i]) / sw > 20);
-    if (!over.length) {
-      for (const i of active) out[i] = (rem * weights[i]) / sw;
-      break;
-    }
-    for (const i of over) {
-      out[i] = 20;
-      rem -= 20;
-    }
-    active = active.filter((i) => !over.includes(i));
-  }
-  return out.map((v) => clamp(Math.round(v), 0, 20));
-}
-
-function ratioOfAge(age) {
-  return AGE_RATIO.find((b) => age >= b.from && age <= b.to).ratio;
-}
-
-// 설계 6.6절에 따라 선수 한 명 생성: 잠재 별 → 천장 총량 → 유형별 칸 분배 → 나이별 현재 칸.
-export function makePlayer(id, role, rng) {
-  const star = STAR_LEVELS[pickWeighted(STAR_WEIGHTS, rng)];
-  const keys = role === 'GK' ? GK_ABILITIES : FIELD_ABILITIES;
-  const total = 20 * star;
-  const weights = star === 5 ? keys.map(() => 1) : typeWeights(keys, rng);
-  const ceilingArr = star === 5 ? keys.map(() => 20) : allocateCeiling(total, weights);
-  let age = 19 + Math.floor(rng() * 17); // 19~35 균등 (가정)
-  let ratio = ratioOfAge(age);
-  if (rng() < LATE_BLOOMER_RATE) {
-    age = 28 + Math.floor(rng() * 5);
-    ratio = 0.6;
-  }
-  const ceiling = {};
-  const abilities = {};
-  keys.forEach((k, i) => {
-    ceiling[k] = ceilingArr[i];
-    abilities[k] = clamp(Math.round(ceilingArr[i] * ratio), 0, ceilingArr[i]);
-  });
-  return { id, role, age, star, ceiling, abilities };
-}
-
-// 팀 생성: 골키퍼 1명 + 필드 7명 (설계 6.1절).
 export function createTeams(rng) {
   return TEAM_NAMES.map((name, id) => {
-    const players = [makePlayer(`${id}-0`, 'GK', rng)];
-    for (let k = 1; k < 8; k++) players.push(makePlayer(`${id}-${k}`, 'FIELD', rng));
+    const base = 9 + rng() * 5; // 팀 기본 수준 9~14
+    const players = Array.from({ length: 8 }, (_, k) => {
+      const abilities = {};
+      for (const s of ALL_ABILITIES) {
+        abilities[s] = clamp(Math.round(base + (rng() * 2 - 1) * 6), 0, 20);
+      }
+      return { id: `${id}-${k}`, abilities };
+    });
     return { id, name, conference: conferenceOf(id), division: divisionOf(id), players };
   });
 }
@@ -124,35 +44,23 @@ export function createTeams(rng) {
 export function squadSnapshot(team) {
   return {
     id: team.id,
-    players: team.players.map((p) => ({ id: p.id, role: p.role, abilities: { ...p.abilities }, condition: 1 })),
+    players: team.players.map((p) => ({ id: p.id, abilities: { ...p.abilities }, condition: 1 })),
   };
 }
 
-// 자동 라인업: 골키퍼 역할 중 반응+핸들링 최고 1명, 필드 역할 중 필드 능력 합 상위 4명.
+// 자동 라인업: 골키퍼 1명(반응+핸들링 최고), 필드 4명(나머지 중 필드 능력 합 상위).
 export function lineupOf(snapshot) {
-  const gks = snapshot.players.filter((p) => p.role === 'GK');
-  const gk = gks.reduce((best, p) => (gkRatingOf(p) > gkRatingOf(best) ? p : best));
+  const gk = snapshot.players.reduce((best, p) => (gkRatingOf(p) > gkRatingOf(best) ? p : best));
   const field = snapshot.players
-    .filter((p) => p.role === 'FIELD')
+    .filter((p) => p !== gk)
     .sort((a, b) => fieldSum(b) - fieldSum(a))
     .slice(0, 4);
   return { gk, field };
 }
 
-// 리그 기준값 (시즌 시작 시 고정): 골키퍼 평균 x, 필드 공격·수비 평균.
-export function leagueBaseline(teams) {
-  const st = teams.map((t) => matchStrength(squadSnapshot(t)));
-  const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
-  return {
-    muGK: mean(st.map((s) => s.gkRating)),
-    muAttack: mean(st.map((s) => s.attack)),
-    muDefense: mean(st.map((s) => s.defense)),
-  };
-}
-
-// 팀 전력: 필드 4명 평균(공격 = 속도·기술·슛, 수비 = 속도·체력·힘), 슈팅 평균, 골키퍼 x와 배율.
-// 골키퍼 배율 g = clamp(1 + 0.02 × (μ_GK − x), 0.8, 1.2): 상대 기대득점에 곱한다.
-export function matchStrength(snapshot, league = null) {
+// 팀 전력: 필드 4명 평균(공격 = 속도·기술·슛, 수비 = 속도·체력·힘), 슈팅 평균, 골키퍼 등급과 배율.
+// 골키퍼 배율 g는 상대 기대득점에 곱한다: clamp(1 + 0.02 × (10 − 등급), 0.8, 1.2).
+export function matchStrength(snapshot) {
   const { gk, field } = lineupOf(snapshot);
   const avg = (list, keys) =>
     list.reduce((t, p) => t + keys.reduce((s, k) => s + p.abilities[k], 0) / keys.length, 0) / list.length;
@@ -162,14 +70,13 @@ export function matchStrength(snapshot, league = null) {
     defense: avg(field, ['speed', 'stamina', 'power']),
     shot: avg(field, ['shoot']),
     gkRating,
-    gkMult: league ? clamp(1 + 0.02 * (league.muGK - gkRating), 0.8, 1.2) : 1,
+    gkMult: clamp(1 + 0.02 * (10 - gkRating), 0.8, 1.2),
   };
 }
 
-// 공격 쪽 기대득점. 공격과 수비를 리그 평균으로 정규화하고 상대 골키퍼 배율을 곱한다.
-export function expectedGoals(attack, defense, league) {
-  const ratio = (attack.attack / league.muAttack) / (defense.defense / league.muDefense);
-  return clamp(GOALS_PER_TEAM * ratio * defense.gkMult, 0.3, 6);
+// 공격 쪽 기대득점. 상대 골키퍼 배율을 곱한다.
+export function expectedGoals(attack, defense) {
+  return clamp(GOALS_PER_TEAM * (attack.attack / defense.defense) * defense.gkMult, 0.3, 6);
 }
 
 function poisson(lambda, rng) {
@@ -184,11 +91,11 @@ function poisson(lambda, rng) {
 }
 
 // 정규 40분 통째 시뮬. 동점 허용 (정규시즌 무승부).
-export function simulateRegulation(home, away, rng, league) {
-  const a = matchStrength(squadSnapshot(home), league);
-  const b = matchStrength(squadSnapshot(away), league);
-  const lh = expectedGoals(a, b, league);
-  const la = expectedGoals(b, a, league);
+export function simulateRegulation(home, away, rng) {
+  const a = matchStrength(squadSnapshot(home));
+  const b = matchStrength(squadSnapshot(away));
+  const lh = expectedGoals(a, b);
+  const la = expectedGoals(b, a);
   return { hg: poisson(lh, rng), ag: poisson(la, rng), lh, la, a, b };
 }
 
@@ -197,7 +104,9 @@ export function simulateRegulation(home, away, rng, league) {
 // 승부차기: P(A승) = 0.5 + clamp(0.01 × ((S_A − G_B) − (S_B − G_A)), −0.05, 0.05)
 //   S = 필드 4명 슈팅 평균, G = 골키퍼 (반응+핸들링)/2.
 export function playKnockout(season, home, away, neutral = false) {
-  const r = simulateRegulation(season.teams[home], season.teams[away], season.rng, season.league);
+  const teamH = season.teams[home];
+  const teamA = season.teams[away];
+  const r = simulateRegulation(teamH, teamA, season.rng);
   const out = { home, away, hg: r.hg, ag: r.ag, winner: null, ot: false, shootout: false, neutral };
   if (r.hg !== r.ag) {
     out.winner = r.hg > r.ag ? home : away;
@@ -289,7 +198,7 @@ export function segmentOfRound(r) {
   return 3;
 }
 
-// 맞대결 승점 (두 팀이 모인 그룹 안에서만 집계)
+// 맞대결 승점 (두 팀 이상이 모인 그룹 안에서만 집계)
 function headToHeadPoints(ids, results) {
   const pts = new Map(ids.map((id) => [id, 0]));
   for (const m of results) {
@@ -350,13 +259,12 @@ export function computeTable(teamIds, results, drawKey) {
   return table;
 }
 
-// 시즌 상태. 리그 기준값은 시즌 시작 때 한 번 계산해서 시즌 내내 고정한다.
+// 시즌 상태. stepRound로 한 라운드씩, finishSeason으로 나머지와 플레이오프.
 export function createSeason({ teams, seasonIndex = 0, rng }) {
   return {
     teams,
     seasonIndex,
     rng,
-    league: leagueBaseline(teams),
     rounds: buildSchedule(seasonIndex),
     nextRound: 0,
     results: [],
@@ -368,7 +276,7 @@ export function createSeason({ teams, seasonIndex = 0, rng }) {
 export function stepRound(season) {
   if (season.nextRound >= season.rounds.length) return [];
   const played = season.rounds[season.nextRound].map((m) => {
-    const sim = simulateRegulation(season.teams[m.home], season.teams[m.away], season.rng, season.league);
+    const sim = simulateRegulation(season.teams[m.home], season.teams[m.away], season.rng);
     return { round: m.round, segment: m.segment, home: m.home, away: m.away, hg: sim.hg, ag: sim.ag };
   });
   season.results.push(...played);

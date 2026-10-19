@@ -13,13 +13,8 @@ import {
   runPlayoffs,
   seedConference,
   segmentOfRound,
-  leagueBaseline,
-  makePlayer,
   simulateRegulation,
   simulateSeason,
-  AGE_RATIO,
-  STAR_LEVELS,
-  STAR_WEIGHTS,
   squadSnapshot,
   stepRound,
 } from './futsalLeague.mjs';
