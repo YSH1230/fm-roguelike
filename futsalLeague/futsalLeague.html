@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>풋살 리그 M1 프로토타입</title>
+<style>
+  :root { --bg:#f6f7f9; --fg:#1d2330; --muted:#6b7280; --line:#dde1e7; --accent:#2b6cb0; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#15181f; --fg:#e8ebf0; --muted:#8a93a3; --line:#2b313c; --accent:#6ea8f0; }
+  }
+  :root[data-theme="dark"] { --bg:#15181f; --fg:#e8ebf0; --muted:#8a93a3; --line:#2b313c; --accent:#6ea8f0; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 system-ui, sans-serif; }
+  main { padding:16px; max-width:960px; margin:0 auto; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  h2 { font-size:15px; margin:20px 0 8px; }
+  .muted { color:var(--muted); }
+  .bar { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+  button { font:inherit; padding:8px 12px; border:1px solid var(--line); background:var(--bg); color:var(--fg); border-radius:6px; cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button:disabled { opacity:.45; cursor:default; }
+  .grid { display:grid; grid-template-columns:1fr; gap:16px; }
+  @media (min-width:720px) { .grid { grid-template-columns:1fr 1fr; } }
+  table { width:100%; border-collapse:collapse; }
+  th, td { padding:4px 6px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  .seg { color:var(--muted); font-size:12px; }
+  ul { list-style:none; padding:0; margin:0; }
+  li { padding:4px 0; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:8px; }
+  .scroll { overflow-x:auto; }
+</style>
+</head>
+<body>
+<main>
+  <h1>한국 풋살 프로리그 · 시즌 <span id="season">1</span></h1>
+  <div class="muted" id="status">개막 전</div>
+  <div class="bar">
+    <button id="next" class="primary">다음 라운드</button>
+    <button id="segment">구간 끝까지</button>
+    <button id="finish">시즌 끝까지 + 플레이오프</button>
+    <button id="reset">새 시즌</button>
+  </div>
+
+  <div class="grid">
+    <section>
+      <h2>컨퍼런스 순위</h2>
+      <div class="scroll" id="conf"></div>
+      <h2>디비전 순위</h2>
+      <div class="scroll" id="div"></div>
+    </section>
+    <section>
+      <h2>플레이오프</h2>
+      <div id="playoffs" class="muted">정규시즌 종료 후 열립니다</div>
+      <h2>일정과 결과</h2>
+      <div id="schedule"></div>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+import {
+  TEAM_NAMES, CONFERENCE_NAMES, DIVISION_NAMES, createTeams, createSeason,
+  stepRound, finishSeason, standings, segmentOfRound,
+} from './futsalLeague.mjs';
+import { createRng } from '../next/engine/rng.mjs';
+
+const $ = (id) => document.getElementById(id);
+let season;
+let seasonIndex = 0;
+
+function newSeason() {
+  const rng = createRng(Date.now() >>> 0);
+  season = createSeason({ teams: createTeams(rng), seasonIndex, rng });
+  $('season').textContent = String(seasonIndex + 1);
+  render();
+}
+
+const name = (id) => TEAM_NAMES[id];
+
+function tableHtml(rows) {
+  const head = '<tr><th>팀</th><th>경기</th><th>승</th><th>무</th><th>패</th><th>득실</th><th>승점</th></tr>';
+  const body = rows.map((s, i) =>
+    `<tr><td>${i + 1}. ${name(s.id)}</td><td>${s.p}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td><td>${s.gd > 0 ? '+' : ''}${s.gd}</td><td>${s.pts}</td></tr>`,
+  ).join('');
+  return `<table>${head}${body}</table>`;
+}
+
+function render() {
+  const done = season.nextRound >= season.rounds.length;
+  const { conf, div } = standings(season);
+  $('conf').innerHTML = CONFERENCE_NAMES.map((c, i) => `<h2>${c}</h2>${tableHtml(conf[i])}`).join('');
+  $('div').innerHTML = [0, 1, 2, 3].map((g) =>
+    `<h2 class="seg">${CONFERENCE_NAMES[g >> 1]} · ${DIVISION_NAMES[g & 1]}</h2>${tableHtml(div[g])}`,
+  ).join('');
+
+  const played = season.nextRound;
+  const seg = played === 0 ? '-' : `구간 ${segmentOfRound(played - 1)}`;
+  $('status').textContent = done ? '정규시즌 종료' : `라운드 ${played} / 22 · ${seg} 종료`;
+  $('next').disabled = done;
+  $('segment').disabled = done;
+  $('finish').disabled = season.playoffs !== null;
+
+  const lines = [];
+  for (let r = 0; r < played; r++) {
+    lines.push(`<h2 class="seg">라운드 ${r + 1}</h2><ul>` + season.results.filter((m) => m.round === r).map((m) =>
+      `<li><span>${name(m.home)} ${m.hg} : ${m.ag} ${name(m.away)}</span></li>`).join('') + '</ul>');
+  }
+  $('schedule').innerHTML = lines.join('') || '<div class="muted">아직 경기가 없습니다</div>';
+
+  if (season.playoffs) {
+    $('playoffs').innerHTML = season.playoffs.conferences.map((c, i) =>
+      `<h2>${CONFERENCE_NAMES[i]} (시드 ${c.seeds.map((id, k) => `${k + 1}. ${name(id)}`).join(', ')})</h2>` +
+      `<ul>${c.semis.map((s) => `<li><span>준결승 ${name(s.a)} ${s.hg} : ${s.ag} ${name(s.b)}</span></li>`).join('')}</ul>` +
+      `<ul>${c.final.games.map((g) => `<li><span>결승 ${name(g.home)} ${g.hg} : ${g.ag} ${name(g.away)}</span></li>`).join('')}</ul>` +
+      `<div>컨퍼런스 우승: <b>${name(c.champion)}</b></div>`,
+    ).join('') +
+    `<h2>챔피언결정전</h2><ul>${season.playoffs.title.games.map((g) => `<li><span>${name(g.home)} ${g.hg} : ${g.ag} ${name(g.away)}</span></li>`).join('')}</ul>` +
+    `<div>챔피언: <b>${name(season.playoffs.champion)}</b></div>`;
+  }
+}
+
+$('next').onclick = () => { stepRound(season); render(); };
+$('segment').onclick = () => {
+  const target = [7, 14, 22].find((n) => n > season.nextRound);
+  while (season.nextRound < target) stepRound(season);
+  render();
+};
+$('finish').onclick = () => { finishSeason(season); render(); };
+$('reset').onclick = () => { seasonIndex++; newSeason(); };
+
+newSeason();
+</script>
+</body>
+</html>
