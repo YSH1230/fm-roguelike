@@ -53,7 +53,10 @@ function aiTeam(M, t, dt) {
   const isH = (p) => t === 0 && !M.autoHuman && p === M.players[M.control]; // 사람이 조종하는 선수는 AI가 건드리지 않는다
 
   // 골키퍼: 공을 따라 골문 앞에서 좌우로 움직인다(높은 골키퍼 특기는 P3)
-  if (gk && !isH(gk) && !(b.owner === gk)) go(gk, 2.2, clamp(b.y, TUNE.shot.goalY[0] + 0.3, TUNE.shot.goalY[1] - 0.3), sp(gk, 0.55));
+  if (gk && !isH(gk) && !(b.owner === gk)) {
+    if (b.st === 'shot' && b.shooter.team !== t && M.real >= b.reactAt) go(gk, 2.2, clamp(b.aimY, TUNE.shot.goalY[0] - 0.4, TUNE.shot.goalY[1] + 0.4), effSpeed(gk.ab.speed, gk.ratio) * TUNE.shot.gkDive); // 반응 뒤 공이 지날 자리로 몸을 날린다
+    else go(gk, 2.2, clamp(b.y, TUNE.shot.goalY[0] + 0.3, TUNE.shot.goalY[1] - 0.3), sp(gk, 0.55));
+  }
 
   if (incoming && b.dest && !isH(b.tgt)) { b.tgt.tx = b.dest.x; b.tgt.ty = b.dest.y; b.tgt.ts = effSpeed(b.tgt.ab.speed, b.tgt.ratio); }
   if (hasBall || incoming) {
@@ -118,7 +121,7 @@ function carrierAI(M, t, c, dt, mine, opp, go, sp) {
   if (c.think <= 0) {
     c.think = 0.7 + M.rng() * 0.8;
     const gkp = opp.find((p) => p.gk);
-    if (dist < range && M.rng() < 0.08 && shotLaneClear(M, c, opp)) {
+    if (dist < range && dist > 4.5 && M.rng() < 0.25 && shotLaneClear(M, c, opp)) {
       const corner = (gkp && gkp.y > 10) ? -1 : 1;
       M.api.shoot(c, 10 + corner * TUNE.shot.cornerOffset, false, 0.4 + M.rng() * 0.3);
       return;

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng, gauss } from '../engine/rng.mjs';
-import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, shotZone, shotPower } from '../proto/futsalRules.mjs';
+import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, shotZone, swipePower, passSpeedFor, gkReach } from '../proto/futsalRules.mjs';
 import { createInput } from '../proto/futsalInput.mjs';
 import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable } from '../proto/futsalSim.mjs';
 
@@ -45,24 +45,20 @@ test('입력: 이동 손가락이 없을 때 왼쪽 반의 짧은 탭은 행동 
   inp.up(1, 106, 100, 120);
   assert.equal(inp.poll(130).actions[0].type, 'tap');
 });
-test('입력: 오른쪽 짧은 탭 = 패스, 꾹 누른 채 스와이프 = 슛(누른 시간이 세기, 스와이프 방향이 방향), 누르기만 하면 아무 일 없음', () => {
+test('입력: 탭 = 선수 패스, 빈 공간 더블탭 = dtap, 오른쪽 스와이프 = 슛(방향과 속도), 왼쪽은 이동', () => {
   const inp = createInput();
   inp.down(1, 500, 100, 0, 640); inp.up(1, 500, 100, 120);
   assert.equal(inp.poll(130).actions[0].type, 'tap');
-  // 꾹 누르기 700ms 후 오른쪽 위로 스와이프
-  inp.down(3, 500, 200, 1100, 640);
-  assert.ok(inp.activeHold(1100 + 100) == null); assert.ok(inp.activeHold(1100 + 600) > 250);
-  inp.move(3, 530, 180, 1100 + 700); inp.move(3, 580, 150, 1100 + 760);
-  assert.ok(Math.abs(inp.activeHold(1100 + 900) - 700) < 1, '스와이프가 시작되면 세기는 그 값에서 멈춘다');
-  inp.up(3, 580, 150, 1100 + 780);
-  const a = inp.poll(2000).actions[0];
-  assert.equal(a.type, 'shot'); assert.ok(Math.abs(a.hold - 700) < 1 && a.jx > 0.8 && a.jy < 0);
-  // 누르기만 하고 뗀 경우, 누르기 전의 빠른 쓸기는 슛이 아니다
-  inp.down(4, 500, 100, 3000, 640); inp.up(4, 500, 100, 3800);
-  inp.down(5, 500, 100, 4000, 640); inp.move(5, 520, 100, 4040); inp.up(5, 580, 100, 4080);
-  assert.equal(inp.poll(4100).actions.length, 0);
-  inp.down(6, 100, 100, 5000, 640); inp.move(6, 160, 100, 5060); // 왼쪽 반은 이동
+  inp.down(2, 500, 100, 200, 640); inp.up(2, 505, 102, 300); // 300ms 안의 두 번째 탭
+  assert.equal(inp.poll(310).actions[0].type, 'dtap');
+  inp.down(3, 500, 100, 2000, 640); inp.up(3, 500, 100, 2100);
+  inp.down(4, 500, 100, 3000, 640); inp.move(4, 540, 80, 3040); inp.up(4, 580, 60, 3080); // 빠른 스와이프(오른쪽 위)
+  const a = inp.poll(3100).actions.filter((x) => x.type === 'shot')[0];
+  assert.ok(a && a.jx > 0.8 && a.jy < 0 && a.v > 1);
+  inp.down(5, 100, 100, 5000, 640); inp.move(5, 160, 100, 5060);
   assert.ok(inp.poll(5070).move.x > 0);
+  inp.down(6, 500, 100, 6000, 640); inp.up(6, 500, 100, 6900); // 오래 누르기만 하면 아무 일 없음
+  assert.equal(inp.poll(6950).actions.length, 0);
 });
 test('입력: 조이스틱을 180ms 안에 반대로 튕기면 개인기 1회', () => {
   const inp = createInput();
@@ -155,7 +151,7 @@ test('탭 패스는 유도탄이 아니다: 공은 한 번 정한 지점으로 �
   }
   assert.ok(ok / n >= 0.9, `받음 ${ok}/${n}`);
 });
-test('선수를 탭하면 그 선수에게, 빈 공간을 탭하면 그 자리로 공간 패스', () => {
+test('선수를 탭하면 그 선수에게, 빈 공간은 더블탭해야 그 자리로 공간 패스(한 번 탭은 아무 일 없음)', () => {
   const setup = (sd) => { const M = mk(sd); play(M, 1); const me = M.players.find((p) => p.team === 0 && !p.gk); const mate = M.players.find((p) => p.team === 0 && !p.gk && p !== me);
     for (const q of M.players) if (q.team === 1) { q.x = 38; q.y = 1 + (q.num % 4); q.tx = q.x; q.ty = q.y; q.ts = 0; }
     me.x = 12; me.y = 10; mate.x = 24; mate.y = 14; mate.vx = 0; mate.vy = 0; mate.tx = mate.x; mate.ty = mate.y; mate.ts = 0;
@@ -165,32 +161,32 @@ test('선수를 탭하면 그 선수에게, 빈 공간을 탭하면 그 자리�
   assert.equal(r.M.ball.tgt, r.mate);
   r = setup(3);
   update(r.M, 1 / 60, { actions: [{ type: 'tap', x: 0, y: 0, wx: 30, wy: 4 }] });
-  assert.ok(Math.hypot(r.M.ball.dest.x - 30, r.M.ball.dest.y - 4) < 1e-6, '빈 공간 탭은 그 자리로 보낸다');
+  assert.equal(r.M.ball.st, 'held', '빈 공간 한 번 탭은 아무 일 없다');
+  update(r.M, 1 / 60, { actions: [{ type: 'dtap', x: 0, y: 0, wx: 30, wy: 4 }] });
+  assert.ok(Math.hypot(r.M.ball.dest.x - 30, r.M.ball.dest.y - 4) < 1e-6, '더블탭은 그 자리로 보낸다');
 });
-test('슛 세기: 짧게 누르면 약하고 느리고 선방되기 쉽다, 길게 누르면 강하고 빠르다', () => {
-  assert.equal(shotPower(250), TUNE.shot.minPower); assert.equal(shotPower(1250), 1); assert.ok(shotPower(700) > shotPower(400));
-  const rate = (hold) => { let goals = 0; const n = 400;
-    for (let i = 0; i < n; i += 1) { const M = mk(100 + i); play(M, 0.5); const me = M.players.find((p) => p.team === 0 && !p.gk); me.x = 32; me.y = 10; me.ab.shooting = 14;
-      for (const q of M.players) if (q.team === 1 && !q.gk) { q.x = 10; q.y = 3; q.tx = q.x; q.ty = q.y; q.ts = 0; }
-      M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me);
-      update(M, 1 / 60, { actions: [{ type: 'shot', hold, jx: 1, jy: 0.04 }] });
-      for (let k = 0; k < 90 && M.ball.st === 'shot'; k += 1) update(M, 1 / 60, {});
-      if (M.score[0] > 0) goals += 1; }
-    return goals / n; };
-  assert.ok(rate(1250) > rate(300), `강한 슛 ${rate(1250)} 약한 슛 ${rate(300)}`);
+test('패스 속도는 거리에 따라 9~16 m/s, 공은 방향을 바꾸지 않고 가까이 지나가는 동료도 받는다', () => {
+  assert.equal(passSpeedFor(0), 9); assert.equal(passSpeedFor(30), 16); assert.ok(passSpeedFor(6) > passSpeedFor(3));
 });
-test('슛 방향은 조이스틱 방향을 따른다(위로 기울이면 위쪽 구석, 없으면 골대 중앙)', () => {
-  const ay = (jy) => { const M = mk(6); play(M, 0.5); const me = M.players.find((p) => p.team === 0 && !p.gk); me.x = 30; me.y = 10; M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me);
-    update(M, 1 / 60, { actions: [{ type: 'shot', hold: 800, jx: jy === null ? 0 : 1, jy: jy ?? 0 }] }); return M.ball.aimY; };
-  assert.ok(ay(-0.12) < ay(null) - 0.4 || ay(-0.12) < 10 - 0.3); assert.ok(ay(0.12) > ay(null) + 0.3 || ay(0.12) > 10.3);
+test('슛 세기: 스와이프가 빠를수록 강하고, 약한 슛이 막히기 쉽다', () => {
+  assert.equal(swipePower(0.5), TUNE.shot.minPower); assert.equal(swipePower(2.2), 1); assert.ok(swipePower(1.5) > swipePower(1));
+  assert.ok(gkReach(12, 0.2) > gkReach(12, 1));
+});
+test('골 판정은 보이는 대로: 골키퍼가 닿는 범위 밖으로 공이 지나가면 골, 안이면 선방', () => {
+  const run = (gkOffset) => { const M = mk(9); play(M, 0.5); const me = M.players.find((p) => p.team === 0 && !p.gk); me.x = 30; me.y = 10;
+    const gk = M.players.find((p) => p.team === 1 && p.gk); M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me);
+    M.api.shoot(me, 10, true, 0.5); M.ball.reactAt = 1e9; gk.y = 10 + gkOffset; gk.tx = gk.x; gk.ty = gk.y; gk.ts = 0; // 골키퍼는 움직이지 못한다
+    for (let k = 0; k < 90 && M.ball.st === 'shot'; k += 1) { update(M, 1 / 60, {}); gk.y = 10 + gkOffset; } return M; };
+  assert.equal(run(0).score[0], 0); // 정면 = 선방
+  assert.equal(run(2.8).score[0], 1); // 골키퍼가 멀리 비켜 있으면 골
 });
 test('득점하면 점수가 오르고 실점한 팀이 센터 킥오프', () => {
   const M = mk(3); play(M, 1);
   const shooter = M.players.find((p) => p.team === 0 && !p.gk);
   shooter.x = 36; shooter.y = 10; shooter.ab.shooting = 20;
-  M.players.find((p) => p.team === 1 && p.gk).ab.reaction = 0;
+  const gk = M.players.find((p) => p.team === 1 && p.gk); gk.y = 5; gk.tx = gk.x; gk.ty = 5; gk.ts = 0;
   let scored = false;
-  for (let k = 0; k < 40 && !scored; k += 1) { M.ball.st = 'held'; M.ball.owner = shooter; M.phase = 'play'; M.api.shoot(shooter, 10, true, 0.4); for (let i = 0; i < 40; i += 1) update(M, 1 / 60, {}); if (M.score[0] > 0) scored = true; }
+  for (let k = 0; k < 40 && !scored; k += 1) { M.ball.st = 'held'; M.ball.owner = shooter; M.phase = 'play'; M.api.shoot(shooter, 10, true, 0.9); M.ball.reactAt = 1e9; for (let i = 0; i < 40; i += 1) { update(M, 1 / 60, {}); gk.y = 5; } if (M.score[0] > 0) scored = true; }
   assert.ok(scored);
   assert.ok(['kickoff', 'goalkeeper'].includes(M.restart?.kind) || M.phase === 'play');
 });

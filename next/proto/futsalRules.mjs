@@ -7,17 +7,17 @@ export const TUNE = {
   extraMinutes: { 1: [1, 5], 2: [3, 10] }, // 정규 시간 뒤 추가시간(풋살 시계, 분)
   // 이동과 공
   minRunSpeed: 6, maxRunSpeed: 8, accel: 9,
-  passSpeed: 15, shotSpeed: 22, ballFriction: 0.6, pickupR: 0.9, interceptR: 0.75, blockR: 0.7,
+  passSpeedMin: 9, passSpeedMax: 16, passSpeedBase: 8, passSpeedPerM: 0.8, ballFriction: 0.6, pickupR: 1.2, interceptR: 0.85, blockR: 0.7,
   deadBallSeconds: 4, autoRestartSeconds: 0.9,
   // 체력
   drainBase: 0.55, drainPerStamina: 0.015, speedFloor: 0.7, gkDelayGrow: 0.4,
   ringTauMax: 0.5, ring: { green: [2.2, 2.4], yellow: [1.2, 1.4] },
   subThreshold: 0.25, subPopupSeconds: 3,
   // 입력(화면 px, 640 기준이 아니라 실제 손가락 px)
-  input: { tapMove: 12, tapMs: 250, flickPx: 28, flickSpeed: 0.5, joyRadius: 44, deadzone: 10, buffer: 150, leftTapMove: 10, flipThreshold: 0.6, flipMs: 180, shotZone: 0.35, holdFull: 1250, spotRadius: 2.4 },
+  input: { tapMove: 12, tapMs: 250, flickPx: 28, flickSpeed: 0.5, joyRadius: 44, deadzone: 10, buffer: 150, leftTapMove: 10, flipThreshold: 0.6, flipMs: 180, shotZone: 0.35, spotRadius: 2.4, dtapMs: 300, dtapPx: 70, swipePowerMin: 0.5, swipePowerMax: 2.2 },
   // 접촉 경합, 슛
   contactR: 0.85, contestInterval: 0.45, dribbleSeconds: 0.8, dribbleBoost: 1.25,
-  shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 8, rangePerShooting: 0.45, minPower: 0.15, speedMin: 12, speedMax: 26, powerSave: 0.22, powerNoise: 0.35 },
+  shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 8, rangePerShooting: 0.45, minPower: 0.2, speedMin: 12, speedMax: 26, powerNoise: 0.35, gkReachBase: 0.9, gkReachPerHandling: 0.03, gkReachPowerCut: 0.25, gkReactBase: 0.26, gkReactPerReaction: 0.008, gkDive: 1.3 },
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
   expectedGoals: 2.5,
@@ -57,4 +57,10 @@ export function classifyGesture({ m, ms }) {
 export const shotZone = (dx, dy) => { const d = Math.hypot(dx, dy) || 1; return dy < -TUNE.input.shotZone * d ? -1 : (dy > TUNE.input.shotZone * d ? 1 : 0); };
 
 // 오른쪽 화면을 꾹 누른 시간(ms) → 슛 세기(0.15~1). 250ms부터 차오르고 1.25초에 가득 찬다.
-export const shotPower = (holdMs) => clamp((holdMs - TUNE.input.tapMs) / (TUNE.input.holdFull - TUNE.input.tapMs), TUNE.shot.minPower, 1);
+export const passSpeedFor = (dist) => clamp(TUNE.passSpeedBase + dist * TUNE.passSpeedPerM, TUNE.passSpeedMin, TUNE.passSpeedMax);
+// 스와이프 속도(px/ms)가 빠를수록 강한 슛(0.2~1)
+export const swipePower = (v) => clamp((v - TUNE.input.swipePowerMin) / (TUNE.input.swipePowerMax - TUNE.input.swipePowerMin), TUNE.shot.minPower, 1);
+// 골키퍼가 손이 닿는 범위(m): 핸들링이 높을수록 넓고, 세게 찬 슛일수록 좁다
+export const gkReach = (handling, power) => (TUNE.shot.gkReachBase + TUNE.shot.gkReachPerHandling * clamp(handling, 0, 20)) * (1 - TUNE.shot.gkReachPowerCut * power);
+// 골키퍼 반응 시간(초): 반응 능력이 높을수록 짧고, 지치면 늘어난다
+export const gkReactTime = (reaction, ratio) => gkDelay(Math.max(0.08, TUNE.shot.gkReactBase - TUNE.shot.gkReactPerReaction * clamp(reaction, 0, 20)), ratio);

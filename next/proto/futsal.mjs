@@ -1,5 +1,5 @@
 // 풋살 시연판 화면: 시뮬(futsalSim)이 정한 상태를 그리고 포인터를 futsalInput에 연결한다. 상태는 읽기만 한다.
-import { TUNE, clockText, shotPower } from './futsalRules.mjs';
+import { TUNE, clockText } from './futsalRules.mjs';
 import { createInput } from './futsalInput.mjs';
 import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, canAct, FORMATIONS } from './futsalSim.mjs';
 
@@ -72,14 +72,6 @@ function draw() {
   ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(bx, by + h * 0.02, Math.max(3, pxm * 0.2), Math.max(1.5, pxm * 0.08), 0, 0, 7); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, by - Math.max(3, pxm * 0.2), Math.max(4, pxm * 0.22), 0, 7); ctx.fill();
   ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5; ctx.stroke();
-  // 슛 게이지: 오른쪽 화면을 꾹 누르는 동안 슛하는 선수 머리 위에 작은 막대가 찬다(글자 없음)
-  const hold = input.activeHold(performance.now());
-  if (hold != null && !paused && M.phase === 'play' && b.st === 'held' && b.owner === me) {
-    const pw = shotPower(hold); const gw = pxm * 1.9; const gx = X(me.x) - gw / 2; const gy = Y(me.y) - h * 1.5;
-    ctx.fillStyle = 'rgba(8,14,28,0.85)'; ctx.fillRect(gx - 3, gy - 3, gw + 6, 12);
-    ctx.fillStyle = pw < 0.5 ? '#facc15' : pw < 0.85 ? '#fb923c' : '#ef4444'; ctx.fillRect(gx, gy, gw * pw, 6);
-    ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 1.5; ctx.strokeRect(gx - 1, gy - 1, gw + 2, 8);
-  }
   // 데드볼 4초 지시(글자 없이 공 주변 링이 줄어든다)
   if (M.phase === 'deadball' && M.restart && M.restart.kind !== 'kickoff') {
     const k = Math.max(0, M.restart.timer / TUNE.deadBallSeconds);
@@ -147,7 +139,7 @@ function frame(now) {
   const raw = Math.min(0.05, Math.max(0.001, (now - last) / 1000)); last = now;
   if (M && !paused) {
     const polled = input.poll(performance.now(), canAct(M));
-    const actions = polled.actions.map((a) => (a.type === 'tap') ? { ...a, ...(() => { const w = toWorld(a.x, a.y); return { wx: w.x, wy: w.y }; })() } : a);
+    const actions = polled.actions.map((a) => (a.type === 'tap' || a.type === 'dtap') ? { ...a, ...(() => { const w = toWorld(a.x, a.y); return { wx: w.x, wy: w.y }; })() } : a);
     const before = M.score[0] + M.score[1];
     update(M, raw, { move: polled.move, actions });
     if (M.score[0] + M.score[1] !== before) flash = 1;
