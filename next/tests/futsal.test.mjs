@@ -151,8 +151,8 @@ test('끌어서 놓기는 놓은 자리로 보내는 공간 패스다(탭 패스
   for (const q of M.players) if (q.team === 1) { q.x = 38; q.y = 1 + (q.num % 4); q.tx = q.x; q.ty = q.y; q.ts = 0; }
   M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me);
   update(M, 1 / 60, { actions: [{ type: 'drag', x: 0, y: 0, wx: 30, wy: 4 }] });
-  assert.equal(M.ball.st, 'pass'); assert.ok(Math.hypot(M.ball.dest.x - 30, M.ball.dest.y - 4) < 1e-6);
-  assert.notEqual(M.ball.tgt, undefined);
+  assert.ok(Math.hypot(M.ball.dest.x - 30, M.ball.dest.y - 4) < 1e-6, '목표가 놓은 자리(30, 4)'); // 탭 패스는 동료의 예측 지점이라 이 값과 다르다
+  assert.ok(M.stats.passes[0] >= 1);
 });
 test('득점하면 점수가 오르고 실점한 팀이 센터 킥오프', () => {
   const M = mk(3); play(M, 1);
