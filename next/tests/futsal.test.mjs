@@ -45,19 +45,24 @@ test('입력: 이동 손가락이 없을 때 왼쪽 반의 짧은 탭은 행동 
   inp.up(1, 106, 100, 120);
   assert.equal(inp.poll(130).actions[0].type, 'tap');
 });
-test('입력: 오른쪽 반 짧은 탭 = 패스, 꾹 누르기 = 슛(누른 시간이 세기, 조이스틱 방향이 방향), 왼쪽 반은 이동', () => {
+test('입력: 오른쪽 짧은 탭 = 패스, 꾹 누른 채 스와이프 = 슛(누른 시간이 세기, 스와이프 방향이 방향), 누르기만 하면 아무 일 없음', () => {
   const inp = createInput();
   inp.down(1, 500, 100, 0, 640); inp.up(1, 500, 100, 120);
   assert.equal(inp.poll(130).actions[0].type, 'tap');
-  inp.down(2, 20, 100, 1000, 640); inp.move(2, 60, 100, 1050); // 이동 손가락(조이스틱 오른쪽)
-  inp.down(3, 500, 100, 1100, 640);
+  // 꾹 누르기 700ms 후 오른쪽 위로 스와이프
+  inp.down(3, 500, 200, 1100, 640);
   assert.ok(inp.activeHold(1100 + 100) == null); assert.ok(inp.activeHold(1100 + 600) > 250);
-  inp.up(3, 500, 100, 1100 + 700);
-  const a = inp.poll(1900).actions[0];
-  assert.equal(a.type, 'shot'); assert.ok(a.hold >= 700 && a.jx > 0.5);
-  inp.up(2, 60, 100, 2000);
-  inp.down(4, 100, 100, 3000, 640); inp.move(4, 160, 100, 3060);
-  assert.ok(inp.poll(3070).move.x > 0); assert.equal(inp.pending, 0);
+  inp.move(3, 530, 180, 1100 + 700); inp.move(3, 580, 150, 1100 + 760);
+  assert.ok(Math.abs(inp.activeHold(1100 + 900) - 700) < 1, '스와이프가 시작되면 세기는 그 값에서 멈춘다');
+  inp.up(3, 580, 150, 1100 + 780);
+  const a = inp.poll(2000).actions[0];
+  assert.equal(a.type, 'shot'); assert.ok(Math.abs(a.hold - 700) < 1 && a.jx > 0.8 && a.jy < 0);
+  // 누르기만 하고 뗀 경우, 누르기 전의 빠른 쓸기는 슛이 아니다
+  inp.down(4, 500, 100, 3000, 640); inp.up(4, 500, 100, 3800);
+  inp.down(5, 500, 100, 4000, 640); inp.move(5, 520, 100, 4040); inp.up(5, 580, 100, 4080);
+  assert.equal(inp.poll(4100).actions.length, 0);
+  inp.down(6, 100, 100, 5000, 640); inp.move(6, 160, 100, 5060); // 왼쪽 반은 이동
+  assert.ok(inp.poll(5070).move.x > 0);
 });
 test('입력: 조이스틱을 180ms 안에 반대로 튕기면 개인기 1회', () => {
   const inp = createInput();

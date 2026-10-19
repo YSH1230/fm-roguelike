@@ -1,6 +1,6 @@
 // 포인터 이벤트 → 이동 벡터와 행동 목록. DOM 없는 순수 코드(시간은 인자로 받는다).
 // 왼쪽 반의 첫 손가락 = 이동 전용(보이지 않는 조이스틱). 이동 손가락이 있는 동안 다른 손가락은 화면 어디서든 행동.
-// 행동: tap(선수를 탭하면 그 선수에게 패스, 빈 공간을 탭하면 그 자리로 공간 패스), shot(꾹 누르기: 누른 시간 = 세기, 방향 = 조이스틱 방향). 입력 버퍼 150ms.
+// 행동: tap(선수를 탭하면 그 선수에게 패스, 빈 공간을 탭하면 그 자리로 공간 패스), shot(꾹 누른 채 스와이프: 누른 시간 = 세기, 스와이프 방향 = 슛 방향). 입력 버퍼 150ms.
 import { TUNE } from './futsalRules.mjs';
 
 export function createInput() {
@@ -22,7 +22,7 @@ export function createInput() {
     },
     move(id, x, y, t) {
       const f = fingers.get(id);
-      if (f && f.role === 'action') { f.x = x; f.y = y; return; }
+      if (f && f.role === 'action') { f.x = x; f.y = y; if (f.holdAtMove == null && Math.hypot(x - f.x0, y - f.y0) > T.tapMove) f.holdAtMove = t - f.t0; return; }
       if (!f || f.role !== 'move') return;
       const dx = x - f.x0; const dy = y - f.y0;
       if (!f.moved && Math.hypot(dx, dy) < T.deadzone) { joy.x = 0; joy.y = 0; return; }
@@ -51,11 +51,12 @@ export function createInput() {
         if (!f.moved && Math.hypot(x - f.x0, y - f.y0) <= T.leftTapMove && t - f.t0 <= T.tapMs) push({ type: 'tap', x: f.x0, y: f.y0, at: t });
         return;
       }
-      const m = Math.hypot(x - f.x0, y - f.y0); const ms = Math.max(1, t - f.t0);
-      // 행동 손가락: 짧게 탭 = 패스(선수 탭 또는 빈 공간 탭), 꾹 누르기 = 슛(누른 시간 = 세기, 방향 = 조이스틱 방향). 크게 끌면 취소.
-      if (m > T.tapMove) return;
-      if (ms <= T.tapMs) push({ type: 'tap', x: f.x0, y: f.y0, at: t });
-      else push({ type: 'shot', hold: ms, jx: joy.x, jy: joy.y, at: t });
+      const dx = x - f.x0; const dy = y - f.y0; const m = Math.hypot(dx, dy); const ms = Math.max(1, t - f.t0);
+      // 행동 손가락: 짧게 탭 = 패스(선수를 탭하면 그 선수, 빈 공간을 탭하면 그 자리).
+      // 슛 = 꾹 누른 채(누른 시간 = 세기) 골대 쪽으로 스와이프(스와이프 방향 = 슛 방향). 누르기만 하거나 누르기 전의 빠른 쓸기는 아무 일도 없다.
+      if (m <= T.tapMove) { if (ms <= T.tapMs) push({ type: 'tap', x: f.x0, y: f.y0, at: t }); return; }
+      const held = f.holdAtMove ?? ms;
+      if (m >= T.flickPx && held >= T.tapMs) push({ type: 'shot', hold: held, jx: dx / m, jy: dy / m, at: t });
     },
     // 시스템 취소: 이동만 멈추고 이미 쌓인 행동에는 영향이 없다
     cancel(id) {
@@ -78,7 +79,11 @@ export function createInput() {
     },
     // 지금 꾹 누르고 있는 행동 손가락의 누른 시간(ms). 슛 게이지 표시용. 없으면 null.
     activeHold(now) {
-      for (const f of fingers.values()) if (f.role === 'action' && now - f.t0 > T.tapMs && (f.x == null || Math.hypot(f.x - f.x0, f.y - f.y0) <= T.tapMove)) return now - f.t0;
+      for (const f of fingers.values()) {
+        if (f.role !== 'action') continue;
+        if (f.holdAtMove != null) { if (f.holdAtMove > T.tapMs) return f.holdAtMove; continue; } // 스와이프가 시작되면 세기는 그 순간의 값에서 멈춘다
+        if (now - f.t0 > T.tapMs) return now - f.t0;
+      }
       return null;
     },
     get moverId() { return moverId; },
