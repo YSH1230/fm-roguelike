@@ -109,6 +109,7 @@ function leadPoint(from, tgt) {
 }
 export function passTo(M, p, tgt) {
   const b = M.ball; const d = leadPoint(b, tgt);
+  p.kickT = 0.25; b.spot = false;
   b.st = 'pass'; b.owner = null; b.tgt = tgt; b.dest = d; b.speed = passSpeedFor(hyp(d.x - b.x, d.y - b.y)); M.lastTouch = p.team; M.stats.passes[p.team] += 1;
   if (p.team === 0) M.control = M.players.indexOf(tgt); // 패스하면 받는 선수로 조종이 넘어간다
 }
@@ -117,6 +118,7 @@ export function passToSpot(M, p, x, y) {
   const b = M.ball; let best = null; let bt = 1e9;
   for (const q of M.players) { if (q.team !== p.team || q === p || q.gk) continue; const t = hyp(q.x - x, q.y - y) / Math.max(1, effSpeed(q.ab.speed, q.ratio)); if (t < bt) { bt = t; best = q; } }
   if (!best) return;
+  p.kickT = 0.25; b.spot = true;
   b.st = 'pass'; b.owner = null; b.tgt = best; b.dest = { x: clamp(x, 0.5, W - 0.5), y: clamp(y, 0.5, H - 0.5) }; b.speed = passSpeedFor(hyp(b.dest.x - b.x, b.dest.y - b.y)); M.lastTouch = p.team; M.stats.passes[p.team] += 1;
   if (p.team === 0) M.control = M.players.indexOf(best);
 }
@@ -136,7 +138,7 @@ export function shoot(M, p, ay, noiseFree = false, power = 0.75) {
   const tyv = ay + noise * rangeFactor;
   const dx = gx - p.x; const dy = tyv - p.y; const l = hyp(dx, dy) || 1;
   Object.assign(b, { st: 'shot', owner: null, tgt: null, x: p.x, y: p.y, vx: dx / l * speed, vy: dy / l * speed, trav: 0, shooter: p, aimY: tyv, dist, power, speed, reactAt: M.real + (gk0 ? gkReactTime(gk0.ab.reaction, gk0.ratio) : 0) });
-  M.lastTouch = p.team; M.stats.shots[p.team] += 1; M.events.push({ kind: 'shot', team: p.team, id: p.id });
+  p.kickT = 0.35; M.lastTouch = p.team; M.stats.shots[p.team] += 1; M.events.push({ kind: 'shot', team: p.team, id: p.id });
 }
 
 // 스와이프 방향으로 나가는 공이 골라인에서 지나는 y(방향이 골대 반대쪽이면 골대 중심)
@@ -150,7 +152,7 @@ function applyHumanAction(M, a) {
   const me = M.players[M.control];
   const b = M.ball;
   const holding = b.st === 'held' && b.owner === me;
-  if (a.type === 'dribble') { me.dribbleUntil = M.real + TUNE.dribbleSeconds; return; }
+  if (a.type === 'dribble') { me.dribbleUntil = M.real + TUNE.dribbleSeconds; me.twistT = 0.45; return; }
   if (M.phase === 'deadball') { // 킥인, 코너, 골키퍼 재개: 탭 한 번으로 받을 선수를 고른다
     if (a.type === 'tap' || a.type === 'dtap') { const r = M.restart; const tg = nearestMate(M, M.players[M.control], a.wx, a.wy); if (tg) r.pick = tg; }
     return;
@@ -166,7 +168,8 @@ function applyHumanAction(M, a) {
   if (a.type === 'tap') tackle(M, me); // 수비 때 탭 = 태클
 }
 function tackle(M, me) {
-  const b = M.ball;
+  const b = M.ball; me.slideT = 0.35; // 시도하면 슬라이딩 동작
+
   if (b.st === 'held' && b.owner && b.owner.team !== me.team && hyp(b.owner.x - me.x, b.owner.y - me.y) < 1.5) {
     const pDef = Math.min(0.85, contestDefenderWins(b.owner.ab, me.ab, b.owner.dribbleUntil > M.real) + 0.15);
     if (M.rng() < pDef) { M.stats.tackles[me.team] += 1; setHold(M, me); M.events.push({ kind: 'tackle', team: me.team, id: me.id }); }
@@ -221,6 +224,8 @@ function movePlayers(M, dt) {
     const a = Math.min(1, dt * TUNE.accel);
     p.vx += (vx - p.vx) * a; p.vy += (vy - p.vy) * a;
     p.x = clamp(p.x + p.vx * dt, 0.4, W - 0.4); p.y = clamp(p.y + p.vy * dt, 0.4, H - 0.4);
+    if (Math.abs(p.vx) > 0.4) p.face = p.vx > 0 ? 1 : -1;
+    p.kickT = Math.max(0, (p.kickT ?? 0) - dt); p.slideT = Math.max(0, (p.slideT ?? 0) - dt); p.twistT = Math.max(0, (p.twistT ?? 0) - dt); p.diveT = Math.max(0, (p.diveT ?? 0) - dt);
   }
 }
 
@@ -343,7 +348,7 @@ function contest(M, dt) {
   if (M.contestT >= TUNE.contestInterval) {
     M.contestT = 0;
     const p = contestDefenderWins(c.ab, near.ab, c.dribbleUntil > M.real);
-    if (M.rng() < p) { M.stats.tackles[near.team] += 1; M.events.push({ kind: 'tackle', team: near.team, id: near.id }); setHold(M, near); }
+    if (M.rng() < p) { near.slideT = 0.3; M.stats.tackles[near.team] += 1; M.events.push({ kind: 'tackle', team: near.team, id: near.id }); setHold(M, near); }
   }
 }
 

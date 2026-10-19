@@ -20,8 +20,38 @@ let paused = true;
 let last = 0;
 let seed = 1;
 let stance = 'balanced';
+let fxs = []; // 화면 피드백(링)
+const tail = []; // 공 꼬리
+let ballRot = 0;
 let banner = null; // { text, t } 골 연출 등(글자는 쓰지 않고 색 번쩍임으로만)
 let flash = 0;
+
+// ---------- 소리와 진동(동작마다 다르게) ----------
+let audio = null;
+const unlock = () => { try { audio ??= new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); } catch { /* 소리 없이 진행 */ } };
+document.addEventListener('pointerdown', unlock, { passive: true });
+function tone(freq, dur = 0.07, type = 'square', vol = 0.04, to = null, delay = 0) {
+  if (!audio) return; const t0 = audio.currentTime + delay; const o = audio.createOscillator(); const g = audio.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t0); if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+  g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g); g.connect(audio.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+}
+const buzz = (ms) => { try { navigator.vibrate?.(ms); } catch { /* 무시 */ } };
+const sfx = {
+  pass: () => { tone(520, 0.05); buzz(10); },
+  spot: () => { tone(660, 0.05); tone(880, 0.06, 'square', 0.04, null, 0.06); buzz(14); },
+  shot: () => { tone(220, 0.16, 'sawtooth', 0.05, 90); buzz(26); },
+  goal: () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 'square', 0.05, null, i * 0.08)); buzz(60); },
+  save: () => { tone(300, 0.1, 'triangle', 0.06); tone(220, 0.14, 'triangle', 0.05, null, 0.06); },
+  tackle: () => tone(160, 0.1, 'sawtooth', 0.05, 80),
+  lose: () => tone(200, 0.12, 'sawtooth', 0.04, 110),
+};
+let evSeen = 0;
+function playEventSounds() {
+  for (; evSeen < M.events.length; evSeen += 1) {
+    const e = M.events[evSeen];
+    if (e.kind === 'goal') sfx.goal(); else if (e.kind === 'save' || e.kind === 'post') sfx.save(); else if (e.kind === 'tackle') sfx.tackle(); else if (e.kind === 'intercept') sfx.lose();
+  }
+}
 
 // ---------- 입력: CSS px를 그대로 futsalInput에 넣고, 행동은 월드 좌표를 붙여 시뮬에 넘긴다 ----------
 const rect = () => cv.getBoundingClientRect();
@@ -47,31 +77,73 @@ function drawCourt() {
   ctx.beginPath(); ctx.arc(X(COURT_W), Y(g1), R, Math.PI / 2, Math.PI); ctx.lineTo(X(COURT_W - 6), Y(g0)); ctx.arc(X(COURT_W), Y(g0), R, Math.PI, Math.PI * 1.5); ctx.stroke();
   ctx.fillStyle = '#e2e8f0'; ctx.fillRect(X(-0.7), Y(g0), 0.7 * pxm, (g1 - g0) * pxm); ctx.fillRect(X(COURT_W), Y(g0), 0.7 * pxm, (g1 - g0) * pxm);
 }
+// 선수: 달리기 다리 스윙과 몸 기울기, 패스/슛 킥, 슬라이딩 태클, 개인기 회전, 골키퍼 다이빙
 function drawPlayer(p, mine) {
   const h = 1.8 * pxm * PLAYER_SCALE; const px = X(p.x); const py = Y(p.y);
   const kit = p.team === 0 ? (p.gk ? '#22c55e' : '#38bdf8') : (p.gk ? '#f59e0b' : '#ef4444');
-  const bob = Math.sin(M.real * 12 + p.num) * Math.min(1, Math.hypot(p.vx, p.vy) / 4) * h * 0.02;
+  const sp = Math.hypot(p.vx, p.vy); const run = Math.min(1, sp / 5);
+  const face = p.face ?? 1;
+  const ph = M.real * 11 + p.num * 1.7;
+  const swing = Math.sin(ph) * 0.75 * run;
+  const bob = Math.abs(Math.sin(ph)) * h * 0.035 * run;
   ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(px, py, h * 0.28, h * 0.09, 0, 0, 7); ctx.fill();
-  const y0 = py - bob;
-  ctx.fillStyle = '#111827'; ctx.fillRect(px - h * 0.17, y0 - h * 0.2, h * 0.14, h * 0.2); ctx.fillRect(px + h * 0.03, y0 - h * 0.2, h * 0.14, h * 0.2);
-  ctx.fillStyle = '#0f172a'; ctx.fillRect(px - h * 0.2, y0 - h * 0.4, h * 0.4, h * 0.2);
-  ctx.fillStyle = kit; ctx.fillRect(px - h * 0.22, y0 - h * 0.72, h * 0.44, h * 0.34);
-  ctx.fillStyle = '#d9a371'; ctx.fillRect(px - h * 0.15, y0 - h * 0.97, h * 0.3, h * 0.25);
-  ctx.fillStyle = '#1f2937'; ctx.fillRect(px - h * 0.16, y0 - h * 1.0, h * 0.32, h * 0.1);
-  ctx.fillStyle = '#0f172a'; ctx.font = `800 ${Math.max(9, h * 0.24)}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(p.num), px, y0 - h * 0.55);
-  if (mine) { ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.moveTo(px, y0 - h * 1.08); ctx.lineTo(px - h * 0.12, y0 - h * 1.26); ctx.lineTo(px + h * 0.12, y0 - h * 1.26); ctx.closePath(); ctx.fill(); }
+  ctx.save(); ctx.translate(px, py);
+  let rot = face * run * 0.12; let lift = 0; let sx = 1;
+  const slide = p.slideT > 0 ? Math.sin((1 - p.slideT / 0.35) * Math.PI) : 0;
+  const dive = p.diveT > 0 ? Math.sin((1 - p.diveT / 0.55) * Math.PI) : 0;
+  if (slide > 0) { rot = face * 1.35 * slide; lift = h * 0.1 * slide; }
+  if (dive > 0) { rot = (p.diveDir ?? 1) * 1.25 * dive; lift = h * 0.18 * dive; }
+  if (p.twistT > 0) sx = Math.max(0.25, Math.abs(Math.cos((1 - p.twistT / 0.45) * Math.PI * 2)));
+  ctx.rotate(rot); ctx.scale(sx, 1);
+  const y0 = -bob - lift;
+  const kick = p.kickT > 0 ? Math.sin((1 - p.kickT / 0.3) * Math.PI) : 0; // 0 → 1 → 0
+  const leg = (dx, ang, isKick) => {
+    ctx.save(); ctx.translate(dx, y0 - h * 0.4); ctx.rotate(isKick ? face * (-0.4 - 1.0 * kick) : ang);
+    ctx.fillStyle = '#111827'; ctx.fillRect(-h * 0.07, 0, h * 0.14, h * 0.28); ctx.fillStyle = '#0b0b0b'; ctx.fillRect(-h * 0.08, h * 0.26, h * 0.17, h * 0.07); ctx.restore();
+  };
+  leg(-h * 0.1, swing, false); leg(h * 0.1, -swing, kick > 0.02);
+  ctx.fillStyle = '#0f172a'; ctx.fillRect(-h * 0.2, y0 - h * 0.4, h * 0.4, h * 0.2);
+  // 팔: 달릴 때 반대로 흔들고, 다이빙 때 위로 뻗는다
+  const arm = (dx, a) => { ctx.save(); ctx.translate(dx, y0 - h * 0.68); ctx.rotate(dive > 0 ? -2.7 * (dx < 0 ? -1 : 1) * dive : a); ctx.fillStyle = '#d9a371'; ctx.fillRect(-h * 0.045, 0, h * 0.09, h * 0.24); ctx.restore(); };
+  arm(-h * 0.27, -swing * 0.9); arm(h * 0.27, swing * 0.9);
+  ctx.fillStyle = kit; ctx.fillRect(-h * 0.22, y0 - h * 0.72, h * 0.44, h * 0.34);
+  ctx.fillStyle = '#d9a371'; ctx.fillRect(-h * 0.15, y0 - h * 0.97, h * 0.3, h * 0.25);
+  ctx.fillStyle = '#1f2937'; ctx.fillRect(-h * 0.16, y0 - h * 1.0, h * 0.32, h * 0.1);
+  ctx.fillStyle = '#0f172a'; ctx.font = `800 ${Math.max(9, h * 0.24)}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(p.num), 0, y0 - h * 0.55);
+  ctx.restore();
+  if (slide > 0.3) { ctx.fillStyle = 'rgba(226,232,240,0.35)'; for (let i = 0; i < 3; i += 1) { ctx.beginPath(); ctx.arc(px - face * (h * 0.3 + i * h * 0.18), py - i * 2, h * (0.12 - i * 0.025), 0, 7); ctx.fill(); } }
+  if (mine) { ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.moveTo(px, py - h * 1.08); ctx.lineTo(px - h * 0.12, py - h * 1.26); ctx.lineTo(px + h * 0.12, py - h * 1.26); ctx.closePath(); ctx.fill(); }
 }
 function draw() {
   drawCourt();
   const me = M.players[M.control];
   const b = M.ball;
   for (const p of [...M.players].sort((a, c) => a.y - c.y)) drawPlayer(p, p === me && M.phase !== 'end');
-  // 공
+  // 공: 굴러가는 회전과 꼬리(세게 찬 슛일수록 굵고 길다)
   const h = 1.8 * pxm * PLAYER_SCALE;
   const bx = X(b.x); const by = Y(b.y);
+  const bsp = Math.hypot(b.vx ?? 0, b.vy ?? 0);
+  if (bsp > 6 && b.st !== 'held') { tail.push({ x: bx, y: by, w: b.st === 'shot' ? 0.6 + (b.power ?? 0.5) * 1.1 : 0.55 }); if (tail.length > 9) tail.shift(); } else if (tail.length) tail.shift();
+  tail.forEach((q, k) => { ctx.globalAlpha = (k / tail.length) * 0.35; ctx.fillStyle = b.st === 'shot' ? '#fb923c' : '#fff'; ctx.beginPath(); ctx.arc(q.x, q.y - pxm * 0.2, Math.max(2, pxm * 0.2 * q.w), 0, 7); ctx.fill(); });
+  ctx.globalAlpha = 1;
+  ballRot += bsp * 0.02 * (b.vx >= 0 ? 1 : -1);
+  const br = Math.max(4, pxm * 0.22); const bcy = by - Math.max(3, pxm * 0.2);
   ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(bx, by + h * 0.02, Math.max(3, pxm * 0.2), Math.max(1.5, pxm * 0.08), 0, 0, 7); ctx.fill();
-  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, by - Math.max(3, pxm * 0.2), Math.max(4, pxm * 0.22), 0, 7); ctx.fill();
-  ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, bcy, br, 0, 7); ctx.fill();
+  ctx.fillStyle = '#0f172a'; for (let k = 0; k < 3; k += 1) { const a = ballRot + k * 2.094; ctx.beginPath(); ctx.arc(bx + Math.cos(a) * br * 0.5, bcy + Math.sin(a) * br * 0.5, br * 0.22, 0, 7); ctx.fill(); }
+  ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(bx, bcy, br, 0, 7); ctx.stroke();
+  // 피드백(글자 없음): 눌린 곳의 링, 공간 패스 목표, 스와이프 궤적
+  const now = performance.now();
+  fxs = fxs.filter((f) => now - f.t0 < f.dur);
+  for (const f of fxs) { const k = (now - f.t0) / f.dur; ctx.globalAlpha = (1 - k) * f.a; ctx.strokeStyle = f.color; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(X(f.x), Y(f.y) - pxm * 0.2, pxm * (0.6 + k * 1.2), 0, 7); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+  if (M.ball.st === 'pass' && M.ball.spot && M.ball.dest) { const pul = 0.75 + 0.25 * Math.sin(now / 90); ctx.strokeStyle = `rgba(59,130,246,${pul})`; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(X(M.ball.dest.x), Y(M.ball.dest.y), pxm * 0.9, 0, 7); ctx.stroke(); ctx.fillStyle = 'rgba(59,130,246,0.25)'; ctx.fill(); }
+  const tr = input.swipeTrail(now);
+  if (tr && tr.pts.length > 1) {
+    const r = rect(); const kx = CW / r.width; const ky = CH / r.height;
+    ctx.globalAlpha = tr.live ? 0.95 : Math.max(0, 1 - tr.age / 280); ctx.strokeStyle = '#fb923c'; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); tr.pts.forEach((q, k) => { if (k === 0) ctx.moveTo(q.x * kx, q.y * ky); else ctx.lineTo(q.x * kx, q.y * ky); }); ctx.stroke(); ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+  }
   // 데드볼 4초 지시(글자 없이 공 주변 링이 줄어든다)
   if (M.phase === 'deadball' && M.restart && M.restart.kind !== 'kickoff') {
     const k = Math.max(0, M.restart.timer / TUNE.deadBallSeconds);
@@ -95,7 +167,7 @@ function hud() {
 // ---------- 흐름: 시작, 하프타임, 종료, 일시정지 ----------
 const STANCES = [['attack', 'ATTACK 1-1-2'], ['balanced', 'BALANCED 1-2-1'], ['defense', 'DEFENSE 2-1-1']];
 function stanceRow(sel) { return `<div class="row">${STANCES.map(([k, t]) => `<button class="btn ${sel === k ? 'btn--primary' : ''}" data-s="${k}">${t}</button>`).join('')}</div>`; }
-function newMatch() { seed += 1; M = createMatch({ seed, home: demoTeam('H', seed), away: demoTeam('A', seed + 50), stance }); window.fmFutsal.M = M; flash = 0; }
+function newMatch() { evSeen = 0; seed += 1; M = createMatch({ seed, home: demoTeam('H', seed), away: demoTeam('A', seed + 50), stance }); window.fmFutsal.M = M; flash = 0; }
 function showStart() {
   paused = true;
   box.innerHTML = `<h2>FUTSAL</h2><p>5 vs 5 · 40m × 20m · about 5 min</p>${stanceRow(stance)}
@@ -140,9 +212,20 @@ function frame(now) {
   if (M && !paused) {
     const polled = input.poll(performance.now(), canAct(M));
     const actions = polled.actions.map((a) => (a.type === 'tap' || a.type === 'dtap') ? { ...a, ...(() => { const w = toWorld(a.x, a.y); return { wx: w.x, wy: w.y }; })() } : a);
+    // 누른 것이 무엇인지 보이게: 선수 탭 = 초록 링, 빈 공간 탭 = 옅은 파란 링, 더블탭/스와이프는 위 그리기에서 계속 표시
+    for (const a of actions) {
+      const now = performance.now(); const me = M.players[M.control];
+      if (a.type === 'tap' || a.type === 'dtap') {
+        let near = null; let nd = 1e9; for (const q of M.players) { if (q.team !== 0 || q === me || q.gk) continue; const d = Math.hypot(q.x - a.wx, q.y - a.wy); if (d < nd) { nd = d; near = q; } }
+        if (near && nd <= TUNE.input.spotRadius) { fxs.push({ x: near.x, y: near.y, color: '#22c55e', t0: now, dur: 420, a: 1 }); sfx.pass(); }
+        else if (a.type === 'tap') fxs.push({ x: a.wx, y: a.wy, color: '#93c5fd', t0: now, dur: 300, a: 0.6 });
+        else { fxs.push({ x: a.wx, y: a.wy, color: '#3b82f6', t0: now, dur: 450, a: 1 }); sfx.spot(); }
+      } else if (a.type === 'shot') sfx.shot();
+    }
     const before = M.score[0] + M.score[1];
     update(M, raw, { move: polled.move, actions });
     if (M.score[0] + M.score[1] !== before) flash = 1;
+    playEventSounds();
     if (M.phase === 'halftime') showHalftime(); else if (M.phase === 'end') showEnd();
   }
   flash = Math.max(0, flash - raw * 1.6);

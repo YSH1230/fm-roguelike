@@ -11,6 +11,7 @@ export function createInput() {
   const hist = []; // 조이스틱 튕기기(개인기) 판정용 최근 벡터
   let flipCool = 0;
   let lastTap = null; // 더블탭 판정용
+  let lastSwipe = null; // 손을 뗀 스와이프 궤적(잠깐 남겨서 보여 준다)
   let queue = [];
   const push = (a) => { queue.push(a); };
 
@@ -23,7 +24,7 @@ export function createInput() {
     },
     move(id, x, y, t) {
       const f = fingers.get(id);
-      if (f && f.role === 'action') { f.x = x; f.y = y; if (f.holdAtMove == null && Math.hypot(x - f.x0, y - f.y0) > T.tapMove) f.holdAtMove = t - f.t0; return; }
+      if (f && f.role === 'action') { f.x = x; f.y = y; (f.trail ??= [{ x: f.x0, y: f.y0 }]).push({ x, y }); if (f.trail.length > 24) f.trail.shift(); return; }
       if (!f || f.role !== 'move') return;
       const dx = x - f.x0; const dy = y - f.y0;
       if (!f.moved && Math.hypot(dx, dy) < T.deadzone) { joy.x = 0; joy.y = 0; return; }
@@ -53,6 +54,7 @@ export function createInput() {
         return;
       }
       const dx = x - f.x0; const dy = y - f.y0; const m = Math.hypot(dx, dy); const ms = Math.max(1, t - f.t0);
+      if (m > T.tapMove && f.trail) lastSwipe = { pts: [...f.trail, { x, y }], t };
       // 행동 손가락: 탭 = 패스(선수를 탭하면 그 선수, 빈 공간은 더블탭으로 그 자리), 스와이프 = 슛(방향 = 스와이프 방향, 빠를수록 강함)
       if (m <= T.tapMove) {
         if (ms > T.tapMs) return;
@@ -81,6 +83,12 @@ export function createInput() {
       queue = keep;
       const move = (joy.x === 0 && joy.y === 0) ? null : { x: joy.x, y: joy.y };
       return { move, actions };
+    },
+    // 지금 그리는 중이거나 방금 끝난 스와이프 궤적(px 점 목록). 화면 피드백용.
+    swipeTrail(now) {
+      for (const f of fingers.values()) if (f.role === 'action' && f.trail && Math.hypot(f.x - f.x0, f.y - f.y0) > T.tapMove) return { pts: f.trail, live: true };
+      if (lastSwipe && now - lastSwipe.t < 280) return { pts: lastSwipe.pts, live: false, age: now - lastSwipe.t };
+      return null;
     },
     get moverId() { return moverId; },
     get pending() { return queue.length; },

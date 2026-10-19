@@ -54,6 +54,7 @@ function aiTeam(M, t, dt) {
 
   // 골키퍼: 공을 따라 골문 앞에서 좌우로 움직인다(높은 골키퍼 특기는 P3)
   if (gk && !isH(gk) && !(b.owner === gk)) {
+    if (b.st === 'shot' && b.shooter.team !== t && M.real >= b.reactAt && !b.gkDived) { b.gkDived = true; if (Math.abs(b.aimY - gk.y) > 0.5) { gk.diveT = 0.55; gk.diveDir = b.aimY > gk.y ? 1 : -1; } }
     if (b.st === 'shot' && b.shooter.team !== t && M.real >= b.reactAt) go(gk, 2.2, clamp(b.aimY, TUNE.shot.goalY[0] - 0.4, TUNE.shot.goalY[1] + 0.4), effSpeed(gk.ab.speed, gk.ratio) * TUNE.shot.gkDive); // 반응 뒤 공이 지날 자리로 몸을 날린다
     else go(gk, 2.2, clamp(b.y, TUNE.shot.goalY[0] + 0.3, TUNE.shot.goalY[1] - 0.3), sp(gk, 0.55));
   }
