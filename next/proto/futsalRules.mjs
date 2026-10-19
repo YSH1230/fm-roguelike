@@ -14,10 +14,10 @@ export const TUNE = {
   ringTauMax: 0.5, ring: { green: [2.2, 2.4], yellow: [1.2, 1.4] },
   subThreshold: 0.25, subPopupSeconds: 3,
   // 입력(화면 px, 640 기준이 아니라 실제 손가락 px)
-  input: { tapMove: 12, tapMs: 250, flickPx: 28, flickSpeed: 0.5, joyRadius: 44, deadzone: 10, buffer: 150, leftTapMove: 10, flipThreshold: 0.6, flipMs: 180, shotZone: 0.35 },
+  input: { tapMove: 12, tapMs: 250, flickPx: 28, flickSpeed: 0.5, joyRadius: 44, deadzone: 10, buffer: 150, leftTapMove: 10, flipThreshold: 0.6, flipMs: 180, shotZone: 0.35, holdFull: 1250, spotRadius: 2.4 },
   // 접촉 경합, 슛
   contactR: 0.85, contestInterval: 0.45, dribbleSeconds: 0.8, dribbleBoost: 1.25,
-  shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 8, rangePerShooting: 0.45 },
+  shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 8, rangePerShooting: 0.45, minPower: 0.15, speedMin: 12, speedMax: 26, powerSave: 0.22, powerNoise: 0.35 },
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
   expectedGoals: 2.5,
@@ -55,3 +55,6 @@ export function classifyGesture({ m, ms }) {
 }
 // 쓸기 방향의 세로 성분으로 위(-1) / 가운데(0) / 아래(+1) 구석
 export const shotZone = (dx, dy) => { const d = Math.hypot(dx, dy) || 1; return dy < -TUNE.input.shotZone * d ? -1 : (dy > TUNE.input.shotZone * d ? 1 : 0); };
+
+// 오른쪽 화면을 꾹 누른 시간(ms) → 슛 세기(0.15~1). 250ms부터 차오르고 1.25초에 가득 찬다.
+export const shotPower = (holdMs) => clamp((holdMs - TUNE.input.tapMs) / (TUNE.input.holdFull - TUNE.input.tapMs), TUNE.shot.minPower, 1);

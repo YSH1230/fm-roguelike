@@ -118,9 +118,9 @@ function carrierAI(M, t, c, dt, mine, opp, go, sp) {
   if (c.think <= 0) {
     c.think = 0.7 + M.rng() * 0.8;
     const gkp = opp.find((p) => p.gk);
-    if (dist < range && M.rng() < 0.06 && shotLaneClear(M, c, opp)) {
+    if (dist < range && M.rng() < 0.08 && shotLaneClear(M, c, opp)) {
       const corner = (gkp && gkp.y > 10) ? -1 : 1;
-      M.api.shoot(c, 10 + corner * TUNE.shot.cornerOffset);
+      M.api.shoot(c, 10 + corner * TUNE.shot.cornerOffset, false, 0.4 + M.rng() * 0.3);
       return;
     }
     let best = null; let bs = 0;

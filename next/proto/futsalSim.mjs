@@ -2,7 +2,7 @@
 // 좌표는 미터. 팀 0(사람)은 왼쪽 골대를 지키고 +x로 공격, 팀 1은 오른쪽 골대를 지키고 -x로 공격한다.
 import { createRng, randInt, gauss } from '../engine/rng.mjs';
 import {
-  TUNE, contestDefenderWins, drainPerSecond, effSpeed, gkDelay, shotNoise, shotRange, shotZone,
+  TUNE, contestDefenderWins, drainPerSecond, effSpeed, gkDelay, shotNoise, shotPower, shotRange,
 } from './futsalRules.mjs';
 import { think } from './futsalAI.mjs';
 
@@ -125,30 +125,45 @@ function nearestMate(M, p, wxp, wyp) {
   for (const q of M.players) { if (q.team !== p.team || q === p || q.gk) continue; const d = hyp(q.x - wxp, q.y - wyp); if (d < bd) { bd = d; best = q; } }
   return best;
 }
-export function shoot(M, p, ay, noiseFree = false) {
+export function shoot(M, p, ay, noiseFree = false, power = 0.75) {
   const b = M.ball; const gx = goalX(p.team); const dist = Math.abs(gx - p.x);
   const sh = p.ab.shooting ?? 8;
-  const noise = noiseFree ? 0 : gauss(M.rng) * shotNoise(sh, dist);
+  const S = TUNE.shot;
+  const noise = noiseFree ? 0 : gauss(M.rng) * shotNoise(sh, dist) * (1 - S.powerNoise * 0.5 + S.powerNoise * power); // 세게 찰수록 조금 더 흔들린다
+  const speed = S.speedMin + (S.speedMax - S.speedMin) * power;
   const rangeFactor = dist > shotRange(sh) ? 1 + (dist - shotRange(sh)) * 0.25 : 1; // 사거리 밖은 많이 흔들린다
   const tyv = ay + noise * rangeFactor;
   const dx = gx - p.x; const dy = tyv - p.y; const l = hyp(dx, dy) || 1;
-  Object.assign(b, { st: 'shot', owner: null, tgt: null, x: p.x, y: p.y, vx: dx / l * TUNE.shotSpeed, vy: dy / l * TUNE.shotSpeed, trav: 0, shooter: p, aimY: tyv, dist });
+  Object.assign(b, { st: 'shot', owner: null, tgt: null, x: p.x, y: p.y, vx: dx / l * speed, vy: dy / l * speed, trav: 0, shooter: p, aimY: tyv, dist, power, speed });
   M.lastTouch = p.team; M.stats.shots[p.team] += 1; M.events.push({ kind: 'shot', team: p.team, id: p.id });
 }
 
+// 탭 한 곳에서 spotRadius(m) 안에 동료가 있으면 그 선수에게, 없으면 그 빈 자리로 보낸다
+function tapTarget(M, p, a) {
+  const tg = nearestMate(M, p, a.wx, a.wy);
+  if (tg && hyp(tg.x - a.wx, tg.y - a.wy) <= TUNE.input.spotRadius) return { mate: tg };
+  return { spot: { x: a.wx, y: a.wy } };
+}
+// 조이스틱 방향으로 나가는 공이 골라인에서 지나는 y(조이스틱이 없거나 골대 반대쪽이면 골대 중심)
+function aimFromJoy(M, p, jx, jy) {
+  const gx = goalX(p.team); const dirx = gx > p.x ? 1 : -1;
+  const l = hyp(jx, jy);
+  if (l < 0.25 || jx * dirx <= 0.05) return GYC;
+  const ay = p.y + (jy / (jx * dirx)) * Math.abs(gx - p.x);
+  return clamp(ay, GYC - 6, GYC + 6);
+}
 function applyHumanAction(M, a) {
   const me = M.players[M.control];
   const b = M.ball;
   const holding = b.st === 'held' && b.owner === me;
   if (a.type === 'dribble') { me.dribbleUntil = M.real + TUNE.dribbleSeconds; return; }
   if (M.phase === 'deadball') { // 킥인, 코너, 골키퍼 재개: 탭 한 번으로 받을 선수를 고른다
-    if (a.type === 'tap' || a.type === 'drag') { const r = M.restart; const tg = nearestMate(M, M.players[M.control], a.wx, a.wy); if (tg) r.pick = tg; }
+    if (a.type === 'tap') { const r = M.restart; const tg = nearestMate(M, M.players[M.control], a.wx, a.wy); if (tg) r.pick = tg; }
     return;
   }
   if (holding) {
-    if (a.type === 'tap') { const tg = nearestMate(M, me, a.wx, a.wy); if (tg) passTo(M, me, tg); }
-    else if (a.type === 'drag') passToSpot(M, me, a.wx, a.wy);
-    else if (a.type === 'shot') shoot(M, me, GYC + shotZone(a.dx, a.dy) * TUNE.shot.cornerOffset);
+    if (a.type === 'tap') { const t = tapTarget(M, me, a); if (t.mate) passTo(M, me, t.mate); else passToSpot(M, me, t.spot.x, t.spot.y); }
+    else if (a.type === 'shot') shoot(M, me, aimFromJoy(M, me, a.jx ?? 0, a.jy ?? 0), false, shotPower(a.hold ?? 0));
     return;
   }
   if (a.type === 'tap') tackle(M, me); // 수비 때 탭 = 태클
@@ -229,7 +244,7 @@ function stepBall(M, dt) {
     if (hyp(b.tgt.x - b.x, b.tgt.y - b.y) < TUNE.pickupR) { setHold(M, b.tgt); return; }
     if (d < 0.2) { b.st = 'loose'; b.vx = b.vx * 0.25; b.vy = b.vy * 0.25; }
   } else if (b.st === 'shot') {
-    const s = TUNE.shotSpeed * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.trav += s;
+    const s = b.speed * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.trav += s;
     const att = b.shooter.team; const gx = goalX(att);
     if (b.trav > 1.3) for (const q of M.players) { if (q.team === att || q.gk) continue; if (hyp(q.x - b.x, q.y - b.y) < TUNE.blockR) { b.st = 'loose'; b.vx = -b.vx * 0.2; b.vy = (M.rng() - 0.5) * 3; M.events.push({ kind: 'block', team: q.team }); return; } }
     if ((att === 0 && b.x >= gx) || (att === 1 && b.x <= gx)) resolveShot(M, att);
@@ -257,7 +272,7 @@ function resolveShot(M, att) {
   else {
     const q = (gk.ab.reaction + gk.ab.handling) / 40; // 0~1
     const lag = gkDelay(1, gk.ratio) - 1;
-    const pSave = clamp(0.66 - 0.18 * Math.abs(ay - GYC) / 1.1 + 0.012 * (b.dist - 8) + (q - 0.5) * 0.3 - lag * 0.2, 0.1, 0.9); // 코트 중앙에서 8m 기준
+    const pSave = clamp(0.8 - TUNE.shot.powerSave * (b.power - 0.5) - 0.18 * Math.abs(ay - GYC) / 1.1 + 0.012 * (b.dist - 8) + (q - 0.5) * 0.3 - lag * 0.2, 0.1, 0.9); // 코트 중앙에서 8m 기준
     pGoal = 1 - pSave;
   }
   if (M.rng() < pGoal) goalScored(M, att, b.shooter);

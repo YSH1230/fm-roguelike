@@ -1,7 +1,7 @@
 // 포인터 이벤트 → 이동 벡터와 행동 목록. DOM 없는 순수 코드(시간은 인자로 받는다).
 // 왼쪽 반의 첫 손가락 = 이동 전용(보이지 않는 조이스틱). 이동 손가락이 있는 동안 다른 손가락은 화면 어디서든 행동.
-// 행동: tap(발밑 패스), drag(놓은 자리로 공간 패스), flick(슛: 오른쪽 반 쓸기). 입력 버퍼 150ms.
-import { TUNE, classifyGesture } from './futsalRules.mjs';
+// 행동: tap(선수를 탭하면 그 선수에게 패스, 빈 공간을 탭하면 그 자리로 공간 패스), shot(꾹 누르기: 누른 시간 = 세기, 방향 = 조이스틱 방향). 입력 버퍼 150ms.
+import { TUNE } from './futsalRules.mjs';
 
 export function createInput() {
   const T = TUNE.input;
@@ -51,11 +51,11 @@ export function createInput() {
         if (!f.moved && Math.hypot(x - f.x0, y - f.y0) <= T.leftTapMove && t - f.t0 <= T.tapMs) push({ type: 'tap', x: f.x0, y: f.y0, at: t });
         return;
       }
-      const dx = x - f.x0; const dy = y - f.y0; const m = Math.hypot(dx, dy); const ms = Math.max(1, t - f.t0);
-      const k = classifyGesture({ m, ms });
-      if (k === 'tap') push({ type: 'tap', x: f.x0, y: f.y0, at: t });
-      else if (k === 'flick') push({ type: 'shot', dx, dy, at: t });
-      else if (m > T.tapMove) push({ type: 'drag', x, y, at: t });
+      const m = Math.hypot(x - f.x0, y - f.y0); const ms = Math.max(1, t - f.t0);
+      // 행동 손가락: 짧게 탭 = 패스(선수 탭 또는 빈 공간 탭), 꾹 누르기 = 슛(누른 시간 = 세기, 방향 = 조이스틱 방향). 크게 끌면 취소.
+      if (m > T.tapMove) return;
+      if (ms <= T.tapMs) push({ type: 'tap', x: f.x0, y: f.y0, at: t });
+      else push({ type: 'shot', hold: ms, jx: joy.x, jy: joy.y, at: t });
     },
     // 시스템 취소: 이동만 멈추고 이미 쌓인 행동에는 영향이 없다
     cancel(id) {
@@ -76,9 +76,9 @@ export function createInput() {
       const move = (joy.x === 0 && joy.y === 0) ? null : { x: joy.x, y: joy.y };
       return { move, actions };
     },
-    // 지금 끌고 있는 행동 손가락의 위치(공간 패스 목표 표시용). 없으면 null.
-    activeDrag() {
-      for (const f of fingers.values()) if (f.role === 'action' && f.x != null && Math.hypot(f.x - f.x0, f.y - f.y0) > T.tapMove) return { x: f.x, y: f.y };
+    // 지금 꾹 누르고 있는 행동 손가락의 누른 시간(ms). 슛 게이지 표시용. 없으면 null.
+    activeHold(now) {
+      for (const f of fingers.values()) if (f.role === 'action' && now - f.t0 > T.tapMs && (f.x == null || Math.hypot(f.x - f.x0, f.y - f.y0) <= T.tapMove)) return now - f.t0;
       return null;
     },
     get moverId() { return moverId; },
