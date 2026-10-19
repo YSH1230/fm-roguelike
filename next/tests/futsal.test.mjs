@@ -1,0 +1,133 @@
+// 풋살 시연판 P1 합격 기준: 규칙 수치, 입력 해석, 정지 시계와 추가시간, 득점과 킥오프, 정적 AI 금지.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createRng, gauss } from '../engine/rng.mjs';
+import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, shotZone } from '../proto/futsalRules.mjs';
+import { createInput } from '../proto/futsalInput.mjs';
+import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable } from '../proto/futsalSim.mjs';
+
+const mk = (seed = 1) => createMatch({ seed, home: demoTeam('H', seed), away: demoTeam('A', seed + 50) });
+const play = (M, sec, input = {}, dt = 1 / 60) => { for (let i = 0; i < sec / dt && M.phase !== 'end'; i += 1) update(M, dt, input); };
+const finish = (M) => { let n = 0; while (M.phase !== 'end' && n < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M); update(M, 1 / 60, {}); n += 1; } };
+
+test('능력 함수: 속도, 체력 소모(5분 풀 출전 55% - 1.5% x 체력), 링 tau와 색, 골키퍼 지연, 정교함', () => {
+  assert.equal(speedOf(20), 8);
+  assert.ok(Math.abs(effSpeed(20, 0) - 8 * 0.7) < 1e-9);
+  assert.ok(Math.abs(drainPerSecond(12) * TUNE.realMatchSeconds - 0.37) < 1e-9);
+  assert.equal(ringTau(20, 1), 0.5);
+  assert.equal(ringColor(2.3, 2.5), 'green'); assert.equal(ringColor(1.3, 1.5), 'yellow'); assert.equal(ringColor(1.0, 5), 'red');
+  assert.ok(Math.abs(gkDelay(1, 0) - 1.4) < 1e-9);
+  assert.equal(sophistication(20, 3), 20);
+});
+
+test('슛 구석: 쓸기 방향의 세로 성분이 위/가운데/아래를 고른다', () => {
+  assert.equal(shotZone(80, -60), -1); assert.equal(shotZone(80, 0), 0); assert.equal(shotZone(80, 60), 1);
+});
+
+test('입력: 이동 손가락이 눌린 채 왼쪽 반을 100번 탭해도 패스 입력이 100% 실행된다', () => {
+  const inp = createInput();
+  inp.down(1, 100, 200, 0, 640); inp.move(1, 130, 200, 30);
+  for (let i = 0; i < 100; i += 1) { const t = 100 + i * 400; inp.down(2, 80 + (i % 20), 150, t, 640); inp.up(2, 80 + (i % 20), 150, t + 90); }
+  assert.equal(inp.poll(100 + 100 * 400 + 200).actions.filter((a) => a.type === 'tap').length, 100);
+});
+test('입력: pointercancel은 이동만 멈추고 쌓인 행동은 남는다', () => {
+  const inp = createInput();
+  inp.down(1, 100, 200, 0, 640); inp.move(1, 130, 200, 30);
+  inp.down(2, 500, 100, 40, 640); inp.up(2, 500, 100, 100);
+  inp.cancel(1);
+  const r = inp.poll(120);
+  assert.equal(r.move, null); assert.equal(r.actions.length, 1);
+});
+test('입력: 이동 손가락이 없을 때 왼쪽 반의 짧은 탭은 행동 탭, 데드존 안에서는 이동하지 않는다', () => {
+  const inp = createInput();
+  inp.down(1, 100, 100, 0, 640); inp.move(1, 106, 100, 30);
+  assert.equal(inp.poll(40).move, null);
+  inp.up(1, 106, 100, 120);
+  assert.equal(inp.poll(130).actions[0].type, 'tap');
+});
+test('입력: 오른쪽 반의 쓸기는 슛, 끌어서 놓기는 공간 패스, 왼쪽 반의 쓸기는 이동이다', () => {
+  const inp = createInput();
+  inp.down(1, 500, 100, 0, 640); inp.up(1, 580, 60, 70);
+  assert.equal(inp.poll(80).actions[0].type, 'shot');
+  inp.down(2, 500, 100, 200, 640); inp.up(2, 560, 140, 700);
+  assert.equal(inp.poll(710).actions[0].type, 'drag');
+  inp.down(3, 100, 100, 1000, 640); inp.move(3, 160, 100, 1060);
+  assert.ok(inp.poll(1070).move.x > 0); assert.equal(inp.pending, 0);
+});
+test('입력: 조이스틱을 180ms 안에 반대로 튕기면 개인기 1회', () => {
+  const inp = createInput();
+  inp.down(1, 100, 100, 0, 640); inp.move(1, 140, 100, 20); inp.move(1, 60, 100, 120);
+  assert.equal(inp.poll(130).actions.filter((a) => a.type === 'dribble').length, 1);
+});
+test('입력: 막힌 동안 들어온 행동은 150ms 안에 소비되면 실행, 넘으면 폐기', () => {
+  const inp = createInput();
+  inp.down(1, 500, 100, 0, 640); inp.up(1, 500, 100, 50);
+  assert.equal(inp.poll(100, false).actions.length, 0);
+  assert.equal(inp.poll(150, true).actions.length, 1);
+  inp.down(2, 500, 100, 1000, 640); inp.up(2, 500, 100, 1050);
+  assert.equal(inp.poll(1300, false).actions.length, 0);
+  assert.equal(inp.poll(1310, true).actions.length, 0);
+});
+test('입력: 합성 제스처 1000개의 탭, 쓸기, 끌기 오분류 5% 이하', () => {
+  const r = createRng(5); let bad = 0;
+  for (let i = 0; i < 1000; i += 1) {
+    if (classifyGesture({ m: Math.abs(gauss(r) * 3.5), ms: Math.max(40, 110 + gauss(r) * 35) }) !== 'tap') bad += 1;
+    if (classifyGesture({ m: Math.max(30, 90 + gauss(r) * 20), ms: Math.max(40, 100 + gauss(r) * 25) }) !== 'flick') bad += 1;
+    if (classifyGesture({ m: 70 + gauss(r) * 10, ms: 600 + gauss(r) * 100 }) !== 'drag') bad += 1;
+  }
+  assert.ok(bad / 3000 <= 0.05, `${(bad / 30).toFixed(1)}%`);
+});
+
+test('아무도 조종하지 않아도 한 경기가 끝나고 실제 길이는 5분 + 추가시간', () => {
+  const M = mk(1); finish(M);
+  assert.equal(M.phase, 'end');
+  const extra = (M.extra[1] + M.extra[2]) / 60 / TUNE.clockScale * 60 / 60 * 60 / 60; // 추가시간(분) → 실제 초
+  const expected = TUNE.realMatchSeconds + (M.extra[1] + M.extra[2]) / TUNE.clockScale;
+  assert.ok(Math.abs(M.real - expected) <= 15, `실제 ${M.real.toFixed(0)}초, 기대 ${expected.toFixed(0)}초`);
+  void extra;
+});
+test('추가시간: 전반 1~5분, 후반 3~10분(풋살 시계), 후반 추가시간에만 플라잉 골키퍼 가능', () => {
+  const seen1 = new Set(); const seen2 = new Set();
+  for (let s = 1; s <= 30; s += 1) { const M = mk(s); let n = 0; let avail = 0; let early = 0;
+    while (M.phase !== 'end' && n < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M); update(M, 1 / 30, {}); n += 1; if (flyingGkAvailable(M)) avail += 1; else if (M.half === 2 && M.halfClock < TUNE.halfClockSeconds && flyingGkAvailable(M)) early += 1; }
+    seen1.add(M.extra[1] / 60); seen2.add(M.extra[2] / 60);
+    assert.ok(avail > 0 && early === 0);
+  }
+  assert.ok([...seen1].every((m) => m >= 1 && m <= 5)); assert.ok([...seen2].every((m) => m >= 3 && m <= 10));
+  assert.ok(seen1.size >= 3 && seen2.size >= 4);
+});
+test('공이 코트 밖이면 시계가 멈춘다(재개 대기 4초 포함)', () => {
+  const M = mk(2); play(M, 3);
+  M.ball.st = 'loose'; M.ball.owner = null; M.ball.x = -2; M.ball.y = 5; M.ball.vx = 0; M.ball.vy = 0;
+  update(M, 1 / 60, {});
+  assert.equal(M.phase, 'deadball');
+  const c = M.clock; const r = M.real; for (let i = 0; i < 100; i += 1) update(M, 1 / 60, {});
+  assert.equal(M.clock, c); assert.equal(M.real, r);
+});
+test('득점하면 점수가 오르고 실점한 팀이 센터 킥오프', () => {
+  const M = mk(3); play(M, 1);
+  const shooter = M.players.find((p) => p.team === 0 && !p.gk);
+  shooter.x = 36; shooter.y = 10; shooter.ab.shooting = 20;
+  M.players.find((p) => p.team === 1 && p.gk).ab.reaction = 0;
+  let scored = false;
+  for (let k = 0; k < 40 && !scored; k += 1) { M.ball.st = 'held'; M.ball.owner = shooter; M.phase = 'play'; M.api.shoot(shooter, 10, true); for (let i = 0; i < 40; i += 1) update(M, 1 / 60, {}); if (M.score[0] > 0) scored = true; }
+  assert.ok(scored);
+  assert.ok(['kickoff', 'goalkeeper'].includes(M.restart?.kind) || M.phase === 'play');
+});
+test('정적 AI 금지: 공이 움직이는 동안 3초 이상 같은 자리에 서 있는 AI 선수가 없다', () => {
+  const M = mk(4); M.autoHuman = true;
+  const still = new Map(); let worst = 0;
+  for (let i = 0; i < 60 * 120 && M.phase !== 'end'; i += 1) {
+    if (M.phase === 'halftime') startSecondHalf(M);
+    update(M, 1 / 60, {});
+    if (M.phase !== 'play') { still.clear(); continue; }
+    for (const p of M.players) { if (p.gk) continue; const s = still.get(p.id) ?? { x: p.x, y: p.y, t: 0 }; if (Math.hypot(p.x - s.x, p.y - s.y) > 0.7) { s.x = p.x; s.y = p.y; s.t = 0; } else s.t += 1 / 60; still.set(p.id, s); worst = Math.max(worst, s.t); }
+  }
+  assert.ok(worst < 3, `최대 정지 ${worst.toFixed(1)}초`);
+});
+test('AI 대 AI 평균 득점이 팀당 1.5~3.5골(조정 중 범위)', () => {
+  let g = 0; const n = 20;
+  for (let s = 1; s <= n; s += 1) { const M = mk(s); M.autoHuman = true; finish(M); g += M.score[0] + M.score[1]; }
+  const avg = g / n / 2;
+  assert.ok(avg >= 1.5 && avg <= 3.5, `팀당 ${avg.toFixed(2)}골`);
+});
