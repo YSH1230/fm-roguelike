@@ -55,6 +55,7 @@ function aiTeam(M, t, dt) {
   // 골키퍼: 공을 따라 골문 앞에서 좌우로 움직인다(높은 골키퍼 특기는 P3)
   if (gk && !isH(gk) && !(b.owner === gk)) go(gk, 2.2, clamp(b.y, TUNE.shot.goalY[0] + 0.3, TUNE.shot.goalY[1] - 0.3), sp(gk, 0.55));
 
+  if (incoming && b.dest && !isH(b.tgt)) { b.tgt.tx = b.dest.x; b.tgt.ty = b.dest.y; b.tgt.ts = effSpeed(b.tgt.ab.speed, b.tgt.ratio); }
   if (hasBall || incoming) {
     const c = hasBall ? b.owner : b.tgt;
     const cl = ownLocal(c);
@@ -73,6 +74,7 @@ function aiTeam(M, t, dt) {
     const lastOpp = Math.max(...opp.filter((p) => !p.gk).map((p) => (t === 0 ? p.x : W - p.x)));
     for (const p of field) {
       if (p === c || isH(p)) continue;
+      if (incoming && p === b.tgt) continue;
       if (run.t > 0 && run.d <= 0 && run.who === p) { go(p, clamp(lastOpp + 1.5 + run.jx * 0.5, 18, 37), clamp((cl.y < 10 ? 13 : 7) + run.jy * 0.6, 3, 17), sp(p, 1.0) * 1.05); continue; }
       if (p.role === 'ALA' || (p.role === 'PIVOT' && field.filter((q) => q.role === 'PIVOT').length > 1 && p !== field.find((q) => q.role === 'PIVOT'))) {
         const up = p.home.y < H / 2;
@@ -80,7 +82,7 @@ function aiTeam(M, t, dt) {
       } else if (p.role === 'FIXO') go(p, clamp(cl.x - 5 + wob(p) * sloppy, 5, 28), 10 + wob(p) * (0.5 + sloppy), sp(p, 0.9));
       else go(p, clamp(cl.x + 9, 22, 35), 10 + wob(p), sp(p, 0.95)); // 피보
     }
-    if (hasBall && !isH(c)) carrierAI(M, t, c, dt, mine, opp, go, sp);
+    if (hasBall && !isH(c) && M.phase === 'play') carrierAI(M, t, c, dt, mine, opp, go, sp);
     return;
   }
 
@@ -116,7 +118,7 @@ function carrierAI(M, t, c, dt, mine, opp, go, sp) {
   if (c.think <= 0) {
     c.think = 0.7 + M.rng() * 0.8;
     const gkp = opp.find((p) => p.gk);
-    if (dist < range && M.rng() < 0.11 && shotLaneClear(M, c, opp)) {
+    if (dist < range && M.rng() < 0.06 && shotLaneClear(M, c, opp)) {
       const corner = (gkp && gkp.y > 10) ? -1 : 1;
       M.api.shoot(c, 10 + corner * TUNE.shot.cornerOffset);
       return;

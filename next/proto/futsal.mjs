@@ -1,5 +1,5 @@
 // 풋살 시연판 화면: 시뮬(futsalSim)이 정한 상태를 그리고 포인터를 futsalInput에 연결한다. 상태는 읽기만 한다.
-import { TUNE, clockText, ringColor, ringTau } from './futsalRules.mjs';
+import { TUNE, clockText } from './futsalRules.mjs';
 import { createInput } from './futsalInput.mjs';
 import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, canAct, FORMATIONS } from './futsalSim.mjs';
 
@@ -61,32 +61,10 @@ function drawPlayer(p, mine) {
   ctx.fillStyle = '#0f172a'; ctx.font = `800 ${Math.max(9, h * 0.24)}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(p.num), px, y0 - h * 0.55);
   if (mine) { ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.moveTo(px, y0 - h * 1.08); ctx.lineTo(px - h * 0.12, y0 - h * 1.26); ctx.lineTo(px + h * 0.12, y0 - h * 1.26); ctx.closePath(); ctx.fill(); }
 }
-function segDist(px, py, ax, ay, bx, by) { const abx = bx - ax; const aby = by - ay; const l2 = abx * abx + aby * aby || 1; const t = Math.min(1, Math.max(0, ((px - ax) * abx + (py - ay) * aby) / l2)); return Math.hypot(px - (ax + t * abx), py - (ay + t * aby)); }
-// 열림 링: 공 가진 내 선수 기준, 동료 발밑에 상시. 색은 tau 초 뒤의 수비 위치로 계산(예측력 = 체력).
-function drawRings(me) {
-  const tau = ringTau(me.ab.stamina, me.ratio);
-  const pulse = 0.72 + 0.28 * Math.sin(M.real * 7);
-  const h = 1.8 * pxm * PLAYER_SCALE;
-  for (const q of M.players) {
-    if (q.team !== 0 || q === me || q.gk) continue;
-    let lane = 99; let mate = 99;
-    for (const o of M.players) {
-      if (o.team === 0) continue;
-      const ox = o.x + o.vx * tau; const oy = o.y + o.vy * tau;
-      lane = Math.min(lane, segDist(ox, oy, me.x, me.y, q.x, q.y)); mate = Math.min(mate, Math.hypot(ox - q.x, oy - q.y));
-    }
-    const c = ringColor(lane, mate);
-    const rgb = c === 'green' ? '34,197,94' : c === 'yellow' ? '250,204,21' : '239,68,68';
-    ctx.strokeStyle = `rgba(${rgb},${c === 'green' ? pulse : 0.9})`; ctx.lineWidth = Math.max(2, h * 0.07);
-    ctx.beginPath(); ctx.ellipse(X(q.x), Y(q.y) + h * 0.02, h * 0.46, h * 0.17, 0, 0, 7); ctx.stroke();
-  }
-}
 function draw() {
   drawCourt();
   const me = M.players[M.control];
   const b = M.ball;
-  if (M.phase !== 'end' && me && b.st === 'held' && b.owner === me) drawRings(me);
-  if (M.phase === 'deadball' && M.restart?.team === 0 && M.restart.kind !== 'kickoff' && me) drawRings(me);
   for (const p of [...M.players].sort((a, c) => a.y - c.y)) drawPlayer(p, p === me && M.phase !== 'end');
   // 공
   const h = 1.8 * pxm * PLAYER_SCALE;
@@ -94,6 +72,9 @@ function draw() {
   ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(bx, by + h * 0.02, Math.max(3, pxm * 0.2), Math.max(1.5, pxm * 0.08), 0, 0, 7); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, by - Math.max(3, pxm * 0.2), Math.max(4, pxm * 0.22), 0, 7); ctx.fill();
   ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5; ctx.stroke();
+  // 공간 패스 목표: 끌고 있는 동안 놓을 자리에 작은 링(글자 없음)
+  const dr = input.activeDrag();
+  if (dr && !paused) { const w = toWorld(dr.x, dr.y); ctx.strokeStyle = 'rgba(253,224,71,0.9)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(X(w.x), Y(w.y), pxm * 0.7, 0, 7); ctx.stroke(); ctx.beginPath(); ctx.arc(X(w.x), Y(w.y), 3, 0, 7); ctx.stroke(); }
   // 데드볼 4초 지시(글자 없이 공 주변 링이 줄어든다)
   if (M.phase === 'deadball' && M.restart && M.restart.kind !== 'kickoff') {
     const k = Math.max(0, M.restart.timer / TUNE.deadBallSeconds);

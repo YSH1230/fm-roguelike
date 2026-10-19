@@ -101,8 +101,58 @@ test('공이 코트 밖이면 시계가 멈춘다(재개 대기 4초 포함)', (
   M.ball.st = 'loose'; M.ball.owner = null; M.ball.x = -2; M.ball.y = 5; M.ball.vx = 0; M.ball.vy = 0;
   update(M, 1 / 60, {});
   assert.equal(M.phase, 'deadball');
-  const c = M.clock; const r = M.real; for (let i = 0; i < 100; i += 1) update(M, 1 / 60, {});
-  assert.equal(M.clock, c); assert.equal(M.real, r);
+  const c = M.clock; const r = M.real; let n = 0;
+  while (M.phase === 'deadball' && n < 600) { update(M, 1 / 60, {}); n += 1; assert.equal(M.clock, c); assert.equal(M.real, r); }
+  assert.ok(n > 30, '재개를 기다리는 동안 시계가 멈춰 있었다');
+});
+test('킥오프: 모두 자기 진영에 서고 상대 팀은 센터서클(3m) 밖에 선다', () => {
+  for (let sd = 1; sd <= 10; sd += 1) for (const t of [0, 1]) {
+    const M = mk(sd); M.score = [0, 0]; startSecondHalf; // 시작 킥오프는 팀 0
+    const kick = M.restart.team;
+    for (const p of M.players) {
+      const lx = p.team === 0 ? p.x : 40 - p.x;
+      if (p === M.ball.owner) continue;
+      assert.ok(lx <= 19.5, `${p.id} 자기 진영 밖 ${lx.toFixed(1)}`);
+      if (p.team !== kick) assert.ok(Math.hypot(p.x - 20, p.y - 10) >= 3, `${p.id} 센터서클 안`);
+    }
+    void t;
+  }
+});
+test('데드볼(골키퍼 재개)에서도 선수들이 받을 자리를 찾아 계속 움직이고, 상대는 공에서 3m 이상 떨어진다', () => {
+  const M = mk(5); play(M, 2);
+  const gk = M.players.find((p) => p.team === 0 && p.gk);
+  gk.x = 2.2; gk.y = 10; M.ball.st = 'held'; M.ball.owner = gk; M.phase = 'deadball'; M.restart = { kind: 'goalkeeper', team: 0, timer: 4, pick: null, x: 2.2, y: 10 };
+  M.control = M.players.indexOf(gk);
+  const before = M.players.filter((p) => p.team === 0 && !p.gk).map((p) => [p.x, p.y]);
+  for (let i = 0; i < 90; i += 1) update(M, 1 / 60, {});
+  const moved = M.players.filter((p) => p.team === 0 && !p.gk).map((p, i) => Math.hypot(p.x - before[i][0], p.y - before[i][1]));
+  assert.ok(moved.filter((m) => m > 0.5).length >= 2, `움직인 동료 ${moved.map((m) => m.toFixed(1))}`);
+  for (const q of M.players) if (q.team === 1) assert.ok(Math.hypot(q.x - gk.x, q.y - gk.y) >= 2.9);
+});
+test('탭 패스는 유도탄이 아니다: 공은 한 번 정한 지점으로 곧게 날아가고, 달리는 동료가 그 지점에서 받는다', () => {
+  let ok = 0; let n = 0;
+  for (let sd = 1; sd <= 40; sd += 1) {
+    const M = mk(sd); play(M, 1);
+    const me = M.players.find((p) => p.team === 0 && !p.gk); const mate = M.players.find((p) => p.team === 0 && !p.gk && p !== me);
+    for (const q of M.players) if (q.team === 1) { q.x = 38; q.y = 1 + (q.num % 4); q.tx = q.x; q.ty = q.y; q.ts = 0; }
+    me.x = 12; me.y = 10; mate.x = 22; mate.y = 4; mate.vx = 0; mate.vy = 6; mate.tx = 22; mate.ty = 16; mate.ts = 6;
+    M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me);
+    const d0 = null; void d0;
+    update(M, 1 / 60, { actions: [{ type: 'tap', x: 0, y: 0, wx: mate.x, wy: mate.y }] });
+    const dest = { ...M.ball.dest }; let bent = false;
+    for (let i = 0; i < 90 && M.ball.st === 'pass'; i += 1) { update(M, 1 / 60, {}); if (M.ball.dest && (Math.abs(M.ball.dest.x - dest.x) > 1e-9 || Math.abs(M.ball.dest.y - dest.y) > 1e-9)) bent = true; }
+    n += 1; if (!bent && M.ball.owner === mate) ok += 1;
+  }
+  assert.ok(ok / n >= 0.9, `받음 ${ok}/${n}`);
+});
+test('끌어서 놓기는 놓은 자리로 보내는 공간 패스다(탭 패스와 다르다)', () => {
+  const M = mk(3); play(M, 1);
+  const me = M.players.find((p) => p.team === 0 && !p.gk);
+  for (const q of M.players) if (q.team === 1) { q.x = 38; q.y = 1 + (q.num % 4); q.tx = q.x; q.ty = q.y; q.ts = 0; }
+  M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me);
+  update(M, 1 / 60, { actions: [{ type: 'drag', x: 0, y: 0, wx: 30, wy: 4 }] });
+  assert.equal(M.ball.st, 'pass'); assert.ok(Math.hypot(M.ball.dest.x - 30, M.ball.dest.y - 4) < 1e-6);
+  assert.notEqual(M.ball.tgt, undefined);
 });
 test('득점하면 점수가 오르고 실점한 팀이 센터 킥오프', () => {
   const M = mk(3); play(M, 1);

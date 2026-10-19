@@ -76,7 +76,13 @@ export const goalX = (t) => (t === 0 ? W : 0); // 팀 t가 공격하는 골대�
 function setHold(M, p) { M.holdT = 0; M.ball.st = 'held'; M.ball.owner = p; M.ball.tgt = null; M.lastTouch = p.team; M.ball.x = p.x; M.ball.y = p.y; }
 
 function startKickoff(M, t) {
-  for (const p of M.players) placeHome(M, p);
+  for (const p of M.players) {
+    placeHome(M, p);
+    // 킥오프: 모두 자기 진영에 선다. 킥하는 팀은 하프라인 직전까지, 상대 팀은 센터서클(3m) 밖.
+    const lx = p.team === 0 ? p.x : W - p.x;
+    const cap = p.team === t ? 19.4 : 16.4;
+    if (lx > cap) { p.x = wx(p.team, cap); p.tx = p.x; }
+  }
   const k = outfield(M, t).find((p) => p.role === 'PIVOT') ?? outfield(M, t)[0];
   k.x = W / 2 + (t === 0 ? -0.6 : 0.6); k.y = H / 2; k.tx = k.x; k.ty = k.y;
   setHold(M, k);
@@ -94,10 +100,25 @@ export function canAct(M) {
 }
 
 // ---------- 행동 ----------
+// 받는 선수가 지금 속도로 달릴 때 공과 만나는 지점(두 번 보정). 공은 이 지점을 향해 곧게 날아가고 방향을 바꾸지 않는다.
+function leadPoint(from, tgt) {
+  let t = hyp(tgt.x - from.x, tgt.y - from.y) / TUNE.passSpeed;
+  let x = tgt.x; let y = tgt.y;
+  for (let i = 0; i < 2; i += 1) { x = clamp(tgt.x + tgt.vx * t, 0.5, W - 0.5); y = clamp(tgt.y + tgt.vy * t, 0.5, H - 0.5); t = hyp(x - from.x, y - from.y) / TUNE.passSpeed; }
+  return { x, y };
+}
 export function passTo(M, p, tgt) {
-  const b = M.ball;
-  b.st = 'pass'; b.owner = null; b.tgt = tgt; M.lastTouch = p.team; M.stats.passes[p.team] += 1;
+  const b = M.ball; const d = leadPoint(b, tgt);
+  b.st = 'pass'; b.owner = null; b.tgt = tgt; b.dest = d; M.lastTouch = p.team; M.stats.passes[p.team] += 1;
   if (p.team === 0) M.control = M.players.indexOf(tgt); // 패스하면 받는 선수로 조종이 넘어간다
+}
+// 공간 패스: 놓은 자리로 보낸다. 그 자리에 가장 빨리 닿는 동료가 받으러 달린다.
+export function passToSpot(M, p, x, y) {
+  const b = M.ball; let best = null; let bt = 1e9;
+  for (const q of M.players) { if (q.team !== p.team || q === p || q.gk) continue; const t = hyp(q.x - x, q.y - y) / Math.max(1, effSpeed(q.ab.speed, q.ratio)); if (t < bt) { bt = t; best = q; } }
+  if (!best) return;
+  b.st = 'pass'; b.owner = null; b.tgt = best; b.dest = { x: clamp(x, 0.5, W - 0.5), y: clamp(y, 0.5, H - 0.5) }; M.lastTouch = p.team; M.stats.passes[p.team] += 1;
+  if (p.team === 0) M.control = M.players.indexOf(best);
 }
 function nearestMate(M, p, wxp, wyp) {
   let best = null; let bd = 1e9;
@@ -125,7 +146,8 @@ function applyHumanAction(M, a) {
     return;
   }
   if (holding) {
-    if (a.type === 'tap' || a.type === 'drag') { const tg = nearestMate(M, me, a.wx, a.wy); if (tg) passTo(M, me, tg); }
+    if (a.type === 'tap') { const tg = nearestMate(M, me, a.wx, a.wy); if (tg) passTo(M, me, tg); }
+    else if (a.type === 'drag') passToSpot(M, me, a.wx, a.wy);
     else if (a.type === 'shot') shoot(M, me, GYC + shotZone(a.dx, a.dy) * TUNE.shot.cornerOffset);
     return;
   }
@@ -173,6 +195,8 @@ function controlTargets(M, move, dt) {
     const mag = Math.min(1, hyp(move.x, move.y));
     const boost = me.dribbleUntil > M.real && me.dribbleUntil - M.real > TUNE.dribbleSeconds * 0.5 ? TUNE.dribbleBoost : 1;
     me.tx = me.x + move.x * 3; me.ty = me.y + move.y * 3; me.ts = effSpeed(me.ab.speed, me.ratio) * mag * boost;
+  } else if (M.ball.st === 'pass' && M.ball.tgt === me && M.ball.dest) { // 조이스틱을 안 잡았으면 받는 자리로 알아서 간다
+    me.tx = M.ball.dest.x; me.ty = M.ball.dest.y; me.ts = effSpeed(me.ab.speed, me.ratio);
   } else { me.tx = me.x; me.ty = me.y; me.ts = 0; }
   void dt;
 }
@@ -196,13 +220,14 @@ function stepBall(M, dt) {
     return;
   }
   if (b.st === 'pass') {
-    const t = b.tgt; const dx = t.x - b.x; const dy = t.y - b.y; const d = hyp(dx, dy) || 1; const s = Math.min(d, TUNE.passSpeed * dt);
+    const dest = b.dest ?? b.tgt; const dx = dest.x - b.x; const dy = dest.y - b.y; const d = hyp(dx, dy) || 1; const s = Math.min(d, TUNE.passSpeed * dt);
     b.x += dx / d * s; b.y += dy / d * s; b.vx = dx / d * TUNE.passSpeed; b.vy = dy / d * TUNE.passSpeed;
     for (const q of M.players) {
-      if (q.team === M.lastTouch || q.gk && hyp(q.x - b.x, q.y - b.y) > TUNE.interceptR) continue;
       if (q.team !== M.lastTouch && hyp(q.x - b.x, q.y - b.y) < TUNE.interceptR) { M.stats.intercepts[q.team] += 1; setHold(M, q); M.events.push({ kind: 'intercept', team: q.team, id: q.id }); return; }
     }
-    if (d < 0.65) setHold(M, t);
+    // 받는 선수가 공 가까이 오면 받는다(달려 들어온 선수 포함). 도착했는데 아무도 못 받으면 루즈볼.
+    if (hyp(b.tgt.x - b.x, b.tgt.y - b.y) < TUNE.pickupR) { setHold(M, b.tgt); return; }
+    if (d < 0.2) { b.st = 'loose'; b.vx = b.vx * 0.25; b.vy = b.vy * 0.25; }
   } else if (b.st === 'shot') {
     const s = TUNE.shotSpeed * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.trav += s;
     const att = b.shooter.team; const gx = goalX(att);
@@ -232,7 +257,7 @@ function resolveShot(M, att) {
   else {
     const q = (gk.ab.reaction + gk.ab.handling) / 40; // 0~1
     const lag = gkDelay(1, gk.ratio) - 1;
-    const pSave = clamp(0.8 - 0.18 * Math.abs(ay - GYC) / 1.1 + 0.012 * (b.dist - 8) + (q - 0.5) * 0.3 - lag * 0.2, 0.1, 0.9); // 코트 중앙에서 8m 기준
+    const pSave = clamp(0.66 - 0.18 * Math.abs(ay - GYC) / 1.1 + 0.012 * (b.dist - 8) + (q - 0.5) * 0.3 - lag * 0.2, 0.1, 0.9); // 코트 중앙에서 8m 기준
     pGoal = 1 - pSave;
   }
   if (M.rng() < pGoal) goalScored(M, att, b.shooter);
@@ -273,6 +298,16 @@ function updateDead(M, dt, input, acts) {
   const r = M.restart;
   for (const a of acts) applyHumanAction(M, a);
   r.timer -= dt; // 시계는 흐르지 않는다
+  if (r.kind !== 'kickoff') { // 데드볼에서도 받을 자리를 찾아 계속 움직인다. 상대는 공에서 3m 이상 떨어진다.
+    think(M, dt);
+    const h = M.ball.owner;
+    for (const q of M.players) {
+      if (q === h) { q.tx = q.x; q.ty = q.y; q.ts = 0; continue; }
+      if (q.team !== h.team) { const d = hyp(q.tx - h.x, q.ty - h.y); if (d < 3.2) { const k = 3.2 / (d || 1); q.tx = h.x + (q.tx - h.x) * k; q.ty = clamp(h.y + (q.ty - h.y) * k, 0.6, H - 0.6); } }
+    }
+    movePlayers(M, dt);
+    for (const q of M.players) if (q.team !== h.team && hyp(q.x - h.x, q.y - h.y) < 3) { const d = hyp(q.x - h.x, q.y - h.y) || 1; q.x = clamp(h.x + (q.x - h.x) / d * 3, 0.4, W - 0.4); q.y = clamp(h.y + (q.y - h.y) / d * 3, 0.4, H - 0.4); }
+  }
   const total = r.kind === 'kickoff' ? TUNE.autoRestartSeconds : TUNE.deadBallSeconds;
   const elapsed = total - r.timer;
   const humanPick = r.team === 0 && r.kind !== 'kickoff';

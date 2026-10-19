@@ -22,6 +22,7 @@ export function createInput() {
     },
     move(id, x, y, t) {
       const f = fingers.get(id);
+      if (f && f.role === 'action') { f.x = x; f.y = y; return; }
       if (!f || f.role !== 'move') return;
       const dx = x - f.x0; const dy = y - f.y0;
       if (!f.moved && Math.hypot(dx, dy) < T.deadzone) { joy.x = 0; joy.y = 0; return; }
@@ -74,6 +75,11 @@ export function createInput() {
       queue = keep;
       const move = (joy.x === 0 && joy.y === 0) ? null : { x: joy.x, y: joy.y };
       return { move, actions };
+    },
+    // 지금 끌고 있는 행동 손가락의 위치(공간 패스 목표 표시용). 없으면 null.
+    activeDrag() {
+      for (const f of fingers.values()) if (f.role === 'action' && f.x != null && Math.hypot(f.x - f.x0, f.y - f.y0) > T.tapMove) return { x: f.x, y: f.y };
+      return null;
     },
     get moverId() { return moverId; },
     get pending() { return queue.length; },
