@@ -2,12 +2,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng, gauss } from '../engine/rng.mjs';
-import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, swipePower, passSpeedFor, gkReach, link, mixAbility } from '../proto/futsalRules.mjs';
+import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, swipePower, passSpeedFor, gkReach, link, mixAbility, kickPrep, stumbleTime } from '../proto/futsalRules.mjs';
 import { createInput } from '../proto/futsalInput.mjs';
-import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable } from '../proto/futsalSim.mjs';
+import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, setHold } from '../proto/futsalSim.mjs';
 
 const mk = (seed = 1) => createMatch({ seed, home: demoTeam('H', seed), away: demoTeam('A', seed + 50) });
 const play = (M, sec, input = {}, dt = 1 / 60) => { for (let i = 0; i < sec / dt && M.phase !== 'end'; i += 1) update(M, dt, input); };
+const settle = (M) => { for (let i = 0; i < 60 && M.queue.length; i += 1) update(M, 1 / 60, {}); }; // 킥 준비가 끝나 임팩트가 지나갈 때까지
 const finish = (M) => { let n = 0; while (M.phase !== 'end' && n < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M); update(M, 1 / 60, {}); n += 1; } };
 
 test('능력 함수: 속도, 체력 소모(5분 풀 출전 55% - 1.5% x 체력), 링 tau와 색, 골키퍼 지연, 정교함', () => {
@@ -162,7 +163,7 @@ test('탭 패스는 유도탄이 아니다: 공은 한 번 정한 지점으로 �
     me.x = 12; me.y = 10; mate.x = 22; mate.y = 4; mate.vx = 0; mate.vy = 6; mate.tx = 22; mate.ty = 16; mate.ts = 6;
     M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me);
     const d0 = null; void d0;
-    update(M, 1 / 60, { actions: [{ type: 'tap', x: 0, y: 0, wx: mate.x, wy: mate.y }] });
+    update(M, 1 / 60, { actions: [{ type: 'tap', x: 0, y: 0, wx: mate.x, wy: mate.y }] }); settle(M);
     const dest = { ...M.ball.dest }; let bent = false;
     for (let i = 0; i < 90 && M.ball.st === 'pass'; i += 1) { update(M, 1 / 60, {}); if (M.ball.dest && (Math.abs(M.ball.dest.x - dest.x) > 1e-9 || Math.abs(M.ball.dest.y - dest.y) > 1e-9)) bent = true; }
     n += 1; if (!bent && M.ball.owner === mate) ok += 1;
@@ -175,19 +176,19 @@ test('공을 가졌을 때: 선수 근처 콕은 그 선수에게 패스, 빈 �
     me.x = 12; me.y = 10; mate.x = 24; mate.y = 14; mate.vx = 0; mate.vy = 0; mate.tx = mate.x; mate.ty = mate.y; mate.ts = 0;
     M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me); return { M, me, mate }; };
   let r = setup(3);
-  update(r.M, 1 / 60, { actions: [{ type: 'tap', wx: r.mate.x + 0.8, wy: r.mate.y }] });
+  update(r.M, 1 / 60, { actions: [{ type: 'tap', wx: r.mate.x + 0.8, wy: r.mate.y }] }); settle(r.M);
   assert.equal(r.M.ball.tgt, r.mate);
   r = setup(3);
-  update(r.M, 1 / 60, { actions: [{ type: 'tap', wx: 30, wy: 4 }] });
+  update(r.M, 1 / 60, { actions: [{ type: 'tap', wx: 30, wy: 4 }] }); settle(r.M);
   assert.ok(Math.hypot(r.M.ball.dest.x - 30, r.M.ball.dest.y - 4) < 1e-6, '빈 곳을 한 번 콕하면 그 자리로 공간 패스');
   r = setup(3);
-  update(r.M, 1 / 60, { actions: [{ type: 'hold', wx: r.mate.x, wy: r.mate.y }] });
+  update(r.M, 1 / 60, { actions: [{ type: 'hold', wx: r.mate.x, wy: r.mate.y }] }); settle(r.M);
   assert.equal(r.M.ball.st, 'held', '동료를 꾹은 인식만 하고 효과가 없다');
 });
 test('쓸기는 골대 방향 ±55도 안에서만 슛이고, 그 밖은 아무 일도 없다. 방향이 조준이다', () => {
   const swipe = (dx, dy, v = 1.2) => { const M = mk(6); play(M, 0.5); const me = M.players.find((p) => p.team === 0 && !p.gk); me.x = 30; me.y = 10; for (const q of M.players) if (q.team === 1 && !q.gk) { q.x = 10; q.y = 3; q.tx = q.x; q.ty = q.y; q.ts = 0; }
     M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me);
-    update(M, 1 / 60, { actions: [{ type: 'swipe', dx, dy, v }] }); return M; };
+    update(M, 1 / 60, { actions: [{ type: 'swipe', dx, dy, v }] }); settle(M); return M; };
   const s = (deg) => [Math.cos(deg * Math.PI / 180), Math.sin(deg * Math.PI / 180)];
   assert.equal(swipe(...s(0)).ball.st, 'shot');
   assert.equal(swipe(...s(50)).ball.st, 'shot'); assert.equal(swipe(...s(-50)).ball.st, 'shot');
@@ -202,11 +203,11 @@ test('공이 없을 때: 콕은 스탠딩 태클, 꾹은 슬라이딩 태클, �
   const opp = M.players.find((p) => p.team === 1 && !p.gk); const me = M.players.find((p) => p.team === 0 && !p.gk);
   M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = opp; M.control = M.players.indexOf(me); me.x = opp.x - 1; me.y = opp.y;
   const mate = M.players.find((p) => p.team === 0 && !p.gk && p !== me); const passes0 = M.stats.passes[0];
-  update(M, 1 / 60, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); // 우리 선수 근처를 눌러도 태클이다
+  update(M, 1 / 60, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); settle(M); // 우리 선수 근처를 눌러도 태클이다
   assert.ok(me.slideT > 0 && M.stats.passes[0] === passes0);
   const reset = () => { me.slideT = 0; M.ball.st = 'held'; M.ball.owner = opp; M.control = M.players.indexOf(me); me.x = opp.x - 1; me.y = opp.y; };
-  reset(); update(M, 1 / 60, { actions: [{ type: 'hold', wx: 0, wy: 0 }] }); assert.ok(me.slideT > 0);
-  reset(); update(M, 1 / 60, { actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.5 }] }); assert.equal(me.slideT, 0, '수비 중 쓸기는 무시');
+  reset(); update(M, 1 / 60, { actions: [{ type: 'hold', wx: 0, wy: 0 }] }); settle(M); assert.ok(me.slideT > 0);
+  reset(); update(M, 1 / 60, { actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.5 }] }); settle(M); assert.equal(me.slideT, 0, '수비 중 쓸기는 무시');
 });
 test('패스 속도는 거리에 따라 9~16 m/s, 공은 방향을 바꾸지 않고 가까이 지나가는 동료도 받는다', () => {
   assert.equal(passSpeedFor(0), 9); assert.equal(passSpeedFor(30), 16); assert.ok(passSpeedFor(6) > passSpeedFor(3));
@@ -218,7 +219,7 @@ test('슛 세기: 스와이프가 빠를수록 강하고, 약한 슛이 막히�
 test('골 판정은 보이는 대로: 골키퍼가 닿는 범위 밖으로 공이 지나가면 골, 안이면 선방', () => {
   const run = (gkOffset) => { const M = mk(9); play(M, 0.5); const me = M.players.find((p) => p.team === 0 && !p.gk); me.x = 30; me.y = 10;
     const gk = M.players.find((p) => p.team === 1 && p.gk); M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me);
-    M.api.shoot(me, 10, true, 0.5); M.ball.reactAt = 1e9; gk.y = 10 + gkOffset; gk.tx = gk.x; gk.ty = gk.y; gk.ts = 0; // 골키퍼는 움직이지 못한다
+    M.api.shoot(me, 10, true, 0.5); settle(M); M.ball.reactAt = 1e9; gk.y = 10 + gkOffset; gk.tx = gk.x; gk.ty = gk.y; gk.ts = 0; // 골키퍼는 움직이지 못한다
     for (let k = 0; k < 90 && M.ball.st === 'shot'; k += 1) { update(M, 1 / 60, {}); gk.y = 10 + gkOffset; } return M; };
   assert.equal(run(0).score[0], 0); // 정면 = 선방
   assert.equal(run(2.8).score[0], 1); // 골키퍼가 멀리 비켜 있으면 골
@@ -229,7 +230,7 @@ test('득점하면 점수가 오르고 실점한 팀이 센터 킥오프', () =>
   shooter.x = 36; shooter.y = 10; shooter.ab.shooting = 20;
   const gk = M.players.find((p) => p.team === 1 && p.gk); gk.y = 5; gk.tx = gk.x; gk.ty = 5; gk.ts = 0;
   let scored = false;
-  for (let k = 0; k < 40 && !scored; k += 1) { M.ball.st = 'held'; M.ball.owner = shooter; M.phase = 'play'; M.api.shoot(shooter, 10, true, 0.9); M.ball.reactAt = 1e9; for (let i = 0; i < 40; i += 1) { update(M, 1 / 60, {}); gk.y = 5; } if (M.score[0] > 0) scored = true; }
+  for (let k = 0; k < 40 && !scored; k += 1) { M.ball.st = 'held'; M.ball.owner = shooter; M.phase = 'play'; M.api.shoot(shooter, 10, true, 0.9); settle(M); M.ball.reactAt = 1e9; for (let i = 0; i < 40; i += 1) { update(M, 1 / 60, {}); gk.y = 5; } if (M.score[0] > 0) scored = true; }
   assert.ok(scored);
   assert.ok(['kickoff', 'goalkeeper'].includes(M.restart?.kind) || M.phase === 'play');
 });
@@ -249,4 +250,62 @@ test('AI 대 AI 평균 득점이 팀당 1.5~3.5골(조정 중 범위)', () => {
   for (let s = 1; s <= n; s += 1) { const M = mk(s); M.autoHuman = true; finish(M); g += M.score[0] + M.score[1]; }
   const avg = g / n / 2;
   assert.ok(avg >= 1.5 && avg <= 3.5, `팀당 ${avg.toFixed(2)}골`);
+});
+
+test('킥 준비: 패스 준비 시간은 패스 능력 0/10/20에서 0.065/0.050/0.035초, 슛과 태클도 표와 같다', () => {
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 0.005, `${a} != ${b}`); // 문서 표는 반올림한 값
+  for (const [a, v] of [[0, 0.065], [10, 0.05], [20, 0.035]]) near(kickPrep('pass', { passing: a }), v);
+  for (const [a, v] of [[0, 0.1], [10, 0.08], [20, 0.06]]) near(kickPrep('shot', { shooting: a }), v);
+  for (const [a, v] of [[0, 0.06], [10, 0.05], [20, 0.04]]) near(kickPrep('standing', { skill: a }), v);
+  for (const [a, v] of [[0, 0.1], [10, 0.08], [20, 0.06]]) near(kickPrep('sliding', { skill: a }), v);
+  assert.ok(Math.abs(stumbleTime(0) - 0.18) < 0.01 && Math.abs(stumbleTime(10) - 0.25) < 1e-9 && Math.abs(stumbleTime(20) - 0.33) < 0.01);
+});
+const holdSetup = (sd) => { const M = mk(sd); play(M, 1); const me = M.players.find((p) => p.team === 0 && !p.gk); const mate = M.players.find((p) => p.team === 0 && !p.gk && p !== me);
+  for (const q of M.players) if (q.team === 1) { q.x = 38; q.y = 1 + (q.num % 4); q.tx = q.x; q.ty = q.y; q.ts = 0; }
+  me.x = 14; me.y = 10; me.ab.passing = 10; me.ab.shooting = 10; mate.x = 24; mate.y = 14; mate.vx = 0; mate.vy = 0; mate.tx = mate.x; mate.ty = mate.y; mate.ts = 0;
+  M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me); return { M, me, mate }; };
+test('입력 뒤 준비 시간 전에는 공이 소유 상태이고 그 뒤에 패스/슛 상태가 된다, 패스의 조종 전환은 입력 즉시', () => {
+  let { M, me, mate } = holdSetup(11);
+  update(M, 0.01, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] });
+  assert.equal(M.ball.st, 'held'); assert.equal(M.players[M.control], mate, '조종은 입력 즉시 받는 선수로');
+  update(M, 0.03, {}); assert.equal(M.ball.st, 'held');
+  update(M, 0.02, {}); assert.equal(M.ball.st, 'pass', '0.05초 준비 뒤 패스');
+  ({ M, me } = holdSetup(11));
+  update(M, 0.01, { actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.2 }] });
+  assert.equal(M.ball.st, 'held'); update(M, 0.05, {}); assert.equal(M.ball.st, 'held'); update(M, 0.04, {}); assert.equal(M.ball.st, 'shot', '0.08초 준비 뒤 슛');
+});
+test('슛 준비 동안 슈터의 이동 속도는 40%, 발사 뒤 복구된다', () => {
+  const { M, me } = holdSetup(12); M.autoHuman = false;
+  const speed = () => { const x0 = me.x; me.vx = 0; me.tx = 39; me.ty = me.y; me.ts = 6; for (let i = 0; i < 12; i += 1) { movePlayersProbe(M, 1 / 60); } return me.x - x0; };
+  const movePlayersProbe = (MM, dt) => update(MM, dt, { move: { x: 1, y: 0 } });
+  const free = (() => { const x0 = me.x; for (let i = 0; i < 6; i += 1) update(M, 1 / 60, { move: { x: 1, y: 0 } }); return me.x - x0; })();
+  void speed;
+  const H = holdSetup(12); const m2 = H.me; update(H.M, 1 / 60, { move: { x: 1, y: 0 }, actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.2 }] });
+  assert.equal(m2.prepShot, true); const x1 = m2.x; for (let i = 0; i < 3; i += 1) update(H.M, 1 / 60, { move: { x: 1, y: 0 } });
+  assert.ok(m2.x - x1 < free * 0.6, `준비 중 이동 ${(m2.x - x1).toFixed(3)} 대 평소 ${free.toFixed(3)}`);
+  for (let i = 0; i < 12; i += 1) update(H.M, 1 / 60, { move: { x: 1, y: 0 } });
+  assert.equal(m2.prepShot, false);
+});
+test('준비 중 소유권을 잃으면 예약이 취소된다, 골과 데드볼과 하프타임이 와도 예약이 사라진다', () => {
+  let { M, me } = holdSetup(13); const opp = M.players.find((p) => p.team === 1 && !p.gk);
+  update(M, 0.01, { actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.2 }] }); assert.equal(M.queue.length, 1);
+  setHold(M, opp); assert.equal(M.queue.length, 0, '뺏기면 예약 취소'); update(M, 0.2, {}); assert.notEqual(M.ball.st, 'shot');
+  ({ M, me } = holdSetup(14));
+  update(M, 0.01, { actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.2 }] });
+  M.ball.st = 'loose'; M.ball.owner = null; M.ball.x = -3; M.ball.y = 5; update(M, 0.01, {});
+  assert.equal(M.phase, 'deadball'); assert.equal(M.queue.length, 0);
+  ({ M, me } = holdSetup(15));
+  update(M, 0.01, { actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.2 }] }); M.halfClock = TUNE.halfClockSeconds + M.extra[1] ?? 0; M.extra[1] = 0; M.halfClock = TUNE.halfClockSeconds + 1; update(M, 0.01, {});
+  assert.equal(M.phase, 'halftime'); assert.equal(M.queue.length, 0);
+});
+test('히트스톱: 슛 세기 0.7 이상이면 발사 순간 33ms 동안 시뮬레이션이 멈춘다(결정성 유지)', () => {
+  const run = () => { const { M } = holdSetup(16); update(M, 0.01, { actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.8 }] }); for (let i = 0; i < 6; i += 1) update(M, 0.02, {}); return M; };
+  const A = run(); const B = run();
+  assert.equal(A.ball.x, B.ball.x); assert.equal(A.real, B.real);
+  const { M } = holdSetup(16); update(M, 0.01, { actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.8 }] }); let stopped = false; for (let i = 0; i < 12; i += 1) { const r0 = M.real; update(M, 0.01, {}); if (M.real === r0 && M.hitstop >= 0 && M.ball.st === 'shot') stopped = true; }
+  assert.ok(stopped, '발사 직후 잠깐 멈췄다');
+});
+test('같은 시드와 같은 입력이면 결과가 같다', () => {
+  const run = () => { const M = mk(21); const inputs = []; for (let i = 0; i < 600; i += 1) { const a = i % 90 === 40 ? [{ type: 'tap', wx: 25, wy: 8 }] : (i % 150 === 100 ? [{ type: 'swipe', dx: 1, dy: 0.2, v: 1.4 }] : []); update(M, 1 / 60, { move: i % 200 < 120 ? { x: 1, y: 0.2 } : null, actions: a }); inputs.push(a.length); } return [M.score.join('-'), M.ball.x.toFixed(6), M.real.toFixed(6), M.stats.passes.join(',')]; };
+  assert.deepEqual(run(), run());
 });

@@ -19,6 +19,17 @@ export const TUNE = {
   // 접촉 경합, 슛
   contactR: 0.85, contestInterval: 0.45, dribbleSeconds: 0.8, dribbleBoost: 1.25,
   shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 8, rangePerShooting: 0.45, minPower: 0.6, speedMin: 12, speedMax: 26, powerNoise: 0.35, gkReachBase: 0.9, gkReachPerHandling: 0.03, gkReachPowerCut: 0.25, gkReactBase: 0.26, gkReactPerReaction: 0.008, gkDive: 1.3 },
+  // 킥 준비와 임팩트(2장): 입력 뒤 준비 시간이 지나야 공이 나간다. 준비 시간 = 능력치 연계(base는 능력치 10), 후속 모션은 고정.
+  kick: {
+    pass: { base: 0.050, k: 0.30, follow: 0.12 }, // 패스 능력
+    shot: { base: 0.080, k: 0.30, follow: 0.18, moveMul: 0.4 }, // 슛 능력. 준비 동안 슈터 이동 속도 40%
+    standing: { base: 0.050, k: 0.20, follow: 0.35 }, // 기술 능력
+    sliding: { base: 0.080, k: 0.20, follow: 0.35 }, // 기술 능력
+    backswingRad: 0.6, followRad: 1.0, // 모션: 준비 중 다리를 뒤로, 임팩트 뒤 앞으로
+    hitstopPower: 0.7, hitstopSec: 0.033, // 슛 세기 0.7 이상이면 발사 순간 33ms 멈춤
+    stumble: { base: 0.25, k: 0.30 }, // 공을 뺏긴 선수가 비틀거리는 시간(힘 연계, 문서 표의 순서 그대로: 힘이 클수록 길다)
+    stumbleMoveMul: 0, // 비틀거리는 동안 이동 속도 배수(문서에 값이 없어 임시로 0, 보고 대상)
+  },
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
   expectedGoals: 2.5,
@@ -65,3 +76,11 @@ export const passSpeedFor = (dist) => clamp(TUNE.passSpeedBase + dist * TUNE.pas
 export const gkReach = (handling, power) => (TUNE.shot.gkReachBase + TUNE.shot.gkReachPerHandling * clamp(handling, 0, 20)) * (1 - TUNE.shot.gkReachPowerCut * power);
 // 골키퍼 반응 시간(초): 반응 능력이 높을수록 짧고, 지치면 늘어난다
 export const gkReactTime = (reaction, ratio) => gkDelay(Math.max(0.08, TUNE.shot.gkReactBase - TUNE.shot.gkReactPerReaction * clamp(reaction, 0, 20)), ratio);
+
+// 킥 준비 시간(초): kind = 'pass' | 'shot' | 'standing' | 'sliding'. 연계 능력치는 패스 / 슛 / 기술 / 기술.
+export function kickPrep(kind, ab) {
+  const c = TUNE.kick[kind];
+  const a = kind === 'pass' ? (ab.passing ?? ab.skill ?? 10) : kind === 'shot' ? (ab.shooting ?? 10) : (ab.skill ?? 10);
+  return link(c.base, a, c.k, false);
+}
+export const stumbleTime = (strength) => link(TUNE.kick.stumble.base, strength, TUNE.kick.stumble.k, true);

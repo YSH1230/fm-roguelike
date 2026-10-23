@@ -1,6 +1,7 @@
 // 풋살 시연판 화면: 시뮬(futsalSim)이 정한 상태를 그리고 포인터를 futsalInput에 연결한다. 상태는 읽기만 한다.
 import { TUNE, clockText } from './futsalRules.mjs';
 import { createInput } from './futsalInput.mjs';
+import { zzfx } from './zzfx.mjs';
 import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, canAct, FORMATIONS } from './futsalSim.mjs';
 
 const cv = document.getElementById('cv');
@@ -26,30 +27,31 @@ let ballRot = 0;
 let banner = null; // { text, t } 골 연출 등(글자는 쓰지 않고 색 번쩍임으로만)
 let flash = 0;
 
-// ---------- 소리와 진동(동작마다 다르게) ----------
-let audio = null;
-const unlock = () => { try { audio ??= new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); } catch { /* 소리 없이 진행 */ } };
-document.addEventListener('pointerdown', unlock, { passive: true });
-function tone(freq, dur = 0.07, type = 'square', vol = 0.04, to = null, delay = 0) {
-  if (!audio) return; const t0 = audio.currentTime + delay; const o = audio.createOscillator(); const g = audio.createGain();
-  o.type = type; o.frequency.setValueAtTime(freq, t0); if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + dur);
-  g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(g); g.connect(audio.destination); o.start(t0); o.stop(t0 + dur + 0.02);
-}
-const buzz = (ms) => { try { navigator.vibrate?.(ms); } catch { /* 무시 */ } };
+// ---------- 소리와 진동: 입력 시점이 아니라 발사/임팩트 시점의 이벤트로 재생한다(ZzFX, MIT) ----------
+// zzfx(볼륨, 랜덤, 주파수, 어택, 서스테인, 릴리스, 파형, 곡선, 슬라이드, ...). 굴러가는 공은 조용하다.
+const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'; // 아이폰 사파리 등은 지원하지 않아 소리와 화면 효과로 대신한다
+let vibOn = canVibrate;
+const buzz = (ms) => { if (vibOn && canVibrate) { try { navigator.vibrate(ms); } catch { /* 무시 */ } } };
 const sfx = {
-  pass: () => { tone(520, 0.05); buzz(10); },
-  spot: () => { tone(660, 0.05); tone(880, 0.06, 'square', 0.04, null, 0.06); buzz(14); },
-  shot: () => { tone(220, 0.16, 'sawtooth', 0.05, 90); buzz(26); },
-  goal: () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, 'square', 0.05, null, i * 0.08)); buzz(60); },
-  save: () => { tone(300, 0.1, 'triangle', 0.06); tone(220, 0.14, 'triangle', 0.05, null, 0.06); },
-  tackle: () => tone(160, 0.1, 'sawtooth', 0.05, 80),
-  lose: () => tone(200, 0.12, 'sawtooth', 0.04, 110),
+  pass: (d = 8) => { zzfx(0.6, 0.05, 200 + d * 14, 0, 0.01, 0.03 + d * 0.004, 1, 1.2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.7, 0.01); }, // 짧은 "톡": 먼 패스일수록 길고 높게
+  receive: () => { zzfx(0.12, 0.05, 330, 0, 0.005, 0.02, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.6, 0.01); }, // 아주 작은 소리
+  shot: () => { zzfx(0.9, 0.05, 150, 0.003, 0.03, 0.14, 4, 1.6, -4, 0, 0, 0, 0, 0.3, 0, 0.1, 0, 0.7, 0.03); buzz(22); },
+  tackleOk: () => { zzfx(0.7, 0.05, 90, 0.003, 0.02, 0.1, 4, 1.4, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0.8, 0.02); buzz(10); },
+  tackleFail: () => { zzfx(0.25, 0.05, 260, 0.003, 0.01, 0.06, 1, 1, 0, 0, 0, 0, 0, 0.2, 0, 0, 0, 0.6, 0.01); },
+  goal: () => { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => zzfx(1, 0.02, f, 0.005, 0.1, 0.22, 1, 1.3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8, 0.05), i * 90)); buzz([60, 40, 90]); },
+  save: () => { zzfx(0.6, 0.05, 320, 0.003, 0.04, 0.12, 2, 1.2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0.7, 0.02); },
+  lose: () => { zzfx(0.4, 0.05, 200, 0.003, 0.02, 0.08, 4, 1, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0.7, 0.01); },
 };
 let evSeen = 0;
 function playEventSounds() {
   for (; evSeen < M.events.length; evSeen += 1) {
     const e = M.events[evSeen];
-    if (e.kind === 'goal') sfx.goal(); else if (e.kind === 'save' || e.kind === 'post') sfx.save(); else if (e.kind === 'tackle') sfx.tackle(); else if (e.kind === 'intercept') sfx.lose();
+    if (e.kind === 'kick') { if (e.type === 'shot') sfx.shot(); else sfx.pass(e.dist ?? 8); }
+    else if (e.kind === 'receive') sfx.receive();
+    else if (e.kind === 'goal') sfx.goal();
+    else if (e.kind === 'save' || e.kind === 'post') sfx.save();
+    else if (e.kind === 'tackle') sfx.tackleOk();
+    else if (e.kind === 'intercept') sfx.lose();
   }
 }
 
@@ -96,12 +98,14 @@ function drawPlayer(p, mine) {
   if (p.twistT > 0) sx = Math.max(0.25, Math.abs(Math.cos((1 - p.twistT / 0.45) * Math.PI * 2)));
   ctx.rotate(rot); ctx.scale(sx, 1);
   const y0 = -bob - lift;
-  const kick = p.kickT > 0 ? Math.sin((1 - p.kickT / 0.3) * Math.PI) : 0; // 0 → 1 → 0
+  // 킥: 준비 중에는 다리를 뒤로 당기고(백스윙), 임팩트 뒤에는 앞으로 뻗는다(팔로스루). 동작별 길이는 TUNE.kick.
+  let kickAng = null;
+  if (p.kick) { const t = M.real - p.kick.t0; const K = TUNE.kick; if (t < p.kick.prep) kickAng = face * K.backswingRad * (t / p.kick.prep); else if (t < p.kick.prep + p.kick.follow) { const u = (t - p.kick.prep) / p.kick.follow; kickAng = face * (K.backswingRad - (K.backswingRad + K.followRad) * (1 - (1 - u) * (1 - u))) * (1 - Math.max(0, (u - 0.7) / 0.3)); } }
   const leg = (dx, ang, isKick) => {
-    ctx.save(); ctx.translate(dx, y0 - h * 0.4); ctx.rotate(isKick ? face * (-0.4 - 1.0 * kick) : ang);
+    ctx.save(); ctx.translate(dx, y0 - h * 0.4); ctx.rotate(isKick && kickAng != null ? kickAng : ang);
     ctx.fillStyle = '#111827'; ctx.fillRect(-h * 0.07, 0, h * 0.14, h * 0.28); ctx.fillStyle = '#0b0b0b'; ctx.fillRect(-h * 0.08, h * 0.26, h * 0.17, h * 0.07); ctx.restore();
   };
-  leg(-h * 0.1, swing, false); leg(h * 0.1, -swing, kick > 0.02);
+  leg(-h * 0.1, swing, false); leg(h * 0.1, -swing, kickAng != null);
   ctx.fillStyle = '#0f172a'; ctx.fillRect(-h * 0.2, y0 - h * 0.4, h * 0.4, h * 0.2);
   // 팔: 달릴 때 반대로 흔들고, 다이빙 때 위로 뻗는다
   const arm = (dx, a) => { ctx.save(); ctx.translate(dx, y0 - h * 0.68); ctx.rotate(dive > 0 ? -2.7 * (dx < 0 ? -1 : 1) * dive : a); ctx.fillStyle = '#d9a371'; ctx.fillRect(-h * 0.045, 0, h * 0.09, h * 0.24); ctx.restore(); };
@@ -171,11 +175,12 @@ function newMatch() { evSeen = 0; seed += 1; M = createMatch({ seed, home: demoT
 function showStart() {
   paused = true;
   box.innerHTML = `<h2>FUTSAL</h2><p>5 vs 5 · 40m × 20m · about 5 min</p>${stanceRow(stance)}
-    <button class="btn btn--primary" id="go">KICK OFF</button><button class="btn" id="simall">SIM WHOLE MATCH</button><p style="font-size:10px;color:#64748b">BUILD P1</p>`;
+    <button class="btn btn--primary" id="go">KICK OFF</button><button class="btn" id="simall">SIM WHOLE MATCH</button>${canVibrate ? `<button class="btn" id="vib">VIBRATION ${vibOn ? 'ON' : 'OFF'}</button>` : ''}<p style="font-size:10px;color:#64748b">BUILD P1</p>`;
   overlay.classList.add('on');
   box.querySelectorAll('[data-s]').forEach((b) => { b.onclick = () => { stance = b.dataset.s; showStart(); }; });
   $('go').onclick = () => { newMatch(); overlay.classList.remove('on'); paused = false; };
   $('simall').onclick = () => { newMatch(); simRest(); };
+  if (canVibrate) $('vib').onclick = () => { vibOn = !vibOn; if (vibOn) buzz(30); showStart(); };
 }
 function showHalftime() {
   paused = true;
@@ -217,9 +222,9 @@ function frame(now) {
       const now = performance.now(); const me = M.players[M.control];
       if (a.type === 'tap' && M.ball.owner === me && M.ball.st === 'held') { // 공을 가졌을 때의 콕: 선수 근처는 초록 링, 빈 곳은 파란 링(색은 7장에서 정리)
         let near = null; let nd = 1e9; for (const q of M.players) { if (q.team !== 0 || q === me || q.gk) continue; const d = Math.hypot(q.x - a.wx, q.y - a.wy); if (d < nd) { nd = d; near = q; } }
-        if (near && nd <= TUNE.input.spotRadius) { fxs.push({ x: near.x, y: near.y, color: '#22c55e', t0: now, dur: 420, a: 1 }); sfx.pass(); }
-        else { fxs.push({ x: a.wx, y: a.wy, color: '#3b82f6', t0: now, dur: 450, a: 1 }); sfx.spot(); }
-      } else if (a.type === 'swipe') sfx.shot();
+        if (near && nd <= TUNE.input.spotRadius) { fxs.push({ x: near.x, y: near.y, color: '#22c55e', t0: now, dur: 420, a: 1 }); }
+        else { fxs.push({ x: a.wx, y: a.wy, color: '#3b82f6', t0: now, dur: 450, a: 1 }); }
+      }
     }
     const before = M.score[0] + M.score[1];
     update(M, raw, { move: polled.move, actions });
