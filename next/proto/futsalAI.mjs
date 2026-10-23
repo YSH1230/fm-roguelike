@@ -109,49 +109,55 @@ function aiTeam(M, t, dt) {
         const dx = ownGoalX - ob.x; const dy = 10 - ob.y; const l = hyp(dx, dy) || 1;
         p.tx = ob.x + ob.vx * 0.15 + dx / l * D.jockey; p.ty = clamp(ob.y + ob.vy * 0.15 + dy / l * D.jockey, 0.6, H - 0.6); p.ts = sp(p, 1.0);
         // 상대의 공이 몸에서 멀어지거나 방향을 바꾸는 틈에 스탠딩 태클을 시도한다
-        if (hyp(p.x - ob.x, p.y - ob.y) <= standingReach(p.ab) && canTackle(M, p, false) && !M.queue.some((e) => e.p === p) && (b.far || M.rng() < attempt * 0.016)) M.api.tackle(p, false);
+        if (hyp(p.x - ob.x, p.y - ob.y) <= standingReach(p.ab) && canTackle(M, p, false) && !M.queue.some((e) => e.p === p) && (b.far ? (p.sigTry !== Math.floor(M.real / D.signalWindow) && (p.sigTry = Math.floor(M.real / D.signalWindow), M.rng() < attempt)) : M.rng() < attempt * D.randomAttempt * 0.016)) M.api.tackle(p, false); // 공이 몸에서 멀어진 틈마다 한 번 시도할지 정한다
       } else { p.tx = b.x; p.ty = b.y; p.ts = sp(p, 1.0); }
       continue;
     }
     if (p === cover && ob) { const dx = ownGoalX - presser.x; const dy = 10 - presser.y; const l = hyp(dx, dy) || 1; p.tx = presser.x + dx / l * D.coverBack; p.ty = clamp(presser.y + dy / l * D.coverBack, 0.6, H - 0.6); p.ts = sp(p, 0.95); continue; }
     const m = attackers[mi % Math.max(1, attackers.length)]; mi += 1;
-    if (m) { const k = ob ? D.laneShare : 0.4; p.tx = b.x + (m.x - b.x) * k; p.ty = clamp(b.y + (m.y - b.y) * k, 0.6, H - 0.6); p.ts = sp(p, 0.9); } else go(p, 10, 10, sp(p, 0.7));
+    if (m) { // 패스 길을 막되 완벽하지는 않다: 길에서 옆으로 laneError만큼 어긋난 자리에 선다(정교함이 높을수록 줄어든다 - P3)
+      const k = ob ? D.laneShare : 0.4; const lx0 = b.x + (m.x - b.x) * k; const ly0 = b.y + (m.y - b.y) * k;
+      const dl = hyp(m.x - b.x, m.y - b.y) || 1; const nx = -(m.y - b.y) / dl; const ny = (m.x - b.x) / dl; const side = (p.num % 2 ? 1 : -1) * D.laneError;
+      p.tx = lx0 + nx * side; p.ty = clamp(ly0 + ny * side, 0.6, H - 0.6); p.ts = sp(p, 0.9);
+    } else go(p, 10, 10, sp(p, 0.7));
   }
 }
 
 function shotLaneClear(M, c, opp) {
   const gx = c.team === 0 ? W : 0;
-  for (const q of opp) { if (q.gk) continue; if (segDist(q.x, q.y, c.x, c.y, gx, 10) < 1.4) return false; }
+  for (const q of opp) { if (q.gk) continue; if (segDist(q.x, q.y, c.x, c.y, gx, 10) < TUNE.ai.shotLane) return false; }
   return true;
 }
 // 공 가진 AI 선수의 선택: 사거리 안이면 슛, 아니면 열린 동료에게 패스, 아니면 골문 쪽으로 몰고 간다
 function carrierAI(M, t, c, dt, mine, opp, go, sp) {
-  c.think = (c.think ?? 0.5) - dt;
+  const A = TUNE.ai;
+  c.think = (c.think ?? 1) - dt;
   const cl = { x: t === 0 ? c.x : W - c.x, y: c.y };
   const press = Math.min(...opp.filter((p) => !p.gk).map((p) => hyp(p.x - c.x, p.y - c.y)));
-  if (press < 2.4) c.think = Math.min(c.think, 0); // 압박받으면 바로 결정
-  const stale = (M.holdT ?? 0) > 2.2 || c.gk; // 오래 들고 있거나 골키퍼면 바로 내보낸다
-  if (stale) c.think = Math.min(c.think, 0);
+  const pressed = press < A.pressDist;
+  const first = (M.holdT ?? 0) < A.firstTouch; // 받은 직후에는 바로 결정하지 않는다
+  if (pressed && !first) c.think = Math.min(c.think, 0.15); // 압박받으면 곧 결정
   const dist = W - cl.x;
   const range = shotRange(c.ab.shooting ?? 8);
-  if (c.think <= 0) {
-    c.think = 0.7 + M.rng() * 0.8;
+  if (c.think <= 0 && !first) {
+    c.think = c.gk ? A.gkThink[0] + M.rng() * (A.gkThink[1] - A.gkThink[0]) : A.think[0] + M.rng() * (A.think[1] - A.think[0]);
     const gkp = opp.find((p) => p.gk);
-    if (dist < range && dist > 4.5 && M.rng() < 0.12 && shotLaneClear(M, c, opp)) {
+    if (!c.gk && dist < range && dist > 2.5 && M.rng() < A.shotP && shotLaneClear(M, c, opp)) {
       const corner = (gkp && gkp.y > 10) ? -1 : 1;
-      M.api.shoot(c, 10 + corner * TUNE.shot.cornerOffset, false, 0.4 + M.rng() * 0.3);
+      M.api.shoot(c, 10 + corner * TUNE.shot.cornerOffset, false, 0.7 + M.rng() * 0.3);
       return;
     }
     let best = null; let bs = 0;
     for (const q of mine) {
       if (q === c || q.gk) continue;
       const { lane, mate } = laneInfo(M, c, q);
-      if (lane < (stale ? 0.3 : press < 2.4 ? 0.9 : 1.2) || mate < (stale ? 0.5 : press < 2.4 ? 1.0 : 1.4)) continue;
+      const slack = (M.holdT ?? 0) > 3 ? 0.5 : 1; // 오래 들고 있으면 기준을 낮춘다
+      if (lane < A.passLane * slack || mate < A.passMate * slack) continue; // 수비수가 지나는 길 근처에 있으면 보내지 않는다
       const adv = (t === 0 ? q.x : W - q.x) - cl.x;
-      const s = Math.min(lane, 3) + Math.min(mate, 4) * 0.5 + adv * 0.12;
-      if (s > bs) { bs = s; best = q; }
+      const sc = Math.min(lane, 3) + Math.min(mate, 4) * 0.5 + adv * 0.12;
+      if (sc > bs) { bs = sc; best = q; }
     }
-    if (best && (stale || press < 2.4 || M.rng() < 0.8)) { M.api.pass(c, best); return; }
+    if (best && (c.gk || (M.holdT ?? 0) > 3 || M.rng() < (pressed ? A.passPressed : A.pass))) { M.api.pass(c, best); return; }
   }
   // 몰고 가기: 골문 쪽으로, 수비수가 가까우면 옆으로 비켜서
   let ty = 10 + (cl.y > 10 ? 1 : -1) * 2;

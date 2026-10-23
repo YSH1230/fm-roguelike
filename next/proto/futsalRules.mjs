@@ -6,11 +6,13 @@ export const TUNE = {
   halfClockSeconds: 1200, clockScale: 8, realMatchSeconds: 300,
   extraMinutes: { 1: [1, 5], 2: [3, 10] }, // 정규 시간 뒤 추가시간(풋살 시계, 분)
   // 이동과 공
-  minRunSpeed: 6, maxRunSpeed: 8, accel: 9,
+  minRunSpeed: 6, maxRunSpeed: 9, accel: 9, // 달리기 최고 속도 능력 0/10/20에서 6.0 / 7.5 / 9.0 m/s
   passSpeedMin: 10, passSpeedMax: 16, passSpeedBase: 8, passSpeedPerM: 0.8, ballFriction: 0.6, pickupR: 1.2, interceptR: 0.85, blockR: 0.7,
   deadBallSeconds: 4, autoRestartSeconds: 0.9,
   // 체력
-  drainBase: 0.55, drainPerStamina: 0.015, speedFloor: 0.7, gkDelayGrow: 0.4,
+  speedFloor: 0.7, gkDelayGrow: 0.4, // 후반이 될수록 최대 30%까지 달리기가 느려진다
+  stamina: { fullMatchDrain: 0.40, costK: 0.30 }, // 체력 곡선(소모율): 능력 10 선수가 5분 풀 출전하면 잔량 40% 감소, 체력 소모 배율(능력 +-30%)을 곱한다
+  move: { accelK: 0.20, sharpDeg: 60, turnLoss: { base: 0.15, k: 2 / 3 }, carryLoss: { base: 0.08, k: 0.5 }, turnCooldown: 0.3 }, // 가속(속도 +-20%), 급커브 손실 25/15/5%, 공 소유 감속 12/8/4%(속도 50% + 기술 50%). sharpDeg와 turnCooldown은 임시값
   ringTauMax: 0.5, ring: { green: [2.2, 2.4], yellow: [1.2, 1.4] },
   subThreshold: 0.25, subPopupSeconds: 3,
   // 입력(화면 px, 640 기준이 아니라 실제 손가락 px)
@@ -18,7 +20,7 @@ export const TUNE = {
   input: { tapMove: 20, leftTapMove: 20, tapMs: 250, holdMs: 250, swipePx: 35, swipeSpeed: 0.5, joyRadius: 44, deadzone: 10, buffer: 150, flipThreshold: 0.6, flipMs: 180, spotRadius: 2.4, shotAngleDeg: 55, swipePowerMin: 0.5, swipePowerMax: 2.0, powerAtMin: 0.6, powerAtMax: 1.0, sensitivity: 1 },
   // 접촉 경합, 슛
   contactR: 0.85, contestInterval: 0.45, dribbleSeconds: 0.8, dribbleBoost: 1.25,
-  shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 8, rangePerShooting: 0.45, minPower: 0.6, speedMin: 12, speedMax: 26, powerNoise: 0.35, gkReachBase: 0.9, gkReachPerHandling: 0.03, gkReachPowerCut: 0.25, gkReactBase: 0.26, gkReactPerReaction: 0.008, gkDive: 1.3 },
+  shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 16, rangePerShooting: 0.45, minPower: 0.6, speedMin: 12, speedMax: 26, powerNoise: 0.35, gkReachBase: 0.9, gkReachPerHandling: 0.03, gkReachPowerCut: 0.25, gkReactBase: 0.26, gkReactPerReaction: 0.008, gkDive: 1.3 },
   // 킥 준비와 임팩트(2장): 입력 뒤 준비 시간이 지나야 공이 나간다. 준비 시간 = 능력치 연계(base는 능력치 10), 후속 모션은 고정.
   kick: {
     pass: { base: 0.050, k: 0.30, follow: 0.12 }, // 패스 능력
@@ -52,7 +54,9 @@ export const TUNE = {
     defMix: [['strength', 0.5], ['skill', 0.3], ['speed', 0.2]], carrierMix: [['strength', 0.6], ['skill', 0.4]],
   },
   signal: { ms: 0.4, gap: 1.0, farOffset: 0.9, farCycle: 0.9, farShare: 0.25, farMinSpeed: 2, turnDeg: 90, turnWindow: 0.3, firstTouch: 0.4 }, // 태클 신호: 청록 링 0.4초, 같은 선수는 1초 간격. 나머지는 임시값
-  defense: { jockey: 1.3, coverBack: 2.5, laneShare: 0.6, controlIdle: 0.3, attemptPerSec: { weak: 0.7, normal: 1.0, strong: 1.4 }, contactBase: 0.30 }, // 1차 수비수 간격 1.3m, 커버 2~3m 뒤, 조종 선수 AI 전환 0.3초. 시도 빈도와 contactBase는 임시/보정값
+  defense: { jockey: 1.3, coverBack: 2.5, laneShare: 0.6, laneError: 3.5, controlIdle: 0.3, attemptPerSec: { weak: 0.15, normal: 0.25, strong: 0.4 }, signalWindow: 0.9, randomAttempt: 0.3, contactBase: 0.30 }, // 1차 수비수 간격 1.3m, 커버 2~3m 뒤, 조종 선수 AI 전환 0.3초. 시도 빈도와 contactBase는 임시/보정값
+  // AI 공 가진 선수의 선택(임시값, 9장에서 지표에 맞춰 보정): 결정 간격, 압박 거리, 패스 길 여유, 슛과 패스 선택 확률
+  ai: { think: [1.8, 3.2], gkThink: [1.0, 2.0], firstTouch: 0.3, pressDist: 1.6, passLane: 2.0, passMate: 2.4, pass: 0.6, passPressed: 0.9, shotP: 1, shotLane: 0.4 },
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
   expectedGoals: 2.5, // 지시문 4장: 경기당 합계 골(두 팀 합) 기준. 설계 문서 v6.3의 '팀당 약 2.5골'과 읽는 방식이 달라 보고 대상.
@@ -60,8 +64,12 @@ export const TUNE = {
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 export const speedOf = (a) => TUNE.minRunSpeed + (TUNE.maxRunSpeed - TUNE.minRunSpeed) * clamp(a, 0, 20) / 20;
 export const effSpeed = (a, ratio) => speedOf(a) * (TUNE.speedFloor + (1 - TUNE.speedFloor) * clamp(ratio, 0, 1));
-// 5분 풀 출전 소모 = 55% - 1.5% x 체력 (초당)
-export const drainPerSecond = (stamina) => (TUNE.drainBase - TUNE.drainPerStamina * clamp(stamina, 0, 20)) / TUNE.realMatchSeconds;
+// 체력 소모: 능력 10 선수가 5분 풀 출전하면 잔량이 약 40% 줄고, 능력치별 체력 소모 배율(1.3 / 1.0 / 0.7)을 곱한다(초당)
+export const drainPerSecond = (stamina) => TUNE.stamina.fullMatchDrain * link(1.0, stamina, TUNE.stamina.costK, false) / TUNE.realMatchSeconds;
+// 이동(6장): 가속은 속도 능력 0/10/20에서 7.2 / 9.0 / 10.8, 급하게 꺾을 때 속도 손실 25 / 15 / 5%, 공을 들었을 때 감속 12 / 8 / 4% (속도 50% + 기술 50%)
+export const accelOf = (speed) => link(TUNE.accel, speed, TUNE.move.accelK, true);
+export const turnLossOf = (ab) => link(TUNE.move.turnLoss.base, mixAbility([[ab.speed ?? 10, 0.5], [ab.skill ?? 10, 0.5]]), TUNE.move.turnLoss.k, false);
+export const carryLossOf = (ab) => link(TUNE.move.carryLoss.base, mixAbility([[ab.speed ?? 10, 0.5], [ab.skill ?? 10, 0.5]]), TUNE.move.carryLoss.k, false);
 export const ringTau = (stamina, ratio) => TUNE.ringTauMax * (clamp(stamina, 0, 20) / 20) * clamp(ratio, 0, 1);
 export function ringColor(laneDist, mateDist) {
   const { green, yellow } = TUNE.ring;

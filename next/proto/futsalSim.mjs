@@ -2,7 +2,7 @@
 // 좌표는 미터. 팀 0(사람)은 왼쪽 골대를 지키고 +x로 공격, 팀 1은 오른쪽 골대를 지키고 -x로 공격한다.
 import { createRng, randInt, gauss } from '../engine/rng.mjs';
 import {
-  TUNE, contestDefenderWins, cornerRisk, drainPerSecond, effSpeed, slidingDown, slidingFreeze, slidingInterval, slidingReach, standingPenalty, standingReach, staminaCostMul, tackleChance, gkReach, gkReactTime, interceptRadius, kickPrep, passErrorSigma, passV0, pickupRadius, shotNoise, shotPowerCoef, shotRange, stumbleTime, swipePower,
+  TUNE, accelOf, carryLossOf, turnLossOf, contestDefenderWins, cornerRisk, drainPerSecond, effSpeed, slidingDown, slidingFreeze, slidingInterval, slidingReach, standingPenalty, standingReach, staminaCostMul, tackleChance, gkReach, gkReactTime, interceptRadius, kickPrep, passErrorSigma, passV0, pickupRadius, shotNoise, shotPowerCoef, shotRange, stumbleTime, swipePower,
 } from './futsalRules.mjs';
 import { think } from './futsalAI.mjs';
 
@@ -335,7 +335,12 @@ function movePlayers(M, dt) {
     const mm = (stopped ? 0 : 1) * ((p.penaltyUntil ?? 0) > M.real ? TUNE.tackle.standing.slowMul : 1) * (p.prepShot ? TUNE.kick.shot.moveMul : 1) * (p.stumbleT > 0 ? TUNE.kick.stumbleMoveMul : 1); // 슛 준비 중 40%, 비틀거리는 동안 정지
     if (p.delay > 0) p.delay -= dt;
     if (d > 0.05 && p.ts > 0 && p.delay <= 0) { const s = Math.min(p.ts * mm, d / 0.15); vx = dx / d * s; vy = dy / d * s; }
-    const a = Math.min(1, dt * TUNE.accel);
+    // 공을 들면 달리기가 느려지고(12/8/4%), 급하게 꺾으면 속도를 잃는다(25/15/5%). 가속은 속도 능력으로 7.2 / 9.0 / 10.8.
+    if (M.ball.st === 'held' && M.ball.owner === p) { vx *= 1 - carryLossOf(p.ab); vy *= 1 - carryLossOf(p.ab); }
+    p.turnCd = Math.max(0, (p.turnCd ?? 0) - dt);
+    const cur = hyp(p.vx, p.vy);
+    if (cur > 2 && (vx !== 0 || vy !== 0) && p.turnCd <= 0) { let da = Math.abs(Math.atan2(vy, vx) - Math.atan2(p.vy, p.vx)); if (da > Math.PI) da = 2 * Math.PI - da; if (da >= (TUNE.move.sharpDeg * Math.PI) / 180) { const k = 1 - turnLossOf(p.ab); p.vx *= k; p.vy *= k; p.turnCd = TUNE.move.turnCooldown; } }
+    const a = Math.min(1, dt * accelOf(p.ab.speed ?? 10));
     p.vx += (vx - p.vx) * a; p.vy += (vy - p.vy) * a;
     p.x = clamp(p.x + p.vx * dt, 0.4, W - 0.4); p.y = clamp(p.y + p.vy * dt, 0.4, H - 0.4);
     if (Math.abs(p.vx) > 0.4) p.face = p.vx > 0 ? 1 : -1;
