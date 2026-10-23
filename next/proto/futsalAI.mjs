@@ -87,7 +87,7 @@ function aiTeam(M, t, dt) {
       } else if (p.role === 'FIXO') go(p, clamp(cl.x - 5 + wob(p) * sloppy, 5, 28), 10 + wob(p) * (0.5 + sloppy), sp(p, 0.9));
       else go(p, clamp(cl.x + 9, 22, 35), 10 + wob(p), sp(p, 0.95)); // 피보
     }
-    if (hasBall && !isH(c) && M.phase === 'play') carrierAI(M, t, c, dt, mine, opp, go, sp);
+    if (hasBall && !isH(c) && M.phase === 'play' && !M.frozenAI?.has(c.id)) carrierAI(M, t, c, dt, mine, opp, go, sp);
     return;
   }
 

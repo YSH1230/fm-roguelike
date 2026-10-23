@@ -51,6 +51,7 @@ function playEventSounds() {
     else if (e.kind === 'goal') sfx.goal();
     else if (e.kind === 'save' || e.kind === 'post') sfx.save();
     else if (e.kind === 'tackle') sfx.tackleOk();
+    else if (e.kind === 'tackleFail') sfx.tackleFail();
     else if (e.kind === 'intercept') sfx.lose();
   }
 }

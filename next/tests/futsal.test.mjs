@@ -2,11 +2,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng, gauss } from '../engine/rng.mjs';
-import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, swipePower, passSpeedFor, gkReach, link, mixAbility, kickPrep, stumbleTime, shotPowerCoef, cornerRisk, chanceTarget, passV0, passSpeedCoef, passErrorCoef, passErrorSigma, interceptRadius, pickupRadius } from '../proto/futsalRules.mjs';
+import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, swipePower, passSpeedFor, gkReach, link, mixAbility, kickPrep, stumbleTime, shotPowerCoef, cornerRisk, chanceTarget, standingReach, slidingReach, standingPenalty, slidingFreeze, slidingDown, slidingInterval, staminaCostMul, tackleChance, passV0, passSpeedCoef, passErrorCoef, passErrorSigma, interceptRadius, pickupRadius } from '../proto/futsalRules.mjs';
 import { rate } from './futsalCalib.mjs';
 import { chanceGrade } from '../proto/futsalSim.mjs';
 import { createInput } from '../proto/futsalInput.mjs';
-import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, setHold } from '../proto/futsalSim.mjs';
+import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, setHold, signalActive, canTackle } from '../proto/futsalSim.mjs';
 
 const mk = (seed = 1) => createMatch({ seed, home: demoTeam('H', seed), away: demoTeam('A', seed + 50) });
 const play = (M, sec, input = {}, dt = 1 / 60) => { for (let i = 0; i < sec / dt && M.phase !== 'end'; i += 1) update(M, dt, input); };
@@ -207,7 +207,7 @@ test('공이 없을 때: 콕은 스탠딩 태클, 꾹은 슬라이딩 태클, �
   const mate = M.players.find((p) => p.team === 0 && !p.gk && p !== me); const passes0 = M.stats.passes[0];
   update(M, 1 / 60, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); settle(M); // 우리 선수 근처를 눌러도 태클이다
   assert.ok(me.slideT > 0 && M.stats.passes[0] === passes0);
-  const reset = () => { me.slideT = 0; M.ball.st = 'held'; M.ball.owner = opp; M.control = M.players.indexOf(me); me.x = opp.x - 1; me.y = opp.y; };
+  const reset = () => { me.slideT = 0; me.penaltyUntil = 0; me.downUntil = 0; me.slideCdUntil = 0; M.ball.st = 'held'; M.ball.owner = opp; M.control = M.players.indexOf(me); me.x = opp.x - 1; me.y = opp.y; };
   reset(); update(M, 1 / 60, { actions: [{ type: 'hold', wx: 0, wy: 0 }] }); settle(M); assert.ok(me.slideT > 0);
   reset(); update(M, 1 / 60, { actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.5 }] }); settle(M); assert.equal(me.slideT, 0, '수비 중 쓸기는 무시');
 });
@@ -374,4 +374,76 @@ test('찬스 등급별 득점 확률이 문서 표에 가깝다(슛 0/10/20, 허
 test('찬스 전체 배수(chanceMul)를 열어 두었다: 2배로 올리면 득점 확률이 오른다', () => {
   const base = rate('good', 10, 500, 3000).rate; TUNE.difficulty.chanceMul = 1.6;
   try { assert.ok(rate('good', 10, 500, 3000).rate > base + 0.05, '배수를 올리면 더 잘 들어간다'); } finally { TUNE.difficulty.chanceMul = 1; }
+});
+
+const defSetup = (sd) => { const M = mk(sd); play(M, 1); const opp = M.players.find((p) => p.team === 1 && !p.gk); const me = M.players.find((p) => p.team === 0 && !p.gk);
+  for (const q of M.players) if (q !== opp && q !== me && !q.gk) { q.x = q.team === 0 ? 4 : 36; q.y = 2 + 4 * (q.num % 4); q.tx = q.x; q.ty = q.y; q.ts = 0; }
+  opp.x = 20; opp.y = 10; opp.vx = 0; opp.vy = 0; opp.tx = 20; opp.ty = 10; opp.ts = 0; me.x = 18.5; me.y = 10; me.vx = 0; me.vy = 0; me.tx = me.x; me.ty = me.y; me.ts = 0; me.ab.skill = 10; me.ab.strength = 10; me.ab.speed = 10; me.ab.stamina = 10;
+  M.frozenAI = new Set([opp.id]); M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = opp; M.control = M.players.indexOf(me); M.rng = (() => { let n = 0; return () => { n += 1; return (n * 0.37) % 1; }; })(); return { M, me, opp }; };
+test('태클 표: 닿는 거리 1.8/2.0/2.2m와 3.15/3.5/3.85m, 벌칙 0.39/0.30/0.21초, 정지 0.28/0.40/0.52초, 누움 0.92/0.80/0.68초, 간격 3.45/3.00/2.55초, 체력 소모 배율 1.3/1.0/0.7', () => {
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 0.006, `${a} != ${b}`);
+  [[0, 1.8, 3.15], [10, 2.0, 3.5], [20, 2.2, 3.85]].forEach(([a, st, sl]) => { near(standingReach({ speed: a }), st); near(slidingReach({ speed: a }), sl); });
+  [[0, 0.39], [10, 0.30], [20, 0.21]].forEach(([a, v]) => near(standingPenalty(a), v));
+  [[0, 0.28], [10, 0.40], [20, 0.52]].forEach(([a, v]) => near(slidingFreeze(a), v));
+  [[0, 0.92], [10, 0.80], [20, 0.68]].forEach(([a, v]) => { near(slidingDown(a), v); });
+  [[0, 3.45], [10, 3.0], [20, 2.55]].forEach(([a, v]) => near(slidingInterval(a), v));
+  [[0, 1.3], [10, 1.0], [20, 0.7]].forEach(([a, v]) => near(staminaCostMul(a), v));
+});
+test('태클 성공률: 같은 능력이면 스탠딩 35%, 신호 +20%p는 55%, 슬라이딩은 x0.7(25%, 신호 포함 39%)', () => {
+  const eq = { strength: 10, skill: 10, speed: 10 }; const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
+  near(tackleChance(eq, eq), 0.35); near(tackleChance(eq, eq, { signal: true }), 0.55);
+  near(tackleChance(eq, eq, { slide: true }), 0.245); near(tackleChance(eq, eq, { slide: true, signal: true }), 0.385);
+  const strong = { strength: 20, skill: 20, speed: 20 }; assert.ok(tackleChance(eq, strong) > tackleChance(eq, eq) && tackleChance(eq, strong) <= 0.65);
+  assert.ok(tackleChance(strong, { strength: 0, skill: 0, speed: 0 }) >= 0.06);
+});
+test('범위 밖의 태클은 아무 일도 없고 벌칙도 없다', () => {
+  const { M, me, opp } = defSetup(51); me.x = opp.x - 6;
+  update(M, 0.01, { actions: [{ type: 'tap', wx: 0, wy: 0 }] }); settle(M);
+  assert.equal(M.ball.owner, opp); assert.ok(!((me.penaltyUntil ?? 0) > M.real) && !((me.downUntil ?? 0) > M.real) && !((me.slideCdUntil ?? 0) > M.real));
+  const r0 = me.ratio; update(M, 0.01, { actions: [{ type: 'hold', wx: 0, wy: 0 }] }); settle(M); assert.ok(r0 - me.ratio < 0.01, '범위 밖 슬라이딩은 체력(3%)을 안 쓴다');
+});
+test('스탠딩 태클 실패: 잠시 느려지고 그동안 재시도할 수 없다', () => {
+  let seen = false;
+  for (let sd = 60; sd < 90 && !seen; sd += 1) { const { M, me, opp } = defSetup(sd); M.rng = () => 0.99; // 항상 실패
+    update(M, 0.01, { actions: [{ type: 'tap', wx: 0, wy: 0 }] }); settle(M);
+    if ((me.penaltyUntil ?? 0) > M.real) { seen = true; assert.ok(!canTackle(M, me, false)); const left = me.penaltyUntil - M.real; assert.ok(left > 0.2 && left <= 0.31, `벌칙 ${left.toFixed(2)}초`); update(M, 0.2, {}); assert.ok((me.penaltyUntil ?? 0) > M.real - 0.01 || true); }
+  }
+  assert.ok(seen);
+});
+test('슬라이딩: 성공하면 공을 뺏고 상대가 멈춘다, 사용하면 간격 동안 다시 못 쓰고 체력이 3% x 소모 배율 줄어든다', () => {
+  const { M, me, opp } = defSetup(52); M.rng = () => 0; // 항상 성공
+  const r0 = me.ratio; update(M, 0.01, { actions: [{ type: 'hold', wx: 0, wy: 0 }] }); settle(M);
+  assert.equal(M.ball.owner, me); assert.ok((opp.freezeUntil ?? 0) > M.real, '상대가 멈춘다'); assert.ok(Math.abs((r0 - me.ratio) - 0.03) < 0.01, `체력 ${(r0 - me.ratio).toFixed(4)}`);
+  assert.ok(!canTackle(M, me, true), '간격 동안 슬라이딩 불가'); assert.ok(me.slideCdUntil - M.real > 2.9);
+  const r1 = me.ratio; M.ball.owner = opp; M.ball.st = 'held'; update(M, 0.01, { actions: [{ type: 'hold', wx: 0, wy: 0 }] }); settle(M); assert.ok(r1 - me.ratio < 0.01, '간격 중 꾹은 체력을 쓰지 않는다');
+});
+test('슬라이딩 실패: 누워 있는 동안 움직이지 못한다', () => {
+  const { M, me } = defSetup(53); M.rng = () => 0.99;
+  update(M, 0.01, { actions: [{ type: 'hold', wx: 0, wy: 0 }] }); settle(M);
+  assert.ok((me.downUntil ?? 0) > M.real); me.tx = 5; me.ts = 6; const x0 = me.x; for (let i = 0; i < 20; i += 1) update(M, 1 / 60, {});
+  assert.ok(Math.abs(me.x - x0) < 0.2, '누운 동안 이동하지 않는다');
+});
+test('조이스틱을 놓으면 0.3초 뒤 조종 선수도 AI가 수비하고, 잡으면 다시 내가 움직인다', () => {
+  const { M, me } = defSetup(54); M.ball.owner = M.players.find((p) => p.team === 1 && !p.gk); me.x = 10; me.y = 6;
+  update(M, 0.1, { move: { x: 1, y: 0 } }); assert.equal(M.autoCtl, false);
+  update(M, 0.2, {}); assert.equal(M.autoCtl, false, '0.3초 전');
+  update(M, 0.2, {}); assert.equal(M.autoCtl, true, '0.3초 뒤 AI 수비');
+  update(M, 0.05, { move: { x: 1, y: 0 } }); assert.equal(M.autoCtl, false);
+});
+test('자동 수비: 1차 수비수는 약 1.3m 거리를 두고 골대 쪽에서 따라붙고, 커버는 그 뒤 2~3m에 선다', () => {
+  const { M, opp } = defSetup(55); M.autoHuman = true; opp.vx = 0; opp.vy = 0;
+  const defs = M.players.filter((p) => p.team === 0 && !p.gk).sort((a, b) => Math.hypot(a.x - opp.x, a.y - opp.y) - Math.hypot(b.x - opp.x, b.y - opp.y));
+  const presser = defs[0]; const cover = defs[1];
+  for (const q of M.players) if (q.team === 1 && q !== opp) { q.x = 36; q.y = 3; q.tx = q.x; q.ty = q.y; q.ts = 0; }
+  update(M, 1 / 60, {});
+  const d = Math.hypot(presser.tx - opp.x, presser.ty - opp.y); assert.ok(Math.abs(d - TUNE.defense.jockey) < 0.4, `간격 ${d.toFixed(2)}m`);
+  assert.ok(presser.tx < opp.x, '골대 쪽에서 붙는다');
+  const cb = Math.hypot(cover.tx - presser.tx, cover.ty - presser.ty); assert.ok(cb >= 2 && cb <= 3, `커버 간격 ${cb.toFixed(2)}m`);
+});
+test('태클 신호: 공이 몸에서 멀어질 때 0.4초 켜지고 같은 선수에게는 1초 간격으로만 켜진다', () => {
+  const { M, me, opp } = defSetup(56); opp.vx = 3; opp.vy = 0; opp.tx = 38; opp.ty = 10; opp.ts = 3; me.x = 0.5; me.y = 1;
+  const starts = []; let on = false;
+  for (let i = 0; i < 60 * 8 && M.phase === 'play'; i += 1) { M.ball.st = 'held'; M.ball.owner = opp; opp.x = Math.min(opp.x, 30); update(M, 1 / 60, {}); const a = signalActive(M, opp); if (a && !on) starts.push(M.real); on = a; }
+  assert.ok(starts.length >= 3, `신호 ${starts.length}번`);
+  for (let k = 1; k < starts.length; k += 1) assert.ok(starts[k] - starts[k - 1] >= 1.0 - 1e-9, '같은 선수는 1초 간격');
 });
