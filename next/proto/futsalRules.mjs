@@ -32,9 +32,20 @@ export const TUNE = {
   },
   // 패스(3장): 속도는 거리 기반 x 능력 계수, 도착할 때 20% 느려진다. 먼 패스(12m 이상)와 압박(2.4m 안 상대)에서만 오차가 생긴다.
   pass: { speedK: 0.10, arriveMul: 0.8, errFarDist: 12, errFar: 0.5, errPress: 0.5, pressDist: 2.4, errBase: 1.6, errPerAbility: 0.07, errMin: 0.2, errMax: 1.6, lowStamina: 0.25, lowStaminaMul: 1.25, radiusK: 0.10 },
+  // 슛(4장): 쓸기 속도 → 세기, 구석 위험, 찬스 등급. 등급 기준 거리와 반경 중 문서에 없는 값은 임시값이다(보고 대상).
+  chance: {
+    hardDist: 14, hardDefenderR: 1.2, // 문서: 14m 이상이거나 수비수가 바짝 붙었을 때 (바짝 = 임시 1.2m)
+    sureDist: 6, sureDefenderR: 3.0, gkOffAim: 1.0, // 문서: 6m 이내, 수비수 없음, 골키퍼가 자리를 못 잡았을 때 (수비수 없음 = 임시 3.0m 안에 없음, 못 잡음 = 임시 조준과 1.0m 이상 떨어짐)
+    goodDist: 10, goodDefenderR: 2.5, goodGkOffAim: 0.8, // 문서: 10m 이내, 수비수가 멀고 열린 구석을 노릴 때 (멀다 = 임시 2.5m, 열린 구석 = 임시 골키퍼와 0.8m 이상)
+    p: { sure: [0.50, 0.60, 0.68], good: [0.22, 0.30, 0.38], normal: [0.06, 0.10, 0.14], hard: [0.02, 0.04, 0.06] }, // 슛 능력 0 / 10 / 20의 득점 확률(문서 표)
+    noiseMul: { sure: 2.0, good: 1.8, normal: 3.5, hard: 3.5 }, reachMul: { sure: 0.8, good: 0.35, normal: 1.1, hard: 1.5 }, slope: { sure: 0.15, good: 0.9, normal: 0.15, hard: 0.8 }, // slope: 슛 능력이 잡음에 미치는 영향의 크기(등급별 보정) // 시뮬레이션으로 보정하는 등급별 계수(보정 값은 이 줄을 덮어쓴다)
+  },
+  difficulty: { autoDefense: 'weak', chanceMul: 1, aiActivity: 1 }, // 수비 강도(5장), 찬스 득점 배수, 상대 AI 활동성(2단계부터 사용)
+  cornerRisk: 0.5, cornerRiskSpan: 1.5, // 구석 위험: 잡음 배수 = 1 + 0.5 x (|조준 - 중앙| / 1.5)
+  shotPowerK: 0.08, // 슛 최대 세기 계수 = 슛 70% + 힘 30% (±8%)
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
-  expectedGoals: 2.5,
+  expectedGoals: 2.5, // 지시문 4장: 경기당 합계 골(두 팀 합) 기준. 설계 문서 v6.3의 '팀당 약 2.5골'과 읽는 방식이 달라 보고 대상.
 };
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 export const speedOf = (a) => TUNE.minRunSpeed + (TUNE.maxRunSpeed - TUNE.minRunSpeed) * clamp(a, 0, 20) / 20;
@@ -52,7 +63,7 @@ export const gkDelay = (base, ratio) => base * (1 + TUNE.gkDelayGrow * (1 - clam
 export const sophistication = (avgSkill, coach) => Math.min(TUNE.sophistication.max, avgSkill * TUNE.sophistication.skillMul + clamp(coach, 0, 3) * TUNE.sophistication.coachMul);
 // 슛 사거리(m)와 거리별 정확도 잡음(표준편차 m)
 export const shotRange = (shooting) => TUNE.shot.rangeBase + TUNE.shot.rangePerShooting * clamp(shooting, 0, 20);
-export const shotNoise = (shooting, dist) => TUNE.shot.baseNoise * Math.max(0.25, dist - 4) * (1.5 - clamp(shooting, 0, 20) / 20 * 0.9);
+export const shotNoise = (shooting, dist, slope = 0.43) => TUNE.shot.baseNoise * Math.max(0.25, dist - 4) * 1.05 * (1 + slope * (10 - clamp(shooting, 0, 20)) / 10);
 // 접촉 경합: 개인기 중이면 기술+속도, 아니면 힘으로 지킨다. 수비는 힘과 속도. 수비수가 이길 확률.
 export function contestDefenderWins(att, def, dribbling) {
   const a = dribbling ? (att.skill + att.speed) / 2 : att.strength;
@@ -102,3 +113,13 @@ export function passErrorSigma({ dist, pressed, passing, ratio }) {
 // 판정 반경: 가로채기 = 패스 70% + 속도 30%(±10%), 공 받기 = 패스(±10%)
 export const interceptRadius = (ab) => link(TUNE.interceptR, mixAbility([[ab.passing ?? 10, 0.7], [ab.speed ?? 10, 0.3]]), TUNE.pass.radiusK, true);
 export const pickupRadius = (ab) => link(TUNE.pickupR, ab.passing ?? 10, TUNE.pass.radiusK, true);
+
+// ---- 슛 능력 연계(4장) ----
+export const shotPowerCoef = (ab) => link(1.0, mixAbility([[ab.shooting ?? 10, 0.7], [ab.strength ?? 10, 0.3]]), TUNE.shotPowerK, true); // 0.92 / 1.00 / 1.08
+export const cornerRisk = (aim, center = 10) => 1 + TUNE.cornerRisk * (Math.abs(aim - center) / TUNE.cornerRiskSpan); // 중앙 1.0배, 골포스트 옆 약 1.5배
+// 찬스 등급별 득점 확률 목표(슛 능력 0/10/20 사이를 선형 보간) x 전체 배수
+export function chanceTarget(grade, shooting, mul = TUNE.difficulty.chanceMul) {
+  const [a, b, c] = TUNE.chance.p[grade]; const s = clamp(shooting, 0, 20);
+  const v = s <= 10 ? a + (b - a) * (s / 10) : b + (c - b) * ((s - 10) / 10);
+  return clamp(v * mul, 0, 0.95);
+}

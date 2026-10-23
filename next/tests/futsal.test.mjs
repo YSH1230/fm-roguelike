@@ -2,7 +2,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng, gauss } from '../engine/rng.mjs';
-import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, swipePower, passSpeedFor, gkReach, link, mixAbility, kickPrep, stumbleTime, passV0, passSpeedCoef, passErrorCoef, passErrorSigma, interceptRadius, pickupRadius } from '../proto/futsalRules.mjs';
+import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, swipePower, passSpeedFor, gkReach, link, mixAbility, kickPrep, stumbleTime, shotPowerCoef, cornerRisk, chanceTarget, passV0, passSpeedCoef, passErrorCoef, passErrorSigma, interceptRadius, pickupRadius } from '../proto/futsalRules.mjs';
+import { rate } from './futsalCalib.mjs';
+import { chanceGrade } from '../proto/futsalSim.mjs';
 import { createInput } from '../proto/futsalInput.mjs';
 import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, setHold } from '../proto/futsalSim.mjs';
 
@@ -245,13 +247,12 @@ test('정적 AI 금지: 공이 움직이는 동안 3초 이상 같은 자리에 
   }
   assert.ok(worst < 3, `최대 정지 ${worst.toFixed(1)}초`);
 });
-test('AI 대 AI 평균 득점이 팀당 1.5~3.5골(조정 중 범위)', () => {
-  let g = 0; const n = 20;
+test('AI 대 AI 경기당 합계 골이 expectedGoals(2.5) ± 0.4', () => {
+  let g = 0; const n = 40;
   for (let s = 1; s <= n; s += 1) { const M = mk(s); M.autoHuman = true; finish(M); g += M.score[0] + M.score[1]; }
-  const avg = g / n / 2;
-  assert.ok(avg >= 1.5 && avg <= 3.5, `팀당 ${avg.toFixed(2)}골`);
+  const avg = g / n;
+  assert.ok(Math.abs(avg - TUNE.expectedGoals) <= 0.4, `합계 ${avg.toFixed(2)}골`);
 });
-
 test('킥 준비: 패스 준비 시간은 패스 능력 0/10/20에서 0.065/0.050/0.035초, 슛과 태클도 표와 같다', () => {
   const near = (a, b) => assert.ok(Math.abs(a - b) < 0.005, `${a} != ${b}`); // 문서 표는 반올림한 값
   for (const [a, v] of [[0, 0.065], [10, 0.05], [20, 0.035]]) near(kickPrep('pass', { passing: a }), v);
@@ -346,4 +347,31 @@ test('패스 성공은 패스 후 처음 닿는 선수가 누구냐로 정한다
   update(M, 0.01, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); settle(M);
   for (let i = 0; i < 200 && M.ball.st === 'pass'; i += 1) update(M, 1 / 60, {});
   assert.equal(M.stats.passOk[0], 1); assert.equal(M.stats.passFail[0], 0);
+});
+
+test('슛 최대 세기 계수는 슛 70% + 힘 30%로 0/10/20에서 0.92/1.00/1.08배, 구석 위험은 중앙 1.0배에서 골포스트 옆 약 1.5배', () => {
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
+  near(shotPowerCoef({ shooting: 0, strength: 0 }), 0.92); near(shotPowerCoef({ shooting: 10, strength: 10 }), 1.0); near(shotPowerCoef({ shooting: 20, strength: 20 }), 1.08);
+  near(cornerRisk(10), 1.0); near(cornerRisk(11.5), 1.5); near(cornerRisk(8.5), 1.5);
+});
+test('찬스 등급 판정: 거리, 수비수, 골키퍼 위치로 확실 / 좋음 / 보통 / 어려움이 정해진다', () => {
+  const M = mk(41); play(M, 1); const me = M.players.find((p) => p.team === 0 && !p.gk); const gk = M.players.find((p) => p.team === 1 && p.gk);
+  for (const q of M.players) if (q.team === 1 && !q.gk) { q.x = 8; q.y = 3; }
+  gk.y = 10;
+  me.x = 35; me.y = 10; gk.y = 8.6; assert.equal(chanceGrade(M, me, 11.1), 'sure');
+  me.x = 31; me.y = 10; gk.y = 10; assert.equal(chanceGrade(M, me, 11.1), 'good');
+  me.x = 27; assert.equal(chanceGrade(M, me, 11.1), 'normal');
+  me.x = 24; assert.equal(chanceGrade(M, me, 11.1), 'hard');
+  const d = M.players.find((p) => p.team === 1 && !p.gk); me.x = 31; d.x = me.x - 0.8; d.y = me.y; assert.equal(chanceGrade(M, me, 11.1), 'hard', '수비수가 바짝 붙으면 어려움');
+});
+test('찬스 등급별 득점 확률이 문서 표에 가깝다(슛 0/10/20, 허용 ±0.08)', () => {
+  for (const g of ['sure', 'good', 'normal', 'hard']) for (const s of [0, 10, 20]) {
+    const r = rate(g, s, 500, 2000); const target = chanceTarget(g, s);
+    assert.ok(r.graded > 0.99, `${g} 장면이 그 등급으로 판정됨`);
+    assert.ok(Math.abs(r.rate - target) <= 0.08, `${g} 슛${s}: 측정 ${r.rate.toFixed(3)} 목표 ${target.toFixed(3)}`);
+  }
+});
+test('찬스 전체 배수(chanceMul)를 열어 두었다: 2배로 올리면 득점 확률이 오른다', () => {
+  const base = rate('good', 10, 500, 3000).rate; TUNE.difficulty.chanceMul = 1.6;
+  try { assert.ok(rate('good', 10, 500, 3000).rate > base + 0.05, '배수를 올리면 더 잘 들어간다'); } finally { TUNE.difficulty.chanceMul = 1; }
 });

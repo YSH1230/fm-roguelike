@@ -2,7 +2,7 @@
 // 좌표는 미터. 팀 0(사람)은 왼쪽 골대를 지키고 +x로 공격, 팀 1은 오른쪽 골대를 지키고 -x로 공격한다.
 import { createRng, randInt, gauss } from '../engine/rng.mjs';
 import {
-  TUNE, contestDefenderWins, drainPerSecond, effSpeed, gkReach, gkReactTime, interceptRadius, kickPrep, passErrorSigma, passV0, pickupRadius, shotNoise, shotRange, stumbleTime, swipePower,
+  TUNE, contestDefenderWins, cornerRisk, drainPerSecond, effSpeed, gkReach, gkReactTime, interceptRadius, kickPrep, passErrorSigma, passV0, pickupRadius, shotNoise, shotPowerCoef, shotRange, stumbleTime, swipePower,
 } from './futsalRules.mjs';
 import { think } from './futsalAI.mjs';
 
@@ -137,18 +137,29 @@ function nearestMate(M, p, wxp, wyp) {
   for (const q of M.players) { if (q.team !== p.team || q === p || q.gk) continue; const d = hyp(q.x - wxp, q.y - wyp); if (d < bd) { bd = d; best = q; } }
   return best;
 }
+// 찬스 등급: 슛이 나가는 순간 거리, 가까운 수비수, 골키퍼 위치로 정한다(확실 / 좋음 / 보통 / 어려움). 등급은 잡음과 골키퍼 손이 닿는 범위를 조정한다.
+export function chanceGrade(M, p, aim) {
+  const C = TUNE.chance; const gx = goalX(p.team); const dist = Math.abs(gx - p.x); const gk = keeper(M, 1 - p.team);
+  let nearest = 99; for (const q of M.players) if (q.team !== p.team && !q.gk) nearest = Math.min(nearest, hyp(q.x - p.x, q.y - p.y));
+  const gkOff = gk ? Math.abs(gk.y - aim) : 99;
+  if (dist >= C.hardDist || nearest < C.hardDefenderR) return 'hard';
+  if (dist <= C.sureDist && nearest >= C.sureDefenderR && gkOff >= C.gkOffAim) return 'sure';
+  if (dist <= C.goodDist && nearest >= C.goodDefenderR && gkOff >= C.goodGkOffAim) return 'good';
+  return 'normal';
+}
 export function shoot(M, p, ay, noiseFree = false, power = 0.75) {
   const gk0 = keeper(M, 1 - p.team);
   const b = M.ball; const gx = goalX(p.team); const dist = Math.abs(gx - p.x);
   const sh = p.ab.shooting ?? 8;
-  const S = TUNE.shot;
-  const noise = noiseFree ? 0 : gauss(M.rng) * shotNoise(sh, dist) * (1 - S.powerNoise * 0.5 + S.powerNoise * power); // 세게 찰수록 조금 더 흔들린다
-  const speed = S.speedMin + (S.speedMax - S.speedMin) * power;
+  const S = TUNE.shot; const grade = chanceGrade(M, p, ay); const mulN = TUNE.chance.noiseMul[grade] / TUNE.difficulty.chanceMul;
+  const lowStamina = p.ratio <= TUNE.pass.lowStamina ? TUNE.pass.lowStaminaMul : 1; // 체력 25% 이하면 슛 오차 x1.25
+  const noise = noiseFree ? 0 : gauss(M.rng) * shotNoise(sh, dist, TUNE.chance.slope[grade]) * (1 - S.powerNoise * 0.5 + S.powerNoise * Math.min(1, power)) * cornerRisk(ay) * lowStamina * mulN; // 세게 찰수록, 구석일수록 더 흔들린다
+  const speed = S.speedMin + (S.speedMax - S.speedMin) * Math.min(1.1, power);
   const rangeFactor = dist > shotRange(sh) ? 1 + (dist - shotRange(sh)) * 0.25 : 1; // 사거리 밖은 많이 흔들린다
   const tyv = ay + noise * rangeFactor;
   const dx = gx - p.x; const dy = tyv - p.y; const l = hyp(dx, dy) || 1;
-  Object.assign(b, { st: 'shot', owner: null, tgt: null, x: p.x, y: p.y, vx: dx / l * speed, vy: dy / l * speed, trav: 0, shooter: p, aimY: tyv, aimTarget: ay, dist, power, speed, reactAt: M.real + (gk0 ? gkReactTime(gk0.ab.reaction, gk0.ratio) : 0) });
-  M.lastTouch = p.team; M.stats.shots[p.team] += 1; M.events.push({ kind: 'shot', team: p.team, id: p.id });
+  Object.assign(b, { st: 'shot', owner: null, tgt: null, x: p.x, y: p.y, vx: dx / l * speed, vy: dy / l * speed, trav: 0, shooter: p, aimY: tyv, aimTarget: ay, dist, power, speed, chance: grade, reactAt: M.real + (gk0 ? gkReactTime(gk0.ab.reaction, gk0.ratio) : 0) });
+  M.lastTouch = p.team; M.stats.shots[p.team] += 1; (M.stats.chances ??= { sure: 0, good: 0, normal: 0, hard: 0 })[grade] += 1; M.events.push({ kind: 'shot', team: p.team, id: p.id, chance: grade });
 }
 
 // ---------- 킥 준비 큐(2장) ----------
@@ -207,7 +218,7 @@ function swipeShot(M, p, a) {
   const thetaSwipe = Math.atan2(a.dy ?? 0, (a.dx ?? 0) * dirx);
   if (Math.abs(thetaSwipe - thetaGoal) > (TUNE.input.shotAngleDeg * Math.PI) / 180 || (a.dx ?? 0) * dirx <= 0) return false;
   const ay = clamp(p.y + Math.tan(thetaSwipe) * Math.abs(gx - p.x), GY0, GY1);
-  queueShot(M, p, ay, false, swipePower(a.v ?? 1));
+  queueShot(M, p, ay, false, swipePower(a.v ?? 1) * shotPowerCoef(p.ab)); // 최대 세기 계수(슛 70% + 힘 30%)
   return true;
 }
 function applyHumanAction(M, a) {
@@ -342,7 +353,8 @@ function resolveShot(M, att) {
   // 골키퍼는 실제로 움직인다: 반응 시간 뒤 공이 지날 자리로 몸을 날리고, 공이 골라인을 지날 때 손이 닿는 범위 안이면 막는다.
   const miss = emptyNet ? 99 : Math.abs(gk.y - ay);
   M.lastShot = { team: att, ay, gkY: gk?.y, miss, reach: gk ? gkReach(gk.ab.handling, b.power ?? 0.5) : 0, dist: b.dist, power: b.power }; (M.shotLog ??= []).push(M.lastShot);
-  const saved = emptyNet ? M.rng() >= TUNE.flyingGk.emptyNetGoal : miss <= gkReach(gk.ab.handling, b.power ?? 0.5);
+  const reach = gk ? gkReach(gk.ab.handling, b.power ?? 0.5) * TUNE.chance.reachMul[b.chance ?? 'normal'] / TUNE.difficulty.chanceMul : 0;
+  const saved = emptyNet ? M.rng() >= TUNE.flyingGk.emptyNetGoal : miss <= reach;
   if (!saved) goalScored(M, att, b.shooter);
   else {
     M.stats.saves[1 - att] += 1; M.events.push({ kind: 'save', team: 1 - att, id: gk?.id });
