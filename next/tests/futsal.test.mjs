@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng, gauss } from '../engine/rng.mjs';
-import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, swipePower, passSpeedFor, gkReach, link, mixAbility, kickPrep, stumbleTime } from '../proto/futsalRules.mjs';
+import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, swipePower, passSpeedFor, gkReach, link, mixAbility, kickPrep, stumbleTime, passV0, passSpeedCoef, passErrorCoef, passErrorSigma, interceptRadius, pickupRadius } from '../proto/futsalRules.mjs';
 import { createInput } from '../proto/futsalInput.mjs';
 import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, setHold } from '../proto/futsalSim.mjs';
 
@@ -179,8 +179,8 @@ test('공을 가졌을 때: 선수 근처 콕은 그 선수에게 패스, 빈 �
   update(r.M, 1 / 60, { actions: [{ type: 'tap', wx: r.mate.x + 0.8, wy: r.mate.y }] }); settle(r.M);
   assert.equal(r.M.ball.tgt, r.mate);
   r = setup(3);
-  update(r.M, 1 / 60, { actions: [{ type: 'tap', wx: 30, wy: 4 }] }); settle(r.M);
-  assert.ok(Math.hypot(r.M.ball.dest.x - 30, r.M.ball.dest.y - 4) < 1e-6, '빈 곳을 한 번 콕하면 그 자리로 공간 패스');
+  update(r.M, 1 / 60, { actions: [{ type: 'tap', wx: 19, wy: 6 }] }); settle(r.M); // 12m 안의 빈 곳이라 오차가 없다
+  assert.ok(Math.hypot(r.M.ball.dest.x - 19, r.M.ball.dest.y - 6) < 1e-6, '빈 곳을 한 번 콕하면 그 자리로 공간 패스');
   r = setup(3);
   update(r.M, 1 / 60, { actions: [{ type: 'hold', wx: r.mate.x, wy: r.mate.y }] }); settle(r.M);
   assert.equal(r.M.ball.st, 'held', '동료를 꾹은 인식만 하고 효과가 없다');
@@ -209,8 +209,8 @@ test('공이 없을 때: 콕은 스탠딩 태클, 꾹은 슬라이딩 태클, �
   reset(); update(M, 1 / 60, { actions: [{ type: 'hold', wx: 0, wy: 0 }] }); settle(M); assert.ok(me.slideT > 0);
   reset(); update(M, 1 / 60, { actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.5 }] }); settle(M); assert.equal(me.slideT, 0, '수비 중 쓸기는 무시');
 });
-test('패스 속도는 거리에 따라 9~16 m/s, 공은 방향을 바꾸지 않고 가까이 지나가는 동료도 받는다', () => {
-  assert.equal(passSpeedFor(0), 9); assert.equal(passSpeedFor(30), 16); assert.ok(passSpeedFor(6) > passSpeedFor(3));
+test('패스 속도는 거리에 따라 10~16 m/s, 공은 방향을 바꾸지 않고 가까이 지나가는 동료도 받는다', () => {
+  assert.equal(passSpeedFor(0), 10); assert.equal(passSpeedFor(30), 16); assert.ok(passSpeedFor(6) > passSpeedFor(3));
 });
 test('슛 세기: 스와이프가 빠를수록 강하고, 약한 슛이 막히기 쉽다', () => {
   assert.equal(swipePower(0.5), 0.6); assert.equal(swipePower(2.0), 1); assert.ok(swipePower(1.5) > swipePower(1)); assert.equal(swipePower(0.1), 0.6);
@@ -308,4 +308,42 @@ test('히트스톱: 슛 세기 0.7 이상이면 발사 순간 33ms 동안 시뮬
 test('같은 시드와 같은 입력이면 결과가 같다', () => {
   const run = () => { const M = mk(21); const inputs = []; for (let i = 0; i < 600; i += 1) { const a = i % 90 === 40 ? [{ type: 'tap', wx: 25, wy: 8 }] : (i % 150 === 100 ? [{ type: 'swipe', dx: 1, dy: 0.2, v: 1.4 }] : []); update(M, 1 / 60, { move: i % 200 < 120 ? { x: 1, y: 0.2 } : null, actions: a }); inputs.push(a.length); } return [M.score.join('-'), M.ball.x.toFixed(6), M.real.toFixed(6), M.stats.passes.join(',')]; };
   assert.deepEqual(run(), run());
+});
+
+test('패스 속도: 능력 0/10/20에서 0.9/1.0/1.1배, 어떤 경우에도 10m/s 아래로 내려가지 않는다', () => {
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
+  near(passSpeedCoef(0), 0.9); near(passSpeedCoef(10), 1.0); near(passSpeedCoef(20), 1.1);
+  for (const d of [0, 1, 5, 15, 40]) for (const a of [0, 10, 20]) assert.ok(passV0(d, a) >= 10 - 1e-9);
+  near(passV0(10, 20), passSpeedFor(10) * 1.1);
+});
+test('패스는 도착할 때 출발 속도의 80%(±2%)로 느려진다', () => {
+  const { M, me, mate } = holdSetup(31); me.ab.passing = 10; mate.x = 34; mate.y = 10; mate.tx = mate.x; mate.ty = mate.y; mate.ts = 0;
+  update(M, 0.01, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); settle(M);
+  const v0 = M.ball.v0; let last = v0; let first = Math.hypot(M.ball.vx, M.ball.vy);
+  for (let i = 0; i < 300 && M.ball.st === 'pass'; i += 1) { last = Math.hypot(M.ball.vx, M.ball.vy); update(M, 1 / 120, {}); }
+  assert.ok(Math.abs(first - v0) / v0 < 0.02, '출발 속도'); assert.ok(Math.abs(last / v0 - 0.8) < 0.03, `도착 직전 ${(last / v0).toFixed(3)}배`);
+});
+test('패스 오차: 먼 패스와 압박에서만 생기고, 패스 능력이 높을수록 작다. 체력 25% 이하면 1.25배', () => {
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
+  assert.equal(passErrorSigma({ dist: 8, pressed: false, passing: 10, ratio: 1 }), 0, '가깝고 압박 없으면 오차 없음');
+  near(passErrorSigma({ dist: 12, pressed: false, passing: 10, ratio: 1 }), 0.5 * 0.9);
+  near(passErrorSigma({ dist: 12, pressed: true, passing: 10, ratio: 1 }), 1.0 * 0.9, '겹치면 합산');
+  near(passErrorSigma({ dist: 12, pressed: false, passing: 0, ratio: 1 }), 0.5 * 1.6); near(passErrorSigma({ dist: 12, pressed: false, passing: 20, ratio: 1 }), 0.5 * 0.2);
+  near(passErrorSigma({ dist: 12, pressed: false, passing: 10, ratio: 0.2 }), 0.5 * 0.9 * 1.25);
+  const spread = (passing, sd) => { let sum = 0; for (let i = 0; i < 200; i += 1) { const { M, me, mate } = holdSetup(500 + i + sd); me.ab.passing = passing; me.x = 6; me.y = 10; mate.x = 26; mate.y = 10; mate.tx = mate.x; mate.ty = mate.y; mate.ts = 0; mate.vx = 0; mate.vy = 0;
+    update(M, 0.01, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); settle(M); sum += Math.abs(M.ball.dest.y - 10); } return sum / 200; };
+  assert.ok(spread(20, 0) < spread(0, 0), '패스 20은 패스 0보다 오차가 작다');
+  const { M, me, mate } = holdSetup(32); me.x = 10; mate.x = 16; mate.y = 10; mate.tx = mate.x; mate.ty = mate.y; mate.ts = 0; mate.vx = 0; mate.vy = 0;
+  update(M, 0.01, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); settle(M); assert.equal(M.ball.dest.y, 10, '짧은 압박 없는 패스는 오차가 없다');
+});
+test('판정 반경: 가로채기 0.77/0.85/0.94m, 공 받기 1.08/1.20/1.32m (능력 0/10/20)', () => {
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 0.006, `${a} != ${b}`);
+  for (const [a, v] of [[0, 0.77], [10, 0.85], [20, 0.94]]) close(interceptRadius({ passing: a, speed: a }), v);
+  for (const [a, v] of [[0, 1.08], [10, 1.2], [20, 1.32]]) close(pickupRadius({ passing: a }), v);
+});
+test('패스 성공은 패스 후 처음 닿는 선수가 누구냐로 정한다', () => {
+  const { M, me, mate } = holdSetup(33); mate.x = 20; mate.y = 10; mate.tx = mate.x; mate.ty = mate.y; mate.ts = 0; mate.vx = 0; mate.vy = 0; me.x = 14; me.y = 10;
+  update(M, 0.01, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); settle(M);
+  for (let i = 0; i < 200 && M.ball.st === 'pass'; i += 1) update(M, 1 / 60, {});
+  assert.equal(M.stats.passOk[0], 1); assert.equal(M.stats.passFail[0], 0);
 });

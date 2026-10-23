@@ -7,7 +7,7 @@ export const TUNE = {
   extraMinutes: { 1: [1, 5], 2: [3, 10] }, // 정규 시간 뒤 추가시간(풋살 시계, 분)
   // 이동과 공
   minRunSpeed: 6, maxRunSpeed: 8, accel: 9,
-  passSpeedMin: 9, passSpeedMax: 16, passSpeedBase: 8, passSpeedPerM: 0.8, ballFriction: 0.6, pickupR: 1.2, interceptR: 0.85, blockR: 0.7,
+  passSpeedMin: 10, passSpeedMax: 16, passSpeedBase: 8, passSpeedPerM: 0.8, ballFriction: 0.6, pickupR: 1.2, interceptR: 0.85, blockR: 0.7,
   deadBallSeconds: 4, autoRestartSeconds: 0.9,
   // 체력
   drainBase: 0.55, drainPerStamina: 0.015, speedFloor: 0.7, gkDelayGrow: 0.4,
@@ -30,6 +30,8 @@ export const TUNE = {
     stumble: { base: 0.25, k: 0.30 }, // 공을 뺏긴 선수가 비틀거리는 시간(힘 연계, 문서 표의 순서 그대로: 힘이 클수록 길다)
     stumbleMoveMul: 0, // 비틀거리는 동안 이동 속도 배수(문서에 값이 없어 임시로 0, 보고 대상)
   },
+  // 패스(3장): 속도는 거리 기반 x 능력 계수, 도착할 때 20% 느려진다. 먼 패스(12m 이상)와 압박(2.4m 안 상대)에서만 오차가 생긴다.
+  pass: { speedK: 0.10, arriveMul: 0.8, errFarDist: 12, errFar: 0.5, errPress: 0.5, pressDist: 2.4, errBase: 1.6, errPerAbility: 0.07, errMin: 0.2, errMax: 1.6, lowStamina: 0.25, lowStaminaMul: 1.25, radiusK: 0.10 },
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
   expectedGoals: 2.5,
@@ -84,3 +86,19 @@ export function kickPrep(kind, ab) {
   return link(c.base, a, c.k, false);
 }
 export const stumbleTime = (strength) => link(TUNE.kick.stumble.base, strength, TUNE.kick.stumble.k, true);
+
+// ---- 패스 능력 연계(3장) ----
+export const passSpeedCoef = (passing) => link(1.0, passing, TUNE.pass.speedK, true); // 0.9 / 1.0 / 1.1배
+// 출발 속도: 거리 기반 속도 x 능력 계수, 곱한 뒤에도 passSpeedMin(10m/s) 아래로 내려가지 않는다
+export const passV0 = (dist, passing) => Math.max(TUNE.passSpeedMin, passSpeedFor(dist) * passSpeedCoef(passing));
+// 패스 오차의 능력 계수 = 1.6 - 0.07 x 패스(0.2~1.6): 패스 0이면 1.6배, 10이면 0.9배, 20이면 0.2배
+export const passErrorCoef = (passing) => clamp(TUNE.pass.errBase - TUNE.pass.errPerAbility * passing, TUNE.pass.errMin, TUNE.pass.errMax);
+// 패스 오차의 표준편차(m): 먼 패스 +0.5, 압박 +0.5(합산), x 능력 계수, 체력 25% 이하면 x1.25
+export function passErrorSigma({ dist, pressed, passing, ratio }) {
+  const P = TUNE.pass;
+  const base = (dist >= P.errFarDist ? P.errFar : 0) + (pressed ? P.errPress : 0);
+  return base * passErrorCoef(passing) * (ratio <= P.lowStamina ? P.lowStaminaMul : 1);
+}
+// 판정 반경: 가로채기 = 패스 70% + 속도 30%(±10%), 공 받기 = 패스(±10%)
+export const interceptRadius = (ab) => link(TUNE.interceptR, mixAbility([[ab.passing ?? 10, 0.7], [ab.speed ?? 10, 0.3]]), TUNE.pass.radiusK, true);
+export const pickupRadius = (ab) => link(TUNE.pickupR, ab.passing ?? 10, TUNE.pass.radiusK, true);

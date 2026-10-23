@@ -2,7 +2,7 @@
 // 좌표는 미터. 팀 0(사람)은 왼쪽 골대를 지키고 +x로 공격, 팀 1은 오른쪽 골대를 지키고 -x로 공격한다.
 import { createRng, randInt, gauss } from '../engine/rng.mjs';
 import {
-  TUNE, contestDefenderWins, drainPerSecond, effSpeed, gkReach, gkReactTime, kickPrep, passSpeedFor, shotNoise, shotRange, stumbleTime, swipePower,
+  TUNE, contestDefenderWins, drainPerSecond, effSpeed, gkReach, gkReactTime, interceptRadius, kickPrep, passErrorSigma, passV0, pickupRadius, shotNoise, shotRange, stumbleTime, swipePower,
 } from './futsalRules.mjs';
 import { think } from './futsalAI.mjs';
 
@@ -43,7 +43,7 @@ export function createMatch({ seed = 1, home, away, stance = 'balanced', awaySta
     ball: { x: W / 2, y: H / 2, vx: 0, vy: 0, st: 'held', owner: null, tgt: null, trav: 0 },
     control: 0, half: 1, halfClock: 0, clock: 0, real: 0, extra: { 1: null, 2: null }, inExtra: false,
     phase: 'deadball', restart: null, score: [0, 0], events: [], lastTouch: 0, contestT: 0, shooterTeam: 0,
-    stats: { runs: [0, 0], goals: [], saves: [0, 0], tackles: [0, 0], intercepts: [0, 0], shots: [0, 0], passes: [0, 0] },
+    stats: { runs: [0, 0], goals: [], saves: [0, 0], tackles: [0, 0], intercepts: [0, 0], shots: [0, 0], passes: [0, 0], passOk: [0, 0], passFail: [0, 0] },
     ai: { skill: [12, 12], style: ['balanced', 'balanced'], specials: [[], []] }, // P3에서 채운다
     opts: { gkAdvance: [false, false] },
   };
@@ -74,7 +74,7 @@ export const outfield = (M, t) => M.players.filter((p) => p.team === t && !p.gk)
 export const keeper = (M, t) => M.players.find((p) => p.team === t && p.gk);
 export const goalX = (t) => (t === 0 ? W : 0); // 팀 t가 공격하는 골대의 x
 
-export function setHold(M, p) { if (M.ball.owner && M.ball.owner !== p) cancelKicksOf(M, M.ball.owner); M.holdT = 0; M.ball.st = 'held'; M.ball.owner = p; M.ball.tgt = null; M.lastTouch = p.team; M.ball.x = p.x; M.ball.y = p.y; }
+export function setHold(M, p) { if (M.ball.passFrom != null) { (p.team === M.ball.passFrom ? M.stats.passOk : M.stats.passFail)[M.ball.passFrom] += 1; M.ball.passFrom = null; } if (M.ball.owner && M.ball.owner !== p) cancelKicksOf(M, M.ball.owner); M.holdT = 0; M.ball.st = 'held'; M.ball.owner = p; M.ball.tgt = null; M.lastTouch = p.team; M.ball.x = p.x; M.ball.y = p.y; }
 
 function startKickoff(M, t) {
   clearQueue(M);
@@ -104,26 +104,33 @@ export function canAct(M) {
 
 // ---------- 행동 ----------
 // 받는 선수가 지금 속도로 달릴 때 공과 만나는 지점(두 번 보정). 공은 이 지점을 향해 곧게 날아가고 방향을 바꾸지 않는다.
-function leadPoint(from, tgt) {
-  let t = hyp(tgt.x - from.x, tgt.y - from.y) / passSpeedFor(hyp(tgt.x - from.x, tgt.y - from.y));
+function leadPoint(from, tgt, passing) {
+  let t = hyp(tgt.x - from.x, tgt.y - from.y) / passV0(hyp(tgt.x - from.x, tgt.y - from.y), passing);
   let x = tgt.x; let y = tgt.y;
-  for (let i = 0; i < 2; i += 1) { x = clamp(tgt.x + tgt.vx * t, 0.5, W - 0.5); y = clamp(tgt.y + tgt.vy * t, 0.5, H - 0.5); const dd = hyp(x - from.x, y - from.y); t = dd / passSpeedFor(dd); }
+  for (let i = 0; i < 2; i += 1) { x = clamp(tgt.x + tgt.vx * t, 0.5, W - 0.5); y = clamp(tgt.y + tgt.vy * t, 0.5, H - 0.5); const dd = hyp(x - from.x, y - from.y); t = dd / passV0(dd, passing); }
   return { x, y };
 }
-export function passTo(M, p, tgt) {
-  const b = M.ball; const d = leadPoint(b, tgt);
-  b.spot = false;
-  b.st = 'pass'; b.owner = null; b.tgt = tgt; b.dest = d; b.speed = passSpeedFor(hyp(d.x - b.x, d.y - b.y)); M.lastTouch = p.team; M.stats.passes[p.team] += 1;
+// 패스 오차: 선행 지점을 계산한 뒤 목표 지점에 좌우(진행 방향의 수직)로 더한다. 값은 시드 RNG로 뽑는다. AI 패스에도 같은 규칙.
+function withPassError(M, p, from, dest) {
+  const dist = hyp(dest.x - from.x, dest.y - from.y);
+  const pressed = M.players.some((q) => q.team !== p.team && !q.gk && hyp(q.x - p.x, q.y - p.y) <= TUNE.pass.pressDist);
+  const sigma = passErrorSigma({ dist, pressed, passing: p.ab.passing ?? p.ab.skill ?? 10, ratio: p.ratio });
+  if (sigma <= 0) return dest;
+  const off = gauss(M.rng) * sigma; const nx = -(dest.y - from.y) / (dist || 1); const ny = (dest.x - from.x) / (dist || 1);
+  return { x: clamp(dest.x + nx * off, 0.5, W - 0.5), y: clamp(dest.y + ny * off, 0.5, H - 0.5) };
+}
+function startPass(M, p, tgt, dest, spot) {
+  const b = M.ball; const from = { x: b.x, y: b.y };
+  const d = withPassError(M, p, from, dest); const total = Math.max(0.01, hyp(d.x - from.x, d.y - from.y));
+  b.spot = spot; b.st = 'pass'; b.owner = null; b.tgt = tgt; b.dest = d; b.from = from; b.total = total; b.s = 0; b.v0 = passV0(total, p.ab.passing ?? p.ab.skill ?? 10);
+  b.speed = b.v0; b.passFrom = p.team; M.lastTouch = p.team; M.stats.passes[p.team] += 1;
   if (p.team === 0) M.control = M.players.indexOf(tgt); // 패스하면 받는 선수로 조종이 넘어간다
 }
+export function passTo(M, p, tgt) { startPass(M, p, tgt, leadPoint(M.ball, tgt, p.ab.passing ?? p.ab.skill ?? 10), false); }
 // 공간 패스: 놓은 자리로 보낸다. 그 자리에 가장 빨리 닿는 동료가 받으러 달린다.
 export function passToSpot(M, p, x, y) {
-  const b = M.ball; let best = null; let bt = 1e9;
-  for (const q of M.players) { if (q.team !== p.team || q === p || q.gk) continue; const t = hyp(q.x - x, q.y - y) / Math.max(1, effSpeed(q.ab.speed, q.ratio)); if (t < bt) { bt = t; best = q; } }
-  if (!best) return;
-  b.spot = true;
-  b.st = 'pass'; b.owner = null; b.tgt = best; b.dest = { x: clamp(x, 0.5, W - 0.5), y: clamp(y, 0.5, H - 0.5) }; b.speed = passSpeedFor(hyp(b.dest.x - b.x, b.dest.y - b.y)); M.lastTouch = p.team; M.stats.passes[p.team] += 1;
-  if (p.team === 0) M.control = M.players.indexOf(best);
+  const best = spotReceiver(M, p, x, y); if (!best) return;
+  startPass(M, p, best, { x: clamp(x, 0.5, W - 0.5), y: clamp(y, 0.5, H - 0.5) }, true);
 }
 function nearestMate(M, p, wxp, wyp) {
   let best = null; let bd = 1e9;
@@ -297,15 +304,17 @@ function stepBall(M, dt) {
     return;
   }
   if (b.st === 'pass') {
-    const dest = b.dest ?? b.tgt; const dx = dest.x - b.x; const dy = dest.y - b.y; const d = hyp(dx, dy) || 1; const s = Math.min(d, b.speed * dt);
-    b.x += dx / d * s; b.y += dy / d * s; b.vx = dx / d * b.speed; b.vy = dy / d * b.speed;
-    for (const q of M.players) {
-      if (q.team !== M.lastTouch && hyp(q.x - b.x, q.y - b.y) < TUNE.interceptR) { M.stats.intercepts[q.team] += 1; setHold(M, q); M.events.push({ kind: 'intercept', team: q.team, id: q.id }); return; }
+    // 도착할 때 약 20% 느려진다: 출발 속도에서 선형으로 줄어 도착 순간에는 80%
+    const frac = Math.min(1, b.s / b.total); const sp = b.v0 * (1 - (1 - TUNE.pass.arriveMul) * frac);
+    b.s = Math.min(b.total, b.s + sp * dt); const k = b.s / b.total;
+    b.x = b.from.x + (b.dest.x - b.from.x) * k; b.y = b.from.y + (b.dest.y - b.from.y) * k;
+    const dirx = (b.dest.x - b.from.x) / b.total; const diry = (b.dest.y - b.from.y) / b.total; b.vx = dirx * sp; b.vy = diry * sp; b.speed = sp;
+    for (const q of M.players) { // 패스 후 처음 닿는 선수가 누구냐로 성공을 정한다
+      if (q.team !== M.lastTouch && hyp(q.x - b.x, q.y - b.y) < interceptRadius(q.ab)) { M.stats.intercepts[q.team] += 1; setHold(M, q); M.events.push({ kind: 'intercept', team: q.team, id: q.id }); return; }
     }
-    // 받는 선수가 공 가까이 오면 받는다(달려 들어온 선수 포함). 도착했는데 아무도 못 받으면 루즈볼.
-    if (hyp(b.tgt.x - b.x, b.tgt.y - b.y) < TUNE.pickupR) { const r = b.tgt; setHold(M, r); M.events.push({ kind: 'receive', team: r.team, id: r.id }); return; }
-    for (const q of M.players) if (q.team === M.lastTouch && !q.gk && q !== b.tgt && hyp(q.x - b.x, q.y - b.y) < TUNE.pickupR * 0.8 && d < 3) { setHold(M, q); return; } // 가까이 지나가는 다른 동료도 받는다
-    if (d < 0.2) { b.st = 'loose'; b.vx = b.vx * 0.25; b.vy = b.vy * 0.25; }
+    if (hyp(b.tgt.x - b.x, b.tgt.y - b.y) < pickupRadius(b.tgt.ab)) { const r = b.tgt; setHold(M, r); M.events.push({ kind: 'receive', team: r.team, id: r.id }); return; }
+    for (const q of M.players) if (q.team === M.lastTouch && !q.gk && q !== b.tgt && hyp(q.x - b.x, q.y - b.y) < pickupRadius(q.ab) * 0.8 && b.total - b.s < 3) { setHold(M, q); return; } // 가까이 지나가는 다른 동료도 받는다
+    if (b.s >= b.total) { b.st = 'loose'; b.vx *= 0.25; b.vy *= 0.25; }
   } else if (b.st === 'shot') {
     const s = b.speed * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.trav += s;
     const att = b.shooter.team; const gx = goalX(att);
@@ -360,6 +369,7 @@ function checkBounds(M) {
     else r = { kind: 'goalkeeper', team: endTeam, x: wx(endTeam, 2.2), y: GYC };
   }
   clearQueue(M);
+  if (b.passFrom != null) { M.stats.passFail[b.passFrom] += 1; b.passFrom = null; }
   M.phase = 'deadball'; b.vx = 0; b.vy = 0;
   M.restart = { ...r, timer: TUNE.deadBallSeconds, pick: null };
   // 재개할 선수를 정해 공을 들게 한다
