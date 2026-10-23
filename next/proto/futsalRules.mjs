@@ -43,6 +43,16 @@ export const TUNE = {
   difficulty: { autoDefense: 'weak', chanceMul: 1, aiActivity: 1 }, // 수비 강도(5장), 찬스 득점 배수, 상대 AI 활동성(2단계부터 사용)
   cornerRisk: 0.5, cornerRiskSpan: 1.5, // 구석 위험: 잡음 배수 = 1 + 0.5 x (|조준 - 중앙| / 1.5)
   shotPowerK: 0.08, // 슛 최대 세기 계수 = 슛 70% + 힘 30% (±8%)
+  // 수비와 태클(5장). 문서에 값이 없는 것은 임시값이고 보고 대상이다(slowMul, signal.*, defense.*).
+  tackle: {
+    standing: { reach: 2.0, reachK: 0.10, base: 0.35, penalty: 0.30, penaltyK: 0.30, slowMul: 0.5 }, // 콕: 닿는 거리(속도), 기본 성공률, 실패 시 느려지는 시간(힘)과 느려지는 배수(임시)
+    sliding: { reach: 3.5, reachK: 0.10, mul: 0.7, freeze: 0.40, freezeK: 0.30, down: 0.80, downK: 0.15, interval: 3.0, intervalK: 0.15, staminaCost: 0.03, staminaCostK: 0.30 }, // 꾹: 성공하면 상대 정지(힘), 실패하면 누움(체력), 사용 간격(체력), 체력 3%
+    bonus: 0.20, // 태클 신호가 켜진 동안 터치를 시작하면 성공률 +20%p
+    pK: 0.025, pMin: 0.06, pMax: 0.65, // 성공 확률 = 기본 + 0.025 x (수비 합성값 - 공격 합성값), 0.06~0.65로 자른다
+    defMix: [['strength', 0.5], ['skill', 0.3], ['speed', 0.2]], carrierMix: [['strength', 0.6], ['skill', 0.4]],
+  },
+  signal: { ms: 0.4, gap: 1.0, farOffset: 0.9, farCycle: 0.9, farShare: 0.25, farMinSpeed: 2, turnDeg: 90, turnWindow: 0.3, firstTouch: 0.4 }, // 태클 신호: 청록 링 0.4초, 같은 선수는 1초 간격. 나머지는 임시값
+  defense: { jockey: 1.3, coverBack: 2.5, laneShare: 0.6, controlIdle: 0.3, attemptPerSec: { weak: 0.7, normal: 1.0, strong: 1.4 }, contactBase: 0.30 }, // 1차 수비수 간격 1.3m, 커버 2~3m 뒤, 조종 선수 AI 전환 0.3초. 시도 빈도와 contactBase는 임시/보정값
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
   expectedGoals: 2.5, // 지시문 4장: 경기당 합계 골(두 팀 합) 기준. 설계 문서 v6.3의 '팀당 약 2.5골'과 읽는 방식이 달라 보고 대상.
@@ -68,7 +78,7 @@ export const shotNoise = (shooting, dist, slope = 0.43) => TUNE.shot.baseNoise *
 export function contestDefenderWins(att, def, dribbling) {
   const a = dribbling ? (att.skill + att.speed) / 2 : att.strength;
   const d = (def.strength * 0.7 + def.speed * 0.3);
-  return clamp(0.3 + 0.025 * (d - a), 0.06, 0.65);
+  return clamp(TUNE.defense.contactBase + 0.025 * (d - a), 0.06, 0.65);
 }
 export const clockText = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 // 손가락 입력 구분(지연 없이 즉시): 콕 = 35px 미만 + 250ms 이내(20~35px는 미끄러진 콕), 쓸기 = 35px 이상 + 0.5px/ms 이상, 그 밖은 없음. 꾹은 시간으로만 판정한다(futsalInput).
@@ -122,4 +132,19 @@ export function chanceTarget(grade, shooting, mul = TUNE.difficulty.chanceMul) {
   const [a, b, c] = TUNE.chance.p[grade]; const s = clamp(shooting, 0, 20);
   const v = s <= 10 ? a + (b - a) * (s / 10) : b + (c - b) * ((s - 10) / 10);
   return clamp(v * mul, 0, 0.95);
+}
+
+// ---- 태클(5장) ----
+export const standingReach = (ab) => link(TUNE.tackle.standing.reach, ab.speed ?? 10, TUNE.tackle.standing.reachK, true); // 1.8 / 2.0 / 2.2m
+export const slidingReach = (ab) => link(TUNE.tackle.sliding.reach, ab.speed ?? 10, TUNE.tackle.sliding.reachK, true); // 3.15 / 3.5 / 3.85m
+export const standingPenalty = (strength) => link(TUNE.tackle.standing.penalty, strength, TUNE.tackle.standing.penaltyK, false); // 0.39 / 0.30 / 0.21초
+export const slidingFreeze = (strength) => link(TUNE.tackle.sliding.freeze, strength, TUNE.tackle.sliding.freezeK, true); // 0.28 / 0.40 / 0.52초
+export const slidingDown = (stamina) => link(TUNE.tackle.sliding.down, stamina, TUNE.tackle.sliding.downK, false); // 0.92 / 0.80 / 0.68초
+export const slidingInterval = (stamina) => link(TUNE.tackle.sliding.interval, stamina, TUNE.tackle.sliding.intervalK, false); // 3.45 / 3.00 / 2.55초
+export const staminaCostMul = (stamina) => link(1.0, stamina, 0.30, false); // 체력 소모 배율 1.3 / 1.0 / 0.7
+// 태클 성공 확률: 기본 + 0.025 x (수비 합성값 - 공 가진 선수 합성값) (+ 신호 보너스), 0.06~0.65. 슬라이딩은 신호 보너스를 더한 뒤 x0.7.
+export function tackleChance(carrier, defender, { slide = false, signal = false } = {}) {
+  const T = TUNE.tackle; const d = mixAbility(T.defMix.map(([k, w]) => [defender[k] ?? 10, w])); const a = mixAbility(T.carrierMix.map(([k, w]) => [carrier[k] ?? 10, w]));
+  const p = clamp(T.standing.base + T.pK * (d - a) + (signal ? T.bonus : 0), T.pMin, T.pMax);
+  return slide ? p * T.sliding.mul : p;
 }

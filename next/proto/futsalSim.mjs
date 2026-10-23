@@ -2,7 +2,7 @@
 // 좌표는 미터. 팀 0(사람)은 왼쪽 골대를 지키고 +x로 공격, 팀 1은 오른쪽 골대를 지키고 -x로 공격한다.
 import { createRng, randInt, gauss } from '../engine/rng.mjs';
 import {
-  TUNE, contestDefenderWins, cornerRisk, drainPerSecond, effSpeed, gkReach, gkReactTime, interceptRadius, kickPrep, passErrorSigma, passV0, pickupRadius, shotNoise, shotPowerCoef, shotRange, stumbleTime, swipePower,
+  TUNE, contestDefenderWins, cornerRisk, drainPerSecond, effSpeed, slidingDown, slidingFreeze, slidingInterval, slidingReach, standingPenalty, standingReach, staminaCostMul, tackleChance, gkReach, gkReactTime, interceptRadius, kickPrep, passErrorSigma, passV0, pickupRadius, shotNoise, shotPowerCoef, shotRange, stumbleTime, swipePower,
 } from './futsalRules.mjs';
 import { think } from './futsalAI.mjs';
 
@@ -49,7 +49,7 @@ export function createMatch({ seed = 1, home, away, stance = 'balanced', awaySta
   };
   buildTeams(M);
   M.queue = []; M.hitstop = 0;
-  M.api = { pass: (p, t) => queuePass(M, p, t), shoot: (p, ay, nf, pw) => queueShot(M, p, ay, nf, pw), takeRestartPick: null };
+  M.api = { tackle: (p, slide) => queueTackle(M, p, slide), pass: (p, t) => queuePass(M, p, t), shoot: (p, ay, nf, pw) => queueShot(M, p, ay, nf, pw), takeRestartPick: null };
   startKickoff(M, 0);
   return M;
 }
@@ -74,7 +74,7 @@ export const outfield = (M, t) => M.players.filter((p) => p.team === t && !p.gk)
 export const keeper = (M, t) => M.players.find((p) => p.team === t && p.gk);
 export const goalX = (t) => (t === 0 ? W : 0); // 팀 t가 공격하는 골대의 x
 
-export function setHold(M, p) { if (M.ball.passFrom != null) { (p.team === M.ball.passFrom ? M.stats.passOk : M.stats.passFail)[M.ball.passFrom] += 1; M.ball.passFrom = null; } if (M.ball.owner && M.ball.owner !== p) cancelKicksOf(M, M.ball.owner); M.holdT = 0; M.ball.st = 'held'; M.ball.owner = p; M.ball.tgt = null; M.lastTouch = p.team; M.ball.x = p.x; M.ball.y = p.y; }
+export function setHold(M, p) { if (M.ball.passFrom != null) { (p.team === M.ball.passFrom ? M.stats.passOk : M.stats.passFail)[M.ball.passFrom] += 1; M.ball.passFrom = null; p.recvAt = M.real; } if (M.ball.owner && M.ball.owner !== p) cancelKicksOf(M, M.ball.owner); M.holdT = 0; M.ball.st = 'held'; M.ball.owner = p; M.ball.tgt = null; M.lastTouch = p.team; M.ball.x = p.x; M.ball.y = p.y; }
 
 function startKickoff(M, t) {
   clearQueue(M);
@@ -179,7 +179,7 @@ export function queueSpot(M, p, x, y) {
   schedule(M, p, 'pass', { spot: { x, y }, tgt: best });
 }
 export function queueShot(M, p, ay, noiseFree = false, power = 0.75) { schedule(M, p, 'shot', { ay, noiseFree, power }); }
-function queueTackle(M, p, slide) { schedule(M, p, slide ? 'sliding' : 'standing', { slide }); }
+export function queueTackle(M, p, slide, data = {}) { schedule(M, p, slide ? 'sliding' : 'standing', { slide, ...data }); }
 function spotReceiver(M, p, x, y) {
   let best = null; let bt = 1e9;
   for (const q of M.players) { if (q.team !== p.team || q === p || q.gk) continue; const t = hyp(q.x - x, q.y - y) / Math.max(1, effSpeed(q.ab.speed, q.ratio)); if (t < bt) { bt = t; best = q; } }
@@ -206,7 +206,7 @@ function runQueue(M, dt = 0) {
         M.events.push({ kind: 'kick', type: 'shot', team: p.team, id: p.id, power: e.data.power });
         if (e.data.power >= TUNE.kick.hitstopPower) M.hitstop = TUNE.kick.hitstopSec;
       }
-    } else tackleNow(M, p, !!e.data.slide);
+    } else tackleNow(M, p, !!e.data.slide, !!e.data.signal);
   }
 }
 
@@ -239,27 +239,62 @@ function applyHumanAction(M, a) {
     return; // 동료를 꾹: 인식만 하고 효과는 없다(2단계 침투 지시 자리)
   }
   // 공이 없을 때(수비): 모든 콕이 스탠딩 태클, 꾹은 슬라이딩 태클. 쓸기와 동료 꾹은 무시.
-  if (a.type === 'tap') queueTackle(M, me, false); else if (a.type === 'hold') queueTackle(M, me, true);
+  if (a.type !== 'tap' && a.type !== 'hold') return;
+  const slide = a.type === 'hold';
+  if (!canTackle(M, me, slide)) return; // 벌칙 중, 누워 있는 중, 슬라이딩 간격 중에는 아무 일도 없다(체력도 줄지 않는다)
+  queueTackle(M, me, slide, { signal: !!(b.owner && signalActive(M, b.owner)) }); // 신호는 터치를 시작한 시점 기준
 }
-function tackleNow(M, me, slide = false) {
-  const b = M.ball; me.slideT = 0.35; // 임팩트 시점부터 슬라이드 모션(5장에서 스탠딩과 슬라이딩을 나눈다)
-
-  if (b.st === 'held' && b.owner && b.owner.team !== me.team && hyp(b.owner.x - me.x, b.owner.y - me.y) < 1.5) {
-    const pDef = Math.min(0.85, contestDefenderWins(b.owner.ab, me.ab, b.owner.dribbleUntil > M.real) + 0.15);
-    if (M.rng() < pDef) { const loser = b.owner; loser.stumbleT = stumbleTime(loser.ab.strength); M.stats.tackles[me.team] += 1; setHold(M, me); M.events.push({ kind: 'tackle', team: me.team, id: me.id }); }
-  } else if (b.st === 'loose' && hyp(b.x - me.x, b.y - me.y) < 1.8) setHold(M, me);
+// ---------- 태클(5장) ----------
+export function canTackle(M, p, slide) {
+  if ((p.penaltyUntil ?? 0) > M.real || (p.downUntil ?? 0) > M.real || (p.freezeUntil ?? 0) > M.real) return false;
+  if (slide && (p.slideCdUntil ?? 0) > M.real) return false;
+  return true;
 }
-
-// ---------- 갱신 ----------
+// 임팩트 시점에 닿는 거리 안이면 판정한다. 범위 밖이면 아무 일도 없고 벌칙도 없다.
+function tackleNow(M, me, slide = false, signal = false) {
+  const b = M.ball; const reach = slide ? slidingReach(me.ab) : standingReach(me.ab);
+  const T = TUNE.tackle;
+  if (b.st === 'held' && b.owner && b.owner.team !== me.team && hyp(b.owner.x - me.x, b.owner.y - me.y) <= reach) {
+    const carrier = b.owner;
+    me.slideT = 0.35; // 슬라이드 모션
+    if (slide) { me.ratio = Math.max(0, me.ratio - T.sliding.staminaCost * staminaCostMul(me.ab.stamina)); me.slideCdUntil = M.real + slidingInterval(me.ab.stamina); }
+    if (M.rng() < tackleChance(carrier.ab, me.ab, { slide, signal })) {
+      carrier.stumbleT = stumbleTime(carrier.ab.strength); M.stats.tackles[me.team] += 1; setHold(M, me); M.events.push({ kind: 'tackle', team: me.team, id: me.id, slide, ok: true });
+      if (slide) carrier.freezeUntil = M.real + slidingFreeze(me.ab.strength); // 슬라이딩 성공: 상대가 잠시 멈춘다
+    } else {
+      M.stats.tackleFails ??= [0, 0]; M.stats.tackleFails[me.team] += 1; M.events.push({ kind: 'tackleFail', team: me.team, id: me.id, slide });
+      if (slide) me.downUntil = M.real + slidingDown(me.ab.stamina); // 실패하면 누워 있다
+      else me.penaltyUntil = M.real + standingPenalty(me.ab.strength); // 실패하면 잠시 느려지고 재시도할 수 없다
+    }
+  } else if (b.st === 'loose' && hyp(b.x - me.x, b.y - me.y) <= reach) { me.slideT = 0.3; setHold(M, me); }
+}
+// 태클 신호: 공 가진 상대의 공이 몸에서 멀어졌을 때, 급하게 방향을 틀었을 때, 패스를 받은 직후 첫 터치 중일 때 그 발밑에 0.4초(같은 선수는 1초 간격). 공격 중에는 켜지 않는다.
+export function signalActive(M, carrier) { return (M.sigUntil?.[carrier.id] ?? 0) > M.real; }
+function updateSignals(M) {
+  const b = M.ball; const S = TUNE.signal;
+  if (b.st !== 'held' || !b.owner || b.owner.team === 0 || M.phase !== 'play') return; // 사람이 수비할 때만
+  const c = b.owner; M.sigUntil ??= {}; M.sigLast ??= {};
+  const sp = hyp(c.vx, c.vy);
+  if (sp > 1.5) { const ang = Math.atan2(c.vy, c.vx); if (!c.dirRef || M.real - c.dirRef.t > S.turnWindow) c.dirRef = { ang, t: M.real }; }
+  if ((M.sigUntil[c.id] ?? 0) > M.real || M.real - (M.sigLast[c.id] ?? -9) < S.gap) return;
+  let on = !!b.far;
+  if (!on && c.recvAt != null && M.real - c.recvAt < S.firstTouch) on = true;
+  if (!on && c.dirRef && sp > 1.5) { let d = Math.abs(Math.atan2(c.vy, c.vx) - c.dirRef.ang); if (d > Math.PI) d = 2 * Math.PI - d; if (d >= (S.turnDeg * Math.PI) / 180) on = true; }
+  if (on) { M.sigUntil[c.id] = M.real + S.ms; M.sigLast[c.id] = M.real; M.events.push({ kind: 'signal', id: c.id }); }
+}
 export function update(M, dt, input = {}) {
   if (M.phase === 'halftime' || M.phase === 'end') return;
   if (M.hitstop > 0) { M.hitstop -= dt; return; } // 히트스톱: 센 슛의 발사 순간 33ms
   const acts = input.actions ?? [];
   if (M.phase === 'deadball') { updateDead(M, dt, input, acts); return; }
   for (const a of acts) applyHumanAction(M, a);
+  if (input.move) M.lastMoveAt = M.real; M.lastMoveAt ??= -9;
+  // 조이스틱을 놓으면 0.3초 뒤 조종 선수도 AI가 수비한다(공이 우리 팀 손에 없을 때)
+  M.autoCtl = !(M.ball.st === 'held' && M.ball.owner?.team === 0) && M.real - M.lastMoveAt > TUNE.defense.controlIdle;
   updateControl(M);
+  updateSignals(M);
   think(M, dt);
-  if (!M.autoHuman) controlTargets(M, input.move, dt);
+  if (!M.autoHuman && !M.autoCtl) controlTargets(M, input.move, dt);
   movePlayers(M, dt);
   runQueue(M, dt);
   stepBall(M, dt);
@@ -296,7 +331,8 @@ function movePlayers(M, dt) {
   for (const p of M.players) {
     const dx = p.tx - p.x; const dy = p.ty - p.y; const d = hyp(dx, dy);
     let vx = 0; let vy = 0;
-    const mm = (p.prepShot ? TUNE.kick.shot.moveMul : 1) * (p.stumbleT > 0 ? TUNE.kick.stumbleMoveMul : 1); // 슛 준비 중 40%, 비틀거리는 동안 정지
+    const stopped = (p.downUntil ?? 0) > M.real || (p.freezeUntil ?? 0) > M.real; // 누웠거나 슬라이딩에 당해 멈춘 동안
+    const mm = (stopped ? 0 : 1) * ((p.penaltyUntil ?? 0) > M.real ? TUNE.tackle.standing.slowMul : 1) * (p.prepShot ? TUNE.kick.shot.moveMul : 1) * (p.stumbleT > 0 ? TUNE.kick.stumbleMoveMul : 1); // 슛 준비 중 40%, 비틀거리는 동안 정지
     if (p.delay > 0) p.delay -= dt;
     if (d > 0.05 && p.ts > 0 && p.delay <= 0) { const s = Math.min(p.ts * mm, d / 0.15); vx = dx / d * s; vy = dy / d * s; }
     const a = Math.min(1, dt * TUNE.accel);
@@ -310,8 +346,11 @@ function movePlayers(M, dt) {
 function stepBall(M, dt) {
   const b = M.ball;
   if (b.st === 'held') {
-    const h = b.owner; const dir = h.team === 0 ? 1 : -1;
-    b.x = h.x + dir * 0.5; b.y = h.y + 0.1; b.vx = 0; b.vy = 0;
+    const h = b.owner; const dir = h.team === 0 ? 1 : -1; const S = TUNE.signal;
+    // 몰고 갈 때는 공이 가끔 몸에서 멀어진다(태클 신호가 켜지는 순간)
+    const far = hyp(h.vx, h.vy) >= S.farMinSpeed && (((M.real / S.farCycle) + h.num * 0.37) % 1) < S.farShare;
+    b.far = far; b.lead = (b.lead ?? 0) + ((far ? S.farOffset : 0) - (b.lead ?? 0)) * Math.min(1, dt * 14);
+    b.x = h.x + dir * (0.5 + b.lead); b.y = h.y + 0.1; b.vx = 0; b.vy = 0;
     return;
   }
   if (b.st === 'pass') {

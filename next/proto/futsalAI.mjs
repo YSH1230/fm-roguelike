@@ -1,7 +1,8 @@
 // 풋살 팀 AI(시연판 P1: 기본 행동). 정적 금지: 모든 팀이 지원 삼각형, 마킹, 압박, 침투 런을 항상 한다.
 // 이 모듈은 선수의 목표 위치(tx, ty, ts)와 공 가진 AI의 패스/슛 결정만 정한다. 이동과 공 물리는 futsalSim이 한다.
 // 팀 기준 좌표(local)에서 계산하고 월드로 되돌린다: local x = 자기 골대에서 상대 골대 쪽으로 늘어난다.
-import { TUNE, effSpeed, shotRange } from './futsalRules.mjs';
+import { TUNE, effSpeed, shotRange, standingReach } from './futsalRules.mjs';
+import { canTackle } from './futsalSim.mjs';
 
 const W = TUNE.court.w;
 const H = TUNE.court.h;
@@ -50,7 +51,7 @@ function aiTeam(M, t, dt) {
   const wob = (p) => Math.sin(M.real * 1.3 + p.num) * 1.4;
   const ownLocal = (p) => ({ x: t === 0 ? p.x : W - p.x, y: p.y });
   const run = ensureRun(M, t);
-  const isH = (p) => t === 0 && !M.autoHuman && p === M.players[M.control]; // 사람이 조종하는 선수는 AI가 건드리지 않는다
+  const isH = (p) => t === 0 && !M.autoHuman && !M.autoCtl && p === M.players[M.control]; // 사람이 조종하는 선수는 AI가 건드리지 않는다
 
   // 골키퍼: 공을 따라 골문 앞에서 좌우로 움직인다(높은 골키퍼 특기는 P3)
   if (gk && !isH(gk) && !(b.owner === gk)) {
@@ -90,17 +91,31 @@ function aiTeam(M, t, dt) {
     return;
   }
 
-  // 수비 또는 루즈볼
+  // 수비 또는 루즈볼(5장)
+  // 1차 수비수: 공 가진 상대에게 곧장 달려들지 않고 약 1.3m 거리를 두고 골대 쪽에서 따라붙는다.
+  // 2차 수비수(커버): 1차 수비수 뒤 2~3m, 골대 쪽 중앙. 나머지: 상대 선수 옆이 아니라 공과 그 선수 사이에 서서 패스 길을 막는다.
   const ob = b.st === 'held' && b.owner ? b.owner : null;
-  let presser = null; let bd = 1e9;
-  for (const p of field) { const d = hyp(p.x - b.x, p.y - b.y); if (d < bd) { bd = d; presser = p; } }
-  const attackers = opp.filter((p) => !p.gk).sort((p, q) => (t === 0 ? q.x - p.x : p.x - q.x));
+  const D = TUNE.defense;
+  const byBall = [...field].sort((p, q) => hyp(p.x - b.x, p.y - b.y) - hyp(q.x - b.x, q.y - b.y));
+  const presser = byBall[0]; const cover = byBall[1];
+  const ownGoalX = t === 0 ? 0 : W;
+  const attackers = opp.filter((p) => !p.gk && p !== ob).sort((p, q) => (t === 0 ? q.x - p.x : p.x - q.x));
+  const level = t === 0 ? TUNE.difficulty.autoDefense : 'normal'; const attempt = (D.attemptPerSec[level] ?? 1) * TUNE.difficulty.aiActivity;
   let mi = 0;
   for (const p of field) {
     if (isH(p)) continue;
-    if (p === presser) { p.tx = b.x + (ob ? (t === 0 ? 0.2 : -0.2) : 0); p.ty = b.y; p.ts = sp(p, 1.0); continue; }
+    if (p === presser) {
+      if (ob) { // 공 쪽으로 1.3m 떨어진 골대 쪽 지점에 선다(상대가 움직이면 그 앞을 읽는다)
+        const dx = ownGoalX - ob.x; const dy = 10 - ob.y; const l = hyp(dx, dy) || 1;
+        p.tx = ob.x + ob.vx * 0.15 + dx / l * D.jockey; p.ty = clamp(ob.y + ob.vy * 0.15 + dy / l * D.jockey, 0.6, H - 0.6); p.ts = sp(p, 1.0);
+        // 상대의 공이 몸에서 멀어지거나 방향을 바꾸는 틈에 스탠딩 태클을 시도한다
+        if (hyp(p.x - ob.x, p.y - ob.y) <= standingReach(p.ab) && canTackle(M, p, false) && !M.queue.some((e) => e.p === p) && (b.far || M.rng() < attempt * 0.016)) M.api.tackle(p, false);
+      } else { p.tx = b.x; p.ty = b.y; p.ts = sp(p, 1.0); }
+      continue;
+    }
+    if (p === cover && ob) { const dx = ownGoalX - presser.x; const dy = 10 - presser.y; const l = hyp(dx, dy) || 1; p.tx = presser.x + dx / l * D.coverBack; p.ty = clamp(presser.y + dy / l * D.coverBack, 0.6, H - 0.6); p.ts = sp(p, 0.95); continue; }
     const m = attackers[mi % Math.max(1, attackers.length)]; mi += 1;
-    if (m) go(p, clamp(ownLocal(m).x - 1.4, 3, 37), m.y, sp(p, 0.9)); else go(p, 10, 10, sp(p, 0.7));
+    if (m) { const k = ob ? D.laneShare : 0.4; p.tx = b.x + (m.x - b.x) * k; p.ty = clamp(b.y + (m.y - b.y) * k, 0.6, H - 0.6); p.ts = sp(p, 0.9); } else go(p, 10, 10, sp(p, 0.7));
   }
 }
 
