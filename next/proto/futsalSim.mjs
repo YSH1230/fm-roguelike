@@ -28,7 +28,7 @@ export function demoTeam(name, seed = 1, base = 12) {
   const players = [];
   for (let i = 0; i < 8; i += 1) {
     const gk = i === 0;
-    players.push({ id: `${name}${i}`, name: `${name}${i}`, gk, cond: 1, ab: gk ? { speed: j(), stamina: j(), strength: j(), reaction: j(), handling: j() } : { speed: j(), stamina: j(), strength: j(), skill: j(), shooting: j() } });
+    players.push({ id: `${name}${i}`, name: `${name}${i}`, gk, cond: 1, ab: gk ? { speed: j(), stamina: j(), strength: j(), reaction: j(), handling: j() } : { speed: j(), stamina: j(), strength: j(), passing: j(), shooting: j(), skill: j() } });
   }
   return { name, players };
 }
@@ -137,38 +137,43 @@ export function shoot(M, p, ay, noiseFree = false, power = 0.75) {
   const rangeFactor = dist > shotRange(sh) ? 1 + (dist - shotRange(sh)) * 0.25 : 1; // 사거리 밖은 많이 흔들린다
   const tyv = ay + noise * rangeFactor;
   const dx = gx - p.x; const dy = tyv - p.y; const l = hyp(dx, dy) || 1;
-  Object.assign(b, { st: 'shot', owner: null, tgt: null, x: p.x, y: p.y, vx: dx / l * speed, vy: dy / l * speed, trav: 0, shooter: p, aimY: tyv, dist, power, speed, reactAt: M.real + (gk0 ? gkReactTime(gk0.ab.reaction, gk0.ratio) : 0) });
+  Object.assign(b, { st: 'shot', owner: null, tgt: null, x: p.x, y: p.y, vx: dx / l * speed, vy: dy / l * speed, trav: 0, shooter: p, aimY: tyv, aimTarget: ay, dist, power, speed, reactAt: M.real + (gk0 ? gkReactTime(gk0.ab.reaction, gk0.ratio) : 0) });
   p.kickT = 0.35; M.lastTouch = p.team; M.stats.shots[p.team] += 1; M.events.push({ kind: 'shot', team: p.team, id: p.id });
 }
 
-// 스와이프 방향으로 나가는 공이 골라인에서 지나는 y(방향이 골대 반대쪽이면 골대 중심)
-function aimFromSwipe(M, p, jx, jy) {
+// 쓸기 → 직선 슛: 골대 방향 ±55도 안에서만 슛이고, 쓴 각도가 조준이다. 그 밖의 방향(뒤, 옆, 위, 아래)은 아무 일도 없다(위 쓸기는 3단계 칩슛 자리).
+// 조준은 쓸기 각도로 골라인을 지나는 y이고, 골대 밖을 가리키면 가장 가까운 골대 안 점으로 보정한다.
+function swipeShot(M, p, a) {
   const gx = goalX(p.team); const dirx = gx > p.x ? 1 : -1;
-  if (hyp(jx, jy) < 0.25 || jx * dirx <= 0.05) return GYC;
-  const ay = p.y + (jy / (jx * dirx)) * Math.abs(gx - p.x);
-  return clamp(ay, GYC - 6, GYC + 6);
+  const thetaGoal = Math.atan2(GYC - p.y, (gx - p.x) * dirx); // 진행 방향(앞)을 기준으로 잰다
+  const thetaSwipe = Math.atan2(a.dy ?? 0, (a.dx ?? 0) * dirx);
+  if (Math.abs(thetaSwipe - thetaGoal) > (TUNE.input.shotAngleDeg * Math.PI) / 180 || (a.dx ?? 0) * dirx <= 0) return false;
+  const ay = clamp(p.y + Math.tan(thetaSwipe) * Math.abs(gx - p.x), GY0, GY1);
+  shoot(M, p, ay, false, swipePower(a.v ?? 1));
+  return true;
 }
 function applyHumanAction(M, a) {
   const me = M.players[M.control];
   const b = M.ball;
   const holding = b.st === 'held' && b.owner === me;
   if (a.type === 'dribble') { me.dribbleUntil = M.real + TUNE.dribbleSeconds; me.twistT = 0.45; return; }
-  if (M.phase === 'deadball') { // 킥인, 코너, 골키퍼 재개: 탭 한 번으로 받을 선수를 고른다
-    if (a.type === 'tap' || a.type === 'dtap') { const r = M.restart; const tg = nearestMate(M, M.players[M.control], a.wx, a.wy); if (tg) r.pick = tg; }
+  if (M.phase === 'deadball') { // 킥인, 코너, 골키퍼 재개: 콕 한 번으로 받을 선수를 고른다
+    if (a.type === 'tap') { const r = M.restart; const tg = nearestMate(M, M.players[M.control], a.wx, a.wy); if (tg) r.pick = tg; }
     return;
   }
   if (holding) {
-    const near = nearestMate(M, me, a.wx ?? 0, a.wy ?? 0);
-    const onPlayer = near && a.wx != null && hyp(near.x - a.wx, near.y - a.wy) <= TUNE.input.spotRadius;
-    if ((a.type === 'tap' || a.type === 'dtap') && onPlayer) passTo(M, me, near); // 선수를 탭하면 그 선수에게
-    else if (a.type === 'dtap') passToSpot(M, me, a.wx, a.wy); // 빈 공간 더블탭 = 그 자리로 공간 패스
-    else if (a.type === 'shot') shoot(M, me, aimFromSwipe(M, me, a.jx ?? 0, a.jy ?? 0), false, swipePower(a.v ?? 1));
-    return;
+    if (a.type === 'tap') { // 선수 근처 콕이 빈 곳 콕보다 우선한다
+      const near = nearestMate(M, me, a.wx ?? 0, a.wy ?? 0);
+      if (near && a.wx != null && hyp(near.x - a.wx, near.y - a.wy) <= TUNE.input.spotRadius) passTo(M, me, near);
+      else if (a.wx != null) passToSpot(M, me, a.wx, a.wy);
+    } else if (a.type === 'swipe') swipeShot(M, me, a);
+    return; // 동료를 꾹: 인식만 하고 효과는 없다(2단계 침투 지시 자리)
   }
-  if (a.type === 'tap') tackle(M, me); // 수비 때 탭 = 태클
+  // 공이 없을 때(수비): 모든 콕이 스탠딩 태클, 꾹은 슬라이딩 태클. 쓸기와 동료 꾹은 무시.
+  if (a.type === 'tap') tackle(M, me, false); else if (a.type === 'hold') tackle(M, me, true);
 }
-function tackle(M, me) {
-  const b = M.ball; me.slideT = 0.35; // 시도하면 슬라이딩 동작
+function tackle(M, me, slide = false) {
+  const b = M.ball; me.slideT = 0.35; // 시도하면 슬라이드 모션(5장에서 스탠딩과 슬라이딩을 나눈다)
 
   if (b.st === 'held' && b.owner && b.owner.team !== me.team && hyp(b.owner.x - me.x, b.owner.y - me.y) < 1.5) {
     const pDef = Math.min(0.85, contestDefenderWins(b.owner.ab, me.ab, b.owner.dribbleUntil > M.real) + 0.15);

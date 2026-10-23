@@ -211,16 +211,15 @@ function frame(now) {
   const raw = Math.min(0.05, Math.max(0.001, (now - last) / 1000)); last = now;
   if (M && !paused) {
     const polled = input.poll(performance.now(), canAct(M));
-    const actions = polled.actions.map((a) => (a.type === 'tap' || a.type === 'dtap') ? { ...a, ...(() => { const w = toWorld(a.x, a.y); return { wx: w.x, wy: w.y }; })() } : a);
+    const actions = polled.actions.map((a) => (a.type === 'tap' || a.type === 'hold') ? { ...a, ...(() => { const w = toWorld(a.x, a.y); return { wx: w.x, wy: w.y }; })() } : a);
     // 누른 것이 무엇인지 보이게: 선수 탭 = 초록 링, 빈 공간 탭 = 옅은 파란 링, 더블탭/스와이프는 위 그리기에서 계속 표시
     for (const a of actions) {
       const now = performance.now(); const me = M.players[M.control];
-      if (a.type === 'tap' || a.type === 'dtap') {
+      if (a.type === 'tap' && M.ball.owner === me && M.ball.st === 'held') { // 공을 가졌을 때의 콕: 선수 근처는 초록 링, 빈 곳은 파란 링(색은 7장에서 정리)
         let near = null; let nd = 1e9; for (const q of M.players) { if (q.team !== 0 || q === me || q.gk) continue; const d = Math.hypot(q.x - a.wx, q.y - a.wy); if (d < nd) { nd = d; near = q; } }
         if (near && nd <= TUNE.input.spotRadius) { fxs.push({ x: near.x, y: near.y, color: '#22c55e', t0: now, dur: 420, a: 1 }); sfx.pass(); }
-        else if (a.type === 'tap') fxs.push({ x: a.wx, y: a.wy, color: '#93c5fd', t0: now, dur: 300, a: 0.6 });
         else { fxs.push({ x: a.wx, y: a.wy, color: '#3b82f6', t0: now, dur: 450, a: 1 }); sfx.spot(); }
-      } else if (a.type === 'shot') sfx.shot();
+      } else if (a.type === 'swipe') sfx.shot();
     }
     const before = M.score[0] + M.score[1];
     update(M, raw, { move: polled.move, actions });

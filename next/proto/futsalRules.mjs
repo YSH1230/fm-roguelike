@@ -14,10 +14,11 @@ export const TUNE = {
   ringTauMax: 0.5, ring: { green: [2.2, 2.4], yellow: [1.2, 1.4] },
   subThreshold: 0.25, subPopupSeconds: 3,
   // 입력(화면 px, 640 기준이 아니라 실제 손가락 px)
-  input: { tapMove: 12, tapMs: 250, flickPx: 28, flickSpeed: 0.5, joyRadius: 44, deadzone: 10, buffer: 150, leftTapMove: 10, flipThreshold: 0.6, flipMs: 180, shotZone: 0.35, spotRadius: 2.4, dtapMs: 300, dtapPx: 70, swipePowerMin: 0.5, swipePowerMax: 2.2 },
+  // 입력(화면 px). 콕 = 20px 이하 + 250ms 이내, 꾹 = 20px 이하로 0.25초, 쓸기 = 35px 이상 + 0.5px/ms 이상. sensitivity(0.7~1.3)로 사용자가 조절한다.
+  input: { tapMove: 20, leftTapMove: 20, tapMs: 250, holdMs: 250, swipePx: 35, swipeSpeed: 0.5, joyRadius: 44, deadzone: 10, buffer: 150, flipThreshold: 0.6, flipMs: 180, spotRadius: 2.4, shotAngleDeg: 55, swipePowerMin: 0.5, swipePowerMax: 2.0, powerAtMin: 0.6, powerAtMax: 1.0, sensitivity: 1 },
   // 접촉 경합, 슛
   contactR: 0.85, contestInterval: 0.45, dribbleSeconds: 0.8, dribbleBoost: 1.25,
-  shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 8, rangePerShooting: 0.45, minPower: 0.2, speedMin: 12, speedMax: 26, powerNoise: 0.35, gkReachBase: 0.9, gkReachPerHandling: 0.03, gkReachPowerCut: 0.25, gkReactBase: 0.26, gkReactPerReaction: 0.008, gkDive: 1.3 },
+  shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 8, rangePerShooting: 0.45, minPower: 0.6, speedMin: 12, speedMax: 26, powerNoise: 0.35, gkReachBase: 0.9, gkReachPerHandling: 0.03, gkReachPowerCut: 0.25, gkReactBase: 0.26, gkReactPerReaction: 0.008, gkDive: 1.3 },
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
   expectedGoals: 2.5,
@@ -46,20 +47,20 @@ export function contestDefenderWins(att, def, dribbling) {
   return clamp(0.3 + 0.025 * (d - a), 0.06, 0.65);
 }
 export const clockText = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
-// 손가락 입력 구분(지연 없이 즉시): 탭 = 이동 12px 이내 + 250ms 이내, 쓸기 = 28px 이상 + 0.5px/ms 이상
-export function classifyGesture({ m, ms }) {
+// 손가락 입력 구분(지연 없이 즉시): 콕 = 35px 미만 + 250ms 이내(20~35px는 미끄러진 콕), 쓸기 = 35px 이상 + 0.5px/ms 이상, 그 밖은 없음. 꾹은 시간으로만 판정한다(futsalInput).
+export function classifyGesture({ m, ms, sens = 1 }) {
   const t = TUNE.input;
-  if (m <= t.tapMove && ms <= t.tapMs) return 'tap';
-  if (m >= t.flickPx && m / Math.max(1, ms) >= t.flickSpeed) return 'flick';
-  return 'drag';
+  if (m >= t.swipePx / sens && m / Math.max(1, ms) >= t.swipeSpeed / sens) return 'swipe';
+  if (m < t.swipePx / sens && ms <= t.tapMs) return 'tap';
+  return 'none';
 }
-// 쓸기 방향의 세로 성분으로 위(-1) / 가운데(0) / 아래(+1) 구석
-export const shotZone = (dx, dy) => { const d = Math.hypot(dx, dy) || 1; return dy < -TUNE.input.shotZone * d ? -1 : (dy > TUNE.input.shotZone * d ? 1 : 0); };
-
-// 오른쪽 화면을 꾹 누른 시간(ms) → 슛 세기(0.15~1). 250ms부터 차오르고 1.25초에 가득 찬다.
+// 능력치 연계 함수 하나: V = V0 x (1 ± k x (A - 10) / 10). 클수록 좋은 값은 high=true(+), 작을수록 좋은 값은 high=false(-).
+export const link = (v0, a, k, high = true) => v0 * (1 + (high ? 1 : -1) * k * (clamp(a, 0, 20) - 10) / 10);
+// 여러 능력치를 비중대로 섞은 값: mixAbility([[패스, 0.7], [속도, 0.3]])
+export const mixAbility = (parts) => parts.reduce((s, [a, w]) => s + a * w, 0) / parts.reduce((s, [, w]) => s + w, 0);
+// 스와이프 속도(px/ms) 0.5~2.0 → 세기 0.6~1.0 (선형)
+export const swipePower = (v) => { const T = TUNE.input; const k = clamp((v - T.swipePowerMin) / (T.swipePowerMax - T.swipePowerMin), 0, 1); return T.powerAtMin + (T.powerAtMax - T.powerAtMin) * k; };
 export const passSpeedFor = (dist) => clamp(TUNE.passSpeedBase + dist * TUNE.passSpeedPerM, TUNE.passSpeedMin, TUNE.passSpeedMax);
-// 스와이프 속도(px/ms)가 빠를수록 강한 슛(0.2~1)
-export const swipePower = (v) => clamp((v - TUNE.input.swipePowerMin) / (TUNE.input.swipePowerMax - TUNE.input.swipePowerMin), TUNE.shot.minPower, 1);
 // 골키퍼가 손이 닿는 범위(m): 핸들링이 높을수록 넓고, 세게 찬 슛일수록 좁다
 export const gkReach = (handling, power) => (TUNE.shot.gkReachBase + TUNE.shot.gkReachPerHandling * clamp(handling, 0, 20)) * (1 - TUNE.shot.gkReachPowerCut * power);
 // 골키퍼 반응 시간(초): 반응 능력이 높을수록 짧고, 지치면 늘어난다

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng, gauss } from '../engine/rng.mjs';
-import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, shotZone, swipePower, passSpeedFor, gkReach } from '../proto/futsalRules.mjs';
+import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, swipePower, passSpeedFor, gkReach, link, mixAbility } from '../proto/futsalRules.mjs';
 import { createInput } from '../proto/futsalInput.mjs';
 import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable } from '../proto/futsalSim.mjs';
 
@@ -20,11 +20,13 @@ test('능력 함수: 속도, 체력 소모(5분 풀 출전 55% - 1.5% x 체력),
   assert.equal(sophistication(20, 3), 20);
 });
 
-test('슛 구석: 쓸기 방향의 세로 성분이 위/가운데/아래를 고른다', () => {
-  assert.equal(shotZone(80, -60), -1); assert.equal(shotZone(80, 0), 0); assert.equal(shotZone(80, 60), 1);
+test('능력치 연계 함수 하나: V = V0 x (1 ± k x (A - 10) / 10), 능력치 0/10/20 샘플이 표와 맞다', () => {
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
+  near(link(0.05, 0, 0.3, false), 0.065); near(link(0.05, 10, 0.3, false), 0.05); near(link(0.05, 20, 0.3, false), 0.035); // 패스 준비(작을수록 좋음)
+  near(link(1.0, 0, 0.1), 0.9); near(link(1.0, 20, 0.1), 1.1); // 패스 속도 계수(클수록 좋음)
+  near(mixAbility([[0, 0.7], [20, 0.3]]), 6); // 비중대로 섞은 값
 });
-
-test('입력: 이동 손가락이 눌린 채 왼쪽 반을 100번 탭해도 패스 입력이 100% 실행된다', () => {
+test('입력: 이동 손가락이 눌린 채 왼쪽 반을 100번 콕해도 행동 입력이 100% 실행된다', () => {
   const inp = createInput();
   inp.down(1, 100, 200, 0, 640); inp.move(1, 130, 200, 30);
   for (let i = 0; i < 100; i += 1) { const t = 100 + i * 400; inp.down(2, 80 + (i % 20), 150, t, 640); inp.up(2, 80 + (i % 20), 150, t + 90); }
@@ -38,27 +40,42 @@ test('입력: pointercancel은 이동만 멈추고 쌓인 행동은 남는다', 
   const r = inp.poll(120);
   assert.equal(r.move, null); assert.equal(r.actions.length, 1);
 });
-test('입력: 이동 손가락이 없을 때 왼쪽 반의 짧은 탭은 행동 탭, 데드존 안에서는 이동하지 않는다', () => {
+test('입력: 콕 = 20px 이하 + 250ms 이내, 20~35px로 미끄러진 콕도 콕, 35px 이상이어도 느리면 아무 일 없음', () => {
   const inp = createInput();
-  inp.down(1, 100, 100, 0, 640); inp.move(1, 106, 100, 30);
-  assert.equal(inp.poll(40).move, null);
-  inp.up(1, 106, 100, 120);
-  assert.equal(inp.poll(130).actions[0].type, 'tap');
+  inp.down(1, 500, 100, 0, 640); inp.up(1, 512, 106, 120); assert.equal(inp.poll(130).actions[0].type, 'tap');
+  inp.down(2, 500, 100, 1000, 640); inp.move(2, 520, 110, 1040); inp.move(2, 528, 112, 1080); inp.up(2, 528, 112, 1120); // 약 30px: 미끄러진 콕
+  const a = inp.poll(1130).actions[0]; assert.equal(a.type, 'tap'); assert.equal(a.x, 500);
+  inp.down(3, 500, 100, 2000, 640); inp.move(3, 560, 100, 2300); inp.up(3, 560, 100, 2400); // 60px를 0.4초: 쓸기도 콕도 아님
+  assert.equal(inp.poll(2410).actions.length, 0);
+  assert.equal(TUNE.input.tapMove, 20); assert.equal(TUNE.input.leftTapMove, 20);
 });
-test('입력: 탭 = 선수 패스, 빈 공간 더블탭 = dtap, 오른쪽 스와이프 = 슛(방향과 속도), 왼쪽은 이동', () => {
+test('입력: 꾹은 20px 이하로 0.25초가 되는 순간 발동하고(떼지 않아도), 그 전에 떼면 콕이다', () => {
   const inp = createInput();
-  inp.down(1, 500, 100, 0, 640); inp.up(1, 500, 100, 120);
-  assert.equal(inp.poll(130).actions[0].type, 'tap');
-  inp.down(2, 500, 100, 200, 640); inp.up(2, 505, 102, 300); // 300ms 안의 두 번째 탭
-  assert.equal(inp.poll(310).actions[0].type, 'dtap');
-  inp.down(3, 500, 100, 2000, 640); inp.up(3, 500, 100, 2100);
-  inp.down(4, 500, 100, 3000, 640); inp.move(4, 540, 80, 3040); inp.up(4, 580, 60, 3080); // 빠른 스와이프(오른쪽 위)
-  const a = inp.poll(3100).actions.filter((x) => x.type === 'shot')[0];
-  assert.ok(a && a.jx > 0.8 && a.jy < 0 && a.v > 1);
-  inp.down(5, 100, 100, 5000, 640); inp.move(5, 160, 100, 5060);
-  assert.ok(inp.poll(5070).move.x > 0);
-  inp.down(6, 500, 100, 6000, 640); inp.up(6, 500, 100, 6900); // 오래 누르기만 하면 아무 일 없음
-  assert.equal(inp.poll(6950).actions.length, 0);
+  inp.down(1, 500, 100, 0, 640);
+  assert.equal(inp.poll(200).actions.length, 0); assert.ok(inp.holdProgress(125) > 0.45 && inp.holdProgress(125) < 0.55);
+  const h = inp.poll(260).actions; assert.equal(h.length, 1); assert.equal(h[0].type, 'hold');
+  inp.up(1, 500, 100, 900); assert.equal(inp.poll(910).actions.length, 0, '발동한 꾹은 뗄 때 다시 입력되지 않는다');
+  inp.down(2, 500, 100, 2000, 640); inp.up(2, 500, 100, 2200); assert.equal(inp.poll(2210).actions[0].type, 'tap');
+  inp.down(3, 500, 100, 3000, 640); inp.move(3, 530, 100, 3100); assert.equal(inp.poll(3300).actions.length, 0, '20px를 넘으면 꾹이 아니다');
+});
+test('입력: 왼쪽 반의 첫 손가락은 이동 전용(쓸기와 꾹은 안 됨), 쓸기는 오른쪽 손가락으로', () => {
+  const inp = createInput();
+  inp.down(1, 100, 100, 0, 640); assert.equal(inp.poll(400).actions.length, 0, '이동 손가락의 꾹은 인식하지 않는다');
+  inp.move(1, 160, 100, 460); assert.ok(inp.poll(470).move.x > 0);
+  inp.down(2, 500, 100, 1000, 640); inp.move(2, 540, 80, 1040); inp.up(2, 580, 60, 1080);
+  const a = inp.poll(1090).actions[0]; assert.equal(a.type, 'swipe'); assert.ok(a.dx > 0.8 && a.dy < 0 && a.v > 1);
+  assert.equal(inp.swipeTrail(1100)?.live, false);
+});
+test('입력: 더블탭 판정 코드는 남아 있지 않다', () => {
+  for (const k of ['dtapMs', 'dtapPx']) assert.equal(TUNE.input[k], undefined);
+  const inp = createInput();
+  inp.down(1, 500, 100, 0, 640); inp.up(1, 500, 100, 80); inp.down(2, 500, 100, 150, 640); inp.up(2, 500, 100, 220);
+  assert.deepEqual(inp.poll(230).actions.map((x) => x.type), ['tap', 'tap']);
+});
+test('입력: 민감도(±30%)는 꾹 시간과 쓸기 기준을 조절한다', () => {
+  const inp = createInput(); inp.setSensitivity(1.3);
+  inp.down(1, 500, 100, 0, 640); assert.equal(inp.poll(200).actions[0].type, 'hold'); // 250 / 1.3 = 192ms
+  inp.setSensitivity(0.7); assert.equal(inp.sensitivity, 0.7);
 });
 test('입력: 조이스틱을 180ms 안에 반대로 튕기면 개인기 1회', () => {
   const inp = createInput();
@@ -74,12 +91,13 @@ test('입력: 막힌 동안 들어온 행동은 150ms 안에 소비되면 실행
   assert.equal(inp.poll(1300, false).actions.length, 0);
   assert.equal(inp.poll(1310, true).actions.length, 0);
 });
-test('입력: 합성 제스처 1000개의 탭, 쓸기, 끌기 오분류 5% 이하', () => {
+test('입력: 합성 제스처 1000개의 콕, 쓸기, 꾹 인식 오류 5% 이하', () => {
   const r = createRng(5); let bad = 0;
   for (let i = 0; i < 1000; i += 1) {
-    if (classifyGesture({ m: Math.abs(gauss(r) * 3.5), ms: Math.max(40, 110 + gauss(r) * 35) }) !== 'tap') bad += 1;
-    if (classifyGesture({ m: Math.max(30, 90 + gauss(r) * 20), ms: Math.max(40, 100 + gauss(r) * 25) }) !== 'flick') bad += 1;
-    if (classifyGesture({ m: 70 + gauss(r) * 10, ms: 600 + gauss(r) * 100 }) !== 'drag') bad += 1;
+    if (classifyGesture({ m: Math.abs(gauss(r) * 6), ms: Math.max(40, 110 + gauss(r) * 35) }) !== 'tap') bad += 1; // 콕: 거의 안 움직이고 짧게
+    if (classifyGesture({ m: Math.max(40, 90 + gauss(r) * 20), ms: Math.max(40, 100 + gauss(r) * 25) }) !== 'swipe') bad += 1; // 쓸기: 90px 안팎을 0.1초에
+    const inp = createInput(); inp.down(1, 500, 100, 0, 640); const dx = gauss(r) * 5; inp.move(1, 500 + dx, 100, 100);
+    if (inp.poll(260).actions[0]?.type !== 'hold') bad += 1; // 꾹: 0.25초 동안 20px 안에 머문다
   }
   assert.ok(bad / 3000 <= 0.05, `${(bad / 30).toFixed(1)}%`);
 });
@@ -151,25 +169,50 @@ test('탭 패스는 유도탄이 아니다: 공은 한 번 정한 지점으로 �
   }
   assert.ok(ok / n >= 0.9, `받음 ${ok}/${n}`);
 });
-test('선수를 탭하면 그 선수에게, 빈 공간은 더블탭해야 그 자리로 공간 패스(한 번 탭은 아무 일 없음)', () => {
+test('공을 가졌을 때: 선수 근처 콕은 그 선수에게 패스, 빈 곳 콕은 한 번에 공간 패스, 동료를 꾹은 효과 없음', () => {
   const setup = (sd) => { const M = mk(sd); play(M, 1); const me = M.players.find((p) => p.team === 0 && !p.gk); const mate = M.players.find((p) => p.team === 0 && !p.gk && p !== me);
     for (const q of M.players) if (q.team === 1) { q.x = 38; q.y = 1 + (q.num % 4); q.tx = q.x; q.ty = q.y; q.ts = 0; }
     me.x = 12; me.y = 10; mate.x = 24; mate.y = 14; mate.vx = 0; mate.vy = 0; mate.tx = mate.x; mate.ty = mate.y; mate.ts = 0;
     M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me); return { M, me, mate }; };
   let r = setup(3);
-  update(r.M, 1 / 60, { actions: [{ type: 'tap', x: 0, y: 0, wx: r.mate.x + 0.8, wy: r.mate.y }] });
+  update(r.M, 1 / 60, { actions: [{ type: 'tap', wx: r.mate.x + 0.8, wy: r.mate.y }] });
   assert.equal(r.M.ball.tgt, r.mate);
   r = setup(3);
-  update(r.M, 1 / 60, { actions: [{ type: 'tap', x: 0, y: 0, wx: 30, wy: 4 }] });
-  assert.equal(r.M.ball.st, 'held', '빈 공간 한 번 탭은 아무 일 없다');
-  update(r.M, 1 / 60, { actions: [{ type: 'dtap', x: 0, y: 0, wx: 30, wy: 4 }] });
-  assert.ok(Math.hypot(r.M.ball.dest.x - 30, r.M.ball.dest.y - 4) < 1e-6, '더블탭은 그 자리로 보낸다');
+  update(r.M, 1 / 60, { actions: [{ type: 'tap', wx: 30, wy: 4 }] });
+  assert.ok(Math.hypot(r.M.ball.dest.x - 30, r.M.ball.dest.y - 4) < 1e-6, '빈 곳을 한 번 콕하면 그 자리로 공간 패스');
+  r = setup(3);
+  update(r.M, 1 / 60, { actions: [{ type: 'hold', wx: r.mate.x, wy: r.mate.y }] });
+  assert.equal(r.M.ball.st, 'held', '동료를 꾹은 인식만 하고 효과가 없다');
+});
+test('쓸기는 골대 방향 ±55도 안에서만 슛이고, 그 밖은 아무 일도 없다. 방향이 조준이다', () => {
+  const swipe = (dx, dy, v = 1.2) => { const M = mk(6); play(M, 0.5); const me = M.players.find((p) => p.team === 0 && !p.gk); me.x = 30; me.y = 10; for (const q of M.players) if (q.team === 1 && !q.gk) { q.x = 10; q.y = 3; q.tx = q.x; q.ty = q.y; q.ts = 0; }
+    M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me);
+    update(M, 1 / 60, { actions: [{ type: 'swipe', dx, dy, v }] }); return M; };
+  const s = (deg) => [Math.cos(deg * Math.PI / 180), Math.sin(deg * Math.PI / 180)];
+  assert.equal(swipe(...s(0)).ball.st, 'shot');
+  assert.equal(swipe(...s(50)).ball.st, 'shot'); assert.equal(swipe(...s(-50)).ball.st, 'shot');
+  for (const deg of [60, -60, 90, -90, 135, 180]) assert.equal(swipe(...s(deg)).ball.st, 'held', `${deg}도는 슛이 아니다`);
+  const up = swipe(...s(-12)).ball.aimTarget; const mid = swipe(...s(0)).ball.aimTarget; const down = swipe(...s(12)).ball.aimTarget;
+  assert.ok(up < mid && mid < down, '쓴 각도가 조준이다');
+  assert.equal(swipe(...s(50)).ball.aimTarget, TUNE.shot.goalY[1], '골대 밖을 가리키면 가장 가까운 골대 안 점으로 보정');
+  assert.equal(swipe(...s(-50)).ball.aimTarget, TUNE.shot.goalY[0]);
+});
+test('공이 없을 때: 콕은 스탠딩 태클, 꾹은 슬라이딩 태클, 패스 효과는 없다', () => {
+  const M = mk(7); play(M, 1);
+  const opp = M.players.find((p) => p.team === 1 && !p.gk); const me = M.players.find((p) => p.team === 0 && !p.gk);
+  M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = opp; M.control = M.players.indexOf(me); me.x = opp.x - 1; me.y = opp.y;
+  const mate = M.players.find((p) => p.team === 0 && !p.gk && p !== me); const passes0 = M.stats.passes[0];
+  update(M, 1 / 60, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); // 우리 선수 근처를 눌러도 태클이다
+  assert.ok(me.slideT > 0 && M.stats.passes[0] === passes0);
+  const reset = () => { me.slideT = 0; M.ball.st = 'held'; M.ball.owner = opp; M.control = M.players.indexOf(me); me.x = opp.x - 1; me.y = opp.y; };
+  reset(); update(M, 1 / 60, { actions: [{ type: 'hold', wx: 0, wy: 0 }] }); assert.ok(me.slideT > 0);
+  reset(); update(M, 1 / 60, { actions: [{ type: 'swipe', dx: 1, dy: 0, v: 1.5 }] }); assert.equal(me.slideT, 0, '수비 중 쓸기는 무시');
 });
 test('패스 속도는 거리에 따라 9~16 m/s, 공은 방향을 바꾸지 않고 가까이 지나가는 동료도 받는다', () => {
   assert.equal(passSpeedFor(0), 9); assert.equal(passSpeedFor(30), 16); assert.ok(passSpeedFor(6) > passSpeedFor(3));
 });
 test('슛 세기: 스와이프가 빠를수록 강하고, 약한 슛이 막히기 쉽다', () => {
-  assert.equal(swipePower(0.5), TUNE.shot.minPower); assert.equal(swipePower(2.2), 1); assert.ok(swipePower(1.5) > swipePower(1));
+  assert.equal(swipePower(0.5), 0.6); assert.equal(swipePower(2.0), 1); assert.ok(swipePower(1.5) > swipePower(1)); assert.equal(swipePower(0.1), 0.6);
   assert.ok(gkReach(12, 0.2) > gkReach(12, 1));
 });
 test('골 판정은 보이는 대로: 골키퍼가 닿는 범위 밖으로 공이 지나가면 골, 안이면 선방', () => {
