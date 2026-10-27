@@ -2,6 +2,7 @@
 import { TUNE, clockText } from './futsalRules.mjs';
 import { createInput } from './futsalInput.mjs';
 import { zzfx } from './zzfx.mjs';
+import { createInputLog, initDev } from './futsalDev.mjs';
 import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, canAct, signalActive, FORMATIONS } from './futsalSim.mjs';
 
 const cv = document.getElementById('cv');
@@ -31,7 +32,13 @@ let lastCtl = -1; let ctlT = 0; // 조종 선수가 바뀐 시각(링이 커졌�
 // ---------- 소리와 진동: 입력 시점이 아니라 발사/임팩트 시점의 이벤트로 재생한다(ZzFX, MIT) ----------
 // zzfx(볼륨, 랜덤, 주파수, 어택, 서스테인, 릴리스, 파형, 곡선, 슬라이드, ...). 굴러가는 공은 조용하다.
 const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'; // 아이폰 사파리 등은 지원하지 않아 소리와 화면 효과로 대신한다
-let vibOn = canVibrate;
+const SET_KEY = 'fmFutsalSettings';
+const loadSet = () => { try { return JSON.parse(localStorage.getItem(SET_KEY)) ?? {}; } catch { return {}; } };
+const saveSet = (o) => { try { localStorage.setItem(SET_KEY, JSON.stringify(o)); } catch { /* 저장소 없음 */ } };
+const saved = loadSet();
+let vibOn = canVibrate && saved.vib !== false;
+input.setSensitivity(saved.sens ?? 1);
+const inputLog = createInputLog();
 const buzz = (ms) => { if (vibOn && canVibrate) { try { navigator.vibrate(ms); } catch { /* 무시 */ } } };
 const sfx = {
   pass: (d = 8) => { zzfx(0.6, 0.05, 200 + d * 14, 0, 0.01, 0.03 + d * 0.004, 1, 1.2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.7, 0.01); }, // 짧은 "톡": 먼 패스일수록 길고 높게
@@ -187,16 +194,17 @@ function hud() {
 // ---------- 흐름: 시작, 하프타임, 종료, 일시정지 ----------
 const STANCES = [['attack', 'ATTACK 1-1-2'], ['balanced', 'BALANCED 1-2-1'], ['defense', 'DEFENSE 2-1-1']];
 function stanceRow(sel) { return `<div class="row">${STANCES.map(([k, t]) => `<button class="btn ${sel === k ? 'btn--primary' : ''}" data-s="${k}">${t}</button>`).join('')}</div>`; }
-function newMatch() { evSeen = 0; seed += 1; M = createMatch({ seed, home: demoTeam('H', seed), away: demoTeam('A', seed + 50), stance }); window.fmFutsal.M = M; flash = 0; }
+function newMatch(sd) { evSeen = 0; seed = sd ?? seed + 1; inputLog.reset(); M = createMatch({ seed, home: demoTeam('H', seed), away: demoTeam('A', seed + 50), stance }); window.fmFutsal.M = M; flash = 0; }
 function showStart() {
   paused = true;
   box.innerHTML = `<h2>FUTSAL</h2><p>5 vs 5 · 40m × 20m · about 5 min</p>${stanceRow(stance)}
-    <button class="btn btn--primary" id="go">KICK OFF</button><button class="btn" id="simall">SIM WHOLE MATCH</button>${canVibrate ? `<button class="btn" id="vib">VIBRATION ${vibOn ? 'ON' : 'OFF'}</button>` : ''}<p style="font-size:10px;color:#64748b">BUILD P1</p>`;
+    <button class="btn btn--primary" id="go">KICK OFF</button><button class="btn" id="simall">SIM WHOLE MATCH</button><label style="font:700 11px var(--pix);color:#cbd5e1">INPUT SENSITIVITY ${Math.round(input.sensitivity * 100)}%<input id="sens" type="range" min="70" max="130" step="5" value="${Math.round(input.sensitivity * 100)}" style="width:100%"></label>${canVibrate ? `<button class="btn" id="vib">VIBRATION ${vibOn ? 'ON' : 'OFF'}</button>` : ''}<p style="font-size:10px;color:#64748b">BUILD P1</p>`;
   overlay.classList.add('on');
   box.querySelectorAll('[data-s]').forEach((b) => { b.onclick = () => { stance = b.dataset.s; showStart(); }; });
   $('go').onclick = () => { newMatch(); overlay.classList.remove('on'); paused = false; };
   $('simall').onclick = () => { newMatch(); simRest(); };
-  if (canVibrate) $('vib').onclick = () => { vibOn = !vibOn; if (vibOn) buzz(30); showStart(); };
+  $('sens').onchange = (e) => { input.setSensitivity(Number(e.target.value) / 100); saveSet({ sens: input.sensitivity, vib: vibOn }); showStart(); };
+  if (canVibrate) $('vib').onclick = () => { vibOn = !vibOn; if (vibOn) buzz(30); saveSet({ sens: input.sensitivity, vib: vibOn }); showStart(); };
 }
 function showHalftime() {
   paused = true;
@@ -242,11 +250,12 @@ function frame(now) {
         else fxs.push({ x: a.wx, y: a.wy, color: '#facc15', t0: now, dur: TUNE.ring.passMs });
       }
     }
+    inputLog.push(M.real, polled);
     const before = M.score[0] + M.score[1];
     update(M, raw, { move: polled.move, actions });
     if (M.score[0] + M.score[1] !== before) flash = 1;
     playEventSounds();
-    if (M.phase === 'halftime') showHalftime(); else if (M.phase === 'end') showEnd();
+    if (M.phase === 'halftime') { inputLog.save(seed); showHalftime(); } else if (M.phase === 'end') { inputLog.save(seed); showEnd(); }
   }
   flash = Math.max(0, flash - raw * 1.6);
   if (M) { ctx.setTransform(1, 0, 0, 1, 0, 0); draw(); hud(); }
@@ -254,5 +263,7 @@ function frame(now) {
 }
 window.fmFutsal = { M: null, input, get paused() { return paused; } };
 newMatch(); showStart();
+window.addEventListener('pagehide', () => inputLog.save(seed));
+initDev({ getM: () => M, getSeed: () => seed, inputLog, restart: (sd) => { newMatch(sd); overlay.classList.remove('on'); paused = false; } });
 requestAnimationFrame((n) => { last = n; frame(n); });
 void FORMATIONS;
