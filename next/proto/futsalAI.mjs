@@ -112,7 +112,7 @@ function aiTeam(M, t, dt) {
         const dx = ownGoalX - ob.x; const dy = 10 - ob.y; const l = hyp(dx, dy) || 1;
         p.tx = ob.x + ob.vx * 0.15 + dx / l * D.jockey; p.ty = clamp(ob.y + ob.vy * 0.15 + dy / l * D.jockey, 0.6, H - 0.6); p.ts = sp(p, 1.0);
         // 상대의 공이 몸에서 멀어지거나 방향을 바꾸는 틈에 스탠딩 태클을 시도한다
-        if (hyp(p.x - ob.x, p.y - ob.y) <= standingReach(p.ab) && canTackle(M, p, false) && !M.queue.some((e) => e.p === p) && (b.far ? (p.sigTry !== Math.floor(M.real / D.signalWindow) && (p.sigTry = Math.floor(M.real / D.signalWindow), M.rng() < attempt)) : M.rng() < attempt * D.randomAttempt * 0.016)) M.api.tackle(p, false); // 공이 몸에서 멀어진 틈마다 한 번 시도할지 정한다
+        if (hyp(p.x - ob.x, p.y - ob.y) <= standingReach(p.ab) && canTackle(M, p, false) && !M.queue.some((e) => e.p === p) && (b.far ? (p.sigTry !== Math.floor(M.real / D.signalWindow) && (p.sigTry = Math.floor(M.real / D.signalWindow), M.rng() < attempt)) : M.rng() < attempt * D.randomAttempt * 0.016)) M.api.tackle(p, false, { signal: !!b.far }); // AI도 공이 몸에서 멀어진 틈에 시도하면 신호 보너스를 받는다. 공이 몸에서 멀어진 틈마다 한 번 시도할지 정한다
       } else { p.tx = b.x; p.ty = b.y; p.ts = sp(p, 1.0); }
       continue;
     }
@@ -121,7 +121,8 @@ function aiTeam(M, t, dt) {
     if (m) { // 패스 길을 막되 완벽하지는 않다: 길에서 옆으로 laneError만큼 어긋난 자리에 선다(정교함이 높을수록 줄어든다 - P3)
       const k = ob ? D.laneShare : 0.4; const lx0 = b.x + (m.x - b.x) * k; const ly0 = b.y + (m.y - b.y) * k;
       const dl = hyp(m.x - b.x, m.y - b.y) || 1; const nx = -(m.y - b.y) / dl; const ny = (m.x - b.x) / dl; const side = (p.num % 2 ? 1 : -1) * D.laneError;
-      p.tx = lx0 + nx * side; p.ty = clamp(ly0 + ny * side, 0.6, H - 0.6); p.ts = sp(p, 0.9);
+      const w = Math.sin(M.real * 1.3 + p.num * 2.1) * 0.9; // 서 있는 수비도 조금씩 움직인다
+      p.tx = lx0 + nx * side + w; p.ty = clamp(ly0 + ny * side + w * 0.6, 0.6, H - 0.6); p.ts = sp(p, 0.9);
     } else go(p, 10, 10, sp(p, 0.7));
   }
 }
@@ -139,17 +140,22 @@ function carrierAI(M, t, c, dt, mine, opp, go, sp) {
   const press = Math.min(...opp.filter((p) => !p.gk).map((p) => hyp(p.x - c.x, p.y - c.y)));
   const pressed = press < A.pressDist;
   const first = (M.holdT ?? 0) < A.firstTouch; // 받은 직후에는 바로 결정하지 않는다
-  if (pressed && !first) c.think = Math.min(c.think, A.pressedThink); // 압박받으면 곧 결정
+  c.stuckT = Math.hypot(c.vx, c.vy) < 1 ? (c.stuckT ?? 0) + dt : 0; // 벽과 수비수 사이에 갇히면 곧 결정한다
+  if (pressed && !first) c.think = Math.min(c.think, c.stuckT > 0.8 ? 0.1 : A.pressedThink); // 압박받으면 곧 결정
   const dist = W - cl.x;
   const range = shotRange(c.ab.shooting ?? 8);
-  if (c.think <= 0 && !first) {
-    c.think = c.gk ? A.gkThink[0] + M.rng() * (A.gkThink[1] - A.gkThink[0]) : A.think[0] + M.rng() * (A.think[1] - A.think[0]);
+  c.shotT = (c.shotT ?? 0.5) - dt;
+  if (c.shotT <= 0 && !first && !c.gk) { // 슛 판단은 패스 판단과 따로 더 자주 한다
+    c.shotT = A.shotThink;
     const gkp = opp.find((p) => p.gk);
-    if (!c.gk && dist < range && dist > 2.5 && M.rng() < A.shotP && shotLaneClear(M, c, opp)) {
+    if (dist < range && dist > 2.5 && M.rng() < A.shotP && shotLaneClear(M, c, opp)) {
       const corner = (gkp && gkp.y > 10) ? -1 : 1;
       M.api.shoot(c, 10 + corner * TUNE.shot.cornerOffset, false, 0.7 + M.rng() * 0.3);
       return;
     }
+  }
+  if (c.think <= 0 && !first) {
+    c.think = c.gk ? A.gkThink[0] + M.rng() * (A.gkThink[1] - A.gkThink[0]) : A.think[0] + M.rng() * (A.think[1] - A.think[0]);
     let best = null; let bs = 0;
     for (const q of mine) {
       if (q === c || q.gk) continue;

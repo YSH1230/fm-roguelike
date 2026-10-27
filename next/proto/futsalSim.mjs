@@ -49,7 +49,7 @@ export function createMatch({ seed = 1, home, away, stance = 'balanced', awaySta
   };
   buildTeams(M);
   M.queue = []; M.hitstop = 0;
-  M.api = { tackle: (p, slide) => queueTackle(M, p, slide), pass: (p, t) => queuePass(M, p, t), shoot: (p, ay, nf, pw) => queueShot(M, p, ay, nf, pw), takeRestartPick: null };
+  M.api = { tackle: (p, slide, data) => queueTackle(M, p, slide, data), pass: (p, t) => queuePass(M, p, t), shoot: (p, ay, nf, pw) => queueShot(M, p, ay, nf, pw), takeRestartPick: null };
   startKickoff(M, 0);
   return M;
 }
@@ -259,7 +259,7 @@ function tackleNow(M, me, slide = false, signal = false) {
     me.slideT = 0.35; // 슬라이드 모션
     if (slide) { me.ratio = Math.max(0, me.ratio - T.sliding.staminaCost * staminaCostMul(me.ab.stamina)); me.slideCdUntil = M.real + slidingInterval(me.ab.stamina); }
     if (M.rng() < tackleChance(carrier.ab, me.ab, { slide, signal })) {
-      carrier.stumbleT = stumbleTime(carrier.ab.strength); M.stats.tackles[me.team] += 1; setHold(M, me); M.events.push({ kind: 'tackle', team: me.team, id: me.id, slide, ok: true });
+      carrier.stumbleT = stumbleTime(carrier.ab.strength); M.stats.tackles[me.team] += 1; (M.stats.tackleOk ??= [0, 0])[me.team] += 1; setHold(M, me); M.events.push({ kind: 'tackle', team: me.team, id: me.id, slide, ok: true });
       if (slide) carrier.freezeUntil = M.real + slidingFreeze(me.ab.strength); // 슬라이딩 성공: 상대가 잠시 멈춘다
     } else {
       M.stats.tackleFails ??= [0, 0]; M.stats.tackleFails[me.team] += 1; M.events.push({ kind: 'tackleFail', team: me.team, id: me.id, slide });

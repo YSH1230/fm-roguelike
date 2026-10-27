@@ -43,7 +43,7 @@ export const TUNE = {
     p: { sure: [0.50, 0.60, 0.68], good: [0.22, 0.30, 0.38], normal: [0.06, 0.10, 0.14], hard: [0.02, 0.04, 0.06] }, // 슛 능력 0 / 10 / 20의 득점 확률(문서 표)
     noiseMul: { sure: 2.0, good: 1.8, normal: 3.5, hard: 3.5 }, reachMul: { sure: 0.8, good: 0.35, normal: 1.1, hard: 1.5 }, slope: { sure: 0.15, good: 0.9, normal: 0.15, hard: 0.8 }, // slope: 슛 능력이 잡음에 미치는 영향의 크기(등급별 보정) // 시뮬레이션으로 보정하는 등급별 계수(보정 값은 이 줄을 덮어쓴다)
   },
-  difficulty: { autoDefense: 'weak', chanceMul: 1.3, aiActivity: 1 }, // 수비 강도(5장), 찬스 득점 배수, 상대 AI 활동성(2단계부터 사용)
+  difficulty: { autoDefense: 'weak', chanceMul: 1.2, aiActivity: 1 }, // 수비 강도(5장), 찬스 득점 배수, 상대 AI 활동성(2단계부터 사용)
   cornerRisk: 0.5, cornerRiskSpan: 1.5, // 구석 위험: 잡음 배수 = 1 + 0.5 x (|조준 - 중앙| / 1.5)
   shotPowerK: 0.08, // 슛 최대 세기 계수 = 슛 70% + 힘 30% (±8%)
   // 수비와 태클(5장). 문서에 값이 없는 것은 임시값이고 보고 대상이다(slowMul, signal.*, defense.*).
@@ -55,9 +55,9 @@ export const TUNE = {
     defMix: [['strength', 0.5], ['skill', 0.3], ['speed', 0.2]], carrierMix: [['strength', 0.6], ['skill', 0.4]],
   },
   signal: { ms: 0.4, gap: 1.0, farOffset: 0.9, farCycle: 0.9, farShare: 0.25, farMinSpeed: 2, turnDeg: 90, turnWindow: 0.3, firstTouch: 0.4 }, // 태클 신호: 청록 링 0.4초, 같은 선수는 1초 간격. 나머지는 임시값
-  defense: { jockey: 1.3, coverBack: 2.5, laneShare: 0.6, laneError: 3.5, controlIdle: 0.3, attemptPerSec: { weak: 0.1, normal: 0.15, strong: 0.25 }, signalWindow: 0.9, randomAttempt: 0.3, contactBase: 0.30 }, // 1차 수비수 간격 1.3m, 커버 2~3m 뒤, 조종 선수 AI 전환 0.3초. 시도 빈도와 contactBase는 임시/보정값
+  defense: { jockey: 1.3, coverBack: 2.5, laneShare: 0.6, laneError: 3.5, controlIdle: 0.3, attemptPerSec: { weak: 0.05, normal: 0.07, strong: 0.12 }, signalWindow: 0.9, randomAttempt: 0.02, contactBase: 0.30 }, // 1차 수비수 간격 1.3m, 커버 2~3m 뒤, 조종 선수 AI 전환 0.3초. 시도 빈도와 contactBase는 임시/보정값
   // AI 공 가진 선수의 선택(임시값, 9장에서 지표에 맞춰 보정): 결정 간격, 압박 거리, 패스 길 여유, 슛과 패스 선택 확률
-  ai: { think: [2.4, 4.2], gkThink: [1.0, 2.0], firstTouch: 0.3, pressDist: 1.6, passLane: 1.2, passMate: 2.4, pass: 0.5, passPressed: 0.6, shotP: 0.6, shotLane: 0.4, slack: 0.5, pressedThink: 0.6, nearOpp: 2.5, nearCos: 0.3 }, // 전부 임시/보정값(문서에 없음)
+  ai: { think: [3.2, 5.4], gkThink: [1.0, 2.0], firstTouch: 0.3, pressDist: 1.6, passLane: 1.2, passMate: 2.4, pass: 0.5, passPressed: 0.6, shotP: 0.6, shotThink: 0.5, shotLane: 0.4, slack: 0.5, pressedThink: 1.2, nearOpp: 2.5, nearCos: 0.3 }, // 전부 임시/보정값(문서에 없음)
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
   expectedGoals: 2.5, // 지시문 4장: 경기당 합계 골(두 팀 합) 기준. 설계 문서 v6.3의 '팀당 약 2.5골'과 읽는 방식이 달라 보고 대상.
