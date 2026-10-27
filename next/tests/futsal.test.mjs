@@ -11,7 +11,7 @@ import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, setH
 const mk = (seed = 1) => createMatch({ seed, home: demoTeam('H', seed), away: demoTeam('A', seed + 50) });
 const play = (M, sec, input = {}, dt = 1 / 60) => { for (let i = 0; i < sec / dt && M.phase !== 'end'; i += 1) update(M, dt, input); };
 const settle = (M) => { for (let i = 0; i < 60 && M.queue.length; i += 1) update(M, 1 / 60, {}); }; // 킥 준비가 끝나 임팩트가 지나갈 때까지
-const finish = (M) => { let n = 0; while (M.phase !== 'end' && n < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M); update(M, 1 / 60, {}); n += 1; } };
+const finish = (M) => { M.autoHuman = true; let n = 0; while (M.phase !== 'end' && n < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M); update(M, 1 / 60, {}); n += 1; } };
 
 test('능력 함수: 속도, 체력 소모(능력 10이 5분 풀 출전하면 40%, 배율 1.3/1.0/0.7), 링 tau와 색, 골키퍼 지연, 정교함', () => {
   assert.equal(speedOf(20), 8.1); assert.equal(speedOf(10), 7.5); assert.equal(speedOf(0), 6.9); // 달리기 최고 속도 6.9 / 7.5 / 8.1 (사용자 지시 3차 보정)
@@ -113,7 +113,7 @@ test('아무도 조종하지 않아도 한 경기가 끝나고 실제 길이는 
 });
 test('추가시간: 전반 1~5분, 후반 3~10분(풋살 시계), 후반 추가시간에만 플라잉 골키퍼 가능', () => {
   const seen1 = new Set(); const seen2 = new Set();
-  for (let s = 1; s <= 30; s += 1) { const M = mk(s); let n = 0; let avail = 0; let early = 0;
+  for (let s = 1; s <= 30; s += 1) { const M = mk(s); M.autoHuman = true; let n = 0; let avail = 0; let early = 0;
     while (M.phase !== 'end' && n < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M); update(M, 1 / 30, {}); n += 1; if (flyingGkAvailable(M)) avail += 1; else if (M.half === 2 && M.halfClock < TUNE.halfClockSeconds && flyingGkAvailable(M)) early += 1; }
     seen1.add(M.extra[1] / 60); seen2.add(M.extra[2] / 60);
     assert.ok(avail > 0 && early === 0);
@@ -195,8 +195,13 @@ test('쓸기는 골대 방향 ±55도 안에서만 슛이고, 그 밖은 아무 
   for (const deg of [60, -60, 90, -90, 135, 180]) assert.equal(swipe(...s(deg)).ball.st, 'held', `${deg}도는 슛이 아니다`);
   const up = swipe(...s(-12)).ball.aimTarget; const mid = swipe(...s(0)).ball.aimTarget; const down = swipe(...s(12)).ball.aimTarget;
   assert.ok(up < mid && mid < down, '쓴 각도가 조준이다');
-  assert.equal(swipe(...s(50)).ball.aimTarget, TUNE.shot.goalY[1], '골대 밖을 가리키면 가장 가까운 골대 안 점으로 보정');
-  assert.equal(swipe(...s(-50)).ball.aimTarget, TUNE.shot.goalY[0]);
+  // 골대 밖을 가리키면 그대로 골대 밖으로 간다(자르지 않는다). 거리 10m에서 50도면 조준 y = 10 + tan50 x 10
+  assert.ok(Math.abs(swipe(...s(50)).ball.aimTarget - (10 + Math.tan(50 * Math.PI / 180) * 10)) < 0.05 && swipe(...s(50)).ball.aimTarget > TUNE.shot.goalY[1] + 5);
+  // 약한 자석: 골대 가장자리 0.5m 안(밖 포함)만 골대 안 점으로 당긴다
+  const aim = (deg) => swipe(...s(deg)).ball.aimTarget; const edge = TUNE.shot.goalY[1]; const mg = TUNE.input.magnetM;
+  assert.ok(Math.abs(aim(Math.atan(0.18) * 180 / Math.PI) - (edge - TUNE.input.magnetIn)) < 1e-6, '밖 0.3m는 안으로 당김');
+  assert.ok(Math.abs(aim(Math.atan(0.12) * 180 / Math.PI) - (edge - TUNE.input.magnetIn)) < 1e-6, '안 0.3m도 가장자리 안쪽으로 당김');
+  assert.ok(aim(Math.atan(0.22) * 180 / Math.PI) > edge + 0.19, `밖 ${0.22 * 10 - 1.5 + 0}m는 당기지 않음`); void mg;
 });
 test('공이 없을 때: 콕은 스탠딩 태클, 꾹은 슬라이딩 태클, 패스 효과는 없다', () => {
   const M = mk(7); play(M, 1);

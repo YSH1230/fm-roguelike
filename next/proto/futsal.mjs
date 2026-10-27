@@ -27,6 +27,9 @@ const tail = []; // 공 꼬리
 let ballRot = 0;
 let banner = null; // { text, t } 골 연출 등(글자는 쓰지 않고 색 번쩍임으로만)
 let flash = 0;
+let ballFx = null; // 태클로 공이 상대 발에서 내 발로 튕겨 이동하는 연출 { t0, from }
+const dusts = []; // 발밑 먼지
+const lossFlash = new Map(); // 공을 뺏긴 내 선수의 붉은 외곽선 깜빡임(선수 id -> 시작 시각)
 let lastCtl = -1; let ctlT = 0; // 조종 선수가 바뀐 시각(링이 커졌다 줄어든다)
 
 // ---------- 소리와 진동: 입력 시점이 아니라 발사/임팩트 시점의 이벤트로 재생한다(ZzFX, MIT) ----------
@@ -40,16 +43,22 @@ let vibOn = canVibrate && saved.vib !== false;
 input.setSensitivity(saved.sens ?? 1);
 const inputLog = createInputLog();
 const buzz = (ms) => { if (vibOn && canVibrate) { try { navigator.vibrate(ms); } catch { /* 무시 */ } } };
+const snd = (...a) => { if (TUNE.audio.on) zzfx(...a); }; // 소리는 TUNE.audio.on으로 막는다(코드는 유지)
 const sfx = {
-  pass: (d = 8) => { zzfx(0.6, 0.05, 200 + d * 14, 0, 0.01, 0.03 + d * 0.004, 1, 1.2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.7, 0.01); }, // 짧은 "톡": 먼 패스일수록 길고 높게
-  receive: () => { zzfx(0.12, 0.05, 330, 0, 0.005, 0.02, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.6, 0.01); }, // 아주 작은 소리
-  shot: () => { zzfx(0.9, 0.05, 150, 0.003, 0.03, 0.14, 4, 1.6, -4, 0, 0, 0, 0, 0.3, 0, 0.1, 0, 0.7, 0.03); buzz(22); },
-  tackleOk: () => { zzfx(0.7, 0.05, 90, 0.003, 0.02, 0.1, 4, 1.4, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0.8, 0.02); buzz(10); },
-  tackleFail: () => { zzfx(0.25, 0.05, 260, 0.003, 0.01, 0.06, 1, 1, 0, 0, 0, 0, 0, 0.2, 0, 0, 0, 0.6, 0.01); },
-  goal: () => { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => zzfx(1, 0.02, f, 0.005, 0.1, 0.22, 1, 1.3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8, 0.05), i * 90)); buzz([60, 40, 90]); },
-  save: () => { zzfx(0.6, 0.05, 320, 0.003, 0.04, 0.12, 2, 1.2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0.7, 0.02); },
-  lose: () => { zzfx(0.4, 0.05, 200, 0.003, 0.02, 0.08, 4, 1, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0.7, 0.01); },
+  pass: (d = 8) => { snd(0.6, 0.05, 200 + d * 14, 0, 0.01, 0.03 + d * 0.004, 1, 1.2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.7, 0.01); }, // 짧은 "톡": 먼 패스일수록 길고 높게
+  receive: () => { snd(0.12, 0.05, 330, 0, 0.005, 0.02, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.6, 0.01); }, // 아주 작은 소리
+  shot: () => { snd(0.9, 0.05, 150, 0.003, 0.03, 0.14, 4, 1.6, -4, 0, 0, 0, 0, 0.3, 0, 0.1, 0, 0.7, 0.03); buzz(22); },
+  tackleOk: (mine) => { snd(0.7, 0.05, 90, 0.003, 0.02, 0.1, 4, 1.4, 0, 0, 0, 0, 0, 0.5, 0, 0, 0, 0.8, 0.02); if (mine) buzz(TUNE.feel.buzzMs); }, // 진동은 내 팀 태클 성공에만
+  tackleFail: () => { snd(0.25, 0.05, 260, 0.003, 0.01, 0.06, 1, 1, 0, 0, 0, 0, 0, 0.2, 0, 0, 0, 0.6, 0.01); },
+  goal: () => { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => snd(1, 0.02, f, 0.005, 0.1, 0.22, 1, 1.3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.8, 0.05), i * 90)); buzz([60, 40, 90]); },
+  save: () => { snd(0.6, 0.05, 320, 0.003, 0.04, 0.12, 2, 1.2, -1, 0, 0, 0, 0, 0, 0, 0, 0, 0.7, 0.02); },
+  lose: () => { snd(0.4, 0.05, 200, 0.003, 0.02, 0.08, 4, 1, 0, 0, 0, 0, 0, 0.3, 0, 0, 0, 0.7, 0.01); },
 };
+function tackleView(e) { // 태클 성공 연출(글자, 번쩍임, 흔들림 없음): 공 튕김, 먼지, 내 링 펄스, 뺏긴 내 선수의 붉은 외곽선
+  const now = performance.now(); ballFx = { t0: now, from: { x: e.vx, y: e.vy } };
+  dusts.push({ x: e.vx, y: e.vy, t0: now, n: e.slide ? TUNE.feel.dustSlide : TUNE.feel.dustStand, big: !!e.slide });
+  if (e.team === 0) ctlT = now; else if (e.vteam === 0) lossFlash.set(e.victim, now);
+}
 let evSeen = 0;
 function playEventSounds() {
   for (; evSeen < M.events.length; evSeen += 1) {
@@ -58,7 +67,7 @@ function playEventSounds() {
     else if (e.kind === 'receive') sfx.receive();
     else if (e.kind === 'goal') sfx.goal();
     else if (e.kind === 'save' || e.kind === 'post') sfx.save();
-    else if (e.kind === 'tackle') sfx.tackleOk();
+    else if (e.kind === 'tackle') { sfx.tackleOk(e.team === 0); tackleView(e); }
     else if (e.kind === 'tackleFail') sfx.tackleFail();
     else if (e.kind === 'intercept') sfx.lose();
   }
@@ -128,6 +137,8 @@ function drawPlayer(p, mine) {
   ctx.fillStyle = '#1f2937'; ctx.fillRect(-h * 0.16, y0 - h * 1.0, h * 0.32, h * 0.1);
   ctx.fillStyle = '#0f172a'; ctx.font = `800 ${Math.max(9, h * 0.24)}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(p.num), 0, y0 - h * 0.55);
   ctx.restore();
+  const lf = lossFlash.get(p.id); // 공을 뺏긴 내 선수: 붉은 외곽선이 한 번 깜빡인다
+  if (lf != null) { const k = (performance.now() - lf) / TUNE.feel.lossFlashMs; if (k >= 1) lossFlash.delete(p.id); else { ctx.globalAlpha = Math.sin(k * Math.PI); ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3; ctx.strokeRect(px - h * 0.3, py - h * 1.05, h * 0.6, h * 1.1); ctx.globalAlpha = 1; } }
   if (slide > 0.3) { ctx.fillStyle = 'rgba(226,232,240,0.35)'; for (let i = 0; i < 3; i += 1) { ctx.beginPath(); ctx.arc(px - face * (h * 0.3 + i * h * 0.18), py - i * 2, h * (0.12 - i * 0.025), 0, 7); ctx.fill(); } }
 }
 function draw() {
@@ -137,13 +148,15 @@ function draw() {
   for (const p of [...M.players].sort((a, c) => a.y - c.y)) drawPlayer(p, p === me && M.phase !== 'end');
   // 공: 굴러가는 회전과 꼬리(세게 찬 슛일수록 굵고 길다)
   const h = 1.8 * pxm * PLAYER_SCALE;
-  const bx = X(b.x); const by = Y(b.y);
+  let bxm = b.x; let bym = b.y; let lift = 0; // 태클 직후 공이 상대 발에서 새 주인에게 튕겨 간다
+  if (ballFx) { const kk = (performance.now() - ballFx.t0) / TUNE.feel.ballFlyMs; if (kk >= 1) ballFx = null; else { bxm = ballFx.from.x + (b.x - ballFx.from.x) * kk; bym = ballFx.from.y + (b.y - ballFx.from.y) * kk; lift = Math.sin(kk * Math.PI) * pxm * 0.7; } }
+  const bx = X(bxm); const by = Y(bym);
   const bsp = Math.hypot(b.vx ?? 0, b.vy ?? 0);
   if (bsp > 6 && b.st !== 'held') { tail.push({ x: bx, y: by, w: b.st === 'shot' ? 0.6 + (b.power ?? 0.5) * 1.1 : 0.55 }); if (tail.length > 9) tail.shift(); } else if (tail.length) tail.shift();
   tail.forEach((q, k) => { ctx.globalAlpha = (k / tail.length) * 0.35; ctx.fillStyle = b.st === 'shot' ? '#fb923c' : '#fff'; ctx.beginPath(); ctx.arc(q.x, q.y - pxm * 0.2, Math.max(2, pxm * 0.2 * q.w), 0, 7); ctx.fill(); });
   ctx.globalAlpha = 1;
   ballRot += bsp * 0.02 * (b.vx >= 0 ? 1 : -1);
-  const br = Math.max(4, pxm * 0.22); const bcy = by - Math.max(3, pxm * 0.2);
+  const br = Math.max(4, pxm * 0.22); const bcy = by - Math.max(3, pxm * 0.2) - lift;
   ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(bx, by + h * 0.02, Math.max(3, pxm * 0.2), Math.max(1.5, pxm * 0.08), 0, 0, 7); ctx.fill();
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, bcy, br, 0, 7); ctx.fill();
   ctx.fillStyle = '#0f172a'; for (let k = 0; k < 3; k += 1) { const a = ballRot + k * 2.094; ctx.beginPath(); ctx.arc(bx + Math.cos(a) * br * 0.5, bcy + Math.sin(a) * br * 0.5, br * 0.22, 0, 7); ctx.fill(); }
@@ -162,13 +175,24 @@ function draw() {
   fxs = fxs.filter((f) => now - f.t0 < f.dur);
   for (const f of fxs) { const k = (now - f.t0) / f.dur; rings.push({ x: f.who ? f.who.x : f.x, y: f.who ? f.who.y : f.y, r: 0.8 + 0.5 * k, color: f.color, frac: 1, a: 1 - k, w: 4 }); }
   for (const q of M.players) if (q.team === 1 && M.ball.owner === q && M.ball.st === 'held' && signalActive(M, q)) rings.push({ x: q.x, y: q.y, r: 0.9, color: '#22d3ee', frac: 1, w: 4 });
-  if (M.phase === 'deadball' && M.restart && M.restart.kind !== 'kickoff') rings.push({ x: b.x, y: b.y, r: 1.6 * Math.max(0.1, M.restart.timer / TUNE.deadBallSeconds), color: '#ffffff', frac: 1, a: M.restart.team === 0 ? 1 : 0.4, w: 3 });
+  if (M.phase === 'deadball' && M.restart) {
+    const rs = M.restart;
+    if (rs.kind === 'kickoff') { if (rs.wait && !M.autoHuman) rings.push({ x: b.x, y: b.y, r: 1.3 + 0.12 * Math.sin(now / 420), color: '#ffffff', frac: 1, a: 0.85, w: 3 }); } // 킥오프 대기: 줄어들지 않고 천천히 펄스
+    else rings.push({ x: b.x, y: b.y, r: 1.6 * Math.max(0.1, rs.timer / TUNE.deadBallSeconds), color: '#ffffff', frac: 1, a: rs.team === 0 ? 1 : 0.4, w: 3 });
+    if (rs.sel && rs.team === 0) rings.push({ x: rs.sel.x, y: rs.sel.y, r: 0.6, color: '#facc15', frac: 1, w: 3 }); // 고른 동료
+  }
   for (const rg of rings.slice(0, R.max)) {
     const cx = X(rg.x); const cy = Y(rg.y); const rx = rg.r * pxm * 0.9; const ry = rx * 0.38; const a0 = -Math.PI / 2; const a1 = a0 + Math.PI * 2 * rg.frac;
     ctx.globalAlpha = rg.a ?? 1; ctx.lineCap = 'round';
     ctx.strokeStyle = 'rgba(8,12,24,0.85)'; ctx.lineWidth = rg.w + 3; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, a0, a1); ctx.stroke();
     ctx.strokeStyle = rg.color; ctx.lineWidth = rg.w; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, a0, a1); ctx.stroke();
     ctx.lineCap = 'butt'; ctx.globalAlpha = 1;
+  }
+  for (let i = dusts.length - 1; i >= 0; i -= 1) { // 먼지: 발밑에서 작은 알갱이가 퍼지며 사라진다
+    const d = dusts[i]; const k = (now - d.t0) / TUNE.feel.dustMs; if (k >= 1) { dusts.splice(i, 1); continue; }
+    ctx.globalAlpha = (1 - k) * 0.7; ctx.fillStyle = '#e2e8f0';
+    for (let j = 0; j < d.n; j += 1) { const a = (j / d.n) * Math.PI * 2 + 0.7; const rr = (d.big ? 1.3 : 0.7) * pxm * (0.2 + k * 0.9); ctx.beginPath(); ctx.arc(X(d.x) + Math.cos(a) * rr, Y(d.y) + Math.sin(a) * rr * 0.45 - pxm * 0.1, Math.max(1.5, pxm * (d.big ? 0.16 : 0.1) * (1 - k * 0.4)), 0, 7); ctx.fill(); }
+    ctx.globalAlpha = 1;
   }
   const tr = input.swipeTrail(now);
   if (tr && tr.pts.length > 1) { // 쓸기 궤적: 흰색 얇은 선, 떼고 0.3초

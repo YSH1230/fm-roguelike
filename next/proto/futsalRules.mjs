@@ -18,7 +18,7 @@ export const TUNE = {
   subThreshold: 0.25, subPopupSeconds: 3,
   // 입력(화면 px, 640 기준이 아니라 실제 손가락 px)
   // 입력(화면 px). 콕 = 20px 이하 + 250ms 이내, 꾹 = 20px 이하로 0.25초, 쓸기 = 35px 이상 + 0.5px/ms 이상. sensitivity(0.7~1.3)로 사용자가 조절한다.
-  input: { tapMove: 20, leftTapMove: 20, tapMs: 250, holdMs: 250, swipePx: 35, swipeSpeed: 0.5, joyRadius: 44, deadzone: 10, buffer: 150, flipThreshold: 0.6, flipMs: 180, spotRadius: 2.4, shotAngleDeg: 55, swipePowerMin: 0.5, swipePowerMax: 2.0, powerAtMin: 0.6, powerAtMax: 1.0, sensitivity: 1 },
+  input: { tapMove: 20, leftTapMove: 20, tapMs: 250, holdMs: 250, swipePx: 35, swipeSpeed: 0.5, joyRadius: 44, deadzone: 10, buffer: 150, flipThreshold: 0.6, flipMs: 180, spotRadius: 2.4, shotAngleDeg: 55, magnetM: 0.5, swipeEndPx: 0, magnetIn: 0.15, swipePowerMin: 0.5, swipePowerMax: 2.0, powerAtMin: 0.6, powerAtMax: 1.0, sensitivity: 1 },
   // 접촉 경합, 슛
   contactR: 0.85, contestInterval: 0.45, dribbleSeconds: 0.8, dribbleBoost: 1.25,
   shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 12, rangePerShooting: 0.45, minPower: 0.6, speedMin: 12, speedMax: 26, powerNoise: 0.35, gkReachBase: 0.9, gkReachPerHandling: 0.03, gkReachPowerCut: 0.25, gkReactBase: 0.26, gkReactPerReaction: 0.008, gkDive: 1.3 },
@@ -34,7 +34,7 @@ export const TUNE = {
     stumbleMoveMul: 0, // 비틀거리는 동안 이동 속도 배수(문서에 값이 없어 임시로 0, 보고 대상)
   },
   // 패스(3장): 속도는 거리 기반 x 능력 계수, 도착할 때 20% 느려진다. 먼 패스(12m 이상)와 압박(2.4m 안 상대)에서만 오차가 생긴다.
-  pass: { freeFlight: 1.0, speedK: 0.10, arriveMul: 0.8, errFarDist: 12, errFar: 0.5, errPress: 0.5, pressDist: 2.4, errBase: 1.6, errPerAbility: 0.07, errMin: 0.2, errMax: 1.6, lowStamina: 0.25, lowStaminaMul: 1.25, radiusK: 0.10 },
+  pass: { followAngleDeg: 45, assistMul: 1.5, freeFlight: 1.0, speedK: 0.10, arriveMul: 0.8, errFarDist: 12, errFar: 0.5, errPress: 0.5, pressDist: 2.4, errBase: 1.6, errPerAbility: 0.07, errMin: 0.2, errMax: 1.6, lowStamina: 0.25, lowStaminaMul: 1.25, radiusK: 0.10 },
   // 슛(4장): 쓸기 속도 → 세기, 구석 위험, 찬스 등급. 등급 기준 거리와 반경 중 문서에 없는 값은 임시값이다(보고 대상).
   chance: {
     hardDist: 14, hardDefenderR: 1.2, // 문서: 14m 이상이거나 수비수가 바짝 붙었을 때 (바짝 = 임시 1.2m)
@@ -58,6 +58,8 @@ export const TUNE = {
   defense: { jockey: 1.3, coverBack: 2.5, laneShare: 0.6, laneError: 3.5, laneErrorWeak: 6.5, controlIdle: 0.3, attemptPerSec: { weak: 0.01, normal: 0.05, strong: 0.12 }, signalWindow: 0.9, randomAttempt: 0.5, contactBase: 0.20 }, // 1차 수비수 간격 1.3m, 커버 2~3m 뒤, 조종 선수 AI 전환 0.3초. 시도 빈도와 contactBase는 임시/보정값
   // AI 공 가진 선수의 선택(임시값, 9장에서 지표에 맞춰 보정): 결정 간격, 압박 거리, 패스 길 여유, 슛과 패스 선택 확률
   ai: { think: [3.2, 5.4], gkThink: [1.0, 2.0], firstTouch: 0.3, pressDist: 1.6, passLane: 1.2, passMate: 2.4, pass: 0.5, passPressed: 0.6, shotP: 0.35, shotThink: 0.5, shotLane: 0.4, slack: 0.5, pressedThink: 1.2, nearOpp: 2.5, nearCos: 0.3 }, // 전부 임시/보정값(문서에 없음)
+  feel: { hitstopStand: 0.05, hitstopSlide: 0.09, ballFlyMs: 150, pushM: 0.5, pushSec: 0.15, dustStand: 3, dustSlide: 6, dustMs: 420, lossFlashMs: 300, ringPulseMs: 300, buzzMs: 12 }, // 태클 연출(7장 아님, 직접 플레이 피드백): 글자, 화면 번쩍임, 화면 흔들림은 쓰지 않는다
+  audio: { on: false }, // 소리 전체 끄기(1단계 직접 플레이 피드백). 진동은 별도 설정
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
   expectedGoals: 2.5, // 지시문 4장: 경기당 합계 골(두 팀 합) 기준. 설계 문서 v6.3의 '팀당 약 2.5골'과 읽는 방식이 달라 보고 대상.

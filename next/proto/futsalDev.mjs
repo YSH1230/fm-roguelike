@@ -1,5 +1,6 @@
 // 개발 도구(8장): ?dev=1 로 열면 보인다. TUNE 슬라이더, 통계 표시, 시드 재생, 입력 기록 저장. 게임 규칙은 건드리지 않고 TUNE 값만 바꾼다.
 import { TUNE } from './futsalRules.mjs';
+import { controlState } from './futsalSim.mjs';
 
 const GROUPS = ['input', 'kick', 'pass', 'shot', 'defense', 'tackle', 'move', 'stamina', 'ring', 'difficulty', 'ai'];
 const LOG_KEY = 'fmFutsalInputLog';
@@ -47,6 +48,7 @@ export function initDev({ getM, getSeed, restart, inputLog }) {
   }
   setInterval(() => {
     const M = getM(); if (!M) return; const S = M.stats; seedRow.querySelector('#dv-n').textContent = `${inputLog.length} ev`; const q = (a) => a.join('/');
-    stats.textContent = `seed ${getSeed()}  score ${q(M.score)}\nshots ${q(S.shots)} passes ${q(S.passes)} ok ${q(S.passOk)}\nicpt ${q(S.intercepts)} tackles ${q(S.tackles)} saves ${q(S.saves)}`;
+    const me = M.players[M.control]; const st = controlState(M);
+    stats.textContent = `조종 #${me?.num ?? '-'} ${me?.id ?? ''} 상태 ${st.length ? st.join(',') : '자유'}\n` + `seed ${getSeed()}  score ${q(M.score)}\nshots ${q(S.shots)} passes ${q(S.passes)} ok ${q(S.passOk)}\nicpt ${q(S.intercepts)} tackles ${q(S.tackles)} saves ${q(S.saves)}`;
   }, 250);
 }

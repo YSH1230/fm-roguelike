@@ -65,7 +65,12 @@ export function createInput() {
       if (f.fired) return; // 꾹은 이미 발동했다
       const dx = x - f.x0; const dy = y - f.y0; const m = Math.hypot(dx, dy); const ms = Math.max(1, t - f.t0);
       const k = classifyGesture({ m, ms, sens });
-      if (k === 'swipe') { lastSwipe = { pts: [...(f.trail ?? [{ x: f.x0, y: f.y0 }]), { x, y }], t }; push({ type: 'swipe', v: m / ms, dx: dx / m, dy: dy / m, at: t }); }
+      if (k === 'swipe') {
+        const pts = [...(f.trail ?? [{ x: f.x0, y: f.y0 }]), { x, y }]; lastSwipe = { pts, t };
+        let ax = dx / m; let ay = dy / m; // 방향: 기본은 시작~끝 전체. swipeEndPx > 0이면 끝에서 그 px 앞 지점~끝(손가락 궤적의 마지막 구간)
+        if (T.swipeEndPx > 0) for (let i = pts.length - 2; i >= 0; i -= 1) { const ex = x - pts[i].x; const ey = y - pts[i].y; const l = Math.hypot(ex, ey); if (l >= T.swipeEndPx) { ax = ex / l; ay = ey / l; break; } }
+        push({ type: 'swipe', v: m / ms, dx: ax, dy: ay, at: t });
+      }
       else if (k === 'tap') push({ type: 'tap', x: f.x0, y: f.y0, at: t });
     },
     // 시스템 취소: 이동만 멈추고 이미 쌓인 행동에는 영향이 없다
