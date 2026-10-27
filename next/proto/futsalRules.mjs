@@ -6,8 +6,8 @@ export const TUNE = {
   halfClockSeconds: 1200, clockScale: 8, realMatchSeconds: 300,
   extraMinutes: { 1: [1, 5], 2: [3, 10] }, // 정규 시간 뒤 추가시간(풋살 시계, 분)
   // 이동과 공
-  minRunSpeed: 6, maxRunSpeed: 9, accel: 9, // 달리기 최고 속도 능력 0/10/20에서 6.0 / 7.5 / 9.0 m/s
-  passSpeedMin: 10, passSpeedMax: 16, passSpeedBase: 8, passSpeedPerM: 0.8, ballFriction: 0.6, pickupR: 1.2, interceptR: 0.85, blockR: 0.7,
+  minRunSpeed: 6.75, maxRunSpeed: 8.25, accel: 9, // 달리기 최고 속도 능력 0/10/20에서 6.75 / 7.5 / 8.25 m/s (사용자 지시 2차 보정: 원래 6/7.5/9)
+  passSpeedMin: 10, passSpeedMax: 16, passSpeedBase: 8, passSpeedPerM: 0.8, ballFriction: 0.6, pickupR: 1.2, interceptR: 0.60, blockR: 0.7,
   deadBallSeconds: 4, autoRestartSeconds: 0.9,
   // 체력
   speedFloor: 0.7, gkDelayGrow: 0.4, // 후반이 될수록 최대 30%까지 달리기가 느려진다
@@ -48,16 +48,16 @@ export const TUNE = {
   shotPowerK: 0.08, // 슛 최대 세기 계수 = 슛 70% + 힘 30% (±8%)
   // 수비와 태클(5장). 문서에 값이 없는 것은 임시값이고 보고 대상이다(slowMul, signal.*, defense.*).
   tackle: {
-    standing: { reach: 2.0, reachK: 0.10, base: 0.35, penalty: 0.30, penaltyK: 0.30, slowMul: 0.5 }, // 콕: 닿는 거리(속도), 기본 성공률, 실패 시 느려지는 시간(힘)과 느려지는 배수(임시)
-    sliding: { reach: 3.5, reachK: 0.10, mul: 0.7, freeze: 0.40, freezeK: 0.30, down: 0.80, downK: 0.15, interval: 3.0, intervalK: 0.15, staminaCost: 0.03, staminaCostK: 0.30 }, // 꾹: 성공하면 상대 정지(힘), 실패하면 누움(체력), 사용 간격(체력), 체력 3%
+    standing: { reach: 2.0, reachK: 0.05, base: 0.35, penalty: 0.30, penaltyK: 0.30, slowMul: 0.5 }, // 콕: 닿는 거리(속도), 기본 성공률, 실패 시 느려지는 시간(힘)과 느려지는 배수(임시)
+    sliding: { reach: 3.5, reachK: 0.05, mul: 0.7, freeze: 0.40, freezeK: 0.30, down: 0.80, downK: 0.15, interval: 3.0, intervalK: 0.15, staminaCost: 0.03, staminaCostK: 0.30 }, // 꾹: 성공하면 상대 정지(힘), 실패하면 누움(체력), 사용 간격(체력), 체력 3%
     bonus: 0.20, // 태클 신호가 켜진 동안 터치를 시작하면 성공률 +20%p
     pK: 0.025, pMin: 0.06, pMax: 0.65, // 성공 확률 = 기본 + 0.025 x (수비 합성값 - 공격 합성값), 0.06~0.65로 자른다
     defMix: [['strength', 0.5], ['skill', 0.3], ['speed', 0.2]], carrierMix: [['strength', 0.6], ['skill', 0.4]],
   },
   signal: { ms: 0.4, gap: 1.0, farOffset: 0.9, farCycle: 0.9, farShare: 0.25, farMinSpeed: 2, turnDeg: 90, turnWindow: 0.3, firstTouch: 0.4 }, // 태클 신호: 청록 링 0.4초, 같은 선수는 1초 간격. 나머지는 임시값
-  defense: { jockey: 1.3, coverBack: 2.5, laneShare: 0.6, laneError: 3.5, controlIdle: 0.3, attemptPerSec: { weak: 0.05, normal: 0.07, strong: 0.12 }, signalWindow: 0.9, randomAttempt: 0.02, contactBase: 0.30 }, // 1차 수비수 간격 1.3m, 커버 2~3m 뒤, 조종 선수 AI 전환 0.3초. 시도 빈도와 contactBase는 임시/보정값
+  defense: { jockey: 1.3, coverBack: 2.5, laneShare: 0.6, laneError: 3.5, laneErrorWeak: 6.5, controlIdle: 0.3, attemptPerSec: { weak: 0.01, normal: 0.05, strong: 0.12 }, signalWindow: 0.9, randomAttempt: 0.5, contactBase: 0.20 }, // 1차 수비수 간격 1.3m, 커버 2~3m 뒤, 조종 선수 AI 전환 0.3초. 시도 빈도와 contactBase는 임시/보정값
   // AI 공 가진 선수의 선택(임시값, 9장에서 지표에 맞춰 보정): 결정 간격, 압박 거리, 패스 길 여유, 슛과 패스 선택 확률
-  ai: { think: [3.2, 5.4], gkThink: [1.0, 2.0], firstTouch: 0.3, pressDist: 1.6, passLane: 1.2, passMate: 2.4, pass: 0.5, passPressed: 0.6, shotP: 0.6, shotThink: 0.5, shotLane: 0.4, slack: 0.5, pressedThink: 1.2, nearOpp: 2.5, nearCos: 0.3 }, // 전부 임시/보정값(문서에 없음)
+  ai: { think: [3.2, 5.4], gkThink: [1.0, 2.0], firstTouch: 0.3, pressDist: 1.6, passLane: 1.2, passMate: 2.4, pass: 0.5, passPressed: 0.6, shotP: 0.35, shotThink: 0.5, shotLane: 0.4, slack: 0.5, pressedThink: 1.2, nearOpp: 2.5, nearCos: 0.3 }, // 전부 임시/보정값(문서에 없음)
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
   expectedGoals: 2.5, // 지시문 4장: 경기당 합계 골(두 팀 합) 기준. 설계 문서 v6.3의 '팀당 약 2.5골'과 읽는 방식이 달라 보고 대상.
@@ -123,7 +123,7 @@ export function passErrorSigma({ dist, pressed, passing, ratio }) {
   return base * passErrorCoef(passing) * (ratio <= P.lowStamina ? P.lowStaminaMul : 1);
 }
 // 판정 반경: 가로채기 = 패스 70% + 속도 30%(±10%), 공 받기 = 패스(±10%)
-export const interceptRadius = (ab) => link(TUNE.interceptR, mixAbility([[ab.passing ?? 10, 0.7], [ab.speed ?? 10, 0.3]]), TUNE.pass.radiusK, true);
+export const interceptRadius = (ab) => link(TUNE.interceptR, mixAbility([[ab.passing ?? 10, 0.85], [ab.speed ?? 10, 0.15]]), TUNE.pass.radiusK, true);
 export const pickupRadius = (ab) => link(TUNE.pickupR, ab.passing ?? 10, TUNE.pass.radiusK, true);
 
 // ---- 슛 능력 연계(4장) ----

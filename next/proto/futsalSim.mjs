@@ -43,7 +43,7 @@ export function createMatch({ seed = 1, home, away, stance = 'balanced', awaySta
     ball: { x: W / 2, y: H / 2, vx: 0, vy: 0, st: 'held', owner: null, tgt: null, trav: 0 },
     control: 0, half: 1, halfClock: 0, clock: 0, real: 0, extra: { 1: null, 2: null }, inExtra: false,
     phase: 'deadball', restart: null, score: [0, 0], events: [], lastTouch: 0, contestT: 0, shooterTeam: 0,
-    stats: { runs: [0, 0], goals: [], saves: [0, 0], tackles: [0, 0], intercepts: [0, 0], shots: [0, 0], passes: [0, 0], passOk: [0, 0], passFail: [0, 0] },
+    stats: { runs: [0, 0], goals: [], saves: [0, 0], tackles: [0, 0], intercepts: [0, 0], shots: [0, 0], passes: [0, 0], passOk: [0, 0], passFail: [0, 0], tackleOk: [0, 0], tackleFails: [0, 0] },
     ai: { skill: [12, 12], style: ['balanced', 'balanced'], specials: [[], []] }, // P3에서 채운다
     opts: { gkAdvance: [false, false] },
   };

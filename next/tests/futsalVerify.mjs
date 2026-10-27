@@ -12,15 +12,25 @@ const [N1 = 1000, N2 = 200, N3 = 400] = process.argv.slice(2).map(Number);
 const FIELD = ['speed', 'stamina', 'strength', 'passing', 'shooting', 'skill'];
 const flat = (name, v = 10) => ({ name, players: Array.from({ length: 8 }, (_, i) => ({ id: `${name}${i}`, name: `${name}${i}`, gk: i === 0, cond: 1, ab: i === 0 ? { speed: v, stamina: v, strength: v, reaction: 10, handling: 10 } : Object.fromEntries(FIELD.map((k) => [k, v])) })) });
 const withAb = (name, over) => { const t = flat(name); for (const p of t.players) if (!p.gk) Object.assign(p.ab, over); return t; };
-const run = (seed, home, away, hook) => { const M = createMatch({ seed, home, away }); M.autoHuman = true; let k = 0; while (M.phase !== 'end' && k < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M); update(M, 1 / 60, {}); hook?.(M); k += 1; } return M; };
+const run = (seed, home, away, hook, setup) => { const M = createMatch({ seed, home, away }); M.autoHuman = true; setup?.(M); let k = 0; while (M.phase !== 'end' && k < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M); update(M, 1 / 60, {}); hook?.(M); k += 1; } return M; };
 const pct = (a, b) => (b ? (100 * a / b).toFixed(1) + '%' : '-');
 const f1 = (x) => x.toFixed(1);
 
+// 패스 난이도(패스 선 여유 = 패스 선에서 가장 가까운 상대 수비수까지 거리): 쉬움 = 5m 이내이고 여유 1.5m 초과, 어려움 = 10m 초과 또는 여유 1.0m 이하, 나머지 보통
+const segD = (px, py, ax, ay, bx, by) => { const dx = bx - ax; const dy = by - ay; const l = dx * dx + dy * dy || 1; const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)); return Math.hypot(px - (ax + dx * t), py - (ay + dy * t)); };
+const diff = { easy: [0, 0], mid: [0, 0], hard: [0, 0] };
+function trackPasses(M) {
+  const st = M.stats; let cur = null;
+  st.passes = new Proxy([0, 0], { set(a, i, v) { if (i === '0' || i === '1') { const t = Number(i); const b = M.ball; const clr = Math.min(...M.players.filter((p) => p.team !== t && !p.gk).map((p) => segD(p.x, p.y, b.from.x, b.from.y, b.dest.x, b.dest.y))); cur = { t, k: (b.total <= 5 && clr > 1.5) ? 'easy' : ((b.total > 10 || clr <= 1.0) ? 'hard' : 'mid'), ic: st.intercepts[1 - t], ok: st.passOk[t], f: st.passFail[t] }; } a[i] = v; return true; } });
+  return () => { if (!cur) return; const t = cur.t; if (st.intercepts[1 - t] > cur.ic || st.passFail[t] > cur.f) { diff[cur.k][1] += 1; cur = null; } else if (st.passOk[t] > cur.ok) { diff[cur.k][0] += 1; diff[cur.k][1] += 1; cur = null; } };
+}
 // 1. 동급 팀(능력 10 전원) 경기당 팀 기준 지표
 if (only.includes('1')) {
   const s = { passes: 0, ok: 0, att: 0, tok: 0, shots: 0, goals: 0, games: N1 };
-  for (let i = 1; i <= N1; i += 1) { const M = run(i, flat('H'), flat('A')); for (const t of [0, 1]) { s.passes += M.stats.passes[t]; s.ok += M.stats.passOk[t]; s.att += M.stats.tackleOk[t] + M.stats.tackleFails[t]; s.tok += M.stats.tackleOk[t]; s.shots += M.stats.shots[t]; s.goals += M.score[t]; } }
+  for (let i = 1; i <= N1; i += 1) { let tick = null; const M = run(i, flat('H'), flat('A'), () => tick(), (m) => { tick = trackPasses(m); }); for (const t of [0, 1]) { s.passes += M.stats.passes[t]; s.ok += M.stats.passOk[t]; s.att += M.stats.tackleOk[t] + M.stats.tackleFails[t]; s.tok += M.stats.tackleOk[t]; s.shots += M.stats.shots[t]; s.goals += M.score[t]; } }
   const per = (x) => f1(x / N1 / 2);
+  const all = [0, 1].map((j) => diff.easy[j] + diff.mid[j] + diff.hard[j]); const dp = (k) => `${pct(diff[k][0], diff[k][1])}(${f1(diff[k][1] / N1 / 2)}개)`;
+  console.log(`[1a] 난이도별 패스 성공: 쉬움 ${dp('easy')} (목표 90%+) | 보통 ${dp('mid')} (75~85%) | 어려움 ${dp('hard')} (45~60%) | 전체 ${pct(diff.easy[0] + diff.mid[0] + diff.hard[0], all[1])} (70~78%)`);
   console.log(`[1] 동급 ${N1}경기, 팀당: 패스 ${per(s.passes)}개 성공 ${pct(s.ok, s.passes)} | 태클 시도 ${per(s.att)}회 성공 ${pct(s.tok, s.att)} | 슛 ${per(s.shots)}회 슛당 득점 ${pct(s.goals, s.shots)} | 합계 골 ${f1(s.goals / N1)}`);
 }
 if (only.includes('1b')) {

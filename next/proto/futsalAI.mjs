@@ -86,7 +86,8 @@ function aiTeam(M, t, dt) {
       if (run.t > 0 && run.d <= 0 && run.who === p) { go(p, clamp(lastOpp + 1.5 + run.jx * 0.5, 18, 37), clamp((cl.y < 10 ? 13 : 7) + run.jy * 0.6, 3, 17), sp(p, 1.0) * 1.05); continue; }
       if (p.role === 'ALA' || (p.role === 'PIVOT' && field.filter((q) => q.role === 'PIVOT').length > 1 && p !== field.find((q) => q.role === 'PIVOT'))) {
         const up = p.home.y < H / 2;
-        go(p, clamp(cl.x + 3 + wob(p) * sloppy, 5, 34), clamp(cl.y + (up ? -5.5 : 5.5) + wob(p) * (0.4 + sloppy), 3, 17), sp(p, 0.95));
+        const drift = Math.sin(M.real * 0.8 + p.num * 1.7); // 지원 선수는 자리를 지키며 천천히 오르내린다
+        go(p, clamp(cl.x + 3 + wob(p) * sloppy + drift * 1.6, 5, 34), clamp(cl.y + (up ? -5.5 : 5.5) + wob(p) * (0.4 + sloppy) + drift * 1.6, 3, 17), sp(p, 0.95));
       } else if (p.role === 'FIXO') go(p, clamp(cl.x - 5 + wob(p) * sloppy, 5, 28), 10 + wob(p) * (0.5 + sloppy), sp(p, 0.9));
       else go(p, clamp(cl.x + 9, 22, 35), 10 + wob(p), sp(p, 0.95)); // 피보
     }
@@ -103,7 +104,8 @@ function aiTeam(M, t, dt) {
   const presser = byBall[0]; const cover = byBall[1];
   const ownGoalX = t === 0 ? 0 : W;
   const attackers = opp.filter((p) => !p.gk && p !== ob).sort((p, q) => (t === 0 ? q.x - p.x : p.x - q.x));
-  const level = t === 0 ? TUNE.difficulty.autoDefense : 'normal'; const attempt = (D.attemptPerSec[level] ?? 1) * TUNE.difficulty.aiActivity;
+  // AI 대 AI(자동 진행)는 양쪽 같은 강도
+  const level = (t === 0 && !M.autoHuman) ? TUNE.difficulty.autoDefense : 'normal'; const attempt = (D.attemptPerSec[level] ?? 1) * TUNE.difficulty.aiActivity;
   let mi = 0;
   for (const p of field) {
     if (isH(p)) continue;
@@ -120,7 +122,7 @@ function aiTeam(M, t, dt) {
     const m = attackers[mi % Math.max(1, attackers.length)]; mi += 1;
     if (m) { // 패스 길을 막되 완벽하지는 않다: 길에서 옆으로 laneError만큼 어긋난 자리에 선다(정교함이 높을수록 줄어든다 - P3)
       const k = ob ? D.laneShare : 0.4; const lx0 = b.x + (m.x - b.x) * k; const ly0 = b.y + (m.y - b.y) * k;
-      const dl = hyp(m.x - b.x, m.y - b.y) || 1; const nx = -(m.y - b.y) / dl; const ny = (m.x - b.x) / dl; const side = (p.num % 2 ? 1 : -1) * D.laneError;
+      const dl = hyp(m.x - b.x, m.y - b.y) || 1; const nx = -(m.y - b.y) / dl; const ny = (m.x - b.x) / dl; const side = (p.num % 2 ? 1 : -1) * (level === 'weak' ? D.laneErrorWeak : D.laneError);
       const w = Math.sin(M.real * 1.3 + p.num * 2.1) * 0.9; // 서 있는 수비도 조금씩 움직인다
       p.tx = lx0 + nx * side + w; p.ty = clamp(ly0 + ny * side + w * 0.6, 0.6, H - 0.6); p.ts = sp(p, 0.9);
     } else go(p, 10, 10, sp(p, 0.7));
@@ -172,5 +174,6 @@ function carrierAI(M, t, c, dt, mine, opp, go, sp) {
   let ty = 10 + (cl.y > 10 ? 1 : -1) * 2;
   const pr = opp.find((p) => !p.gk && hyp(p.x - c.x, p.y - c.y) < 2.2);
   if (pr) ty = cl.y + (pr.y > cl.y ? -3 : 3);
+  if (c.stuckT > 1.2) { go(c, clamp(cl.x - 3, 5, 36), 10, sp(c, 0.8)); return; } // 갇혔으면 중앙 쪽으로 물러나 빠져나온다
   go(c, clamp(cl.x + 4, 5, 36), clamp(ty, 2, 18), sp(c, 0.8));
 }

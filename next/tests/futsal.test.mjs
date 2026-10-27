@@ -14,8 +14,8 @@ const settle = (M) => { for (let i = 0; i < 60 && M.queue.length; i += 1) update
 const finish = (M) => { let n = 0; while (M.phase !== 'end' && n < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M); update(M, 1 / 60, {}); n += 1; } };
 
 test('능력 함수: 속도, 체력 소모(능력 10이 5분 풀 출전하면 40%, 배율 1.3/1.0/0.7), 링 tau와 색, 골키퍼 지연, 정교함', () => {
-  assert.equal(speedOf(20), 9); assert.equal(speedOf(10), 7.5); assert.equal(speedOf(0), 6); // 달리기 최고 속도 6.0 / 7.5 / 9.0
-  assert.ok(Math.abs(effSpeed(20, 0) - 9 * 0.7) < 1e-9);
+  assert.equal(speedOf(20), 8.25); assert.equal(speedOf(10), 7.5); assert.equal(speedOf(0), 6.75); // 달리기 최고 속도 6.75 / 7.5 / 8.25 (사용자 지시 2차 보정)
+  assert.ok(Math.abs(effSpeed(20, 0) - 8.25 * 0.7) < 1e-9);
   assert.ok(Math.abs(drainPerSecond(10) * TUNE.realMatchSeconds - 0.40) < 1e-9 && Math.abs(drainPerSecond(12) * TUNE.realMatchSeconds - 0.376) < 0.01);
   assert.ok(Math.abs(gkDelay(1, 0) - 1.4) < 1e-9);
   assert.equal(sophistication(20, 3), 20);
@@ -335,9 +335,9 @@ test('패스 오차: 먼 패스와 압박에서만 생기고, 패스 능력이 �
   const { M, me, mate } = holdSetup(32); me.x = 10; mate.x = 16; mate.y = 10; mate.tx = mate.x; mate.ty = mate.y; mate.ts = 0; mate.vx = 0; mate.vy = 0;
   update(M, 0.01, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); settle(M); assert.equal(M.ball.dest.y, 10, '짧은 압박 없는 패스는 오차가 없다');
 });
-test('판정 반경: 가로채기 0.77/0.85/0.94m, 공 받기 1.08/1.20/1.32m (능력 0/10/20)', () => {
+test('판정 반경: 가로채기 0.54/0.60/0.66m(2차 보정), 공 받기 1.08/1.20/1.32m (능력 0/10/20)', () => {
   const close = (a, b) => assert.ok(Math.abs(a - b) < 0.006, `${a} != ${b}`);
-  for (const [a, v] of [[0, 0.77], [10, 0.85], [20, 0.94]]) close(interceptRadius({ passing: a, speed: a }), v);
+  for (const [a, v] of [[0, 0.54], [10, 0.60], [20, 0.66]]) close(interceptRadius({ passing: a, speed: a }), v);
   for (const [a, v] of [[0, 1.08], [10, 1.2], [20, 1.32]]) close(pickupRadius({ passing: a }), v);
 });
 test('패스 성공은 패스 후 처음 닿는 선수가 누구냐로 정한다', () => {
@@ -381,9 +381,9 @@ const defSetup = (sd) => { const M = mk(sd); play(M, 1); const opp = M.players.f
   for (const q of M.players) if (q !== opp && q !== me && !q.gk) { q.x = q.team === 0 ? 4 : 36; q.y = 2 + 4 * (q.num % 4); q.tx = q.x; q.ty = q.y; q.ts = 0; }
   opp.x = 20; opp.y = 10; opp.vx = 0; opp.vy = 0; opp.tx = 20; opp.ty = 10; opp.ts = 0; me.x = 18.5; me.y = 10; me.vx = 0; me.vy = 0; me.tx = me.x; me.ty = me.y; me.ts = 0; me.ab.skill = 10; me.ab.strength = 10; me.ab.speed = 10; me.ab.stamina = 10;
   M.frozenAI = new Set([opp.id]); M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = opp; M.control = M.players.indexOf(me); M.rng = (() => { let n = 0; return () => { n += 1; return (n * 0.37) % 1; }; })(); return { M, me, opp }; };
-test('태클 표: 닿는 거리 1.8/2.0/2.2m와 3.15/3.5/3.85m, 벌칙 0.39/0.30/0.21초, 정지 0.28/0.40/0.52초, 누움 0.92/0.80/0.68초, 간격 3.45/3.00/2.55초, 체력 소모 배율 1.3/1.0/0.7', () => {
+test('태클 표: 닿는 거리 1.9/2.0/2.1m와 3.325/3.5/3.675m(±5%, 2차 보정), 벌칙 0.39/0.30/0.21초, 정지 0.28/0.40/0.52초, 누움 0.92/0.80/0.68초, 간격 3.45/3.00/2.55초, 체력 소모 배율 1.3/1.0/0.7', () => {
   const near = (a, b) => assert.ok(Math.abs(a - b) < 0.006, `${a} != ${b}`);
-  [[0, 1.8, 3.15], [10, 2.0, 3.5], [20, 2.2, 3.85]].forEach(([a, st, sl]) => { near(standingReach({ speed: a }), st); near(slidingReach({ speed: a }), sl); });
+  [[0, 1.9, 3.325], [10, 2.0, 3.5], [20, 2.1, 3.675]].forEach(([a, st, sl]) => { near(standingReach({ speed: a }), st); near(slidingReach({ speed: a }), sl); });
   [[0, 0.39], [10, 0.30], [20, 0.21]].forEach(([a, v]) => near(standingPenalty(a), v));
   [[0, 0.28], [10, 0.40], [20, 0.52]].forEach(([a, v]) => near(slidingFreeze(a), v));
   [[0, 0.92], [10, 0.80], [20, 0.68]].forEach(([a, v]) => { near(slidingDown(a), v); });
@@ -457,10 +457,10 @@ test('이동 연계(6장): 가속 7.2/9.0/10.8, 급커브 손실 25/15/5%, 공 �
   near(turnLossOf({ speed: 20, skill: 0 }), 0.15); // 속도 50% + 기술 50%를 섞는다
   near(drainPerSecond(0) / drainPerSecond(10), 1.3); near(drainPerSecond(20) / drainPerSecond(10), 0.7);
 });
-test('속도 능력이 달리기를 확 바꾼다: 속도 20은 속도 0보다 약 50% 빠르다', () => {
+test('속도 능력이 달리기를 확 바꾼다: 속도 20은 속도 0보다 약 20~25% 빠르다(6.75~8.25 범위)', () => {
   const run = (speed) => { const M = mk(61); play(M, 1); const me = M.players.find((p) => p.team === 0 && !p.gk); me.ab.speed = speed; me.ratio = 1; me.x = 2; me.y = 10; me.vx = 0; me.vy = 0; M.phase = 'play'; M.ball.st = 'loose'; M.ball.owner = null; M.ball.x = 38; M.ball.y = 3; M.ball.vx = 0; M.ball.vy = 0; M.control = M.players.indexOf(me);
     for (let i = 0; i < 90; i += 1) { M.ball.x = 38; M.ball.y = 3; update(M, 1 / 60, { move: { x: 1, y: 0 } }); } return me.x - 2; };
-  const slow = run(0); const fast = run(20); assert.ok(fast / slow > 1.35 && fast / slow < 1.65, `비 ${(fast / slow).toFixed(2)}`);
+  const slow = run(0); const fast = run(20); assert.ok(fast / slow > 1.15 && fast / slow < 1.35, `비 ${(fast / slow).toFixed(2)}`);
 });
 test('공을 든 선수는 달리기 감속이 있고, 급하게 꺾으면 속도를 잃는다', () => {
   const { M, me } = holdSetup(62); me.ab.speed = 10; me.ab.skill = 10; const free = M.players.find((p) => p.team === 0 && !p.gk && p !== me);
