@@ -86,8 +86,8 @@ function aiTeam(M, t, dt) {
       if (run.t > 0 && run.d <= 0 && run.who === p) { go(p, clamp(lastOpp + 1.5 + run.jx * 0.5, 18, 37), clamp((cl.y < 10 ? 13 : 7) + run.jy * 0.6, 3, 17), sp(p, 1.0) * 1.05); continue; }
       if (p.role === 'ALA' || (p.role === 'PIVOT' && field.filter((q) => q.role === 'PIVOT').length > 1 && p !== field.find((q) => q.role === 'PIVOT'))) {
         const up = p.home.y < H / 2;
-        const drift = Math.sin(M.real * 0.8 + p.num * 1.7); // 지원 선수는 자리를 지키며 천천히 오르내린다
-        go(p, clamp(cl.x + 3 + wob(p) * sloppy + drift * 1.6, 5, 34), clamp(cl.y + (up ? -5.5 : 5.5) + wob(p) * (0.4 + sloppy) + drift * 1.6, 3, 17), sp(p, 0.95));
+        const drift = Math.sin(M.real * 1.6 + p.num * 1.7); // 지원 선수는 자리를 지키며 천천히 오르내린다
+        go(p, clamp(cl.x + 3 + wob(p) * sloppy + drift * 2, 5, 34), clamp(cl.y + (up ? -5.5 : 5.5) + wob(p) * (0.4 + sloppy) + drift * 2, 3, 17), sp(p, 0.95));
       } else if (p.role === 'FIXO') go(p, clamp(cl.x - 5 + wob(p) * sloppy, 5, 28), 10 + wob(p) * (0.5 + sloppy), sp(p, 0.9));
       else go(p, clamp(cl.x + 9, 22, 35), 10 + wob(p), sp(p, 0.95)); // 피보
     }

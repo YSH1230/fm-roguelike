@@ -16,21 +16,26 @@ const run = (seed, home, away, hook, setup) => { const M = createMatch({ seed, h
 const pct = (a, b) => (b ? (100 * a / b).toFixed(1) + '%' : '-');
 const f1 = (x) => x.toFixed(1);
 
-// 패스 난이도(패스 선 여유 = 패스 선에서 가장 가까운 상대 수비수까지 거리): 쉬움 = 5m 이내이고 여유 1.5m 초과, 어려움 = 10m 초과 또는 여유 1.0m 이하, 나머지 보통
+// 패스 난이도 점수 = 거리(m) / 5 + max(0, 2 - 패스 선 여유(m)). 거리가 길수록, 패스 선 가까이 수비수가 있을수록 높다(어려움).
+// 패스 선 여유 = 패스 선(출발점~도착점)에서 가장 가까운 상대 필드 선수까지 거리. 전 경기 패스를 점수로 줄 세워 쉬움 30% / 보통 40% / 어려움 30%로 나눈다.
 const segD = (px, py, ax, ay, bx, by) => { const dx = bx - ax; const dy = by - ay; const l = dx * dx + dy * dy || 1; const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)); return Math.hypot(px - (ax + dx * t), py - (ay + dy * t)); };
-const diff = { easy: [0, 0], mid: [0, 0], hard: [0, 0] };
+const recs = [];
 function trackPasses(M) {
   const st = M.stats; let cur = null;
-  st.passes = new Proxy([0, 0], { set(a, i, v) { if (i === '0' || i === '1') { const t = Number(i); const b = M.ball; const clr = Math.min(...M.players.filter((p) => p.team !== t && !p.gk).map((p) => segD(p.x, p.y, b.from.x, b.from.y, b.dest.x, b.dest.y))); cur = { t, k: (b.total <= 5 && clr > 1.5) ? 'easy' : ((b.total > 10 || clr <= 1.0) ? 'hard' : 'mid'), ic: st.intercepts[1 - t], ok: st.passOk[t], f: st.passFail[t] }; } a[i] = v; return true; } });
-  return () => { if (!cur) return; const t = cur.t; if (st.intercepts[1 - t] > cur.ic || st.passFail[t] > cur.f) { diff[cur.k][1] += 1; cur = null; } else if (st.passOk[t] > cur.ok) { diff[cur.k][0] += 1; diff[cur.k][1] += 1; cur = null; } };
+  st.passes = new Proxy([0, 0], { set(a, i, v) { if (i === '0' || i === '1') { const t = Number(i); const b = M.ball; const clr = Math.min(...M.players.filter((p) => p.team !== t && !p.gk).map((p) => segD(p.x, p.y, b.from.x, b.from.y, b.dest.x, b.dest.y))); cur = { t, dist: b.total, clr, score: b.total / 5 + Math.max(0, 2 - clr), ic: st.intercepts[1 - t], ok: st.passOk[t], f: st.passFail[t] }; } a[i] = v; return true; } });
+  return () => { if (!cur) return; const t = cur.t; if (st.intercepts[1 - t] > cur.ic || st.passFail[t] > cur.f) { recs.push({ ...cur, ok: false }); cur = null; } else if (st.passOk[t] > cur.ok) { recs.push({ ...cur, ok: true }); cur = null; } };
+}
+function passReport(N) {
+  recs.sort((x, y) => x.score - y.score); const n = recs.length; const cuts = [Math.floor(n * 0.3), Math.floor(n * 0.7), n]; const names = ['쉬움(하위 30%)', '보통(40%)', '어려움(상위 30%)']; const goal = ['90%+', '75~85%', '45~60%']; let from = 0; const out = [];
+  cuts.forEach((to, k) => { const g = recs.slice(from, to); from = to; const m = (f) => g.reduce((a, r) => a + f(r), 0) / Math.max(1, g.length); out.push(`${names[k]} 패스 ${f1(g.length / N / 2)}개/팀, 점수 ${m((r) => r.score).toFixed(2)}, 평균 거리 ${m((r) => r.dist).toFixed(1)}m, 평균 패스 선 여유 ${m((r) => r.clr).toFixed(2)}m, 성공 ${pct(g.filter((r) => r.ok).length, g.length)} (목표 ${goal[k]})`); });
+  console.log(`[1a] 패스 난이도(점수 = 거리/5 + max(0, 2 - 여유)):\n     ${out.join('\n     ')}\n     전체 성공 ${pct(recs.filter((r) => r.ok).length, n)} (목표 70~78%)`);
 }
 // 1. 동급 팀(능력 10 전원) 경기당 팀 기준 지표
 if (only.includes('1')) {
   const s = { passes: 0, ok: 0, att: 0, tok: 0, shots: 0, goals: 0, games: N1 };
   for (let i = 1; i <= N1; i += 1) { let tick = null; const M = run(i, flat('H'), flat('A'), () => tick(), (m) => { tick = trackPasses(m); }); for (const t of [0, 1]) { s.passes += M.stats.passes[t]; s.ok += M.stats.passOk[t]; s.att += M.stats.tackleOk[t] + M.stats.tackleFails[t]; s.tok += M.stats.tackleOk[t]; s.shots += M.stats.shots[t]; s.goals += M.score[t]; } }
   const per = (x) => f1(x / N1 / 2);
-  const all = [0, 1].map((j) => diff.easy[j] + diff.mid[j] + diff.hard[j]); const dp = (k) => `${pct(diff[k][0], diff[k][1])}(${f1(diff[k][1] / N1 / 2)}개)`;
-  console.log(`[1a] 난이도별 패스 성공: 쉬움 ${dp('easy')} (목표 90%+) | 보통 ${dp('mid')} (75~85%) | 어려움 ${dp('hard')} (45~60%) | 전체 ${pct(diff.easy[0] + diff.mid[0] + diff.hard[0], all[1])} (70~78%)`);
+  passReport(N1);
   console.log(`[1] 동급 ${N1}경기, 팀당: 패스 ${per(s.passes)}개 성공 ${pct(s.ok, s.passes)} | 태클 시도 ${per(s.att)}회 성공 ${pct(s.tok, s.att)} | 슛 ${per(s.shots)}회 슛당 득점 ${pct(s.goals, s.shots)} | 합계 골 ${f1(s.goals / N1)}`);
 }
 if (only.includes('1b')) {
@@ -48,7 +53,7 @@ if (only.includes('1b')) {
 }
 if (only.includes('2')) {
   console.log(`[2] 능력치 하나를 바꾼 팀(홈) vs 전원 10 (각 ${N2}경기, 홈/원정 번갈아): 승률(무승부 0.5) / 경기당 골 차이`);
-  for (const k of (process.env.ABS ?? FIELD.join(',')).split(',')) { const row = []; for (const v of [0, 10, 20]) { let w = 0; let gd = 0; for (let i = 1; i <= N2; i += 1) { const swap = i % 2; const T = withAb('T', { [k]: v }); const B = flat('B'); const M = swap ? run(i, B, T) : run(i, T, B); const a = swap ? M.score[1] : M.score[0]; const b = swap ? M.score[0] : M.score[1]; w += a > b ? 1 : (a === b ? 0.5 : 0); gd += a - b; } row.push(`${v}: ${pct(w, N2)} (${(gd / N2 >= 0 ? '+' : '') + (gd / N2).toFixed(2)})`); } console.log(`   ${k.padEnd(9)} ${row.join(' | ')}`); }
+  for (const k of (process.env.ABS ?? FIELD.join(',')).split(',')) { const row = []; for (const v of (process.env.VALS ?? '0,20').split(',').map(Number)) { let w = 0; let gd = 0; for (let i = 1; i <= N2; i += 1) { const swap = i % 2; const T = withAb('T', { [k]: v }); const B = flat('B'); const M = swap ? run(i, B, T) : run(i, T, B); const a = swap ? M.score[1] : M.score[0]; const b = swap ? M.score[0] : M.score[1]; w += a > b ? 1 : (a === b ? 0.5 : 0); gd += a - b; } row.push(`${v}: ${pct(w, N2)} (${(gd / N2 >= 0 ? '+' : '') + (gd / N2).toFixed(2)})`); } console.log(`   ${k.padEnd(9)} ${row.join(' | ')}`); }
 }
 if (only.includes('3')) {
   for (const d of [2, 4]) { let w = 0; let gd = 0; for (let i = 1; i <= N3; i += 1) { const swap = i % 2; const T = flat('T', 10 + d); const B = flat('B'); const M = swap ? run(i, B, T) : run(i, T, B); const a = swap ? M.score[1] : M.score[0]; const b = swap ? M.score[0] : M.score[1]; w += a > b ? 1 : (a === b ? 0.5 : 0); gd += a - b; } console.log(`[3] 전원 +${d} 팀 승률(무승부 0.5) ${pct(w, N3)}, 골 차이 ${(gd / N3).toFixed(2)} (${N3}경기)`); }

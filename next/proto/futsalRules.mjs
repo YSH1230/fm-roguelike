@@ -7,12 +7,12 @@ export const TUNE = {
   extraMinutes: { 1: [1, 5], 2: [3, 10] }, // 정규 시간 뒤 추가시간(풋살 시계, 분)
   // 이동과 공
   minRunSpeed: 6.75, maxRunSpeed: 8.25, accel: 9, // 달리기 최고 속도 능력 0/10/20에서 6.75 / 7.5 / 8.25 m/s (사용자 지시 2차 보정: 원래 6/7.5/9)
-  passSpeedMin: 10, passSpeedMax: 16, passSpeedBase: 8, passSpeedPerM: 0.8, ballFriction: 0.6, pickupR: 1.2, interceptR: 0.60, blockR: 0.7,
+  passSpeedMin: 10, passSpeedMax: 16, passSpeedBase: 8, passSpeedPerM: 0.8, ballFriction: 0.6, pickupR: 1.2, interceptR: 0.62, blockR: 0.7,
   deadBallSeconds: 4, autoRestartSeconds: 0.9,
   // 체력
   speedFloor: 0.7, gkDelayGrow: 0.4, // 후반이 될수록 최대 30%까지 달리기가 느려진다
   stamina: { fullMatchDrain: 0.40, costK: 0.30 }, // 체력 곡선(소모율): 능력 10 선수가 5분 풀 출전하면 잔량 40% 감소, 체력 소모 배율(능력 +-30%)을 곱한다
-  move: { accelK: 0.20, sharpDeg: 60, turnLoss: { base: 0.15, k: 2 / 3 }, carryLoss: { base: 0.08, k: 0.5 }, turnCooldown: 0.3 }, // 가속(속도 +-20%), 급커브 손실 25/15/5%, 공 소유 감속 12/8/4%(속도 50% + 기술 50%). sharpDeg와 turnCooldown은 임시값
+  move: { accelK: 0.10, sharpDeg: 60, turnLoss: { base: 0.15, k: 2 / 3 }, carryLoss: { base: 0.08, k: 0.5 }, turnCooldown: 0.3 }, // 가속(속도 +-20%), 급커브 손실 25/15/5%, 공 소유 감속 12/8/4%(속도 50% + 기술 50%). sharpDeg와 turnCooldown은 임시값
   // 링(7장): 지속 시간은 ms, 체력 색 경계는 비율. 값은 지시문 7장 표. kitLumDiff는 문서에 없는 임시값(두 팀 유니폼 밝기 차이 기준).
   ring: { passMs: 300, holdMs: 250, signalMs: 400, restartMs: 4000, max: 3, staminaOrange: 0.6, staminaRed: 0.25, growMs: 250, growScale: 1.5, kitLumDiff: 0.15 },
   subThreshold: 0.25, subPopupSeconds: 3,

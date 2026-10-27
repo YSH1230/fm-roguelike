@@ -335,9 +335,9 @@ test('패스 오차: 먼 패스와 압박에서만 생기고, 패스 능력이 �
   const { M, me, mate } = holdSetup(32); me.x = 10; mate.x = 16; mate.y = 10; mate.tx = mate.x; mate.ty = mate.y; mate.ts = 0; mate.vx = 0; mate.vy = 0;
   update(M, 0.01, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); settle(M); assert.equal(M.ball.dest.y, 10, '짧은 압박 없는 패스는 오차가 없다');
 });
-test('판정 반경: 가로채기 0.54/0.60/0.66m(2차 보정), 공 받기 1.08/1.20/1.32m (능력 0/10/20)', () => {
+test('판정 반경: 가로채기 0.558/0.62/0.682m(3차 보정), 공 받기 1.08/1.20/1.32m (능력 0/10/20)', () => {
   const close = (a, b) => assert.ok(Math.abs(a - b) < 0.006, `${a} != ${b}`);
-  for (const [a, v] of [[0, 0.54], [10, 0.60], [20, 0.66]]) close(interceptRadius({ passing: a, speed: a }), v);
+  for (const [a, v] of [[0, 0.558], [10, 0.62], [20, 0.682]]) close(interceptRadius({ passing: a, speed: a }), v);
   for (const [a, v] of [[0, 1.08], [10, 1.2], [20, 1.32]]) close(pickupRadius({ passing: a }), v);
 });
 test('패스 성공은 패스 후 처음 닿는 선수가 누구냐로 정한다', () => {
@@ -449,9 +449,9 @@ test('태클 신호: 공이 몸에서 멀어질 때 0.4초 켜지고 같은 선�
   for (let k = 1; k < starts.length; k += 1) assert.ok(starts[k] - starts[k - 1] >= 1.0 - 1e-9, '같은 선수는 1초 간격');
 });
 
-test('이동 연계(6장): 가속 7.2/9.0/10.8, 급커브 손실 25/15/5%, 공 소유 감속 12/8/4%, 체력 소모 배율 1.3/1.0/0.7', () => {
+test('이동 연계(6장): 가속 8.1/9.0/9.9(±10%, 3차 보정), 급커브 손실 25/15/5%, 공 소유 감속 12/8/4%, 체력 소모 배율 1.3/1.0/0.7', () => {
   const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, `${a} != ${b}`);
-  [[0, 7.2], [10, 9.0], [20, 10.8]].forEach(([a, v]) => near(accelOf(a), v));
+  [[0, 8.1], [10, 9.0], [20, 9.9]].forEach(([a, v]) => near(accelOf(a), v));
   [[0, 0.25], [10, 0.15], [20, 0.05]].forEach(([a, v]) => near(turnLossOf({ speed: a, skill: a }), v));
   [[0, 0.12], [10, 0.08], [20, 0.04]].forEach(([a, v]) => near(carryLossOf({ speed: a, skill: a }), v));
   near(turnLossOf({ speed: 20, skill: 0 }), 0.15); // 속도 50% + 기술 50%를 섞는다
