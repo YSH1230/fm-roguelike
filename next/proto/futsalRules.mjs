@@ -13,14 +13,15 @@ export const TUNE = {
   speedFloor: 0.7, gkDelayGrow: 0.4, // 후반이 될수록 최대 30%까지 달리기가 느려진다
   stamina: { fullMatchDrain: 0.40, costK: 0.30 }, // 체력 곡선(소모율): 능력 10 선수가 5분 풀 출전하면 잔량 40% 감소, 체력 소모 배율(능력 +-30%)을 곱한다
   move: { accelK: 0.20, sharpDeg: 60, turnLoss: { base: 0.15, k: 2 / 3 }, carryLoss: { base: 0.08, k: 0.5 }, turnCooldown: 0.3 }, // 가속(속도 +-20%), 급커브 손실 25/15/5%, 공 소유 감속 12/8/4%(속도 50% + 기술 50%). sharpDeg와 turnCooldown은 임시값
-  ringTauMax: 0.5, ring: { green: [2.2, 2.4], yellow: [1.2, 1.4] },
+  // 링(7장): 지속 시간은 ms, 체력 색 경계는 비율. 값은 지시문 7장 표. kitLumDiff는 문서에 없는 임시값(두 팀 유니폼 밝기 차이 기준).
+  ring: { passMs: 300, holdMs: 250, signalMs: 400, restartMs: 4000, max: 3, staminaOrange: 0.6, staminaRed: 0.25, growMs: 250, growScale: 1.5, kitLumDiff: 0.15 },
   subThreshold: 0.25, subPopupSeconds: 3,
   // 입력(화면 px, 640 기준이 아니라 실제 손가락 px)
   // 입력(화면 px). 콕 = 20px 이하 + 250ms 이내, 꾹 = 20px 이하로 0.25초, 쓸기 = 35px 이상 + 0.5px/ms 이상. sensitivity(0.7~1.3)로 사용자가 조절한다.
   input: { tapMove: 20, leftTapMove: 20, tapMs: 250, holdMs: 250, swipePx: 35, swipeSpeed: 0.5, joyRadius: 44, deadzone: 10, buffer: 150, flipThreshold: 0.6, flipMs: 180, spotRadius: 2.4, shotAngleDeg: 55, swipePowerMin: 0.5, swipePowerMax: 2.0, powerAtMin: 0.6, powerAtMax: 1.0, sensitivity: 1 },
   // 접촉 경합, 슛
   contactR: 0.85, contestInterval: 0.45, dribbleSeconds: 0.8, dribbleBoost: 1.25,
-  shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 16, rangePerShooting: 0.45, minPower: 0.6, speedMin: 12, speedMax: 26, powerNoise: 0.35, gkReachBase: 0.9, gkReachPerHandling: 0.03, gkReachPowerCut: 0.25, gkReactBase: 0.26, gkReactPerReaction: 0.008, gkDive: 1.3 },
+  shot: { goalY: [8.5, 11.5], cornerOffset: 1.1, baseNoise: 0.12, rangeBase: 12, rangePerShooting: 0.45, minPower: 0.6, speedMin: 12, speedMax: 26, powerNoise: 0.35, gkReachBase: 0.9, gkReachPerHandling: 0.03, gkReachPowerCut: 0.25, gkReactBase: 0.26, gkReactPerReaction: 0.008, gkDive: 1.3 },
   // 킥 준비와 임팩트(2장): 입력 뒤 준비 시간이 지나야 공이 나간다. 준비 시간 = 능력치 연계(base는 능력치 10), 후속 모션은 고정.
   kick: {
     pass: { base: 0.050, k: 0.30, follow: 0.12 }, // 패스 능력
@@ -33,7 +34,7 @@ export const TUNE = {
     stumbleMoveMul: 0, // 비틀거리는 동안 이동 속도 배수(문서에 값이 없어 임시로 0, 보고 대상)
   },
   // 패스(3장): 속도는 거리 기반 x 능력 계수, 도착할 때 20% 느려진다. 먼 패스(12m 이상)와 압박(2.4m 안 상대)에서만 오차가 생긴다.
-  pass: { speedK: 0.10, arriveMul: 0.8, errFarDist: 12, errFar: 0.5, errPress: 0.5, pressDist: 2.4, errBase: 1.6, errPerAbility: 0.07, errMin: 0.2, errMax: 1.6, lowStamina: 0.25, lowStaminaMul: 1.25, radiusK: 0.10 },
+  pass: { freeFlight: 1.0, speedK: 0.10, arriveMul: 0.8, errFarDist: 12, errFar: 0.5, errPress: 0.5, pressDist: 2.4, errBase: 1.6, errPerAbility: 0.07, errMin: 0.2, errMax: 1.6, lowStamina: 0.25, lowStaminaMul: 1.25, radiusK: 0.10 },
   // 슛(4장): 쓸기 속도 → 세기, 구석 위험, 찬스 등급. 등급 기준 거리와 반경 중 문서에 없는 값은 임시값이다(보고 대상).
   chance: {
     hardDist: 14, hardDefenderR: 1.2, // 문서: 14m 이상이거나 수비수가 바짝 붙었을 때 (바짝 = 임시 1.2m)
@@ -42,7 +43,7 @@ export const TUNE = {
     p: { sure: [0.50, 0.60, 0.68], good: [0.22, 0.30, 0.38], normal: [0.06, 0.10, 0.14], hard: [0.02, 0.04, 0.06] }, // 슛 능력 0 / 10 / 20의 득점 확률(문서 표)
     noiseMul: { sure: 2.0, good: 1.8, normal: 3.5, hard: 3.5 }, reachMul: { sure: 0.8, good: 0.35, normal: 1.1, hard: 1.5 }, slope: { sure: 0.15, good: 0.9, normal: 0.15, hard: 0.8 }, // slope: 슛 능력이 잡음에 미치는 영향의 크기(등급별 보정) // 시뮬레이션으로 보정하는 등급별 계수(보정 값은 이 줄을 덮어쓴다)
   },
-  difficulty: { autoDefense: 'weak', chanceMul: 1, aiActivity: 1 }, // 수비 강도(5장), 찬스 득점 배수, 상대 AI 활동성(2단계부터 사용)
+  difficulty: { autoDefense: 'weak', chanceMul: 1.3, aiActivity: 1 }, // 수비 강도(5장), 찬스 득점 배수, 상대 AI 활동성(2단계부터 사용)
   cornerRisk: 0.5, cornerRiskSpan: 1.5, // 구석 위험: 잡음 배수 = 1 + 0.5 x (|조준 - 중앙| / 1.5)
   shotPowerK: 0.08, // 슛 최대 세기 계수 = 슛 70% + 힘 30% (±8%)
   // 수비와 태클(5장). 문서에 값이 없는 것은 임시값이고 보고 대상이다(slowMul, signal.*, defense.*).
@@ -54,9 +55,9 @@ export const TUNE = {
     defMix: [['strength', 0.5], ['skill', 0.3], ['speed', 0.2]], carrierMix: [['strength', 0.6], ['skill', 0.4]],
   },
   signal: { ms: 0.4, gap: 1.0, farOffset: 0.9, farCycle: 0.9, farShare: 0.25, farMinSpeed: 2, turnDeg: 90, turnWindow: 0.3, firstTouch: 0.4 }, // 태클 신호: 청록 링 0.4초, 같은 선수는 1초 간격. 나머지는 임시값
-  defense: { jockey: 1.3, coverBack: 2.5, laneShare: 0.6, laneError: 3.5, controlIdle: 0.3, attemptPerSec: { weak: 0.15, normal: 0.25, strong: 0.4 }, signalWindow: 0.9, randomAttempt: 0.3, contactBase: 0.30 }, // 1차 수비수 간격 1.3m, 커버 2~3m 뒤, 조종 선수 AI 전환 0.3초. 시도 빈도와 contactBase는 임시/보정값
+  defense: { jockey: 1.3, coverBack: 2.5, laneShare: 0.6, laneError: 3.5, controlIdle: 0.3, attemptPerSec: { weak: 0.1, normal: 0.15, strong: 0.25 }, signalWindow: 0.9, randomAttempt: 0.3, contactBase: 0.30 }, // 1차 수비수 간격 1.3m, 커버 2~3m 뒤, 조종 선수 AI 전환 0.3초. 시도 빈도와 contactBase는 임시/보정값
   // AI 공 가진 선수의 선택(임시값, 9장에서 지표에 맞춰 보정): 결정 간격, 압박 거리, 패스 길 여유, 슛과 패스 선택 확률
-  ai: { think: [1.8, 3.2], gkThink: [1.0, 2.0], firstTouch: 0.3, pressDist: 1.6, passLane: 2.0, passMate: 2.4, pass: 0.6, passPressed: 0.9, shotP: 1, shotLane: 0.4 },
+  ai: { think: [2.4, 4.2], gkThink: [1.0, 2.0], firstTouch: 0.3, pressDist: 1.6, passLane: 1.2, passMate: 2.4, pass: 0.5, passPressed: 0.6, shotP: 0.6, shotLane: 0.4, slack: 0.5, pressedThink: 0.6, nearOpp: 2.5, nearCos: 0.3 }, // 전부 임시/보정값(문서에 없음)
   flyingGk: { emptyNetGoal: 0.85 },
   sophistication: { skillMul: 0.7, coachMul: 2.2, max: 20, rotationMin: 16 },
   expectedGoals: 2.5, // 지시문 4장: 경기당 합계 골(두 팀 합) 기준. 설계 문서 v6.3의 '팀당 약 2.5골'과 읽는 방식이 달라 보고 대상.
@@ -70,13 +71,6 @@ export const drainPerSecond = (stamina) => TUNE.stamina.fullMatchDrain * link(1.
 export const accelOf = (speed) => link(TUNE.accel, speed, TUNE.move.accelK, true);
 export const turnLossOf = (ab) => link(TUNE.move.turnLoss.base, mixAbility([[ab.speed ?? 10, 0.5], [ab.skill ?? 10, 0.5]]), TUNE.move.turnLoss.k, false);
 export const carryLossOf = (ab) => link(TUNE.move.carryLoss.base, mixAbility([[ab.speed ?? 10, 0.5], [ab.skill ?? 10, 0.5]]), TUNE.move.carryLoss.k, false);
-export const ringTau = (stamina, ratio) => TUNE.ringTauMax * (clamp(stamina, 0, 20) / 20) * clamp(ratio, 0, 1);
-export function ringColor(laneDist, mateDist) {
-  const { green, yellow } = TUNE.ring;
-  if (laneDist >= green[0] && mateDist >= green[1]) return 'green';
-  if (laneDist >= yellow[0] && mateDist >= yellow[1]) return 'yellow';
-  return 'red';
-}
 export const gkDelay = (base, ratio) => base * (1 + TUNE.gkDelayGrow * (1 - clamp(ratio, 0, 1)));
 export const sophistication = (avgSkill, coach) => Math.min(TUNE.sophistication.max, avgSkill * TUNE.sophistication.skillMul + clamp(coach, 0, 3) * TUNE.sophistication.coachMul);
 // 슛 사거리(m)와 거리별 정확도 잡음(표준편차 m)

@@ -123,7 +123,7 @@ function startPass(M, p, tgt, dest, spot) {
   const b = M.ball; const from = { x: b.x, y: b.y };
   const d = withPassError(M, p, from, dest); const total = Math.max(0.01, hyp(d.x - from.x, d.y - from.y));
   b.spot = spot; b.st = 'pass'; b.owner = null; b.tgt = tgt; b.dest = d; b.from = from; b.total = total; b.s = 0; b.v0 = passV0(total, p.ab.passing ?? p.ab.skill ?? 10);
-  b.speed = b.v0; b.passFrom = p.team; M.lastTouch = p.team; M.stats.passes[p.team] += 1;
+  b.speed = b.v0; b.passFrom = p.team; b.passer = p; M.lastTouch = p.team; M.stats.passes[p.team] += 1;
   if (p.team === 0) M.control = M.players.indexOf(tgt); // 패스하면 받는 선수로 조종이 넘어간다
 }
 export function passTo(M, p, tgt) { startPass(M, p, tgt, leadPoint(M.ball, tgt, p.ab.passing ?? p.ab.skill ?? 10), false); }
@@ -364,11 +364,11 @@ function stepBall(M, dt) {
     b.s = Math.min(b.total, b.s + sp * dt); const k = b.s / b.total;
     b.x = b.from.x + (b.dest.x - b.from.x) * k; b.y = b.from.y + (b.dest.y - b.from.y) * k;
     const dirx = (b.dest.x - b.from.x) / b.total; const diry = (b.dest.y - b.from.y) / b.total; b.vx = dirx * sp; b.vy = diry * sp; b.speed = sp;
-    for (const q of M.players) { // 패스 후 처음 닿는 선수가 누구냐로 성공을 정한다
-      if (q.team !== M.lastTouch && hyp(q.x - b.x, q.y - b.y) < interceptRadius(q.ab)) { M.stats.intercepts[q.team] += 1; setHold(M, q); M.events.push({ kind: 'intercept', team: q.team, id: q.id }); return; }
+    for (const q of M.players) { // 패스 후 처음 닿는 선수가 누구냐로 성공을 정한다. 발을 떠난 직후 freeFlight(m)까지는 가로채지 못한다(임시값).
+      if (b.s >= TUNE.pass.freeFlight && q.team !== M.lastTouch && hyp(q.x - b.x, q.y - b.y) < interceptRadius(q.ab)) { M.stats.intercepts[q.team] += 1; setHold(M, q); M.events.push({ kind: 'intercept', team: q.team, id: q.id }); return; }
     }
     if (hyp(b.tgt.x - b.x, b.tgt.y - b.y) < pickupRadius(b.tgt.ab)) { const r = b.tgt; setHold(M, r); M.events.push({ kind: 'receive', team: r.team, id: r.id }); return; }
-    for (const q of M.players) if (q.team === M.lastTouch && !q.gk && q !== b.tgt && hyp(q.x - b.x, q.y - b.y) < pickupRadius(q.ab) * 0.8 && b.total - b.s < 3) { setHold(M, q); return; } // 가까이 지나가는 다른 동료도 받는다
+    for (const q of M.players) if (q.team === M.lastTouch && !q.gk && q !== b.tgt && q !== b.passer && hyp(q.x - b.x, q.y - b.y) < pickupRadius(q.ab) * 0.8 && b.total - b.s < 3) { setHold(M, q); return; } // 가까이 지나가는 다른 동료도 받는다
     if (b.s >= b.total) { b.st = 'loose'; b.vx *= 0.25; b.vy *= 0.25; }
   } else if (b.st === 'shot') {
     const s = b.speed * dt; b.x += b.vx * dt; b.y += b.vy * dt; b.trav += s;

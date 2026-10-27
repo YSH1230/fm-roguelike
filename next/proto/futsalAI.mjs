@@ -20,7 +20,10 @@ export function laneInfo(M, from, to) {
   let lane = 99; let mate = 99;
   for (const q of M.players) {
     if (q.team === from.team) continue;
-    lane = Math.min(lane, segDist(q.x, q.y, from.x, from.y, to.x, to.y));
+    const dq = hyp(q.x - from.x, q.y - from.y); const dt2 = hyp(to.x - from.x, to.y - from.y) || 1;
+    // 공 가진 선수 바로 옆(2.5m 안)의 수비수는 패스 방향 60도 밖이면 길을 막지 않는다(붙어 있으니 거리만으로는 항상 걸린다)
+    const behind = dq < TUNE.ai.nearOpp && ((q.x - from.x) * (to.x - from.x) + (q.y - from.y) * (to.y - from.y)) / (dq * dt2 || 1) < TUNE.ai.nearCos;
+    if (!behind) lane = Math.min(lane, segDist(q.x, q.y, from.x, from.y, to.x, to.y));
     mate = Math.min(mate, hyp(q.x - to.x, q.y - to.y));
   }
   return { lane, mate };
@@ -136,7 +139,7 @@ function carrierAI(M, t, c, dt, mine, opp, go, sp) {
   const press = Math.min(...opp.filter((p) => !p.gk).map((p) => hyp(p.x - c.x, p.y - c.y)));
   const pressed = press < A.pressDist;
   const first = (M.holdT ?? 0) < A.firstTouch; // 받은 직후에는 바로 결정하지 않는다
-  if (pressed && !first) c.think = Math.min(c.think, 0.15); // 압박받으면 곧 결정
+  if (pressed && !first) c.think = Math.min(c.think, A.pressedThink); // 압박받으면 곧 결정
   const dist = W - cl.x;
   const range = shotRange(c.ab.shooting ?? 8);
   if (c.think <= 0 && !first) {
@@ -151,7 +154,7 @@ function carrierAI(M, t, c, dt, mine, opp, go, sp) {
     for (const q of mine) {
       if (q === c || q.gk) continue;
       const { lane, mate } = laneInfo(M, c, q);
-      const slack = (M.holdT ?? 0) > 3 ? 0.5 : 1; // 오래 들고 있으면 기준을 낮춘다
+      const slack = (M.holdT ?? 0) > 3 ? TUNE.ai.slack : 1; // 오래 들고 있으면 기준을 낮춘다
       if (lane < A.passLane * slack || mate < A.passMate * slack) continue; // 수비수가 지나는 길 근처에 있으면 보내지 않는다
       const adv = (t === 0 ? q.x : W - q.x) - cl.x;
       const sc = Math.min(lane, 3) + Math.min(mate, 4) * 0.5 + adv * 0.12;

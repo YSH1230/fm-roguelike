@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng, gauss } from '../engine/rng.mjs';
-import { TUNE, speedOf, effSpeed, drainPerSecond, ringTau, ringColor, gkDelay, sophistication, classifyGesture, swipePower, passSpeedFor, gkReach, link, mixAbility, kickPrep, stumbleTime, accelOf, turnLossOf, carryLossOf, shotPowerCoef, cornerRisk, chanceTarget, standingReach, slidingReach, standingPenalty, slidingFreeze, slidingDown, slidingInterval, staminaCostMul, tackleChance, passV0, passSpeedCoef, passErrorCoef, passErrorSigma, interceptRadius, pickupRadius } from '../proto/futsalRules.mjs';
+import { TUNE, speedOf, effSpeed, drainPerSecond, gkDelay, sophistication, classifyGesture, swipePower, passSpeedFor, gkReach, link, mixAbility, kickPrep, stumbleTime, accelOf, turnLossOf, carryLossOf, shotPowerCoef, cornerRisk, chanceTarget, standingReach, slidingReach, standingPenalty, slidingFreeze, slidingDown, slidingInterval, staminaCostMul, tackleChance, passV0, passSpeedCoef, passErrorCoef, passErrorSigma, interceptRadius, pickupRadius } from '../proto/futsalRules.mjs';
 import { rate } from './futsalCalib.mjs';
 import { chanceGrade } from '../proto/futsalSim.mjs';
 import { createInput } from '../proto/futsalInput.mjs';
@@ -17,8 +17,6 @@ test('능력 함수: 속도, 체력 소모(능력 10이 5분 풀 출전하면 40
   assert.equal(speedOf(20), 9); assert.equal(speedOf(10), 7.5); assert.equal(speedOf(0), 6); // 달리기 최고 속도 6.0 / 7.5 / 9.0
   assert.ok(Math.abs(effSpeed(20, 0) - 9 * 0.7) < 1e-9);
   assert.ok(Math.abs(drainPerSecond(10) * TUNE.realMatchSeconds - 0.40) < 1e-9 && Math.abs(drainPerSecond(12) * TUNE.realMatchSeconds - 0.376) < 0.01);
-  assert.equal(ringTau(20, 1), 0.5);
-  assert.equal(ringColor(2.3, 2.5), 'green'); assert.equal(ringColor(1.3, 1.5), 'yellow'); assert.equal(ringColor(1.0, 5), 'red');
   assert.ok(Math.abs(gkDelay(1, 0) - 1.4) < 1e-9);
   assert.equal(sophistication(20, 3), 20);
 });
@@ -247,7 +245,7 @@ test('정적 AI 금지: 공이 움직이는 동안 3초 이상 같은 자리에 
   }
   assert.ok(worst < 3, `최대 정지 ${worst.toFixed(1)}초`);
 });
-test('AI 대 AI 경기당 합계 골이 expectedGoals(2.5) ± 0.4', { todo: '9장 보정 대상: 현재 약 1.9골' }, () => {
+test('AI 대 AI 경기당 합계 골이 expectedGoals(2.5) ± 0.4', () => {
   let g = 0; const n = 40;
   for (let s = 1; s <= n; s += 1) { const M = mk(s); M.autoHuman = true; finish(M); g += M.score[0] + M.score[1]; }
   const avg = g / n;
@@ -365,15 +363,18 @@ test('찬스 등급 판정: 거리, 수비수, 골키퍼 위치로 확실 / 좋�
   const d = M.players.find((p) => p.team === 1 && !p.gk); me.x = 31; d.x = me.x - 0.8; d.y = me.y; assert.equal(chanceGrade(M, me, 11.1), 'hard', '수비수가 바짝 붙으면 어려움');
 });
 test('찬스 등급별 득점 확률이 문서 표에 가깝다(슛 0/10/20, 허용 ±0.08)', () => {
-  for (const g of ['sure', 'good', 'normal', 'hard']) for (const s of [0, 10, 20]) {
-    const r = rate(g, s, 500, 2000); const target = chanceTarget(g, s);
-    assert.ok(r.graded > 0.99, `${g} 장면이 그 등급으로 판정됨`);
-    assert.ok(Math.abs(r.rate - target) <= 0.08, `${g} 슛${s}: 측정 ${r.rate.toFixed(3)} 목표 ${target.toFixed(3)}`);
-  }
+  const keep = TUNE.difficulty.chanceMul; TUNE.difficulty.chanceMul = 1; // 문서 표는 배수 1 기준
+  try {
+    for (const g of ['sure', 'good', 'normal', 'hard']) for (const s of [0, 10, 20]) {
+      const r = rate(g, s, 500, 2000); const target = chanceTarget(g, s);
+      assert.ok(r.graded > 0.99, `${g} 장면이 그 등급으로 판정됨`);
+      assert.ok(Math.abs(r.rate - target) <= 0.08, `${g} 슛${s}: 측정 ${r.rate.toFixed(3)} 목표 ${target.toFixed(3)}`);
+    }
+  } finally { TUNE.difficulty.chanceMul = keep; }
 });
 test('찬스 전체 배수(chanceMul)를 열어 두었다: 2배로 올리면 득점 확률이 오른다', () => {
-  const base = rate('good', 10, 500, 3000).rate; TUNE.difficulty.chanceMul = 1.6;
-  try { assert.ok(rate('good', 10, 500, 3000).rate > base + 0.05, '배수를 올리면 더 잘 들어간다'); } finally { TUNE.difficulty.chanceMul = 1; }
+  const keep = TUNE.difficulty.chanceMul; TUNE.difficulty.chanceMul = 1; const base = rate('good', 10, 500, 3000).rate; TUNE.difficulty.chanceMul = 1.6;
+  try { assert.ok(rate('good', 10, 500, 3000).rate > base + 0.05, '배수를 올리면 더 잘 들어간다'); } finally { TUNE.difficulty.chanceMul = keep; }
 });
 
 const defSetup = (sd) => { const M = mk(sd); play(M, 1); const opp = M.players.find((p) => p.team === 1 && !p.gk); const me = M.players.find((p) => p.team === 0 && !p.gk);
