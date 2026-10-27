@@ -2,7 +2,7 @@
 import { TUNE, clockText } from './futsalRules.mjs';
 import { createInput } from './futsalInput.mjs';
 import { zzfx } from './zzfx.mjs';
-import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, canAct, FORMATIONS } from './futsalSim.mjs';
+import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, canAct, signalActive, FORMATIONS } from './futsalSim.mjs';
 
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
@@ -26,6 +26,7 @@ const tail = []; // 공 꼬리
 let ballRot = 0;
 let banner = null; // { text, t } 골 연출 등(글자는 쓰지 않고 색 번쩍임으로만)
 let flash = 0;
+let lastCtl = -1; let ctlT = 0; // 조종 선수가 바뀐 시각(링이 커졌다 줄어든다)
 
 // ---------- 소리와 진동: 입력 시점이 아니라 발사/임팩트 시점의 이벤트로 재생한다(ZzFX, MIT) ----------
 // zzfx(볼륨, 랜덤, 주파수, 어택, 서스테인, 릴리스, 파형, 곡선, 슬라이드, ...). 굴러가는 공은 조용하다.
@@ -81,9 +82,13 @@ function drawCourt() {
   ctx.fillStyle = '#e2e8f0'; ctx.fillRect(X(-0.7), Y(g0), 0.7 * pxm, (g1 - g0) * pxm); ctx.fillRect(X(COURT_W), Y(g0), 0.7 * pxm, (g1 - g0) * pxm);
 }
 // 선수: 달리기 다리 스윙과 몸 기울기, 패스/슛 킥, 슬라이딩 태클, 개인기 회전, 골키퍼 다이빙
+// 유니폼: 두 팀 색의 밝기 차이가 TUNE.ring.kitLumDiff 이하이면 상대 팀을 원정색으로 바꾼다
+const lum = (hex) => { const n = parseInt(hex.slice(1), 16); return (0.2126 * (n >> 16 & 255) + 0.7152 * (n >> 8 & 255) + 0.0722 * (n & 255)) / 255; };
+const KIT = { home: { f: '#38bdf8', g: '#22c55e' }, away: { f: '#ef4444', g: '#f59e0b' }, alt: { f: '#f1f5f9', g: '#a78bfa' } };
+const awayKit = () => (Math.abs(lum(KIT.home.f) - lum(KIT.away.f)) <= TUNE.ring.kitLumDiff ? KIT.alt : KIT.away);
 function drawPlayer(p, mine) {
   const h = 1.8 * pxm * PLAYER_SCALE; const px = X(p.x); const py = Y(p.y);
-  const kit = p.team === 0 ? (p.gk ? '#22c55e' : '#38bdf8') : (p.gk ? '#f59e0b' : '#ef4444');
+  const k = p.team === 0 ? KIT.home : awayKit(); const kit = p.gk ? k.g : k.f;
   const sp = Math.hypot(p.vx, p.vy); const run = Math.min(1, sp / 5);
   const face = p.face ?? 1;
   const ph = M.real * 11 + p.num * 1.7;
@@ -117,7 +122,6 @@ function drawPlayer(p, mine) {
   ctx.fillStyle = '#0f172a'; ctx.font = `800 ${Math.max(9, h * 0.24)}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(p.num), 0, y0 - h * 0.55);
   ctx.restore();
   if (slide > 0.3) { ctx.fillStyle = 'rgba(226,232,240,0.35)'; for (let i = 0; i < 3; i += 1) { ctx.beginPath(); ctx.arc(px - face * (h * 0.3 + i * h * 0.18), py - i * 2, h * (0.12 - i * 0.025), 0, 7); ctx.fill(); } }
-  if (mine) { ctx.fillStyle = '#fde047'; ctx.beginPath(); ctx.moveTo(px, py - h * 1.08); ctx.lineTo(px - h * 0.12, py - h * 1.26); ctx.lineTo(px + h * 0.12, py - h * 1.26); ctx.closePath(); ctx.fill(); }
 }
 function draw() {
   drawCourt();
@@ -137,22 +141,33 @@ function draw() {
   ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(bx, bcy, br, 0, 7); ctx.fill();
   ctx.fillStyle = '#0f172a'; for (let k = 0; k < 3; k += 1) { const a = ballRot + k * 2.094; ctx.beginPath(); ctx.arc(bx + Math.cos(a) * br * 0.5, bcy + Math.sin(a) * br * 0.5, br * 0.22, 0, 7); ctx.fill(); }
   ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(bx, bcy, br, 0, 7); ctx.stroke();
-  // 피드백(글자 없음): 눌린 곳의 링, 공간 패스 목표, 스와이프 궤적
+  // 링(7장): 코트 바닥에 붙은 납작한 타원, 어두운 외곽선, 동시에 최대 TUNE.ring.max개
   const now = performance.now();
-  fxs = fxs.filter((f) => now - f.t0 < f.dur);
-  for (const f of fxs) { const k = (now - f.t0) / f.dur; ctx.globalAlpha = (1 - k) * f.a; ctx.strokeStyle = f.color; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(X(f.x), Y(f.y) - pxm * 0.2, pxm * (0.6 + k * 1.2), 0, 7); ctx.stroke(); }
-  ctx.globalAlpha = 1;
-  if (M.ball.st === 'pass' && M.ball.spot && M.ball.dest) { const pul = 0.75 + 0.25 * Math.sin(now / 90); ctx.strokeStyle = `rgba(59,130,246,${pul})`; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(X(M.ball.dest.x), Y(M.ball.dest.y), pxm * 0.9, 0, 7); ctx.stroke(); ctx.fillStyle = 'rgba(59,130,246,0.25)'; ctx.fill(); }
-  const tr = input.swipeTrail(now);
-  if (tr && tr.pts.length > 1) {
-    const r = rect(); const kx = CW / r.width; const ky = CH / r.height;
-    ctx.globalAlpha = tr.live ? 0.95 : Math.max(0, 1 - tr.age / 280); ctx.strokeStyle = '#fb923c'; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath(); tr.pts.forEach((q, k) => { if (k === 0) ctx.moveTo(q.x * kx, q.y * ky); else ctx.lineTo(q.x * kx, q.y * ky); }); ctx.stroke(); ctx.globalAlpha = 1; ctx.lineCap = 'butt';
+  const R = TUNE.ring; const rings = [];
+  if (me && M.phase !== 'end') {
+    if (lastCtl !== M.control) { lastCtl = M.control; ctlT = now; }
+    const g = Math.max(0, 1 - (now - ctlT) / R.growMs); const grow = 1 + (R.growScale - 1) * Math.sin(g * Math.PI);
+    const col = me.ratio > R.staminaOrange ? '#22c55e' : (me.ratio > R.staminaRed ? '#f59e0b' : '#ef4444');
+    rings.push({ x: me.x, y: me.y, r: 0.95 * grow, color: col, frac: Math.max(0.04, me.ratio), w: 4 });
+    const hp = input.holdProgress(performance.now());
+    if (hp != null && !(M.ball.owner === me && M.ball.st === 'held')) rings.push({ x: me.x, y: me.y, r: 1.15 * grow, color: '#22d3ee', frac: hp, w: 4 });
   }
-  // 데드볼 4초 지시(글자 없이 공 주변 링이 줄어든다)
-  if (M.phase === 'deadball' && M.restart && M.restart.kind !== 'kickoff') {
-    const k = Math.max(0, M.restart.timer / TUNE.deadBallSeconds);
-    ctx.strokeStyle = M.restart.team === 0 ? '#fde047' : 'rgba(255,255,255,0.35)'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(bx, by - h * 0.3, h * 0.5, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * k); ctx.stroke();
+  fxs = fxs.filter((f) => now - f.t0 < f.dur);
+  for (const f of fxs) { const k = (now - f.t0) / f.dur; rings.push({ x: f.who ? f.who.x : f.x, y: f.who ? f.who.y : f.y, r: 0.8 + 0.5 * k, color: f.color, frac: 1, a: 1 - k, w: 4 }); }
+  for (const q of M.players) if (q.team === 1 && M.ball.owner === q && M.ball.st === 'held' && signalActive(M, q)) rings.push({ x: q.x, y: q.y, r: 0.9, color: '#22d3ee', frac: 1, w: 4 });
+  if (M.phase === 'deadball' && M.restart && M.restart.kind !== 'kickoff') rings.push({ x: b.x, y: b.y, r: 1.6 * Math.max(0.1, M.restart.timer / TUNE.deadBallSeconds), color: '#ffffff', frac: 1, a: M.restart.team === 0 ? 1 : 0.4, w: 3 });
+  for (const rg of rings.slice(0, R.max)) {
+    const cx = X(rg.x); const cy = Y(rg.y); const rx = rg.r * pxm * 0.9; const ry = rx * 0.38; const a0 = -Math.PI / 2; const a1 = a0 + Math.PI * 2 * rg.frac;
+    ctx.globalAlpha = rg.a ?? 1; ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(8,12,24,0.85)'; ctx.lineWidth = rg.w + 3; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, a0, a1); ctx.stroke();
+    ctx.strokeStyle = rg.color; ctx.lineWidth = rg.w; ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, a0, a1); ctx.stroke();
+    ctx.lineCap = 'butt'; ctx.globalAlpha = 1;
+  }
+  const tr = input.swipeTrail(now);
+  if (tr && tr.pts.length > 1) { // 쓸기 궤적: 흰색 얇은 선, 떼고 0.3초
+    const r = rect(); const kx = CW / r.width; const ky = CH / r.height;
+    ctx.globalAlpha = tr.live ? 0.9 : Math.max(0, 1 - tr.age / 300); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); tr.pts.forEach((q, k) => { if (k === 0) ctx.moveTo(q.x * kx, q.y * ky); else ctx.lineTo(q.x * kx, q.y * ky); }); ctx.stroke(); ctx.globalAlpha = 1; ctx.lineCap = 'butt';
   }
   if (flash > 0) { ctx.fillStyle = `rgba(253,224,71,${flash * 0.35})`; ctx.fillRect(0, 0, CW, CH); }
 }
@@ -223,8 +238,8 @@ function frame(now) {
       const now = performance.now(); const me = M.players[M.control];
       if (a.type === 'tap' && M.ball.owner === me && M.ball.st === 'held') { // 공을 가졌을 때의 콕: 선수 근처는 초록 링, 빈 곳은 파란 링(색은 7장에서 정리)
         let near = null; let nd = 1e9; for (const q of M.players) { if (q.team !== 0 || q === me || q.gk) continue; const d = Math.hypot(q.x - a.wx, q.y - a.wy); if (d < nd) { nd = d; near = q; } }
-        if (near && nd <= TUNE.input.spotRadius) { fxs.push({ x: near.x, y: near.y, color: '#22c55e', t0: now, dur: 420, a: 1 }); }
-        else { fxs.push({ x: a.wx, y: a.wy, color: '#3b82f6', t0: now, dur: 450, a: 1 }); }
+        if (near && nd <= TUNE.input.spotRadius) fxs.push({ who: near, color: '#facc15', t0: now, dur: TUNE.ring.passMs });
+        else fxs.push({ x: a.wx, y: a.wy, color: '#facc15', t0: now, dur: TUNE.ring.passMs });
       }
     }
     const before = M.score[0] + M.score[1];
