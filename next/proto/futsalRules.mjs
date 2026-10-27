@@ -6,7 +6,7 @@ export const TUNE = {
   halfClockSeconds: 1200, clockScale: 8, realMatchSeconds: 300,
   extraMinutes: { 1: [1, 5], 2: [3, 10] }, // 정규 시간 뒤 추가시간(풋살 시계, 분)
   // 이동과 공
-  minRunSpeed: 6.75, maxRunSpeed: 8.25, accel: 9, // 달리기 최고 속도 능력 0/10/20에서 6.75 / 7.5 / 8.25 m/s (사용자 지시 2차 보정: 원래 6/7.5/9)
+  minRunSpeed: 6.9, maxRunSpeed: 8.1, accel: 9, // 달리기 최고 속도 능력 0/10/20에서 6.9 / 7.5 / 8.1 m/s (사용자 지시 3차 보정: 원래 6/7.5/9)
   passSpeedMin: 10, passSpeedMax: 16, passSpeedBase: 8, passSpeedPerM: 0.8, ballFriction: 0.6, pickupR: 1.2, interceptR: 0.62, blockR: 0.7,
   deadBallSeconds: 4, autoRestartSeconds: 0.9,
   // 체력
