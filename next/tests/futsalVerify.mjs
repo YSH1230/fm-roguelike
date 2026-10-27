@@ -7,7 +7,7 @@ import { createInput } from '../proto/futsalInput.mjs';
 
 // 환경변수 TUNE_OVR='{"minRunSpeed":6.5}' 로 TUNE 값을 덮어쓰고(보정 후보 비교용), ONLY='2,3' 으로 구간을 고른다
 for (const [path, v] of Object.entries(JSON.parse(process.env.TUNE_OVR ?? '{}'))) { const ks = path.split('.'); let o = TUNE; for (const k of ks.slice(0, -1)) o = o[k]; o[ks.at(-1)] = v; }
-const only = (process.env.ONLY ?? '1,1b,2,3,4').split(',');
+const only = (process.env.ONLY ?? '1,1b,2,3,4,5').split(',');
 const [N1 = 1000, N2 = 200, N3 = 400] = process.argv.slice(2).map(Number);
 const FIELD = ['speed', 'stamina', 'strength', 'passing', 'shooting', 'skill'];
 const flat = (name, v = 10) => ({ name, players: Array.from({ length: 8 }, (_, i) => ({ id: `${name}${i}`, name: `${name}${i}`, gk: i === 0, cond: 1, ab: i === 0 ? { speed: v, stamina: v, strength: v, reaction: 10, handling: 10 } : Object.fromEntries(FIELD.map((k) => [k, v])) })) });
@@ -42,7 +42,7 @@ if (only.includes('1b')) {
   let reached = 0; let stopped = 0;
   for (let i = 1; i <= Math.min(N1, 300); i += 1) {
     const M = createMatch({ seed: i, home: flat('H'), away: flat('A') }); let inAtk = false; let shot = false; let k = 0;
-    while (M.phase !== 'end' && k < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M); update(M, 1 / 60, {}); k += 1; const b = M.ball;
+    while (M.phase !== 'end' && k < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M); const kw = M.phase === 'deadball' && M.restart?.wait; const m0 = kw ? M.players.find((p) => p.team === 0 && !p.gk && p !== M.ball.owner) : null; update(M, 1 / 60, kw ? { actions: [{ type: 'tap', wx: m0.x, wy: m0.y }] } : {}); k += 1; const b = M.ball; // 사람 팀은 조이스틱을 안 잡는다. 킥오프 대기만 콕 한 번으로 시작한다
       if (M.phase !== 'play') { if (inAtk && !shot) stopped += 0; inAtk = false; continue; }
       const own = b.owner?.team; const sh = b.st === 'shot' && b.shooter?.team === 1;
       if (sh) shot = true;
@@ -68,5 +68,25 @@ if (only.includes('4')) {
   console.log(`[4] 입력 모사 ${n * 3}회 인식 오류 ${pct(bad, n * 3)} (콕 ${C.tap}, 꾹 ${C.hold}, 쓸기 ${C.swipe}건)`);
   const eq = { strength: 10, speed: 10, skill: 10 }; const q = createRng(3); const m = 20000; const hit = (o) => { let c = 0; for (let i = 0; i < m; i += 1) if (q() < tackleChance(eq, eq, o)) c += 1; return pct(c, m); };
   console.log(`    태클 성공(동급): 스탠딩 ${hit({})} → 신호 ${hit({ signal: true })} | 슬라이딩 ${hit({ slide: true })} → 신호 ${hit({ slide: true, signal: true })} (목표 55% / 39% ±3%p)`);
+}
+// 5. 슛 각도: 쓴 각도 대비 실제 공 궤적 각도 오차(거리별, 슛 능력별), 그리고 쓸기 각도를 끝 10px로 구하는 방법의 비교
+if (only.includes('5')) {
+  const r = createRng(9); console.log('[5] 쓴 각도와 공 궤적 각도의 오차(도), 평균 / 최대 (슛 능력 0 | 10 | 20)');
+  for (const dist of [6, 12, 20, 28]) { const row = [];
+    for (const sh of [0, 10, 20]) { const errs = [];
+      for (let i = 0; i < 300; i += 1) { const M = createMatch({ seed: 100 + i, home: flat('H'), away: flat('A') }); for (let k = 0; k < 30; k += 1) update(M, 1 / 60, {});
+        const me = M.players.find((p) => p.team === 0 && !p.gk); me.x = 40 - dist; me.y = 10 + (r() - 0.5) * 8; me.ab.shooting = sh; for (const q of M.players) if (q.team === 1 && !q.gk) { q.x = 10; q.y = 3; q.tx = q.x; q.ty = q.y; q.ts = 0; }
+        M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me); const a = (r() - 0.5) * 60 * Math.PI / 180; const n0 = M.events.length;
+        update(M, 1 / 60, { actions: [{ type: 'swipe', dx: Math.cos(a), dy: Math.sin(a), v: 1.2 }] }); for (let k = 0; k < 60 && M.ball.st !== 'shot'; k += 1) update(M, 1 / 60, {});
+        const e = M.events.slice(n0).find((x) => x.kind === 'kick' && x.type === 'shot'); if (e && e.ang != null) errs.push(Math.abs(e.real - e.ang)); }
+      row.push(`${f1(errs.reduce((a, b) => a + b, 0) / errs.length)} / ${f1(Math.max(...errs))}`); }
+    console.log(`    ${String(dist).padStart(2)}m: ${row.join(' | ')}`); }
+  // 손가락 궤적: 처음 20px는 의도 방향에서 N(0, 12도)만큼 빗나갔다가 곧게 간다(사람이 쓸 때의 시작 흔들림 모사). 의도 방향 = 마지막 구간 방향.
+  const trial = (endPx) => { TUNE.input.swipeEndPx = endPx; const errs = []; const q = createRng(4);
+    for (let i = 0; i < 2000; i += 1) { const want = (q() - 0.5) * 2 * Math.PI * 0.3; const lead = want + gauss(q) * 12 * Math.PI / 180; const inp = createInput(); inp.down(1, 500, 100, 0, 640); let x = 500; let y = 100; let t = 0;
+      for (let k = 1; k <= 8; k += 1) { const ang = k <= 3 ? lead : want; x += Math.cos(ang) * 10; y += Math.sin(ang) * 10; t += 10; inp.move(1, x, y, t); } inp.up(1, x, y, t);
+      const a = inp.poll(t + 1).actions.find((z) => z.type === 'swipe'); if (!a) continue; let d = Math.abs(Math.atan2(a.dy, a.dx) - want); if (d > Math.PI) d = 2 * Math.PI - d; errs.push(d * 180 / Math.PI); }
+    TUNE.input.swipeEndPx = 0; return `${f1(errs.reduce((a, b) => a + b, 0) / errs.length)} / ${f1(Math.max(...errs))}`; };
+  console.log(`    쓸기 방향 오차(도, 평균 / 최대): 시작~끝 전체 ${trial(0)} | 끝 10px ${trial(10)}`);
 }
 void TUNE;
