@@ -240,7 +240,7 @@ function applyHumanAction(M, a) {
     const r = M.restart;
     if (a.type === 'tap' && r?.team === 0) { // 동료를 직접 콕하면 그 동료, 아니면 조이스틱으로 고른 동료(없으면 콕한 곳에서 가장 가까운 동료)
       const tg = nearestMate(M, M.players[M.control], a.wx, a.wy);
-      if (tg && hyp(tg.x - a.wx, tg.y - a.wy) <= TUNE.input.spotRadius) r.pick = tg; else r.pick = r.sel ?? tg ?? null;
+      if (tg && hyp(tg.x - a.wx, tg.y - a.wy) <= TUNE.input.spotRadius) { r.pick = tg; r.how = 'tap-mate'; } else { r.pick = r.sel ?? tg ?? null; r.how = r.sel ? 'tap-confirm' : 'tap'; }
     }
     return;
   }
@@ -284,7 +284,7 @@ function tackleNow(M, me, slide = false, signal = false) {
       tackleFeel(M, me, carrier, slide); setHold(M, me);
       if (slide) carrier.freezeUntil = M.real + slidingFreeze(me.ab.strength); // 슬라이딩 성공: 상대가 잠시 멈춘다
     } else {
-      M.stats.tackleFails ??= [0, 0]; M.stats.tackleFails[me.team] += 1; M.events.push({ kind: 'tackleFail', team: me.team, id: me.id, slide });
+      M.stats.tackleFails ??= [0, 0]; M.stats.tackleFails[me.team] += 1; M.events.push({ kind: 'tackleFail', team: me.team, id: me.id, slide, signal });
       if (slide) me.downUntil = M.real + slidingDown(me.ab.stamina); // 실패하면 누워 있다
       else me.penaltyUntil = M.real + standingPenalty(me.ab.strength); // 실패하면 잠시 느려지고 재시도할 수 없다
     }
@@ -479,7 +479,7 @@ function updateDead(M, dt, input, acts) {
   const humanSel = r.team === 0 && !M.autoHuman;
   if (humanSel) { // 조이스틱 방향(±45도)에서 가장 가까운 동료가 받을 선수. 놓으면 확정(고른 동료가 있을 때만)
     const mv = input.move;
-    if (mv) { r.sel = pickByDir(M, M.ball.owner, mv); r.held = true; } else if (r.held) { r.held = false; if (r.sel) r.pick = r.sel; }
+    if (mv) { r.sel = pickByDir(M, M.ball.owner, mv); r.held = true; } else if (r.held) { r.held = false; if (r.sel) { r.pick = r.sel; r.how = 'joystick'; } }
   }
   r.timer -= dt; // 시계는 흐르지 않는다
   if (r.kind !== 'kickoff') { // 데드볼에서도 받을 자리를 찾아 계속 움직인다. 상대는 공에서 3m 이상 떨어진다.

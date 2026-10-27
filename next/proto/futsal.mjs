@@ -2,7 +2,8 @@
 import { TUNE, clockText } from './futsalRules.mjs';
 import { createInput } from './futsalInput.mjs';
 import { zzfx } from './zzfx.mjs';
-import { createInputLog, initDev } from './futsalDev.mjs';
+import { initDev } from './futsalDev.mjs';
+import { createRecorder } from './futsalLog.mjs';
 import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, canAct, signalActive, FORMATIONS } from './futsalSim.mjs';
 
 const cv = document.getElementById('cv');
@@ -41,7 +42,25 @@ const saveSet = (o) => { try { localStorage.setItem(SET_KEY, JSON.stringify(o));
 const saved = loadSet();
 let vibOn = canVibrate && saved.vib !== false;
 input.setSensitivity(saved.sens ?? 1);
-const inputLog = createInputLog();
+let recOn = saved.rec !== false; // 기록은 기본으로 켜져 있고 설정에서 끈다
+let rec = null; let matchId = null; let home = null; let away = null;
+const LOGS_KEY = 'fmFutsalLogs'; // 기기에는 최근 5경기만 둔다(서버 전송 없음)
+function saveLog() {
+  if (!rec) return;
+  try {
+    const log = rec.finish(); const body = JSON.stringify(log);
+    let idx = []; try { idx = JSON.parse(localStorage.getItem(LOGS_KEY) ?? '[]').filter((e) => e.id !== matchId); } catch { idx = []; }
+    idx.push({ id: matchId, seed, at: Date.now() });
+    while (idx.length > 5) localStorage.removeItem(`fmFutsalLog:${idx.shift().id}`);
+    for (let tries = 0; tries < 6; tries += 1) { try { localStorage.setItem(`fmFutsalLog:${matchId}`, body); break; } catch { if (idx.length <= 1) break; localStorage.removeItem(`fmFutsalLog:${idx.shift().id}`); } } // 용량이 모자라면 오래된 경기부터 지운다
+    localStorage.setItem(LOGS_KEY, JSON.stringify(idx));
+  } catch { /* 저장소를 못 쓰면 내려받기만 가능 */ }
+}
+function downloadLog() {
+  if (!rec) return; const log = rec.finish(); const d = new Date(); const z = (n) => String(n).padStart(2, '0');
+  const name = `futsal-log-${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}.json`;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(log)], { type: 'application/json' })); a.download = name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
 const buzz = (ms) => { if (vibOn && canVibrate) { try { navigator.vibrate(ms); } catch { /* 무시 */ } } };
 const snd = (...a) => { if (TUNE.audio.on) zzfx(...a); }; // 소리는 TUNE.audio.on으로 막는다(코드는 유지)
 const sfx = {
@@ -218,24 +237,30 @@ function hud() {
 // ---------- 흐름: 시작, 하프타임, 종료, 일시정지 ----------
 const STANCES = [['attack', 'ATTACK 1-1-2'], ['balanced', 'BALANCED 1-2-1'], ['defense', 'DEFENSE 2-1-1']];
 function stanceRow(sel) { return `<div class="row">${STANCES.map(([k, t]) => `<button class="btn ${sel === k ? 'btn--primary' : ''}" data-s="${k}">${t}</button>`).join('')}</div>`; }
-function newMatch(sd) { evSeen = 0; seed = sd ?? seed + 1; inputLog.reset(); M = createMatch({ seed, home: demoTeam('H', seed), away: demoTeam('A', seed + 50), stance }); window.fmFutsal.M = M; flash = 0; }
+function newMatch(sd) {
+  evSeen = 0; seed = sd ?? seed + 1; home = demoTeam('H', seed); away = demoTeam('A', seed + 50); M = createMatch({ seed, home, away, stance }); matchId = String(Date.now());
+  const r = rect(); rec = recOn ? createRecorder({ M, seed, home, away, stance, device: { w: Math.round(r.width), h: Math.round(r.height), sens: input.sensitivity } }) : null;
+  window.fmFutsal.M = M; flash = 0; // 기록 중이면 update 대신 rec.step을 쓴다(입력을 같은 방식으로 양자화해 재생이 같게 한다)
+}
+const stepSim = (dt, inp) => { if (rec) rec.step(dt, inp); else update(M, dt, inp); };
 function showStart() {
   paused = true;
   box.innerHTML = `<h2>FUTSAL</h2><p>5 vs 5 · 40m × 20m · about 5 min</p>${stanceRow(stance)}
-    <button class="btn btn--primary" id="go">KICK OFF</button><button class="btn" id="simall">SIM WHOLE MATCH</button><label style="font:700 11px var(--pix);color:#cbd5e1">INPUT SENSITIVITY ${Math.round(input.sensitivity * 100)}%<input id="sens" type="range" min="70" max="130" step="5" value="${Math.round(input.sensitivity * 100)}" style="width:100%"></label>${canVibrate ? `<button class="btn" id="vib">VIBRATION ${vibOn ? 'ON' : 'OFF'}</button>` : ''}<p style="font-size:10px;color:#64748b">BUILD P1</p>`;
+    <button class="btn btn--primary" id="go">KICK OFF</button><button class="btn" id="simall">SIM WHOLE MATCH</button><label style="font:700 11px var(--pix);color:#cbd5e1">INPUT SENSITIVITY ${Math.round(input.sensitivity * 100)}%<input id="sens" type="range" min="70" max="130" step="5" value="${Math.round(input.sensitivity * 100)}" style="width:100%"></label><button class="btn" id="rec">RECORD ${recOn ? 'ON' : 'OFF'}</button>${canVibrate ? `<button class="btn" id="vib">VIBRATION ${vibOn ? 'ON' : 'OFF'}</button>` : ''}<p style="font-size:10px;color:#64748b">BUILD P1</p>`;
   overlay.classList.add('on');
   box.querySelectorAll('[data-s]').forEach((b) => { b.onclick = () => { stance = b.dataset.s; showStart(); }; });
+  $('rec').onclick = () => { recOn = !recOn; saveSet({ sens: input.sensitivity, vib: vibOn, rec: recOn }); showStart(); };
   $('go').onclick = () => { newMatch(); overlay.classList.remove('on'); paused = false; };
   $('simall').onclick = () => { newMatch(); simRest(); };
-  $('sens').onchange = (e) => { input.setSensitivity(Number(e.target.value) / 100); saveSet({ sens: input.sensitivity, vib: vibOn }); showStart(); };
-  if (canVibrate) $('vib').onclick = () => { vibOn = !vibOn; if (vibOn) buzz(30); saveSet({ sens: input.sensitivity, vib: vibOn }); showStart(); };
+  $('sens').onchange = (e) => { input.setSensitivity(Number(e.target.value) / 100); saveSet({ sens: input.sensitivity, vib: vibOn, rec: recOn }); showStart(); };
+  if (canVibrate) $('vib').onclick = () => { vibOn = !vibOn; if (vibOn) buzz(30); saveSet({ sens: input.sensitivity, vib: vibOn, rec: recOn }); showStart(); };
 }
 function showHalftime() {
   paused = true;
   const render = () => {
     box.innerHTML = `<h2>HALFTIME</h2><p>${M.score[0]} : ${M.score[1]}</p>${stanceRow(M.stance[0])}<button class="btn btn--primary" id="second">SECOND HALF</button>`;
     box.querySelectorAll('[data-s]').forEach((b) => { b.onclick = () => { M.stance[0] = b.dataset.s; render(); }; });
-    $('second').onclick = () => { startSecondHalf(M, M.stance[0]); overlay.classList.remove('on'); paused = false; };
+    $('second').onclick = () => { rec?.marker({ k: 'half', stance: M.stance[0] }); startSecondHalf(M, M.stance[0]); overlay.classList.remove('on'); paused = false; };
   };
   render(); overlay.classList.add('on');
 }
@@ -243,22 +268,22 @@ function showEnd() {
   paused = true;
   const r = M.score[0] > M.score[1] ? 'WIN' : (M.score[0] < M.score[1] ? 'LOSS' : 'DRAW');
   const scorers = M.stats.goals.map((g) => `${g.team === 0 ? 'H' : 'A'} ${g.id} ${Math.floor(g.clock / 60) + 1}'`).join(' · ') || '-';
-  box.innerHTML = `<h2>${r}</h2><p>${M.score[0]} : ${M.score[1]}</p><p style="font-size:11px">${scorers}</p><button class="btn btn--primary" id="again">PLAY AGAIN</button>`;
+  box.innerHTML = `<h2>${r}</h2><p>${M.score[0]} : ${M.score[1]}</p><p style="font-size:11px">${scorers}</p><button class="btn btn--primary" id="again">PLAY AGAIN</button>${rec ? '<button class="btn" id="savelog">기록 저장 SAVE LOG</button>' : ''}`;
   overlay.classList.add('on');
-  $('again').onclick = showStart;
+  $('again').onclick = showStart; if (rec) $('savelog').onclick = downloadLog;
 }
 function simRest() { // 남은 시간을 AI가 대신 뛴다(통째 시뮬)
-  M.autoHuman = true; let n = 0;
-  while (M.phase !== 'end' && n < 60 * 900) { if (M.phase === 'halftime') startSecondHalf(M, M.stance[0]); update(M, 1 / 30, {}); n += 1; }
-  showEnd();
+  M.autoHuman = true; rec?.marker({ k: 'auto', on: true }); let n = 0;
+  while (M.phase !== 'end' && n < 60 * 900) { if (M.phase === 'halftime') { rec?.marker({ k: 'half', stance: M.stance[0] }); startSecondHalf(M, M.stance[0]); } stepSim(1 / 30, {}); n += 1; }
+  saveLog(); showEnd();
 }
-$('btn-pause').onclick = () => { if (!M || M.phase === 'end') return; paused = !paused; if (paused) { box.innerHTML = '<h2>PAUSED</h2><button class="btn btn--primary" id="resume">RESUME</button><button class="btn" id="quit">QUIT</button>'; overlay.classList.add('on'); $('resume').onclick = () => { overlay.classList.remove('on'); paused = false; }; $('quit').onclick = showStart; } else overlay.classList.remove('on'); };
+$('btn-pause').onclick = () => { if (!M || M.phase === 'end') return; paused = !paused; if (paused) { box.innerHTML = '<h2>PAUSED</h2><button class="btn btn--primary" id="resume">RESUME</button><button class="btn" id="quit">QUIT</button>' + (rec ? '<button class="btn" id="savelog">기록 저장 SAVE LOG</button>' : ''); overlay.classList.add('on'); if (rec) $('savelog').onclick = downloadLog; $('resume').onclick = () => { overlay.classList.remove('on'); paused = false; }; $('quit').onclick = showStart; } else overlay.classList.remove('on'); };
 // SIM은 0.6초 길게 눌러야 작동
 const simBtn = $('btn-auto'); let simTimer = null;
 simBtn.addEventListener('pointerdown', () => { simBtn.classList.add('hold'); clearTimeout(simTimer); simTimer = setTimeout(() => { simBtn.classList.remove('hold'); if (M && !paused) simRest(); }, 600); });
 for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) simBtn.addEventListener(ev, () => { clearTimeout(simTimer); simBtn.classList.remove('hold'); });
 // 플라잉 골키퍼(P2에서 완성): 후반 추가시간에만 켜진다. P1에서는 켜지는 시점만 확인한다.
-$('btn-gk').onclick = () => { if (M && flyingGkAvailable(M)) M.opts.gkAdvance[0] = true; };
+$('btn-gk').onclick = () => { if (M && flyingGkAvailable(M)) { rec?.marker({ k: 'gk' }); M.opts.gkAdvance[0] = true; } };
 
 function frame(now) {
   const raw = Math.min(0.05, Math.max(0.001, (now - last) / 1000)); last = now;
@@ -274,12 +299,11 @@ function frame(now) {
         else fxs.push({ x: a.wx, y: a.wy, color: '#facc15', t0: now, dur: TUNE.ring.passMs });
       }
     }
-    inputLog.push(M.real, polled);
     const before = M.score[0] + M.score[1];
-    update(M, raw, { move: polled.move, actions });
+    stepSim(raw, { move: polled.move, actions });
     if (M.score[0] + M.score[1] !== before) flash = 1;
     playEventSounds();
-    if (M.phase === 'halftime') { inputLog.save(seed); showHalftime(); } else if (M.phase === 'end') { inputLog.save(seed); showEnd(); }
+    if (M.phase === 'halftime') { saveLog(); showHalftime(); } else if (M.phase === 'end') { saveLog(); showEnd(); }
   }
   flash = Math.max(0, flash - raw * 1.6);
   if (M) { ctx.setTransform(1, 0, 0, 1, 0, 0); draw(); hud(); }
@@ -287,7 +311,7 @@ function frame(now) {
 }
 window.fmFutsal = { M: null, input, get paused() { return paused; } };
 newMatch(); showStart();
-window.addEventListener('pagehide', () => inputLog.save(seed));
-initDev({ getM: () => M, getSeed: () => seed, inputLog, restart: (sd) => { newMatch(sd); overlay.classList.remove('on'); paused = false; } });
+window.addEventListener('pagehide', saveLog);
+initDev({ getM: () => M, getSeed: () => seed, getRec: () => rec, saveLog, restart: (sd) => { newMatch(sd); overlay.classList.remove('on'); paused = false; } });
 requestAnimationFrame((n) => { last = n; frame(n); });
 void FORMATIONS;

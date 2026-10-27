@@ -3,23 +3,8 @@ import { TUNE } from './futsalRules.mjs';
 import { controlState } from './futsalSim.mjs';
 
 const GROUPS = ['input', 'kick', 'pass', 'shot', 'defense', 'tackle', 'move', 'stamina', 'ring', 'difficulty', 'ai'];
-const LOG_KEY = 'fmFutsalInputLog';
-const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* 저장소 없음 */ } } };
 
-// 입력 기록: 매 프레임이 아니라 바뀔 때만 쌓는다. 경기 흐름이 바뀔 때와 페이지를 떠날 때 자동 저장한다.
-export function createInputLog() {
-  let log = []; let last = '';
-  const save = (seed) => store.set(LOG_KEY, JSON.stringify({ seed, tune: TUNE, log }));
-  return {
-    reset() { log = []; last = ''; },
-    push(t, polled) { const m = polled.move ? `${polled.move.x.toFixed(2)},${polled.move.y.toFixed(2)}` : ''; if (m !== last || polled.actions.length) { log.push({ t: +t.toFixed(3), move: polled.move, actions: polled.actions }); last = m; } },
-    save,
-    get length() { return log.length; },
-    text() { return store.get(LOG_KEY) ?? ''; },
-  };
-}
-
-export function initDev({ getM, getSeed, restart, inputLog }) {
+export function initDev({ getM, getSeed, getRec, saveLog, restart }) {
   if (!new URLSearchParams(location.search).has('dev')) return;
   const box = document.createElement('div');
   box.style.cssText = 'position:fixed;right:0;top:0;bottom:0;width:260px;overflow:auto;background:rgba(6,11,22,.94);color:#cbd5e1;font:11px monospace;padding:6px;z-index:30;display:none';
@@ -33,7 +18,7 @@ export function initDev({ getM, getSeed, restart, inputLog }) {
   seedRow.innerHTML = '<b>seed</b> <input id="dv-seed" type="number" style="width:70px"> <button id="dv-go">replay</button> <button id="dv-log">log</button> <span id="dv-n"></span>';
   box.append(seedRow);
   seedRow.querySelector('#dv-go').onclick = () => restart(Number(seedRow.querySelector('#dv-seed').value) || getSeed());
-  seedRow.querySelector('#dv-log').onclick = () => { inputLog.save(getSeed()); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([inputLog.text()], { type: 'application/json' })); a.download = `futsal-input-${getSeed()}.json`; a.click(); };
+  seedRow.querySelector('#dv-log').onclick = () => { const rec = getRec(); if (!rec) return; saveLog(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(rec.finish())], { type: 'application/json' })); a.download = `futsal-log-${getSeed()}.json`; a.click(); };
   for (const g of GROUPS) {
     const d = document.createElement('details'); const sm = document.createElement('summary'); sm.textContent = g; d.append(sm);
     for (const [k, v] of Object.entries(TUNE[g] ?? {})) {
@@ -47,7 +32,7 @@ export function initDev({ getM, getSeed, restart, inputLog }) {
     box.append(d);
   }
   setInterval(() => {
-    const M = getM(); if (!M) return; const S = M.stats; seedRow.querySelector('#dv-n').textContent = `${inputLog.length} ev`; const q = (a) => a.join('/');
+    const M = getM(); if (!M) return; const S = M.stats; seedRow.querySelector('#dv-n').textContent = `${getRec()?.log.frames.length ?? 0} fr`; const q = (a) => a.join('/');
     const me = M.players[M.control]; const st = controlState(M);
     stats.textContent = `조종 #${me?.num ?? '-'} ${me?.id ?? ''} 상태 ${st.length ? st.join(',') : '자유'}\n` + `seed ${getSeed()}  score ${q(M.score)}\nshots ${q(S.shots)} passes ${q(S.passes)} ok ${q(S.passOk)}\nicpt ${q(S.intercepts)} tackles ${q(S.tackles)} saves ${q(S.saves)}`;
   }, 250);

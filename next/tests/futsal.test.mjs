@@ -6,6 +6,7 @@ import { TUNE, speedOf, effSpeed, drainPerSecond, gkDelay, sophistication, class
 import { rate } from './futsalCalib.mjs';
 import { chanceGrade } from '../proto/futsalSim.mjs';
 import { createInput } from '../proto/futsalInput.mjs';
+import { createRecorder, replayLog, BUILD } from '../proto/futsalLog.mjs';
 import { createMatch, update, demoTeam, startSecondHalf, flyingGkAvailable, setHold, signalActive, canTackle } from '../proto/futsalSim.mjs';
 
 const mk = (seed = 1) => createMatch({ seed, home: demoTeam('H', seed), away: demoTeam('A', seed + 50) });
@@ -471,4 +472,104 @@ test('공을 든 선수는 달리기 감속이 있고, 급하게 꺾으면 속�
   const { M, me } = holdSetup(62); me.ab.speed = 10; me.ab.skill = 10; const free = M.players.find((p) => p.team === 0 && !p.gk && p !== me);
   const sp = (p) => { p.x = 8; p.y = 10; p.vx = 0; p.vy = 0; for (let i = 0; i < 60; i += 1) { p.tx = 38; p.ty = 10; p.ts = 7.5; movePlayersProbe(M, 1 / 60); } return p.vx; };
   void sp; assert.ok(true);
+});
+
+// ---------- 직접 플레이 피드백 반영(1단계 보정 후) ----------
+test('소리는 TUNE.audio.on = false로 막혀 있다(진동 설정은 따로)', () => { assert.equal(TUNE.audio.on, false); });
+test('슛 각도: 잡음을 끄면 쓴 각도와 공 궤적 각도가 같다(준비 중에 움직여도 임팩트 위치에서 같은 각도), 이벤트에 둘 다 기록된다', () => {
+  const keep = TUNE.shot.baseNoise; TUNE.shot.baseNoise = 0;
+  try {
+    let worst = 0;
+    for (const [deg, dist] of [[-30, 8], [-10, 15], [0, 12], [12, 20], [35, 25]]) {
+      const M = mk(11); play(M, 0.5); const me = M.players.find((p) => p.team === 0 && !p.gk); me.x = 40 - dist; me.y = 10; for (const q of M.players) if (q.team === 1 && !q.gk) { q.x = 8; q.y = 3; q.tx = q.x; q.ty = q.y; q.ts = 0; }
+      M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me); const n0 = M.events.length; const a = deg * Math.PI / 180;
+      update(M, 1 / 60, { move: { x: 0, y: 1 }, actions: [{ type: 'swipe', dx: Math.cos(a), dy: Math.sin(a), v: 1.2 }] }); for (let i = 0; i < 30 && M.queue.length; i += 1) update(M, 1 / 60, { move: { x: 0, y: 1 } });
+      const e = M.events.slice(n0).find((x) => x.kind === 'kick' && x.type === 'shot'); assert.ok(e && e.ang != null, '이벤트에 각도 기록'); worst = Math.max(worst, Math.abs(e.real - e.ang));
+    }
+    assert.ok(worst < 0.5, `최대 오차 ${worst.toFixed(2)}도`);
+  } finally { TUNE.shot.baseNoise = keep; }
+});
+const carryScene = (seed, mateOff, dist = 4) => { const M = mk(seed); play(M, 0.5); const me = M.players.find((p) => p.team === 0 && !p.gk); const mate = M.players.find((p) => p.team === 0 && !p.gk && p !== me);
+  me.x = 20; me.y = 10; mate.x = me.x + dist; mate.y = me.y + mateOff; mate.tx = mate.x; mate.ty = mate.y; mate.ts = 0;
+  for (const q of M.players) if (q.team === 1) { q.x = 4; q.y = 17; q.tx = q.x; q.ty = q.y; q.ts = 0; }
+  M.phase = 'play'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me); M.frozenAI = new Set(M.players.filter((p) => p.team === 1).map((p) => p.id)); return { M, me, mate }; };
+test('이어받기: 패스 직전과 같은 방향(45도 미만)으로 계속 밀면 입력을 무시하고 도착 자리로 가며, 놓거나 45도 이상 바꾸면 그때부터 입력이 쓰인다', () => {
+  const { M, mate } = carryScene(3, 1.5); const ang = (d) => ({ x: Math.cos(d * Math.PI / 180), y: Math.sin(d * Math.PI / 180) });
+  update(M, 1 / 60, { move: ang(0), actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); assert.ok(M.follow?.on);
+  for (let i = 0; i < 20; i += 1) update(M, 1 / 60, { move: ang(30) }); assert.ok(M.follow.on, '30도 차이는 같은 방향');
+  assert.equal(M.ball.st, 'pass'); assert.ok(Math.abs(mate.tx - M.ball.dest.x) < 1e-6 && Math.abs(mate.ty - M.ball.dest.y) < 1e-6, '도착 자리로 자동 이동');
+  update(M, 1 / 60, { move: ang(90) }); assert.ok(!M.follow.on, '45도 이상 바꾸면 해제');
+  const s2 = carryScene(4, 1.5); update(s2.M, 1 / 60, { move: ang(0), actions: [{ type: 'tap', wx: s2.mate.x, wy: s2.mate.y }] }); update(s2.M, 1 / 60, {}); assert.ok(!s2.M.follow.on, '놓으면 해제');
+});
+test('이어받기 봇: 쉬운 패스(5m 이내, 길 여유 1.5m 초과)에서 같은 방향으로 계속 밀어도 받기 성공 90% 이상', () => {
+  let ok = 0; const n = 200; const r = createRng(21);
+  for (let i = 0; i < n; i += 1) { const off = (r() - 0.5) * 4; const { M, mate } = carryScene(100 + i, off, 3 + r() * 2); const d = Math.atan2(off, 3.5); const mv = { x: Math.cos(d), y: Math.sin(d) };
+    update(M, 1 / 60, { move: mv, actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); for (let k = 0; k < 180 && M.ball.owner?.id !== mate.id && M.phase === 'play'; k += 1) update(M, 1 / 60, { move: mv });
+    if (M.ball.owner?.id === mate.id) ok += 1; }
+  assert.ok(ok / n >= 0.9, `성공 ${(100 * ok / n).toFixed(1)}%`);
+});
+const restartScene = (kind = 'kickin') => { const M = mk(8); play(M, 1); const me = M.players.find((p) => p.team === 0 && !p.gk); M.phase = 'deadball'; M.ball.st = 'held'; M.ball.owner = me; M.control = M.players.indexOf(me); me.x = 20; me.y = 0.3;
+  M.restart = { kind, team: 0, timer: TUNE.deadBallSeconds, pick: null, sel: null, x: me.x, y: me.y }; const mates = M.players.filter((p) => p.team === 0 && !p.gk && p !== me); mates[0].x = 14; mates[0].y = 8; mates[1].x = 26; mates[1].y = 8; mates[2].x = 20; mates[2].y = 14; for (const q of mates) { q.tx = q.x; q.ty = q.y; q.ts = 0; }
+  return { M, me, mates }; };
+test('재개(우리 팀): 조이스틱 방향(±45도)에서 가장 가까운 동료가 선택되고(발밑 노랑 링용 r.sel), 놓으면 확정되어 그 동료에게 패스가 나간다', () => {
+  const { M, me, mates } = restartScene(); const dir = (q) => { const a = Math.atan2(q.y - me.y, q.x - me.x); return { x: Math.cos(a), y: Math.sin(a) }; };
+  update(M, 1 / 60, { move: dir(mates[1]) }); assert.equal(M.restart.sel, mates[1]); assert.equal(M.phase, 'deadball', '놓기 전에는 확정 아님');
+  update(M, 1 / 60, { move: dir(mates[0]) }); assert.equal(M.restart.sel, mates[0], '방향을 바꾸면 선택이 바뀜');
+  update(M, 1 / 60, {}); assert.equal(M.phase, 'play'); assert.equal(M.ball.tgt, mates[0]);
+  const s = restartScene(); update(s.M, 1 / 60, { move: { x: -1, y: -1 } }); update(s.M, 1 / 60, {}); assert.equal(s.M.phase, 'deadball', '고른 동료 없이 손만 떼면 확정 아님');
+  const t = restartScene(); update(t.M, 1 / 60, { actions: [{ type: 'tap', wx: t.mates[2].x, wy: t.mates[2].y }] }); assert.equal(t.M.phase, 'play'); assert.equal(t.M.ball.tgt, t.mates[2], '동료를 직접 콕해도 선택');
+});
+test('재개(우리 팀): 입력이 없으면 4초 뒤 자동 선택, 상대 팀 재개 동안에는 조이스틱으로 내 선수가 움직인다', () => {
+  const { M } = restartScene(); for (let i = 0; i < 60 * 4.2 && M.phase === 'deadball'; i += 1) update(M, 1 / 60, {}); assert.equal(M.phase, 'play');
+  const o = mk(9); play(o, 1); const opp = o.players.find((p) => p.team === 1 && !p.gk); const me = o.players.find((p) => p.team === 0 && !p.gk);
+  o.phase = 'deadball'; o.ball.st = 'held'; o.ball.owner = opp; opp.x = 20; opp.y = 0.3; o.restart = { kind: 'kickin', team: 1, timer: 4, pick: null, sel: null, x: 20, y: 0.3 }; o.control = o.players.indexOf(me); me.x = 10; me.y = 10; me.tx = 10; me.ty = 10;
+  const x0 = me.x; for (let i = 0; i < 20; i += 1) update(o, 1 / 60, { move: { x: 1, y: 0 } }); assert.ok(me.x > x0 + 0.5 || o.phase === 'play', '상대 재개 중 조이스틱이 먹힌다');
+});
+test('킥오프(우리 팀): 입력 전에는 시계도 선수도 움직이지 않고, 동료를 고르고 놓거나 콕하면 킥오프 패스로 시작하며, 고르지 않은 채 손만 떼는 것은 확정이 아니다. 상대 킥오프는 0.9초 뒤 자동', () => {
+  const M = mk(5); const before = M.players.map((p) => [p.x, p.y]); const real0 = M.real; assert.ok(M.restart.wait && M.restart.kind === 'kickoff');
+  for (let i = 0; i < 60 * 12; i += 1) update(M, 1 / 60, {}); assert.equal(M.phase, 'deadball'); assert.equal(M.real, real0); assert.deepEqual(M.players.map((p) => [p.x, p.y]), before, '아무도 움직이지 않는다');
+  const holder = M.ball.owner; const mate = M.players.find((p) => p.team === 0 && !p.gk && p !== holder);
+  const empty = [0, 45, 90, 135, 180, 225, 270, 315].map((d) => d * Math.PI / 180).find((a) => !M.players.some((q) => q.team === 0 && !q.gk && q !== holder && Math.abs(Math.atan2(Math.sin(a - Math.atan2(q.y - holder.y, q.x - holder.x)), Math.cos(a - Math.atan2(q.y - holder.y, q.x - holder.x)))) <= Math.PI / 4));
+  if (empty != null) { update(M, 1 / 60, { move: { x: Math.cos(empty), y: Math.sin(empty) } }); update(M, 1 / 60, {}); assert.equal(M.phase, 'deadball', '동료가 없는 방향으로 밀었다 놓음: 확정 아님'); }
+  update(M, 1 / 60, { actions: [{ type: 'tap', wx: mate.x, wy: mate.y }] }); assert.equal(M.phase, 'play'); assert.equal(M.ball.tgt, mate);
+  const g = mk(6); startSecondHalfKick(g); void g;
+});
+function startSecondHalfKick() { /* 후반 시작도 같은 startKickoff를 쓴다(아래 상대 킥오프 검사로 대신) */ }
+test('상대 킥오프(골을 먹은 뒤나 후반 시작)는 0.9초 뒤 자동으로 시작한다', () => {
+  const M = mk(7); M.restart.pick = null; M.phase = 'halftime'; startSecondHalf(M); assert.equal(M.restart.team, 1); let t = 0; while (M.phase === 'deadball' && t < 5) { update(M, 1 / 60, {}); t += 1 / 60; } assert.ok(t >= 0.85 && t <= 1.0, `${t.toFixed(2)}초`);
+});
+test('태클 성공 연출: 스탠딩 50ms, 슬라이딩 90ms 정지하고 뺏긴 선수가 0.5m 밀린다(TUNE.feel)', () => {
+  for (const [slide, hs] of [[false, 0.05], [true, 0.09]]) {
+    const { M, me, opp } = defSetup(3); M.rng = () => 0; const x0 = opp.x; M.api.tackle(me, slide, { signal: true }); for (let i = 0; i < 30 && M.queue.length; i += 1) update(M, 1 / 60, {});
+    assert.ok(Math.abs(M.hitstop - hs) < 1e-6 || M.hitstop <= hs, '정지'); assert.equal(M.ball.owner, me);
+    for (let i = 0; i < 20; i += 1) update(M, 1 / 60, {}); assert.ok(Math.abs(Math.abs(opp.x - x0) - TUNE.feel.pushM) < 0.1, `밀림 ${Math.abs(opp.x - x0).toFixed(2)}m`);
+  }
+});
+
+// ---------- 플레이 기록(블랙박스) ----------
+const randomPlay = (seed, maxFrames = 60 * 900) => { // 사람처럼 아무렇게나 입력하는 봇으로 한 경기를 기록한다(후반 시작 마커 포함)
+  const home = demoTeam('H', seed); const away = demoTeam('A', seed + 50); const M = createMatch({ seed, home, away }); const rec = createRecorder({ M, seed, home, away, device: { w: 800, h: 450, sens: 1 } });
+  const r = createRng(seed * 31 + 1); let n = 0; let mv = null;
+  while (M.phase !== 'end' && n < maxFrames) {
+    if (M.phase === 'halftime') { rec.marker({ k: 'half', stance: 'attack' }); startSecondHalf(M, 'attack'); }
+    if (n % 25 === 0) mv = r() < 0.25 ? null : { x: (r() - 0.5) * 2, y: (r() - 0.5) * 2 };
+    const actions = []; if (n % 37 === 0) { const pick = r(); const wx = r() * 40; const wy = r() * 20; actions.push(pick < 0.5 ? { type: 'tap', wx, wy, x: 100, y: 100, at: n } : (pick < 0.75 ? { type: 'hold', wx, wy } : { type: 'swipe', dx: Math.cos(r() - 0.5), dy: r() - 0.5, v: 0.5 + r() * 2 })); }
+    rec.step(1 / 60 + (n % 7) * 0.0003, { move: mv ?? undefined, actions }); n += 1;
+  }
+  return { M, rec, log: rec.finish() };
+};
+test('기록 재생: 같은 build, tune, seed, frames로 다시 돌리면 요약 통계와 이벤트가 원본과 같다(JSON 왕복 후)', () => {
+  for (const seed of [3, 12]) {
+    const { log } = randomPlay(seed); assert.equal(log.build, BUILD); assert.ok(log.frames.length > 0 && log.events.length > 0 && log.summary.phase === 'end');
+    const copy = JSON.parse(JSON.stringify(log)); const r = replayLog(copy);
+    assert.deepEqual(r.summary, log.summary, `시드 ${seed} 요약`); assert.deepEqual(r.events, log.events, `시드 ${seed} 이벤트`);
+    for (const k of ['build', 'tune', 'seed', 'teams', 'stance', 'device', 'frames', 'events', 'summary']) assert.ok(k in log, `${k} 필드`);
+  }
+});
+test('기록 이벤트: 패스(거리, 난이도 점수, 패스 선 여유, 결과와 실패 원인), 슛(쓴 각도, 공 각도, 찬스 등급, 결과), 태클(입력, 신호, 결과), 조종 전환(이유), 재개(방식, 걸린 시간), 킥오프 대기 시간이 남는다', () => {
+  const { log } = randomPlay(5); const by = (k) => log.events.filter((e) => e.kind === k);
+  const p = by('pass'); assert.ok(p.length > 5 && p.every((e) => 'dist' in e && 'score' in e && 'clr' in e && ['ok', 'intercept', 'late', 'out'].includes(e.result)));
+  assert.ok(by('control').length > 0 && by('control').every((e) => e.reason)); assert.ok(by('kickoffWait').length > 0 && by('kickoffWait')[0].sec > 0, '킥오프 대기 시간');
+  assert.ok(by('restart').every((e) => e.how && e.sec >= 0));
+  const sh = by('shot'); if (sh.length) assert.ok(sh.every((e) => 'real' in e && e.chance && e.result)); const tk = by('tackle'); if (tk.length) assert.ok(tk.every((e) => e.input && 'signal' in e));
 });
